@@ -44,6 +44,7 @@ export function effect(
 ): EffectHandle {
 	let isActive = true;
 	let isPaused = false;
+	let isScheduled = false;
 	let currentFiber: Fiber.RuntimeFiber<void> | null = null;
 	let debounceTimeout: ReturnType<typeof setTimeout> | null = null;
 	let cleanupFns: CleanupFn[] = [];
@@ -73,6 +74,7 @@ export function effect(
 
 	function execute(): void {
 		if (!isActive || isPaused) return;
+		isScheduled = false;
 
 		runCleanups();
 		clearSubscriptions();
@@ -88,9 +90,7 @@ export function effect(
 			const trackedDeps = stopTracking();
 
 			for (const trackedDep of trackedDeps) {
-				const unsub = trackedDep.subscribe(() => {
-					scheduleRun();
-				});
+				const unsub = trackedDep.subscribe(scheduleRun);
 				subscriptions.push(unsub);
 			}
 
@@ -144,17 +144,21 @@ export function effect(
 	}
 
 	function scheduleRun(): void {
-		if (!isActive || isPaused) return;
+		if (!isActive || isPaused || isScheduled) return;
 
 		if (options.debounce) {
 			if (debounceTimeout) {
 				clearTimeout(debounceTimeout);
 			}
+			isScheduled = true;
 			debounceTimeout = setTimeout(() => {
 				execute();
 			}, options.debounce.wait);
-		} else {
+		} else if (options.flush === 'post') {
+			isScheduled = true;
 			queueMicrotask(execute);
+		} else {
+			execute();
 		}
 	}
 
@@ -194,3 +198,4 @@ export function effectOnce(fn: () => void): void {
 }
 
 export { batch } from '../reactivity/dep.js';
+export type { OnCleanup } from '../types/index.js';

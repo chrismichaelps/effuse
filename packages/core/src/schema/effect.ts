@@ -45,6 +45,7 @@ export const EffectOptionsSchema = Schema.Struct({
 	retry: Schema.optional(RetryOptionsSchema),
 	timeout: Schema.optional(Schema.Number),
 	debounce: Schema.optional(DebounceOptionsSchema),
+	flush: Schema.optional(Schema.Literal('sync', 'post')),
 });
 
 export type EffectOptions = Schema.Schema.Type<typeof EffectOptionsSchema>;
