@@ -64,3 +64,12 @@ export {
 	createScope,
 	executeUpdates,
 } from './dep.js';
+
+export {
+	findPropertyDescriptor,
+	getPropertyWithPrivateFieldSupport,
+	setPropertyWithPrivateFieldSupport,
+	bindMethodToTarget,
+	getCurrentValue,
+	type PropertyLookupResult,
+} from './proxy-utils.js';

@@ -42,7 +42,6 @@ class ComputedCell<T> {
 
 	constructor(getter: () => T) {
 		this.getter = getter;
-		this.recompute();
 	}
 
 	get value(): T {

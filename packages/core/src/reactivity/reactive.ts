@@ -24,6 +24,12 @@
 
 import { Dep, isTracking } from './dep.js';
 import { REACTIVE_MARKER } from '../constants.js';
+import {
+	getPropertyWithPrivateFieldSupport,
+	setPropertyWithPrivateFieldSupport,
+	bindMethodToTarget,
+	getCurrentValue,
+} from './proxy-utils.js';
 
 const reactiveMap = new WeakMap<object, object>();
 const proxyToRaw = new WeakMap<object, object>();
@@ -63,32 +69,34 @@ export const reactive = <T extends object>(target: T): Reactive<T> => {
 	};
 
 	const handler: ProxyHandler<T> = {
-		get(obj, key, receiver) {
+		get(obj, key, _receiver) {
 			if (key === REACTIVE_MARKER) {
 				return true;
 			}
 
-			const value = Reflect.get(obj, key, receiver);
+			const value = getPropertyWithPrivateFieldSupport(obj, key);
 
 			const dep = getOrCreateDep(key);
 			dep.track();
 
-			if (typeof value === 'object' && value !== null) {
-				if (isMarkedRaw(value as object)) {
-					return value;
+			const boundValue = bindMethodToTarget(value, obj);
+
+			if (typeof boundValue === 'object' && boundValue !== null) {
+				if (isMarkedRaw(boundValue as object)) {
+					return boundValue;
 				}
-				return reactive(value as object);
+				return reactive(boundValue as object);
 			}
 
-			return value;
+			return boundValue;
 		},
 
-		set(obj, key, value, receiver) {
-			const oldValue = Reflect.get(obj, key, receiver);
+		set(obj, key, value, _receiver) {
+			const oldValue = getCurrentValue(obj, key);
 			const hadKey = Reflect.has(obj, key);
 
 			if (!Object.is(oldValue, value)) {
-				const result = Reflect.set(obj, key, value, receiver);
+				const result = setPropertyWithPrivateFieldSupport(obj, key, value);
 
 				const dep = getOrCreateDep(key);
 				dep.trigger();
