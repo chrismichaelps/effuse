@@ -1,0 +1,227 @@
+/**
+ * MIT License
+ *
+ * Copyright (c) 2025 Chris M. Perez
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
+import { Effect, SubscriptionRef } from 'effect';
+import { markRaw } from '@effuse/core';
+import { getGlobalRouter, type RouterInstance } from '../core/router.js';
+import type { Route, RouteLocation } from '../core/route.js';
+import type { NavigationFailure } from '../navigation/errors.js';
+
+export const useRouter = (): RouterInstance => {
+	const router = getGlobalRouter();
+	if (!router) {
+		throw new Error('Router not installed. Call installRouter() first.');
+	}
+	return markRaw(router);
+};
+
+export const useRoute = (): Route => {
+	const router = useRouter();
+	const route = Effect.runSync(SubscriptionRef.get(router.currentRoute));
+	return markRaw(route);
+};
+
+import { effect } from '@effuse/core';
+import { getRouteSignal } from '../core/context.js';
+
+export const onRouteChange = (
+	callback: (route: Route) => void
+): (() => void) => {
+	const routeSignal = getRouteSignal();
+
+	if (!routeSignal) {
+		return () => {};
+	}
+
+	let lastPath = routeSignal.value.fullPath;
+	let isActive = true;
+
+	const checkAndNotify = (): void => {
+		if (!isActive) return;
+		const route = routeSignal.value;
+		if (route.fullPath !== lastPath) {
+			lastPath = route.fullPath;
+			callback(route);
+		}
+	};
+
+	const { stop: stopEffect } = effect(() => {
+		const route = routeSignal.value;
+		if (route.fullPath !== lastPath) {
+			lastPath = route.fullPath;
+			callback(route);
+		}
+	});
+
+	const handlePopstate = (): void => {
+		setTimeout(checkAndNotify, 10);
+	};
+	window.addEventListener('popstate', handlePopstate);
+
+	const handleRouteChange = (e: Event): void => {
+		const route = (e as CustomEvent).detail as Route;
+		if (route.fullPath !== lastPath) {
+			lastPath = route.fullPath;
+			callback(route);
+		}
+	};
+	window.addEventListener('effuse:route-change', handleRouteChange);
+
+	return () => {
+		isActive = false;
+		stopEffect();
+		window.removeEventListener('popstate', handlePopstate);
+		window.removeEventListener('effuse:route-change', handleRouteChange);
+	};
+};
+
+export const navigateTo = (
+	to: RouteLocation,
+	options?: { replace?: boolean }
+): Promise<Route | NavigationFailure> => {
+	const router = useRouter();
+	const navEffect = options?.replace ? router.replace(to) : router.push(to);
+	return Effect.runPromise(navEffect);
+};
+
+export const goBack = (): void => {
+	const router = useRouter();
+	Effect.runSync(router.back);
+};
+
+export const goForward = (): void => {
+	const router = useRouter();
+	Effect.runSync(router.forward);
+};
+
+export const isActiveRoute = (
+	path: string,
+	exact: boolean = false
+): boolean => {
+	const route = useRoute();
+	if (exact) {
+		return route.path === path;
+	}
+	return route.path.startsWith(path);
+};
+
+export const getLinkClasses = (
+	to: string,
+	options?: {
+		activeClass?: string;
+		exactActiveClass?: string;
+		inactiveClass?: string;
+	}
+): string => {
+	const route = useRoute();
+	const isExactActive = route.path === to;
+	const isActive = route.path.startsWith(to);
+
+	const classes: string[] = [];
+
+	if (isExactActive && options?.exactActiveClass) {
+		classes.push(options.exactActiveClass);
+	} else if (isActive && options?.activeClass) {
+		classes.push(options.activeClass);
+	} else if (!isActive && options?.inactiveClass) {
+		classes.push(options.inactiveClass);
+	}
+
+	return classes.join(' ');
+};
+
+export const onBeforeRouteLeave = (
+	guard: (to: Route, from: Route) => boolean | undefined
+): (() => void) => {
+	const router = useRouter();
+	const currentPath = useRoute().path;
+
+	return router.beforeEach((to, from) =>
+		Effect.sync(() => {
+			if (from.path !== currentPath) {
+				return { _tag: 'NavigationAllowed' as const };
+			}
+
+			const result = guard(to as Route, from);
+			if (result === false) {
+				return {
+					_tag: 'NavigationCancelled' as const,
+					reason: 'Route leave blocked',
+				};
+			}
+			return { _tag: 'NavigationAllowed' as const };
+		})
+	);
+};
+
+export const onBeforeRouteUpdate = (
+	guard: (to: Route, from: Route) => boolean | undefined
+): (() => void) => {
+	const router = useRouter();
+
+	return router.beforeEach((to, from) =>
+		Effect.sync(() => {
+			const toMatched = to.matched[to.matched.length - 1];
+			const fromMatched = from.matched[from.matched.length - 1];
+
+			if (toMatched?.path !== fromMatched?.path) {
+				return { _tag: 'NavigationAllowed' as const };
+			}
+
+			if (to.fullPath !== from.fullPath) {
+				const result = guard(to as Route, from);
+				if (result === false) {
+					return {
+						_tag: 'NavigationCancelled' as const,
+						reason: 'Route update blocked',
+					};
+				}
+			}
+
+			return { _tag: 'NavigationAllowed' as const };
+		})
+	);
+};
+
+export const useFetchOnRouteChange = <T>(
+	fetcher: (route: Route) => Effect.Effect<T>,
+	onData: (data: T) => void,
+	onError: (error: unknown) => void = () => {}
+): (() => void) => {
+	return onRouteChange((route) => {
+		Effect.runPromise(fetcher(route)).then(onData).catch(onError);
+	});
+};
+
+export const createRouteDataLoader = <T>(
+	loaders: Record<string, (route: Route) => Effect.Effect<T>>
+): ((route: Route) => Effect.Effect<T | null>) => {
+	return (route: Route) => {
+		const routeName = route.name;
+		if (routeName && loaders[routeName]) {
+			return loaders[routeName](route);
+		}
+		return Effect.succeed(null);
+	};
+};

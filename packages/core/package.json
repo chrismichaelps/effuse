@@ -1,0 +1,87 @@
+{
+	"name": "@effuse/core",
+	"version": "0.1.0",
+	"description": "The core library for Effuse. It provides the reactive Signals engine and the lightweight DOM renderer, serving as the foundation for building interactive interfaces.",
+	"author": "Chris M. Pérez",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/chrismichaelps/effuse.git"
+	},
+	"bugs": {
+		"url": "https://github.com/chrismichaelps/effuse/issues"
+	},
+	"homepage": "https://github.com/chrismichaelps/effuse#readme",
+	"type": "module",
+	"main": "./dist/index.cjs",
+	"module": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"import": {
+				"types": "./dist/index.d.ts",
+				"default": "./dist/index.js"
+			},
+			"require": {
+				"types": "./dist/index.d.cts",
+				"default": "./dist/index.cjs"
+			}
+		},
+		"./jsx-runtime": {
+			"import": {
+				"types": "./dist/jsx-runtime.d.ts",
+				"default": "./dist/jsx-runtime.js"
+			},
+			"require": {
+				"types": "./dist/jsx-runtime.d.cts",
+				"default": "./dist/jsx-runtime.cjs"
+			}
+		},
+		"./jsx-dev-runtime": {
+			"import": {
+				"types": "./dist/jsx-runtime.d.ts",
+				"default": "./dist/jsx-runtime.js"
+			},
+			"require": {
+				"types": "./dist/jsx-runtime.d.cts",
+				"default": "./dist/jsx-runtime.cjs"
+			}
+		}
+	},
+	"files": [
+		"dist",
+		"src"
+	],
+	"scripts": {
+		"build": "tsup",
+		"dev": "tsup --watch",
+		"lint": "eslint src",
+		"typecheck": "tsc --noEmit"
+	},
+	"keywords": [
+		"ui-library",
+		"reactive",
+		"signals",
+		"lightweight",
+		"no-vdom",
+		"typescript",
+		"effect-ts",
+		"effuse"
+	],
+	"engines": {
+		"node": ">=23.0.0"
+	},
+	"packageManager": "pnpm@10.26.0",
+	"dependencies": {
+		"effect": "^3.19.12"
+	},
+	"devDependencies": {
+		"@effect/eslint-plugin": "^0.3.2",
+		"@types/node": "^25.0.3",
+		"eslint": "^9.39.2",
+		"tsup": "^8.5.1",
+		"typescript": "^5.9.3",
+		"typescript-eslint": "^8.50.0",
+		"vitest": "^4.0.16"
+	}
+}

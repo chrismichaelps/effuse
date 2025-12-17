@@ -1,0 +1,42 @@
+{
+	"name": "effuse",
+	"version": "0.1.0",
+	"private": true,
+	"description": "A lightweight, simple reactive UI library for building web interfaces.",
+	"author": "Chris M. Pérez",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/chrismichaelps/effuse.git"
+	},
+	"bugs": {
+		"url": "https://github.com/chrismichaelps/effuse/issues"
+	},
+	"homepage": "https://github.com/chrismichaelps/effuse#readme",
+	"type": "module",
+	"scripts": {
+		"build": "pnpm -r build",
+		"dev": "pnpm -r dev",
+		"test": "pnpm -r test",
+		"lint": "pnpm -r lint",
+		"typecheck": "tsc --noEmit",
+		"prepublishOnly": "pnpm build && pnpm typecheck",
+		"release": "semantic-release",
+		"clean": "pnpm -r exec rm -rf dist node_modules",
+		"format": "prettier --cache --write .",
+		"format:check": "prettier --check .",
+		"update:deps": "sh scripts/update-deps.sh"
+	},
+	"engines": {
+		"node": ">=23.0.0"
+	},
+	"packageManager": "pnpm@10.26.0",
+	"devDependencies": {
+		"@semantic-release/changelog": "^6.0.3",
+		"@semantic-release/git": "^10.0.1",
+		"conventional-changelog-conventionalcommits": "^9.1.0",
+		"prettier": "^3.7.4",
+		"semantic-release": "^25.0.2",
+		"tsup": "^8.5.1"
+	}
+}
