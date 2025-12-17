@@ -49,6 +49,7 @@ export {
 	isSignal,
 	unref,
 	getSignalRef,
+	getSignalDep,
 	reactive,
 	isReactive,
 	toRaw,

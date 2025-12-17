@@ -53,8 +53,8 @@ export const jsx = (
 	if (isBlueprint(type)) {
 		const portals =
 			typeof children === 'object' &&
-			children !== null &&
-			!Array.isArray(children)
+				children !== null &&
+				!Array.isArray(children)
 				? (children as Portals)
 				: children
 					? { default: () => children as EffuseChild }
@@ -114,6 +114,7 @@ const normalizeJSXChildren = (children: unknown): EffuseChild[] => {
 	return [children as EffuseChild];
 };
 
+// eslint-disable-next-line @typescript-eslint/no-namespace
 export namespace JSX {
 	export type Element = EffuseNode;
 	export type ElementClass = never;
@@ -122,8 +123,10 @@ export namespace JSX {
 		key?: string | number | undefined;
 	}
 
-	export type ElementType = string | BlueprintDef | Component | Function;
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	export type ElementType = string | BlueprintDef | Component | ((props: any) => EffuseNode);
 
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	export type LibraryManagedAttributes<_C, P> = P & IntrinsicAttributes;
 
 	export interface IntrinsicElements {
@@ -134,14 +137,18 @@ export namespace JSX {
 		key?: string | number | undefined;
 		ref?: ((el: unknown) => void) | undefined;
 		class?:
-			| string
-			| Record<string, boolean>
-			| (string | Record<string, boolean>)[];
-		style?: string | Record<string, string | number>;
-		id?: string;
-		title?: string;
+		| string
+		| Record<string, boolean>
+		| (string | Record<string, boolean>)[]
+		| (() => string | undefined | null);
+		className?:
+		| string
+		| (() => string | undefined | null);
+		style?: string | Record<string, string | number> | (() => Record<string, string | number>);
+		id?: string | (() => string);
+		title?: string | (() => string);
 		tabIndex?: number;
-		hidden?: boolean;
+		hidden?: boolean | (() => boolean);
 		children?: EffuseChild;
 
 		onClick?: (e: MouseEvent) => void;

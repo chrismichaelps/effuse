@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-import { Effect, SubscriptionRef } from 'effect';
+import { Effect } from 'effect';
 import { markRaw } from '@effuse/core';
 import { getGlobalRouter, type RouterInstance } from '../core/router.js';
 import type { Route, RouteLocation } from '../core/route.js';
@@ -37,9 +37,22 @@ export const useRouter = (): RouterInstance => {
 };
 
 export const useRoute = (): Route => {
-	const router = useRouter();
-	const route = Effect.runSync(SubscriptionRef.get(router.currentRoute));
-	return markRaw(route);
+	const routeSignal = getRouteSignal();
+	if (!routeSignal) {
+		throw new Error('Router not installed. Call installRouter() first.');
+	}
+
+	return new Proxy(routeSignal.value, {
+		get(_target, prop, receiver) {
+			return Reflect.get(routeSignal.value, prop, receiver) as Route[keyof Route];
+		},
+		ownKeys(_target) {
+			return Reflect.ownKeys(routeSignal.value);
+		},
+		getOwnPropertyDescriptor(_target, prop) {
+			return Reflect.getOwnPropertyDescriptor(routeSignal.value, prop);
+		},
+	});
 };
 
 import { effect } from '@effuse/core';
@@ -51,49 +64,22 @@ export const onRouteChange = (
 	const routeSignal = getRouteSignal();
 
 	if (!routeSignal) {
-		return () => {};
+		return () => { };
 	}
 
-	let lastPath = routeSignal.value.fullPath;
-	let isActive = true;
+	let lastFullPath = routeSignal.value.fullPath;
 
-	const checkAndNotify = (): void => {
-		if (!isActive) return;
+	const { stop } = effect(() => {
 		const route = routeSignal.value;
-		if (route.fullPath !== lastPath) {
-			lastPath = route.fullPath;
-			callback(route);
-		}
-	};
+		const currentFullPath = route.fullPath;
 
-	const { stop: stopEffect } = effect(() => {
-		const route = routeSignal.value;
-		if (route.fullPath !== lastPath) {
-			lastPath = route.fullPath;
+		if (currentFullPath !== lastFullPath) {
+			lastFullPath = currentFullPath;
 			callback(route);
 		}
 	});
 
-	const handlePopstate = (): void => {
-		setTimeout(checkAndNotify, 10);
-	};
-	window.addEventListener('popstate', handlePopstate);
-
-	const handleRouteChange = (e: Event): void => {
-		const route = (e as CustomEvent).detail as Route;
-		if (route.fullPath !== lastPath) {
-			lastPath = route.fullPath;
-			callback(route);
-		}
-	};
-	window.addEventListener('effuse:route-change', handleRouteChange);
-
-	return () => {
-		isActive = false;
-		stopEffect();
-		window.removeEventListener('popstate', handlePopstate);
-		window.removeEventListener('effuse:route-change', handleRouteChange);
-	};
+	return stop;
 };
 
 export const navigateTo = (
@@ -207,7 +193,7 @@ export const onBeforeRouteUpdate = (
 export const useFetchOnRouteChange = <T>(
 	fetcher: (route: Route) => Effect.Effect<T>,
 	onData: (data: T) => void,
-	onError: (error: unknown) => void = () => {}
+	onError: (error: unknown) => void = () => { }
 ): (() => void) => {
 	return onRouteChange((route) => {
 		Effect.runPromise(fetcher(route)).then(onData).catch(onError);
