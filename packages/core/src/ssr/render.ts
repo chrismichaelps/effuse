@@ -233,12 +233,12 @@ const renderAttributes = (props: Record<string, unknown>): string => {
 
 		if (typeof actualValue === 'boolean') {
 			if (actualValue) {
-				parts.push(key);
+				parts.push(escapeAttrName(key === 'className' ? 'class' : camelToKebab(key)));
 			}
 			continue;
 		}
 
-		const attrName = key === 'className' ? 'class' : key;
+		const attrName = escapeAttrName(key === 'className' ? 'class' : camelToKebab(key));
 
 		if (key === 'style' && typeof actualValue === 'object') {
 			const styleStr = Object.entries(
@@ -281,14 +281,26 @@ const generateFullHtml = (
 };
 
 const escapeHtml = (str: string): string => {
-	return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+	return str
+		.replace(/&/g, '&amp;')
+		.replace(/</g, '&lt;')
+		.replace(/>/g, '&gt;');
 };
 
 const escapeAttr = (str: string): string => {
 	return str
 		.replace(/&/g, '&amp;')
+		.replace(/</g, '&lt;')
+		.replace(/>/g, '&gt;')
 		.replace(/"/g, '&quot;')
 		.replace(/'/g, '&#39;');
+};
+
+const escapeAttrName = (str: string): string => {
+	return escapeAttr(str)
+		.replace(/\//g, '&#47;')
+		.replace(/\s/g, '&#32;')
+		.replace(/=/g, '&#61;');
 };
 
 const camelToKebab = (str: string): string => {
