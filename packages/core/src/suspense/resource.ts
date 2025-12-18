@@ -109,8 +109,6 @@ export const createResource = <T>(
 		}
 		abortController = new AbortController();
 
-		state.value = createPendingState<T>();
-
 		const needsEffectFeatures = options?.timeout || options?.retry;
 
 		let fetchPromise: Promise<T>;
@@ -150,6 +148,8 @@ export const createResource = <T>(
 		if (boundary) {
 			boundary.registerPending(resourceId, resolvePromise);
 		}
+
+		state.value = createPendingState<T>();
 	};
 
 	if (options?.initialValue === undefined) {
