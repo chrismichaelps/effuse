@@ -29,6 +29,26 @@ let BatchDepth = 0;
 let GlobalVersion = 0;
 let TrackingPaused = false;
 
+let pendingEffects = new Set<() => void>();
+let effectExecutionDepth = 0;
+
+function flushPendingEffects(): void {
+	if (effectExecutionDepth > 0) return;
+
+	while (pendingEffects.size > 0) {
+		const effects = [...pendingEffects];
+		pendingEffects = new Set();
+		effectExecutionDepth++;
+		try {
+			for (const effect of effects) {
+				effect();
+			}
+		} finally {
+			effectExecutionDepth--;
+		}
+	}
+}
+
 export class Dep {
 	version = 0;
 	private subscribers = new Set<() => void>();
@@ -50,9 +70,12 @@ export class Dep {
 				BatchQueue.add(sub);
 			}
 		} else {
-			const subs = [...this.subscribers];
-			for (const sub of subs) {
-				sub();
+			for (const sub of this.subscribers) {
+				pendingEffects.add(sub);
+			}
+
+			if (effectExecutionDepth === 0 && pendingEffects.size > 0) {
+				flushPendingEffects();
 			}
 		}
 	}

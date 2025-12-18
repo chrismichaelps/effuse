@@ -72,6 +72,18 @@ export const reactive = <T extends object>(target: T): Reactive<T> => {
 		return dep;
 	};
 
+	const ARRAY_MUTATION_METHODS = new Set([
+		'push',
+		'pop',
+		'shift',
+		'unshift',
+		'splice',
+		'sort',
+		'reverse',
+		'fill',
+		'copyWithin',
+	]);
+
 	const handler: ProxyHandler<T> = {
 		get(obj, key, _receiver) {
 			if (key === REACTIVE_MARKER) {
@@ -82,6 +94,23 @@ export const reactive = <T extends object>(target: T): Reactive<T> => {
 
 			const dep = getOrCreateDep(key);
 			dep.track();
+
+			if (
+				Array.isArray(obj) &&
+				typeof key === 'string' &&
+				ARRAY_MUTATION_METHODS.has(key) &&
+				typeof value === 'function'
+			) {
+				return (...args: unknown[]) => {
+					const result = (value as (...a: unknown[]) => unknown).apply(
+						obj,
+						args
+					);
+					getOrCreateDep('length').trigger();
+					iterateDep.trigger();
+					return result;
+				};
+			}
 
 			const boundValue = bindMethodToTarget(value, obj);
 
