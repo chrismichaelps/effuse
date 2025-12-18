@@ -30,6 +30,7 @@ import {
 	resumeTracking,
 	pauseTracking,
 } from '../reactivity/dep.js';
+import type { Dep } from '../reactivity/dep.js';
 import { isSuspendToken } from '../suspense/token.js';
 import type {
 	EffectHandle,
@@ -84,26 +85,31 @@ export function effect(
 
 		startTracking();
 
+		let trackedDeps: Dep[] | undefined;
 		try {
 			const result = fn(onCleanup);
 
-			const trackedDeps = stopTracking();
-
-			for (const trackedDep of trackedDeps) {
-				const unsub = trackedDep.subscribe(scheduleRun);
-				subscriptions.push(unsub);
-			}
+			trackedDeps = stopTracking();
 
 			if (result instanceof Promise) {
 				executeAsync(result);
 			}
 		} catch (err) {
-			stopTracking();
+			if (!trackedDeps) {
+				trackedDeps = stopTracking();
+			}
 			if (isSuspendToken(err)) {
 				return;
 			}
 			throw err;
 		} finally {
+			if (trackedDeps) {
+				for (const trackedDep of trackedDeps) {
+					const unsub = trackedDep.subscribe(scheduleRun);
+					subscriptions.push(unsub);
+				}
+			}
+
 			if (wasPaused) {
 				pauseTracking();
 			}
