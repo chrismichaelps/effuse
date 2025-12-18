@@ -37,7 +37,7 @@ function flushPendingEffects(): void {
 
 	while (pendingEffects.size > 0) {
 		const effects = [...pendingEffects];
-		pendingEffects = new Set();
+		pendingEffects.clear();
 		effectExecutionDepth++;
 		try {
 			for (const effect of effects) {

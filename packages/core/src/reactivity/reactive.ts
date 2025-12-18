@@ -50,6 +50,10 @@ export const reactive = <T extends object>(target: T): Reactive<T> => {
 		return target as Reactive<T>;
 	}
 
+	if (Object.isFrozen(target)) {
+		return target as Reactive<T>;
+	}
+
 	if (isReactive(target)) {
 		return target as Reactive<T>;
 	}
