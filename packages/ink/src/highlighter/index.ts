@@ -356,7 +356,7 @@ const getTokenizer = (
 		case 'svg':
 			return tokenizeHTML;
 		default:
-			return tokenizeJS; // Default to JS-like highlighting
+			return tokenizeJS;
 	}
 };
 

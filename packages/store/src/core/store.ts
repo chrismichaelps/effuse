@@ -40,6 +40,12 @@ import {
 	runAdapter,
 	localStorageAdapter,
 } from '../persistence/index.js';
+import {
+	createCancellationScope,
+	createCancellationToken,
+	type CancellationScope,
+	type CancellationToken,
+} from '../actions/cancellation.js';
 
 interface StoreInternals {
 	signalMap: Map<string, Signal<unknown>>;
@@ -52,6 +58,8 @@ interface StoreInternals {
 		Signal<unknown>
 	>;
 	isBatching: boolean;
+	cancellationScope: CancellationScope;
+	pendingActions: Map<string, CancellationToken>;
 }
 
 const getSnapshot = (
@@ -91,6 +99,8 @@ export const createStore = <T extends object>(
 		keySubscribers: new Map(),
 		computedSelectors: new Map(),
 		isBatching: false,
+		cancellationScope: createCancellationScope(),
+		pendingActions: new Map(),
 	};
 
 	const middlewareManager = createMiddlewareManager<Record<string, unknown>>();
@@ -195,13 +205,37 @@ export const createStore = <T extends object>(
 			if (enableDevtools) {
 				console.log(`[${name}] ${key}(`, ...args, ')');
 			}
+
+			const existingToken = internals.pendingActions.get(key);
+			if (existingToken) {
+				existingToken.cancel();
+			}
+
 			const result = action.apply(stateProxy, args);
 
-			// Execute middleware with action name for DevTools
+			if (result instanceof Promise) {
+				const token = createCancellationToken();
+				internals.pendingActions.set(key, token);
+
+				return result
+					.then((value: unknown) => {
+						if (!token.isCancelled) {
+							internals.pendingActions.delete(key);
+							const currentState = getSnapshot(internals.signalMap);
+							middlewareManager.execute(currentState, key, args);
+							notifySubscribers();
+						}
+						return value;
+					})
+					.catch((error: unknown) => {
+						internals.pendingActions.delete(key);
+						throw error;
+					});
+			}
+
 			const currentState = getSnapshot(internals.signalMap);
 			middlewareManager.execute(currentState, key, args);
 
-			// Notify subscribers after action completes
 			notifySubscribers();
 
 			return result;

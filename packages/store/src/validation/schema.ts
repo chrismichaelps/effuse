@@ -22,7 +22,9 @@
  * SOFTWARE.
  */
 
-import { Effect, Schema } from 'effect';
+import { Effect, Schema, Duration } from 'effect';
+import { TimeoutError } from '../actions/async.js';
+import { DEFAULT_TIMEOUT_MS } from '../config/constants.js';
 
 export type StateSchema<T> = Schema.Schema<T, T>;
 
@@ -53,6 +55,37 @@ export const validateState = <T>(
 		)
 	);
 	return result;
+};
+
+export const validateStateAsync = <T>(
+	schema: StateSchema<T>,
+	state: unknown,
+	timeoutMs = DEFAULT_TIMEOUT_MS
+): Promise<ValidationResult<T>> => {
+	return Effect.runPromise(
+		Schema.decodeUnknown(schema)(state).pipe(
+			Effect.map((data) => ({
+				success: true as const,
+				data,
+				errors: [] as string[],
+			})),
+			Effect.timeoutFail({
+				duration: Duration.millis(timeoutMs),
+				onTimeout: () => new TimeoutError(timeoutMs),
+			}),
+			Effect.catchAll((error) =>
+				Effect.succeed({
+					success: false as const,
+					data: null,
+					errors: [
+						error instanceof TimeoutError
+							? `Validation timed out after ${String(timeoutMs)}ms`
+							: String(error),
+					],
+				})
+			)
+		)
+	);
 };
 
 export const createValidatedSetter = <T extends Record<string, unknown>>(

@@ -22,11 +22,19 @@
  * SOFTWARE.
  */
 
-import { Config, Effect } from 'effect';
+import { Config, Duration, Effect } from 'effect';
 
 export const STORAGE_PREFIX = 'effuse-store:';
 export const ROOT_SCOPE_ID = '__root__';
 export const SCOPE_PREFIX = 'scope_';
+
+export const DEFAULT_TIMEOUT_MS = 5000;
+
+export const DEFAULT_TIMEOUT = Duration.millis(DEFAULT_TIMEOUT_MS);
+
+export const DEFAULT_RETRY_INITIAL_DELAY_MS = 100;
+export const DEFAULT_RETRY_MAX_DELAY_MS = 5000;
+export const DEFAULT_RETRY_BACKOFF_FACTOR = 2;
 
 export const StoreConstants = {
 	STORAGE_PREFIX,
@@ -34,6 +42,7 @@ export const StoreConstants = {
 	SCOPE_PREFIX,
 	DEBUG_PREFIX: '[store]',
 	DEVTOOLS_PREFIX: 'Effuse:',
+	DEFAULT_TIMEOUT_MS,
 } as const;
 
 export const StoreConfigOptions = {

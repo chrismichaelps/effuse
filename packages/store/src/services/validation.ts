@@ -30,6 +30,7 @@ import {
 	type StateSchema,
 	type ValidationResult,
 } from '../validation/schema.js';
+import { createDeferred } from '../actions/cancellation.js';
 
 export class ValidationError extends Error {
 	readonly _tag = 'ValidationError';
@@ -52,6 +53,13 @@ export interface ValidationServiceApi {
 	createValidator: <T>(
 		schema: Schema.Schema<T, T>
 	) => (value: unknown) => Effect.Effect<T, ValidationError>;
+	validateWithDeferred: <T>(
+		schema: StateSchema<T>,
+		state: unknown
+	) => Effect.Effect<{
+		result: Effect.Effect<T, ValidationError>;
+		triggerValidation: () => Effect.Effect<boolean>;
+	}>;
 }
 
 export class ValidationService extends Context.Tag(
@@ -79,6 +87,24 @@ export const ValidationServiceLive: Layer.Layer<ValidationService> =
 					try: () => createFieldValidator(schema)(value),
 					catch: (e) => new ValidationError([String(e)]),
 				}),
+
+		validateWithDeferred: <T>(schema: StateSchema<T>, state: unknown) =>
+			Effect.gen(function* () {
+				const deferred = yield* createDeferred<T, ValidationError>();
+				return {
+					result: deferred.await,
+					triggerValidation: () =>
+						Effect.gen(function* () {
+							const validationResult = validateState(schema, state);
+							if (validationResult.success && validationResult.data) {
+								return yield* deferred.succeed(validationResult.data);
+							}
+							return yield* deferred.fail(
+								new ValidationError(validationResult.errors)
+							);
+						}),
+				};
+			}),
 	});
 
 export const useValidation = <A, E, R>(

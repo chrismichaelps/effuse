@@ -23,12 +23,20 @@
  */
 
 import type { Store } from '../core/types.js';
+import {
+	createCancellationToken,
+	type CancellationToken,
+} from '../actions/cancellation.js';
 
 export interface StoreStream<T> {
 	subscribe: (handler: (value: T) => void) => () => void;
 	map: <R>(fn: (value: T) => R) => StoreStream<R>;
 	filter: (predicate: (value: T) => boolean) => StoreStream<T>;
 	debounce: (ms: number) => StoreStream<T>;
+	throttle: (ms: number) => StoreStream<T>;
+	takeLatest: <R>(
+		asyncHandler: (value: T, token: CancellationToken) => Promise<R>
+	) => StoreStream<R>;
 }
 
 const createBaseStream = <T>(
@@ -66,12 +74,19 @@ const createBaseStream = <T>(
 			const debouncedListeners = new Set<(value: T) => void>();
 			let timeout: ReturnType<typeof setTimeout> | null = null;
 			let latestValue: T | undefined;
+			let currentToken = createCancellationToken();
 
 			addListener((value) => {
 				latestValue = value;
-				if (timeout) clearTimeout(timeout);
+				if (timeout) {
+					clearTimeout(timeout);
+					currentToken.cancel();
+				}
+				currentToken = createCancellationToken();
+				const myToken = currentToken;
+
 				timeout = setTimeout(() => {
-					if (latestValue !== undefined) {
+					if (!myToken.isCancelled && latestValue !== undefined) {
 						for (const h of debouncedListeners) h(latestValue);
 					}
 				}, ms);
@@ -80,6 +95,50 @@ const createBaseStream = <T>(
 			return createBaseStream((h) => {
 				debouncedListeners.add(h);
 				return () => debouncedListeners.delete(h);
+			});
+		},
+
+		throttle: (ms): StoreStream<T> => {
+			const throttledListeners = new Set<(value: T) => void>();
+			let lastEmitTime = 0;
+
+			addListener((value) => {
+				const now = Date.now();
+				if (now - lastEmitTime >= ms) {
+					lastEmitTime = now;
+					for (const h of throttledListeners) h(value);
+				}
+			});
+
+			return createBaseStream((h) => {
+				throttledListeners.add(h);
+				return () => throttledListeners.delete(h);
+			});
+		},
+
+		takeLatest: <R>(
+			asyncHandler: (value: T, token: CancellationToken) => Promise<R>
+		): StoreStream<R> => {
+			const latestListeners = new Set<(value: R) => void>();
+			let currentToken = createCancellationToken();
+
+			addListener((value) => {
+				currentToken.cancel();
+				currentToken = createCancellationToken();
+				const myToken = currentToken;
+
+				asyncHandler(value, myToken)
+					.then((result) => {
+						if (!myToken.isCancelled) {
+							for (const h of latestListeners) h(result);
+						}
+					})
+					.catch(() => {});
+			});
+
+			return createBaseStream((h) => {
+				latestListeners.add(h);
+				return () => latestListeners.delete(h);
 			});
 		},
 	};

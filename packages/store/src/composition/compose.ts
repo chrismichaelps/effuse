@@ -25,6 +25,10 @@
 import { signal, type Signal } from '@effuse/core';
 import type { Store, StoreDefinition } from '../core/types.js';
 import { createStore as createStoreImpl } from '../core/store.js';
+import {
+	createCancellationToken,
+	type CancellationToken,
+} from '../actions/cancellation.js';
 
 export interface ComposedStore<T, D extends readonly Store<unknown>[]> {
 	store: Store<T>;
@@ -35,6 +39,14 @@ export interface ComposedStore<T, D extends readonly Store<unknown>[]> {
 			deps: { [K in keyof D]: ReturnType<D[K]['getSnapshot']> }
 		) => R
 	) => Signal<R>;
+	computedAsync: <R>(
+		asyncSelector: (
+			state: T,
+			deps: { [K in keyof D]: ReturnType<D[K]['getSnapshot']> },
+			token: CancellationToken
+		) => Promise<R>,
+		initialValue: R
+	) => Signal<R> & { pending: Signal<boolean>; cleanup: () => void };
 }
 
 export const composeStores = <T, D extends readonly Store<unknown>[]>(
@@ -78,6 +90,60 @@ export const composeStores = <T, D extends readonly Store<unknown>[]>(
 			}
 
 			return derived;
+		},
+		computedAsync: <R>(
+			asyncSelector: (
+				state: T,
+				deps: { [K in keyof D]: ReturnType<D[K]['getSnapshot']> },
+				token: CancellationToken
+			) => Promise<R>,
+			initialValue: R
+		): Signal<R> & { pending: Signal<boolean>; cleanup: () => void } => {
+			const derived = signal<R>(initialValue);
+			const pending = signal<boolean>(false);
+			let currentToken = createCancellationToken();
+			const unsubscribers: (() => void)[] = [];
+
+			const update = () => {
+				currentToken.cancel();
+				currentToken = createCancellationToken();
+				const myToken = currentToken;
+				pending.value = true;
+
+				const mainState = mainStore.getSnapshot() as T;
+				const depStates = getDependencySnapshots();
+
+				asyncSelector(mainState, depStates, myToken)
+					.then((newValue) => {
+						if (!myToken.isCancelled && derived.value !== newValue) {
+							derived.value = newValue;
+						}
+					})
+					.catch(() => {})
+					.finally(() => {
+						if (!myToken.isCancelled) {
+							pending.value = false;
+						}
+					});
+			};
+
+			unsubscribers.push(mainStore.subscribe(update));
+			for (const dep of dependencies) {
+				unsubscribers.push(dep.subscribe(update));
+			}
+			update();
+
+			const result = derived as Signal<R> & {
+				pending: Signal<boolean>;
+				cleanup: () => void;
+			};
+			result.pending = pending;
+			result.cleanup = () => {
+				currentToken.cancel();
+				for (const unsub of unsubscribers) unsub();
+			};
+
+			return result;
 		},
 	};
 };

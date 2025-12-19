@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-import { Context, Effect, Layer, type Option } from 'effect';
+import { Context, Effect, Layer, Duration, Option } from 'effect';
 import {
 	type StorageAdapter,
 	localStorageAdapter,
@@ -30,12 +30,23 @@ import {
 	noopAdapter,
 	createMemoryAdapter,
 } from '../persistence/adapters.js';
+import { TimeoutError } from '../actions/async.js';
+import { DEFAULT_TIMEOUT_MS } from '../config/constants.js';
 
 export interface PersistenceServiceApi {
 	get: (key: string) => Effect.Effect<Option.Option<string>>;
 	set: (key: string, value: string) => Effect.Effect<void>;
 	remove: (key: string) => Effect.Effect<void>;
 	clear: () => Effect.Effect<void>;
+	getWithTimeout: (
+		key: string,
+		timeoutMs?: number
+	) => Effect.Effect<Option.Option<string>, TimeoutError>;
+	setWithTimeout: (
+		key: string,
+		value: string,
+		timeoutMs?: number
+	) => Effect.Effect<void, TimeoutError>;
 }
 
 export class PersistenceService extends Context.Tag(
@@ -45,10 +56,55 @@ export class PersistenceService extends Context.Tag(
 const createPersistenceApi = (
 	adapter: StorageAdapter
 ): PersistenceServiceApi => ({
-	get: (key: string) => adapter.getItem(key),
-	set: (key: string, value: string) => adapter.setItem(key, value),
-	remove: (key: string) => adapter.removeItem(key),
+	get: (key: string) => {
+		const result = adapter.getItem(key);
+		return result instanceof Promise
+			? Effect.promise(async () => Option.fromNullable(await result))
+			: Effect.succeed(Option.fromNullable(result));
+	},
+	set: (key: string, value: string) => {
+		const result = adapter.setItem(key, value);
+		return result instanceof Promise
+			? Effect.promise(() => result)
+			: Effect.void;
+	},
+	remove: (key: string) => {
+		const result = adapter.removeItem(key);
+		return result instanceof Promise
+			? Effect.promise(() => result)
+			: Effect.void;
+	},
 	clear: () => Effect.void,
+	getWithTimeout: (key: string, timeoutMs = DEFAULT_TIMEOUT_MS) => {
+		const result = adapter.getItem(key);
+		const effect =
+			result instanceof Promise
+				? Effect.promise(async () => Option.fromNullable(await result))
+				: Effect.succeed(Option.fromNullable(result));
+
+		return effect.pipe(
+			Effect.timeoutFail({
+				duration: Duration.millis(timeoutMs),
+				onTimeout: () => new TimeoutError(timeoutMs),
+			})
+		);
+	},
+	setWithTimeout: (
+		key: string,
+		value: string,
+		timeoutMs = DEFAULT_TIMEOUT_MS
+	) => {
+		const result = adapter.setItem(key, value);
+		const effect =
+			result instanceof Promise ? Effect.promise(() => result) : Effect.void;
+
+		return effect.pipe(
+			Effect.timeoutFail({
+				duration: Duration.millis(timeoutMs),
+				onTimeout: () => new TimeoutError(timeoutMs),
+			})
+		);
+	},
 });
 
 export const LocalStoragePersistenceLive: Layer.Layer<PersistenceService> =

@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-import { Context, Effect, Layer } from 'effect';
+import { Context, Effect, Layer, Duration } from 'effect';
 import type { Store, StoreDefinition, Middleware } from '../core/types.js';
 import { createStore, type CreateStoreOptions } from '../core/store.js';
 import {
@@ -41,6 +41,8 @@ import {
 	runInScope,
 	type ScopeNode,
 } from '../context/scope.js';
+import { TimeoutError } from '../actions/async.js';
+import { DEFAULT_TIMEOUT_MS } from '../config/constants.js';
 
 export class StoreNotFoundError extends Error {
 	readonly _tag = 'StoreNotFoundError';
@@ -63,6 +65,10 @@ export interface StoreServiceApi {
 		options?: CreateStoreOptions
 	) => Effect.Effect<Store<T>>;
 	get: <T>(name: string) => Effect.Effect<Store<T>, StoreNotFoundError>;
+	getWithTimeout: <T>(
+		name: string,
+		timeoutMs?: number
+	) => Effect.Effect<Store<T>, StoreNotFoundError | TimeoutError>;
 	has: (name: string) => Effect.Effect<boolean>;
 	remove: (name: string) => Effect.Effect<boolean>;
 	clear: () => Effect.Effect<void>;
@@ -92,6 +98,17 @@ export const StoreServiceLive: Layer.Layer<StoreService> = Layer.succeed(
 				try: () => getStore<T>(name),
 				catch: () => new StoreNotFoundError(name),
 			}),
+
+		getWithTimeout: <T>(name: string, timeoutMs = DEFAULT_TIMEOUT_MS) =>
+			Effect.try({
+				try: () => getStore<T>(name),
+				catch: () => new StoreNotFoundError(name),
+			}).pipe(
+				Effect.timeoutFail({
+					duration: Duration.millis(timeoutMs),
+					onTimeout: () => new TimeoutError(timeoutMs),
+				})
+			),
 
 		has: (name: string) => Effect.sync(() => hasStore(name)),
 		remove: (name: string) => Effect.sync(() => removeStore(name)),

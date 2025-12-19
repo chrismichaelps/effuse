@@ -24,6 +24,7 @@
 
 export {
 	validateState,
+	validateStateAsync,
 	createValidatedSetter,
 	createFieldValidator,
 	createSafeFieldSetter,

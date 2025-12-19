@@ -23,6 +23,7 @@
  */
 
 import { Effect, SubscriptionRef } from 'effect';
+import { createAtomicRef } from '../actions/cancellation.js';
 
 export interface AtomicState<T extends Record<string, unknown>> {
 	get: () => T;
@@ -43,4 +44,17 @@ export const createAtomicState = <T extends Record<string, unknown>>(
 			Effect.runSync(SubscriptionRef.update(ref, fn));
 		},
 	};
+};
+
+export interface AtomicStateEffect<T extends Record<string, unknown>> {
+	get: Effect.Effect<T>;
+	set: (value: T) => Effect.Effect<void>;
+	update: (fn: (state: T) => T) => Effect.Effect<T>;
+	getAndSet: (value: T) => Effect.Effect<T>;
+}
+
+export const createAtomicStateWithEffect = <T extends Record<string, unknown>>(
+	initial: T
+): Effect.Effect<AtomicStateEffect<T>> => {
+	return createAtomicRef(initial) as Effect.Effect<AtomicStateEffect<T>>;
 };

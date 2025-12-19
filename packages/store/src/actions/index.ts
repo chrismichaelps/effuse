@@ -24,8 +24,27 @@
 
 export {
 	createAsyncAction,
+	createCancellableAction,
 	dispatch,
 	dispatchSync,
+	withTimeout,
+	withRetry,
+	withAbortSignal,
+	takeLatest,
+	takeFirst,
+	debounceAction,
+	throttleAction,
+	TimeoutError,
 	type ActionResult,
 	type AsyncAction,
+	type CancellableAction,
+	type RetryConfig,
 } from './async.js';
+
+export {
+	CancellationError,
+	createCancellationToken,
+	createCancellationScope,
+	type CancellationToken,
+	type CancellationScope,
+} from './cancellation.js';

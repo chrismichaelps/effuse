@@ -22,8 +22,15 @@
  * SOFTWARE.
  */
 
-import { Effect } from 'effect';
+import { Effect, Duration, Schedule } from 'effect';
 import type { Store } from '../core/types.js';
+import { CancellationError, createCancellationToken } from './cancellation.js';
+import { runWithAbortSignal } from './cancellation.js';
+import {
+	DEFAULT_RETRY_INITIAL_DELAY_MS,
+	DEFAULT_RETRY_MAX_DELAY_MS,
+	DEFAULT_RETRY_BACKOFF_FACTOR,
+} from '../config/constants.js';
 
 export interface ActionResult<T> {
 	data: T | null;
@@ -34,6 +41,12 @@ export interface ActionResult<T> {
 export interface AsyncAction<A extends unknown[], R> {
 	(...args: A): Promise<R>;
 	pending: boolean;
+}
+
+export interface CancellableAction<A extends unknown[], R> {
+	(...args: A): Promise<R>;
+	pending: boolean;
+	cancel: () => void;
 }
 
 type ActionFn<A extends unknown[], R> = (...args: A) => Promise<R> | R;
@@ -73,6 +86,246 @@ export const createAsyncAction = <A extends unknown[], R>(
 	return action as AsyncAction<A, R>;
 };
 
+export const createCancellableAction = <A extends unknown[], R>(
+	fn: ActionFn<A, R>
+): CancellableAction<A, R> => {
+	let pending = false;
+	let currentController: AbortController | null = null;
+
+	const action = async (...args: A): Promise<R> => {
+		if (currentController) {
+			currentController.abort();
+		}
+
+		currentController = new AbortController();
+		const signal = currentController.signal;
+		pending = true;
+
+		try {
+			const effect = Effect.tryPromise({
+				try: async () => fn(...args),
+				catch: (error) => error as Error,
+			});
+			const result = await Effect.runPromise(
+				runWithAbortSignal(effect, signal)
+			);
+			return result;
+		} finally {
+			pending = false;
+			currentController = null;
+		}
+	};
+
+	Object.defineProperty(action, 'pending', {
+		get: () => pending,
+		enumerable: true,
+	});
+
+	Object.defineProperty(action, 'cancel', {
+		value: () => {
+			if (currentController) {
+				currentController.abort();
+				currentController = null;
+				pending = false;
+			}
+		},
+		enumerable: true,
+	});
+
+	return action as CancellableAction<A, R>;
+};
+
+export class TimeoutError extends Error {
+	readonly _tag = 'TimeoutError';
+	constructor(ms: number) {
+		super(`Operation timed out after ${String(ms)}ms`);
+		this.name = 'TimeoutError';
+	}
+}
+
+export const withTimeout = <A extends unknown[], R>(
+	fn: ActionFn<A, R>,
+	timeoutMs: number
+): ((...args: A) => Promise<R>) => {
+	return async (...args: A): Promise<R> => {
+		const effect = Effect.tryPromise({
+			try: async () => fn(...args),
+			catch: (error) => error as Error,
+		}).pipe(
+			Effect.timeoutFail({
+				duration: Duration.millis(timeoutMs),
+				onTimeout: () => new TimeoutError(timeoutMs),
+			})
+		);
+
+		return Effect.runPromise(effect);
+	};
+};
+
+export interface RetryConfig {
+	maxRetries: number;
+	initialDelayMs?: number;
+	maxDelayMs?: number;
+	backoffFactor?: number;
+}
+
+export const withRetry = <A extends unknown[], R>(
+	fn: ActionFn<A, R>,
+	config: RetryConfig
+): ((...args: A) => Promise<R>) => {
+	const {
+		maxRetries,
+		initialDelayMs = DEFAULT_RETRY_INITIAL_DELAY_MS,
+		maxDelayMs = DEFAULT_RETRY_MAX_DELAY_MS,
+		backoffFactor = DEFAULT_RETRY_BACKOFF_FACTOR,
+	} = config;
+
+	return async (...args: A): Promise<R> => {
+		const schedule = Schedule.exponential(
+			Duration.millis(initialDelayMs),
+			backoffFactor
+		).pipe(
+			Schedule.either(Schedule.recurs(maxRetries)),
+			Schedule.upTo(Duration.millis(maxDelayMs))
+		);
+
+		const effect = Effect.tryPromise({
+			try: async () => fn(...args),
+			catch: (error) => error as Error,
+		}).pipe(Effect.retry(schedule));
+
+		return Effect.runPromise(effect);
+	};
+};
+
+export const takeLatest = <A extends unknown[], R>(
+	fn: ActionFn<A, R>
+): CancellableAction<A, R> => {
+	let pending = false;
+	let currentToken = createCancellationToken();
+	let callId = 0;
+
+	const action = async (...args: A): Promise<R> => {
+		currentToken.cancel();
+		currentToken = createCancellationToken();
+		const myToken = currentToken;
+		const myCallId = ++callId;
+
+		pending = true;
+
+		try {
+			const result = await fn(...args);
+
+			if (myToken.isCancelled || myCallId !== callId) {
+				throw new CancellationError('Superseded by newer call');
+			}
+
+			return result;
+		} finally {
+			if (myCallId === callId) {
+				pending = false;
+			}
+		}
+	};
+
+	Object.defineProperty(action, 'pending', {
+		get: () => pending,
+		enumerable: true,
+	});
+
+	Object.defineProperty(action, 'cancel', {
+		value: () => {
+			currentToken.cancel();
+			pending = false;
+		},
+		enumerable: true,
+	});
+
+	return action as CancellableAction<A, R>;
+};
+
+export const takeFirst = <A extends unknown[], R>(
+	fn: ActionFn<A, R>
+): AsyncAction<A, R | undefined> => {
+	let pending = false;
+
+	const action = async (...args: A): Promise<R | undefined> => {
+		if (pending) {
+			return undefined;
+		}
+
+		pending = true;
+		try {
+			return await fn(...args);
+		} finally {
+			pending = false;
+		}
+	};
+
+	Object.defineProperty(action, 'pending', {
+		get: () => pending,
+		enumerable: true,
+	});
+
+	return action as AsyncAction<A, R | undefined>;
+};
+
+export const debounceAction = <A extends unknown[], R>(
+	fn: ActionFn<A, R>,
+	delayMs: number
+): ((...args: A) => Promise<R>) => {
+	let timeout: ReturnType<typeof setTimeout> | null = null;
+	let currentToken = createCancellationToken();
+
+	return (...args: A): Promise<R> => {
+		if (timeout) {
+			clearTimeout(timeout);
+			currentToken.cancel();
+		}
+
+		currentToken = createCancellationToken();
+		const myToken = currentToken;
+
+		return new Promise((resolve, reject) => {
+			timeout = setTimeout(() => {
+				if (myToken.isCancelled) return;
+
+				Promise.resolve(fn(...args))
+					.then((result) => {
+						if (!myToken.isCancelled) resolve(result);
+					})
+					.catch((error: unknown) => {
+						if (!myToken.isCancelled) reject(error as Error);
+					});
+			}, delayMs);
+		});
+	};
+};
+
+export const throttleAction = <A extends unknown[], R>(
+	fn: ActionFn<A, R>,
+	intervalMs: number
+): ((...args: A) => Promise<R | undefined>) => {
+	let lastCallTime = 0;
+	let pending = false;
+
+	return async (...args: A): Promise<R | undefined> => {
+		const now = Date.now();
+		if (now - lastCallTime < intervalMs || pending) {
+			return undefined;
+		}
+
+		lastCallTime = now;
+		pending = true;
+
+		try {
+			return await fn(...args);
+		} finally {
+			pending = false;
+		}
+	};
+};
+
 export const dispatch = <T>(
 	store: Store<T>,
 	actionName: keyof T,
@@ -106,4 +359,16 @@ export const dispatchSync = <T>(
 	}
 	const actionFn = action as (...a: unknown[]) => unknown;
 	return actionFn(...args);
+};
+
+export const withAbortSignal = <A extends unknown[], R>(
+	fn: ActionFn<A, R>
+): ((signal: AbortSignal, ...args: A) => Promise<R>) => {
+	return (signal: AbortSignal, ...args: A): Promise<R> => {
+		const effect = Effect.tryPromise({
+			try: async () => fn(...args),
+			catch: (error) => error as Error,
+		});
+		return Effect.runPromise(runWithAbortSignal(effect, signal));
+	};
 };

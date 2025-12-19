@@ -24,6 +24,7 @@
 
 export {
 	deriveFrom,
+	deriveFromAsync,
 	serializeStores,
 	hydrateStores,
 	hydrateStoresSync,
@@ -31,9 +32,11 @@ export {
 export { createStoreStream, streamAll, type StoreStream } from './streams.js';
 export {
 	createSelector,
+	createSelectorAsync,
 	pick,
 	combineSelectors,
 	shallowEqual,
 	type Selector,
+	type AsyncSelector,
 	type EqualityFn,
 } from './selectors.js';

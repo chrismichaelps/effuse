@@ -23,8 +23,8 @@
  */
 
 import { define } from '../blueprint/index.js';
-import { computed } from '../reactivity/index.js'; // Keep isTracking for verification
-import { effect } from '../effects/index.js'; // Import Effect stack
+import { computed } from '../reactivity/index.js';
+import { effect } from '../effects/index.js';
 import type { EffuseChild, EffuseNode } from '../render/node.js';
 import { EFFUSE_NODE, NodeType } from '../constants.js';
 import { isSuspendToken, type SuspendToken } from './token.js';

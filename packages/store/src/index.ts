@@ -22,6 +22,8 @@
  * SOFTWARE.
  */
 
+import { getStore } from './registry/index.js';
+
 export {
 	createStore,
 	createAtomicState,
@@ -40,12 +42,14 @@ export {
 export {
 	getStoreConfig,
 	resetStoreConfigCache,
-	loadStoreConfigValues,
 	StoreConstants,
-	StoreConfigOptions,
 	STORAGE_PREFIX,
 	ROOT_SCOPE_ID,
 	SCOPE_PREFIX,
+	DEFAULT_TIMEOUT_MS,
+	DEFAULT_RETRY_INITIAL_DELAY_MS,
+	DEFAULT_RETRY_MAX_DELAY_MS,
+	DEFAULT_RETRY_BACKOFF_FACTOR,
 	type StoreConfigValues,
 } from './config/index.js';
 
@@ -67,14 +71,31 @@ export {
 
 export {
 	createAsyncAction,
+	createCancellableAction,
 	dispatch,
 	dispatchSync,
+	withTimeout,
+	withRetry,
+	withAbortSignal,
+	takeLatest,
+	takeFirst,
+	debounceAction,
+	throttleAction,
+	TimeoutError,
+	CancellationError,
+	createCancellationToken,
+	createCancellationScope,
 	type ActionResult,
 	type AsyncAction,
+	type CancellableAction,
+	type RetryConfig,
+	type CancellationToken,
+	type CancellationScope,
 } from './actions/index.js';
 
 export {
 	validateState,
+	validateStateAsync,
 	createValidatedSetter,
 	createFieldValidator,
 	createSafeFieldSetter,
@@ -92,17 +113,20 @@ export {
 
 export {
 	deriveFrom,
+	deriveFromAsync,
 	serializeStores,
 	hydrateStores,
 	hydrateStoresSync,
 	createStoreStream,
 	streamAll,
 	createSelector,
+	createSelectorAsync,
 	pick,
 	combineSelectors,
 	shallowEqual,
 	type StoreStream,
 	type Selector,
+	type AsyncSelector,
 	type EqualityFn,
 } from './reactivity/index.js';
 
@@ -121,15 +145,6 @@ export {
 } from './devtools/index.js';
 
 export {
-	type StorageAdapter,
-	localStorageAdapter,
-	sessionStorageAdapter,
-	createMemoryAdapter,
-	noopAdapter,
-	runAdapter,
-} from './persistence/index.js';
-
-export {
 	getStore,
 	hasStore,
 	removeStore,
@@ -138,38 +153,10 @@ export {
 } from './registry/index.js';
 
 export {
-	StoreService,
-	StoreServiceLive,
-	ScopeService,
-	ScopeServiceLive,
-	AllServicesLive,
-	useStoreService,
-	useScopeService,
-	runWithStore,
-	runWithScope,
-	runWithAllServices,
 	StoreNotFoundError,
 	StoreAlreadyExistsError,
-	PersistenceService,
-	LocalStoragePersistenceLive,
-	SessionStoragePersistenceLive,
-	MemoryPersistenceLive,
-	NoopPersistenceLive,
-	makePersistenceLayer,
-	usePersistence,
-	runWithPersistence,
-	ValidationService,
-	ValidationServiceLive,
 	ValidationError,
-	useValidation,
-	runWithValidation,
-	type StoreServiceApi,
-	type ScopeServiceApi,
-	type PersistenceServiceApi,
-	type ValidationServiceApi,
 } from './services/index.js';
-
-import { getStore } from './registry/index.js';
 
 export const installStore = (): ((name: string) => unknown) => {
 	return getStore;

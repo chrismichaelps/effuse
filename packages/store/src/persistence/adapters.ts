@@ -23,6 +23,7 @@
  */
 
 import { Effect, Option } from 'effect';
+import { raceAll } from '../actions/cancellation.js';
 
 export interface StorageAdapter {
 	getItem: (key: string) => Effect.Effect<Option.Option<string>>;
@@ -94,4 +95,14 @@ export const runAdapter = {
 	removeItem: (adapter: StorageAdapter, key: string): void => {
 		Effect.runSync(adapter.removeItem(key));
 	},
+};
+
+export const raceAdapters = (
+	adapters: StorageAdapter[],
+	key: string
+): Effect.Effect<Option.Option<string>> => {
+	if (adapters.length === 0) {
+		return Effect.succeed(Option.none());
+	}
+	return raceAll(adapters.map((adapter) => adapter.getItem(key)));
 };

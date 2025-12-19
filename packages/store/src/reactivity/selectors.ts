@@ -24,6 +24,10 @@
 
 import { signal, type Signal } from '@effuse/core';
 import type { Store } from '../core/types.js';
+import {
+	createCancellationToken,
+	type CancellationToken,
+} from '../actions/cancellation.js';
 
 export const shallowEqual = <T>(a: T, b: T): boolean => {
 	if (Object.is(a, b)) return true;
@@ -84,6 +88,57 @@ export const createSelector = <T, R>(
 	});
 
 	return derived;
+};
+
+export type AsyncSelector<T, R> = (
+	state: T,
+	token: CancellationToken
+) => Promise<R>;
+
+export const createSelectorAsync = <T, R>(
+	store: Store<T>,
+	asyncSelector: AsyncSelector<ReturnType<Store<T>['getSnapshot']>, R>,
+	initialValue: R
+): Signal<R> & { pending: Signal<boolean>; cleanup: () => void } => {
+	const derived = signal<R>(initialValue);
+	const pending = signal<boolean>(false);
+	let currentToken = createCancellationToken();
+
+	const update = () => {
+		currentToken.cancel();
+		currentToken = createCancellationToken();
+		const myToken = currentToken;
+		pending.value = true;
+
+		const snapshot = store.getSnapshot();
+		asyncSelector(snapshot, myToken)
+			.then((newValue) => {
+				if (!myToken.isCancelled && derived.value !== newValue) {
+					derived.value = newValue;
+				}
+			})
+			.catch(() => {})
+			.finally(() => {
+				if (!myToken.isCancelled) {
+					pending.value = false;
+				}
+			});
+	};
+
+	const unsub = store.subscribe(update);
+	update();
+
+	const result = derived as Signal<R> & {
+		pending: Signal<boolean>;
+		cleanup: () => void;
+	};
+	result.pending = pending;
+	result.cleanup = () => {
+		currentToken.cancel();
+		unsub();
+	};
+
+	return result;
 };
 
 export const pick = <T, K extends keyof T>(
