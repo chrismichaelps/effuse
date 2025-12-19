@@ -23,7 +23,7 @@
  */
 
 import { signal, type Signal } from '@effuse/core';
-import type { Store } from './index.js';
+import type { Store } from '../core/types.js';
 
 export const shallowEqual = <T>(a: T, b: T): boolean => {
 	if (Object.is(a, b)) return true;
@@ -110,7 +110,7 @@ export const combineSelectors = <T, R extends Record<string, unknown>>(
 	return createSelector(store, (state) => {
 		const result = {} as R;
 		for (const key of Object.keys(selectors) as (keyof R)[]) {
-			result[key] = selectors[key](state) as any;
+			result[key] = selectors[key](state);
 		}
 		return result;
 	});

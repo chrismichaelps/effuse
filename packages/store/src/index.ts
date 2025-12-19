@@ -24,16 +24,7 @@
 
 export {
 	createStore,
-	deriveFrom,
-	serializeStores,
-	hydrateStores,
-	getConfig,
-	StoreConfig,
-	StoreConfigLive,
-	loadStoreConfig,
-	resetConfigCache,
 	createAtomicState,
-	createMiddlewareManager,
 	type Store,
 	type StoreState,
 	type StoreContext,
@@ -44,17 +35,81 @@ export {
 	type Middleware,
 	type CreateStoreOptions,
 	type AtomicState,
-	type MiddlewareManager,
-} from './simple/index.js';
+} from './core/index.js';
 
 export {
+	getStoreConfig,
+	resetStoreConfigCache,
+	loadStoreConfigValues,
+	StoreConstants,
+	StoreConfigOptions,
+	STORAGE_PREFIX,
+	ROOT_SCOPE_ID,
+	SCOPE_PREFIX,
+	type StoreConfigValues,
+} from './config/index.js';
+
+export {
+	createScope,
+	disposeScope,
+	enterScope,
+	exitScope,
+	getCurrentScope,
+	getRootScope,
+	registerScopedStore,
+	getScopedStore,
+	hasScopedStore,
+	runInScope,
+	withScope,
+	type ScopeNode,
+	type ScopeId,
+} from './context/index.js';
+
+export {
+	createAsyncAction,
+	dispatch,
+	dispatchSync,
+	type ActionResult,
+	type AsyncAction,
+} from './actions/index.js';
+
+export {
+	validateState,
+	createValidatedSetter,
+	createFieldValidator,
+	createSafeFieldSetter,
+	type StateSchema,
+	type ValidationResult,
+} from './validation/index.js';
+
+export {
+	composeStores,
+	defineSlice,
+	mergeStores,
+	type ComposedStore,
+	type StoreSlice,
+} from './composition/index.js';
+
+export {
+	deriveFrom,
+	serializeStores,
+	hydrateStores,
+	hydrateStoresSync,
+	createStoreStream,
+	streamAll,
 	createSelector,
 	pick,
 	combineSelectors,
 	shallowEqual,
+	type StoreStream,
 	type Selector,
 	type EqualityFn,
-} from './simple/selectors.js';
+} from './reactivity/index.js';
+
+export {
+	createMiddlewareManager,
+	type MiddlewareManager,
+} from './middleware/index.js';
 
 export {
 	connectDevTools,
@@ -63,7 +118,7 @@ export {
 	createDevToolsMiddleware,
 	disconnectDevTools,
 	disconnectAllDevTools,
-} from './simple/devtools.js';
+} from './devtools/index.js';
 
 export {
 	type StorageAdapter,
@@ -71,7 +126,8 @@ export {
 	sessionStorageAdapter,
 	createMemoryAdapter,
 	noopAdapter,
-} from './simple/persistence.js';
+	runAdapter,
+} from './persistence/index.js';
 
 export {
 	getStore,
@@ -81,8 +137,40 @@ export {
 	getStoreNames,
 } from './registry/index.js';
 
+export {
+	StoreService,
+	StoreServiceLive,
+	ScopeService,
+	ScopeServiceLive,
+	AllServicesLive,
+	useStoreService,
+	useScopeService,
+	runWithStore,
+	runWithScope,
+	runWithAllServices,
+	StoreNotFoundError,
+	StoreAlreadyExistsError,
+	PersistenceService,
+	LocalStoragePersistenceLive,
+	SessionStoragePersistenceLive,
+	MemoryPersistenceLive,
+	NoopPersistenceLive,
+	makePersistenceLayer,
+	usePersistence,
+	runWithPersistence,
+	ValidationService,
+	ValidationServiceLive,
+	ValidationError,
+	useValidation,
+	runWithValidation,
+	type StoreServiceApi,
+	type ScopeServiceApi,
+	type PersistenceServiceApi,
+	type ValidationServiceApi,
+} from './services/index.js';
+
 import { getStore } from './registry/index.js';
 
-export const installStore = (): (<T>(name: string) => T) => {
-	return getStore as unknown as <T>(name: string) => T;
+export const installStore = (): ((name: string) => unknown) => {
+	return getStore;
 };

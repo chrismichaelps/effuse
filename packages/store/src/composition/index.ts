@@ -22,26 +22,10 @@
  * SOFTWARE.
  */
 
-import { Config, Effect } from 'effect';
-
-export const StoreConfig = {
-	persistByDefault: Config.boolean('STORE_PERSIST_BY_DEFAULT').pipe(
-		Config.withDefault(false)
-	),
-	storagePrefix: Config.string('STORE_STORAGE_PREFIX').pipe(
-		Config.withDefault('effuse-store:')
-	),
-	debug: Config.boolean('STORE_DEBUG').pipe(Config.withDefault(false)),
-};
-
-export type StoreConfigType = {
-	persistByDefault: boolean;
-	storagePrefix: string;
-	debug: boolean;
-};
-
-export const loadStoreConfig = Effect.all({
-	persistByDefault: StoreConfig.persistByDefault,
-	storagePrefix: StoreConfig.storagePrefix,
-	debug: StoreConfig.debug,
-});
+export {
+  composeStores,
+  defineSlice,
+  mergeStores,
+  type ComposedStore,
+  type StoreSlice,
+} from './compose.js';

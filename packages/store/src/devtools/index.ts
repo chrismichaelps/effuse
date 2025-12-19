@@ -21,32 +21,11 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-
-import type { Store } from '../core/types.js';
-
-const stores = new Map<string, Store<unknown>>();
-
-export const registerStore = <T>(name: string, store: Store<T>): void => {
-	if (stores.has(name)) {
-		console.warn(`[store] Overwriting existing store: ${name}`);
-	}
-	stores.set(name, store as Store<unknown>);
-};
-
-export const getStore = <T>(name: string): Store<T> => {
-	const store = stores.get(name);
-	if (!store) {
-		throw new Error(`Store "${name}" not found. Did you forget to create it?`);
-	}
-	return store as Store<T>;
-};
-
-export const hasStore = (name: string): boolean => stores.has(name);
-
-export const removeStore = (name: string): boolean => stores.delete(name);
-
-export const clearStores = (): void => {
-	stores.clear();
-};
-
-export const getStoreNames = (): string[] => Array.from(stores.keys());
+export {
+  connectDevTools,
+  hasDevTools,
+  devToolsMiddleware,
+  createDevToolsMiddleware,
+  disconnectDevTools,
+  disconnectAllDevTools,
+} from './connector.js';

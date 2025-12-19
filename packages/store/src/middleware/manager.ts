@@ -22,28 +22,38 @@
  * SOFTWARE.
  */
 
-export {
-	type Store,
-	type StoreState,
-	type StoreContext,
-	type StoreDefinition,
-	type StoreOptions,
-	type ActionContext,
-	type Middleware,
-	type InferStoreState,
-} from './types.js';
+import { Array as Arr } from 'effect';
+import type { Middleware } from '../core/types.js';
 
-export { createStore, type CreateStoreOptions } from './store.js';
-export { deriveFrom, serializeStores, hydrateStores } from './derived.js';
-export {
-	getConfig,
-	StoreConfig,
-	StoreConfigLive,
-	loadStoreConfig,
-	resetConfigCache,
-} from './config.js';
-export { createAtomicState, type AtomicState } from './state.js';
-export {
-	createMiddlewareManager,
-	type MiddlewareManager,
-} from './middleware.js';
+export interface MiddlewareManager<T extends Record<string, unknown>> {
+	add: (middleware: Middleware<T>) => () => void;
+	remove: (middleware: Middleware<T>) => void;
+	execute: (state: T, action: string, args: unknown[]) => T;
+	getAll: () => readonly Middleware<T>[];
+}
+
+export const createMiddlewareManager = <
+	T extends Record<string, unknown>,
+>(): MiddlewareManager<T> => {
+	const middlewares: Middleware<T>[] = [];
+
+	return {
+		add: (middleware: Middleware<T>) => {
+			middlewares.push(middleware);
+			return () => {
+				const idx = middlewares.indexOf(middleware);
+				if (idx > -1) middlewares.splice(idx, 1);
+			};
+		},
+
+		remove: (middleware: Middleware<T>) => {
+			const idx = middlewares.indexOf(middleware);
+			if (idx > -1) middlewares.splice(idx, 1);
+		},
+
+		execute: (state: T, action: string, args: unknown[]): T =>
+			Arr.reduce(middlewares, state, (acc, mw) => mw(acc, action, args) ?? acc),
+
+		getAll: () => [...middlewares],
+	};
+};

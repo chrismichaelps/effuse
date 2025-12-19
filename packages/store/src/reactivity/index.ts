@@ -22,43 +22,13 @@
  * SOFTWARE.
  */
 
-import type { Middleware } from './types.js';
-
-export interface MiddlewareManager<T extends Record<string, unknown>> {
-	add: (middleware: Middleware<T>) => () => void;
-	remove: (middleware: Middleware<T>) => void;
-	execute: (state: T, action: string, args: unknown[]) => T;
-	getAll: () => readonly Middleware<T>[];
-}
-
-export const createMiddlewareManager = <
-	T extends Record<string, unknown>,
->(): MiddlewareManager<T> => {
-	const middlewares: Middleware<T>[] = [];
-
-	return {
-		add: (middleware: Middleware<T>) => {
-			middlewares.push(middleware);
-			return () => {
-				const idx = middlewares.indexOf(middleware);
-				if (idx > -1) middlewares.splice(idx, 1);
-			};
-		},
-
-		remove: (middleware: Middleware<T>) => {
-			const idx = middlewares.indexOf(middleware);
-			if (idx > -1) middlewares.splice(idx, 1);
-		},
-
-		execute: (state: T, action: string, args: unknown[]): T => {
-			let newState = { ...state };
-			for (const mw of middlewares) {
-				const result = mw(newState, action, args);
-				if (result) newState = result;
-			}
-			return newState;
-		},
-
-		getAll: () => [...middlewares],
-	};
-};
+export { deriveFrom, serializeStores, hydrateStores, hydrateStoresSync } from './derived.js';
+export { createStoreStream, streamAll, type StoreStream } from './streams.js';
+export {
+  createSelector,
+  pick,
+  combineSelectors,
+  shallowEqual,
+  type Selector,
+  type EqualityFn,
+} from './selectors.js';

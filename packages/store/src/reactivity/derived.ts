@@ -22,8 +22,9 @@
  * SOFTWARE.
  */
 
+import { Effect, Option } from 'effect';
 import { signal, type Signal } from '@effuse/core';
-import type { Store } from './types.js';
+import type { Store } from '../core/types.js';
 import { getStoreNames, getStore } from '../registry/index.js';
 
 export const deriveFrom = <S extends Store<unknown>[], R>(
@@ -31,7 +32,7 @@ export const deriveFrom = <S extends Store<unknown>[], R>(
 	selector: (
 		...snapshots: { [K in keyof S]: ReturnType<S[K]['getSnapshot']> }
 	) => R
-): Signal<R> => {
+): Signal<R> & { cleanup: () => void } => {
 	const getSnapshots = () =>
 		stores.map((s) => s.getSnapshot()) as {
 			[K in keyof S]: ReturnType<S[K]['getSnapshot']>;
@@ -42,22 +43,18 @@ export const deriveFrom = <S extends Store<unknown>[], R>(
 
 	const update = () => {
 		const newValue = selector(...getSnapshots());
-		const currentValue: unknown = derivedSignal.value;
-		if (currentValue !== newValue) {
+		if (derivedSignal.value !== newValue) {
 			derivedSignal.value = newValue;
 		}
 	};
 
-	for (const store of stores) {
-		store.subscribe(update);
-	}
+	const unsubscribers = stores.map((store) => store.subscribe(update));
 
 	const signalWithCleanup = derivedSignal as Signal<R> & {
-		cleanup?: () => void;
+		cleanup: () => void;
 	};
 	signalWithCleanup.cleanup = () => {
-		for (const store of stores) {
-			const unsub = store.subscribe(update);
+		for (const unsub of unsubscribers) {
 			unsub();
 		}
 	};
@@ -70,28 +67,39 @@ export const serializeStores = (): string => {
 	const allSnapshots: Record<string, unknown> = {};
 	for (const name of storeNames) {
 		const store = getStore(name);
-		if (store) {
-			allSnapshots[name] = (store as Store<unknown>).getSnapshot();
-		}
+		allSnapshots[name] = (store as Store<unknown>).getSnapshot();
 	}
 	return JSON.stringify(allSnapshots);
 };
 
-export const hydrateStores = (serialized: string): void => {
-	try {
-		const allSnapshots = JSON.parse(serialized) as Record<
-			string,
-			Record<string, unknown>
-		>;
-		for (const [name, snapshot] of Object.entries(allSnapshots)) {
-			const store = getStore(name);
-			if (store) {
-				(store as Store<unknown>).update((draft) => {
-					Object.assign(draft, snapshot);
-				});
+export const hydrateStores = (serialized: string): Effect.Effect<void> =>
+	Effect.try({
+		try: () => {
+			const allSnapshots = JSON.parse(serialized) as Record<
+				string,
+				Record<string, unknown>
+			>;
+			for (const [name, snapshot] of Object.entries(allSnapshots)) {
+				Effect.runSync(
+					Effect.try(() => {
+						const store = getStore(name);
+						(store as Store<unknown>).update((draft) => {
+							Object.assign(draft, snapshot);
+						});
+					}).pipe(Effect.catchAll(() => Effect.void))
+				);
 			}
-		}
-	} catch {
-		console.error('[store] Failed to hydrate stores');
-	}
+		},
+		catch: () => new Error('Failed to hydrate stores'),
+	}).pipe(Effect.catchAll(() => Effect.void));
+
+export const hydrateStoresSync = (serialized: string): void => {
+	Effect.runSync(
+		hydrateStores(serialized).pipe(
+			Effect.match({
+				onSuccess: () => Option.some(undefined),
+				onFailure: () => Option.none(),
+			})
+		)
+	);
 };

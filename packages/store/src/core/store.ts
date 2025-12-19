@@ -22,6 +22,7 @@
  * SOFTWARE.
  */
 
+import { Effect, Option, pipe } from 'effect';
 import { signal, type Signal } from '@effuse/core';
 import type {
 	Store,
@@ -31,10 +32,10 @@ import type {
 	Middleware,
 } from './types.js';
 import { createAtomicState } from './state.js';
-import { getConfig } from './config.js';
-import { createMiddlewareManager } from './middleware.js';
+import { getStoreConfig } from '../config/index.js';
+import { createMiddlewareManager } from '../middleware/index.js';
 import { registerStore } from '../registry/index.js';
-import type { StorageAdapter } from './persistence.js';
+import { type StorageAdapter, runAdapter, localStorageAdapter } from '../persistence/index.js';
 
 interface StoreInternals {
 	signalMap: Map<string, Signal<unknown>>;
@@ -49,34 +50,10 @@ interface StoreInternals {
 	isBatching: boolean;
 }
 
-const getSignalFromMap = (
-	signalMap: Map<string, Signal<unknown>>,
-	key: string
-): Signal<unknown> | undefined => signalMap.get(key);
-
-const setSignalValue = (
-	signalMap: Map<string, Signal<unknown>>,
-	key: string,
-	value: unknown
-): void => {
-	const sig = signalMap.get(key);
-	if (sig) sig.value = value;
-};
-
-const getSignalValue = (
-	signalMap: Map<string, Signal<unknown>>,
-	key: string
-): unknown => {
-	const sig = signalMap.get(key);
-	return sig ? sig.value : undefined;
-};
-
-const getSnapshotFromSignals = (
-	signalMap: Map<string, Signal<unknown>>
-): Record<string, unknown> => {
+const getSnapshot = (signalMap: Map<string, Signal<unknown>>): Record<string, unknown> => {
 	const snapshot: Record<string, unknown> = {};
-	for (const key of signalMap.keys()) {
-		snapshot[key] = getSignalValue(signalMap, key);
+	for (const [key, sig] of signalMap) {
+		snapshot[key] = sig.value;
 	}
 	return snapshot;
 };
@@ -90,10 +67,11 @@ export const createStore = <T extends object>(
 	definition: StoreDefinition<T>,
 	options?: CreateStoreOptions
 ): Store<T> & StoreState<T> => {
-	const config = getConfig();
+	const config = getStoreConfig();
 	const shouldPersist = options?.persist ?? config.persistByDefault;
 	const storageKey = options?.storageKey ?? `${config.storagePrefix}${name}`;
 	const enableDevtools = options?.devtools ?? config.debug;
+	const adapter = options?.storage ?? localStorageAdapter;
 
 	if (config.debug) {
 		console.log(`[store] Creating: ${name}`);
@@ -123,16 +101,25 @@ export const createStore = <T extends object>(
 	const atomicState = createAtomicState({ ...internals.initialState });
 
 	if (shouldPersist) {
-		try {
-			const saved = localStorage.getItem(storageKey);
-			if (saved) {
-				const parsed = JSON.parse(saved) as Record<string, unknown>;
+		pipe(
+			runAdapter.getItem(adapter, storageKey),
+			Option.fromNullable,
+			Option.flatMap((saved) =>
+				Effect.runSync(
+					Effect.try(() => JSON.parse(saved) as Record<string, unknown>).pipe(
+						Effect.map(Option.some),
+						Effect.catchAll(() => Effect.succeed(Option.none<Record<string, unknown>>()))
+					)
+				)
+			),
+			Option.map((parsed) => {
 				for (const [key, value] of Object.entries(parsed)) {
-					setSignalValue(internals.signalMap, key, value);
+					const sig = internals.signalMap.get(key);
+					if (sig) sig.value = value;
 				}
 				atomicState.set({ ...atomicState.get(), ...parsed });
-			}
-		} catch {}
+			})
+		);
 	}
 
 	const notifySubscribers = (): void => {
@@ -148,14 +135,12 @@ export const createStore = <T extends object>(
 
 	const persistState = (): void => {
 		if (!shouldPersist) return;
-		const snapshot = getSnapshotFromSignals(internals.signalMap);
-		try {
-			localStorage.setItem(storageKey, JSON.stringify(snapshot));
-		} catch {}
+		const snapshot = getSnapshot(internals.signalMap);
+		runAdapter.setItem(adapter, storageKey, JSON.stringify(snapshot));
 	};
 
 	const updateComputed = (): void => {
-		const snapshot = getSnapshotFromSignals(internals.signalMap);
+		const snapshot = getSnapshot(internals.signalMap);
 		for (const [selector, sig] of internals.computedSelectors) {
 			const newValue = selector(snapshot);
 			if (sig.value !== newValue) sig.value = newValue;
@@ -164,7 +149,7 @@ export const createStore = <T extends object>(
 
 	const stateProxy = new Proxy({} as Record<string, unknown>, {
 		get(_, prop: string) {
-			const sig = getSignalFromMap(internals.signalMap, prop);
+			const sig = internals.signalMap.get(prop);
 			if (sig) return sig;
 			const action = internals.actions[prop];
 			if (action) return action.bind(stateProxy);
@@ -173,14 +158,15 @@ export const createStore = <T extends object>(
 		set(_, prop: string, value: unknown) {
 			if (!internals.signalMap.has(prop)) return false;
 
-			const oldValue = getSignalValue(internals.signalMap, prop);
+			const sig = internals.signalMap.get(prop)!;
+			const oldValue = sig.value;
 			const newState = middlewareManager.execute(
 				{ ...atomicState.get(), [prop]: value },
 				`set:${prop}`,
 				[value]
 			);
 
-			setSignalValue(internals.signalMap, prop, newState[prop]);
+			sig.value = newState[prop];
 			atomicState.update((s) => ({ ...s, [prop]: newState[prop] }));
 
 			if (enableDevtools) {
@@ -201,7 +187,16 @@ export const createStore = <T extends object>(
 			if (enableDevtools) {
 				console.log(`[${name}] ${key}(`, ...args, ')');
 			}
-			return action.apply(stateProxy, args);
+			const result = action.apply(stateProxy, args);
+
+			// Execute middleware with action name for DevTools
+			const currentState = getSnapshot(internals.signalMap);
+			middlewareManager.execute(currentState, key, args);
+
+			// Notify subscribers after action completes
+			notifySubscribers();
+
+			return result;
 		};
 	}
 
@@ -236,9 +231,7 @@ export const createStore = <T extends object>(
 		},
 
 		getSnapshot: () =>
-			getSnapshotFromSignals(internals.signalMap) as ReturnType<
-				Store<T>['getSnapshot']
-			>,
+			getSnapshot(internals.signalMap) as ReturnType<Store<T>['getSnapshot']>,
 
 		computed: <R>(
 			selector: (snapshot: Record<string, unknown>) => R
@@ -247,7 +240,7 @@ export const createStore = <T extends object>(
 			const existing = internals.computedSelectors.get(selectorKey);
 			if (existing) return existing as Signal<R>;
 
-			const initial = selector(getSnapshotFromSignals(internals.signalMap));
+			const initial = selector(getSnapshot(internals.signalMap));
 			const sig = signal<R>(initial);
 			internals.computedSelectors.set(selectorKey, sig as Signal<unknown>);
 			return sig;
@@ -264,7 +257,8 @@ export const createStore = <T extends object>(
 
 		reset: () => {
 			for (const [key, value] of Object.entries(internals.initialState)) {
-				setSignalValue(internals.signalMap, key, value);
+				const sig = internals.signalMap.get(key);
+				if (sig) sig.value = value;
 			}
 			atomicState.set({ ...internals.initialState });
 			notifySubscribers();
@@ -276,24 +270,22 @@ export const createStore = <T extends object>(
 			middlewareManager.add(middleware),
 
 		toJSON: () =>
-			getSnapshotFromSignals(internals.signalMap) as ReturnType<
-				Store<T>['getSnapshot']
-			>,
+			getSnapshot(internals.signalMap) as ReturnType<Store<T>['getSnapshot']>,
 
 		update: (updater) => {
-			const draft = { ...getSnapshotFromSignals(internals.signalMap) } as {
+			const draft = { ...getSnapshot(internals.signalMap) } as {
 				[K in keyof T]: T[K] extends (...args: unknown[]) => unknown
-					? never
-					: T[K];
+				? never
+				: T[K];
 			};
 
 			updater(draft);
 
 			internals.isBatching = true;
 			for (const [key, val] of Object.entries(draft)) {
-				const currentValue = getSignalValue(internals.signalMap, key);
-				if (internals.signalMap.has(key) && currentValue !== val) {
-					setSignalValue(internals.signalMap, key, val);
+				const sig = internals.signalMap.get(key);
+				if (sig && sig.value !== val) {
+					sig.value = val;
 					atomicState.update((s) => ({ ...s, [key]: val }));
 				}
 			}
@@ -311,12 +303,12 @@ export const createStore = <T extends object>(
 			const existing = internals.computedSelectors.get(selectorKey);
 			if (existing) return existing as Signal<R>;
 
-			const initial = selector(getSnapshotFromSignals(internals.signalMap));
+			const initial = selector(getSnapshot(internals.signalMap));
 			const sig = signal<R>(initial);
 			internals.computedSelectors.set(selectorKey, sig as Signal<unknown>);
 
 			internals.subscribers.add(() => {
-				const newValue = selector(getSnapshotFromSignals(internals.signalMap));
+				const newValue = selector(getSnapshot(internals.signalMap));
 				if (sig.value !== newValue) sig.value = newValue;
 			});
 
@@ -327,10 +319,9 @@ export const createStore = <T extends object>(
 	const storeProxy = new Proxy(store as unknown as Record<string, unknown>, {
 		get(target, prop: string | symbol): unknown {
 			const propStr = String(prop);
-			if (propStr === 'toJSON')
-				return () => getSnapshotFromSignals(internals.signalMap);
+			if (propStr === 'toJSON') return () => getSnapshot(internals.signalMap);
 			if (propStr in target) return target[propStr];
-			const sig = getSignalFromMap(internals.signalMap, propStr);
+			const sig = internals.signalMap.get(propStr);
 			if (sig) return sig;
 			if (propStr in boundActions) return boundActions[propStr];
 			return undefined;
