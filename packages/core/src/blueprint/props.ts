@@ -55,6 +55,10 @@ export interface PropSchemaBuilder<T extends Record<string, unknown>> {
   readonly validateSync: (props: unknown, componentName?: string) => T;
 }
 
+export interface AnyPropSchemaBuilder {
+  readonly validateSync: (props: unknown, componentName?: string) => unknown;
+}
+
 type ExtractPropType<P> = P extends PropDefinition<infer T> ? T : never;
 
 function required<T>(schema: Schema.Schema<T>): PropDefinition<T>;

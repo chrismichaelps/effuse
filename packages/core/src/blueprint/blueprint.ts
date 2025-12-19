@@ -29,6 +29,7 @@ import type {
 	EffuseChild,
 	Portals,
 } from '../render/node.js';
+import type { PropSchemaBuilder } from './props.js';
 
 export type PropsDef<P> = {
 	[K in keyof P]?: P[K] | (() => P[K]);
@@ -39,6 +40,7 @@ export interface BlueprintOptions<
 > {
 	readonly name?: string;
 	readonly props?: PropsDef<P>;
+	readonly propsSchema?: PropSchemaBuilder<P>;
 	readonly state?: (props: P) => Record<string, Signal<unknown>>;
 	readonly view: (context: BlueprintContext<P>) => EffuseChild;
 	readonly error?: (error: Error) => EffuseChild;
@@ -66,6 +68,9 @@ export const blueprint = <
 	if (options.loading) {
 		mutableDef.loading = options.loading;
 	}
+	if (options.propsSchema) {
+		mutableDef.propsSchema = options.propsSchema;
+	}
 
 	return def;
 };
@@ -84,10 +89,17 @@ export const instantiateBlueprint = <P extends Record<string, unknown>>(
 	props: P,
 	portals: Portals
 ): BlueprintContext<P> => {
-	const state = def.state ? def.state(props) : {};
+	let validatedProps = props;
+
+	const defWithSchema = def as unknown as { propsSchema?: PropSchemaBuilder<P> };
+	if (defWithSchema.propsSchema) {
+		validatedProps = defWithSchema.propsSchema.validateSync(props, def.name);
+	}
+
+	const state = def.state ? def.state(validatedProps) : {};
 
 	return {
-		props,
+		props: validatedProps,
 		state,
 		portals,
 	};

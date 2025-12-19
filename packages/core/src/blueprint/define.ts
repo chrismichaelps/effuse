@@ -31,6 +31,7 @@ import type {
 import type { ScriptContext, ExposedValues } from './script-context.js';
 import { createScriptContext, runMountCallbacks } from './script-context.js';
 import type { ComponentLifecycle } from './lifecycle.js';
+import type { AnyPropSchemaBuilder } from './props.js';
 
 export interface PropsSchema<P> {
 	Type: P;
@@ -38,6 +39,7 @@ export interface PropsSchema<P> {
 
 export interface DefineOptions<P, E extends ExposedValues> {
 	props?: PropsSchema<P>;
+	propsSchema?: AnyPropSchemaBuilder;
 	script: (ctx: ScriptContext<P>) => E | undefined;
 	template: (exposed: E, props: Readonly<P>) => EffuseChild;
 }
@@ -54,6 +56,7 @@ export const define = <
 	E extends ExposedValues = ExposedValues,
 >(options: {
 	props?: PropsSchema<P>;
+	propsSchema?: AnyPropSchemaBuilder;
 	script: (ctx: ScriptContext<P>) => E;
 	template: (exposed: E, props: Readonly<P>) => EffuseChild;
 }): Component<P> => {
@@ -61,7 +64,12 @@ export const define = <
 		_tag: 'Blueprint',
 
 		state: (props: P) => {
-			const { context, state } = createScriptContext<P, E>(props);
+			let validatedProps = props;
+			if (options.propsSchema) {
+				validatedProps = options.propsSchema.validateSync(props) as P;
+			}
+
+			const { context, state } = createScriptContext<P, E>(validatedProps);
 
 			const scriptResult = options.script(context);
 			Object.assign(state.exposed, scriptResult);

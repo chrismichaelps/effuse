@@ -55,6 +55,7 @@ export {
 	PropsValidationError,
 	type PropDefinition,
 	type PropSchemaBuilder,
+	type AnyPropSchemaBuilder,
 	type PropSchemaInfer,
 } from './props.js';
 
@@ -63,6 +64,10 @@ export {
 	PortalServiceLive,
 	Portal,
 	createPortal,
+	registerPortalOutlet,
+	unregisterPortalOutlet,
+	getPortalOutlet,
+	renderToNamedPortal,
 	setGlobalPortalService,
 	getGlobalPortalService,
 	type PortalServiceInterface,

@@ -163,6 +163,31 @@ export const createPortal = (
   return { cleanup };
 };
 
+const namedOutlets = new Map<string, Element>();
+
+export const registerPortalOutlet = (name: string, element: Element): void => {
+  namedOutlets.set(name, element);
+};
+
+export const unregisterPortalOutlet = (name: string): void => {
+  namedOutlets.delete(name);
+};
+
+export const getPortalOutlet = (name: string): Element | undefined => {
+  return namedOutlets.get(name);
+};
+
+export const renderToNamedPortal = (
+  name: string,
+  content: EffuseChild
+): { cleanup: () => void } => {
+  const outlet = namedOutlets.get(name);
+  if (!outlet) {
+    return { cleanup: () => { } };
+  }
+  return createPortal(content, outlet);
+};
+
 export const Portal = (props: {
   target: string | Element;
   children: EffuseChild;
