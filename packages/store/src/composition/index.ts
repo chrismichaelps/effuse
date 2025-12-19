@@ -23,9 +23,9 @@
  */
 
 export {
-  composeStores,
-  defineSlice,
-  mergeStores,
-  type ComposedStore,
-  type StoreSlice,
+	composeStores,
+	defineSlice,
+	mergeStores,
+	type ComposedStore,
+	type StoreSlice,
 } from './compose.js';

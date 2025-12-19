@@ -22,10 +22,10 @@
  * SOFTWARE.
  */
 export {
-  connectDevTools,
-  hasDevTools,
-  devToolsMiddleware,
-  createDevToolsMiddleware,
-  disconnectDevTools,
-  disconnectAllDevTools,
+	connectDevTools,
+	hasDevTools,
+	devToolsMiddleware,
+	createDevToolsMiddleware,
+	disconnectDevTools,
+	disconnectAllDevTools,
 } from './connector.js';

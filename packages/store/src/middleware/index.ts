@@ -22,7 +22,4 @@
  * SOFTWARE.
  */
 
-export {
-  createMiddlewareManager,
-  type MiddlewareManager,
-} from './manager.js';
+export { createMiddlewareManager, type MiddlewareManager } from './manager.js';

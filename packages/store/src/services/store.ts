@@ -26,160 +26,171 @@ import { Context, Effect, Layer } from 'effect';
 import type { Store, StoreDefinition, Middleware } from '../core/types.js';
 import { createStore, type CreateStoreOptions } from '../core/store.js';
 import {
-  getStore,
-  hasStore,
-  removeStore,
-  clearStores,
-  getStoreNames,
+	getStore,
+	hasStore,
+	removeStore,
+	clearStores,
+	getStoreNames,
 } from '../registry/index.js';
 import {
-  createScope,
-  disposeScope,
-  getCurrentScope,
-  getScopedStore,
-  registerScopedStore,
-  runInScope,
-  type ScopeNode,
+	createScope,
+	disposeScope,
+	getCurrentScope,
+	getScopedStore,
+	registerScopedStore,
+	runInScope,
+	type ScopeNode,
 } from '../context/scope.js';
 
 export class StoreNotFoundError extends Error {
-  readonly _tag = 'StoreNotFoundError';
-  constructor(name: string) {
-    super(`Store "${name}" not found`);
-  }
+	readonly _tag = 'StoreNotFoundError';
+	constructor(name: string) {
+		super(`Store "${name}" not found`);
+	}
 }
 
 export class StoreAlreadyExistsError extends Error {
-  readonly _tag = 'StoreAlreadyExistsError';
-  constructor(name: string) {
-    super(`Store "${name}" already exists`);
-  }
+	readonly _tag = 'StoreAlreadyExistsError';
+	constructor(name: string) {
+		super(`Store "${name}" already exists`);
+	}
 }
 
 export interface StoreServiceApi {
-  create: <T extends object>(
-    name: string,
-    definition: StoreDefinition<T>,
-    options?: CreateStoreOptions
-  ) => Effect.Effect<Store<T>>;
-  get: <T>(name: string) => Effect.Effect<Store<T>, StoreNotFoundError>;
-  has: (name: string) => Effect.Effect<boolean>;
-  remove: (name: string) => Effect.Effect<boolean>;
-  clear: () => Effect.Effect<void>;
-  names: () => Effect.Effect<string[]>;
-  useMiddleware: (
-    storeName: string,
-    middleware: Middleware<Record<string, unknown>>
-  ) => Effect.Effect<() => void, StoreNotFoundError>;
+	create: <T extends object>(
+		name: string,
+		definition: StoreDefinition<T>,
+		options?: CreateStoreOptions
+	) => Effect.Effect<Store<T>>;
+	get: <T>(name: string) => Effect.Effect<Store<T>, StoreNotFoundError>;
+	has: (name: string) => Effect.Effect<boolean>;
+	remove: (name: string) => Effect.Effect<boolean>;
+	clear: () => Effect.Effect<void>;
+	names: () => Effect.Effect<string[]>;
+	useMiddleware: (
+		storeName: string,
+		middleware: Middleware<Record<string, unknown>>
+	) => Effect.Effect<() => void, StoreNotFoundError>;
 }
 
 export class StoreService extends Context.Tag('effuse/store/StoreService')<
-  StoreService,
-  StoreServiceApi
->() { }
+	StoreService,
+	StoreServiceApi
+>() {}
 
 export const StoreServiceLive: Layer.Layer<StoreService> = Layer.succeed(
-  StoreService,
-  {
-    create: <T extends object>(
-      name: string,
-      definition: StoreDefinition<T>,
-      options?: CreateStoreOptions
-    ) => Effect.sync(() => createStore(name, definition, options)),
+	StoreService,
+	{
+		create: <T extends object>(
+			name: string,
+			definition: StoreDefinition<T>,
+			options?: CreateStoreOptions
+		) => Effect.sync(() => createStore(name, definition, options)),
 
-    get: <T>(name: string) =>
-      Effect.try({
-        try: () => getStore<T>(name),
-        catch: () => new StoreNotFoundError(name),
-      }),
+		get: <T>(name: string) =>
+			Effect.try({
+				try: () => getStore<T>(name),
+				catch: () => new StoreNotFoundError(name),
+			}),
 
-    has: (name: string) => Effect.sync(() => hasStore(name)),
-    remove: (name: string) => Effect.sync(() => removeStore(name)),
-    clear: () => Effect.sync(() => { clearStores(); }),
-    names: () => Effect.sync(() => getStoreNames()),
+		has: (name: string) => Effect.sync(() => hasStore(name)),
+		remove: (name: string) => Effect.sync(() => removeStore(name)),
+		clear: () =>
+			Effect.sync(() => {
+				clearStores();
+			}),
+		names: () => Effect.sync(() => getStoreNames()),
 
-    useMiddleware: (
-      storeName: string,
-      middleware: Middleware<Record<string, unknown>>
-    ) =>
-      Effect.gen(function* () {
-        const store = yield* Effect.try({
-          try: () => getStore(storeName),
-          catch: () => new StoreNotFoundError(storeName),
-        });
-        return store.use(middleware);
-      }),
-  }
+		useMiddleware: (
+			storeName: string,
+			middleware: Middleware<Record<string, unknown>>
+		) =>
+			Effect.gen(function* () {
+				const store = yield* Effect.try({
+					try: () => getStore(storeName),
+					catch: () => new StoreNotFoundError(storeName),
+				});
+				return store.use(middleware);
+			}),
+	}
 );
 
 export interface ScopeServiceApi {
-  create: (parent?: ScopeNode) => Effect.Effect<ScopeNode>;
-  dispose: (scope: ScopeNode) => Effect.Effect<void>;
-  current: () => Effect.Effect<ScopeNode>;
-  run: <R>(scope: ScopeNode, fn: () => R) => Effect.Effect<R>;
-  register: <T>(
-    name: string,
-    store: Store<T>,
-    scope?: ScopeNode
-  ) => Effect.Effect<void>;
-  get: <T>(
-    name: string,
-    scope?: ScopeNode
-  ) => Effect.Effect<Store<T>, StoreNotFoundError>;
+	create: (parent?: ScopeNode) => Effect.Effect<ScopeNode>;
+	dispose: (scope: ScopeNode) => Effect.Effect<void>;
+	current: () => Effect.Effect<ScopeNode>;
+	run: <R>(scope: ScopeNode, fn: () => R) => Effect.Effect<R>;
+	register: <T>(
+		name: string,
+		store: Store<T>,
+		scope?: ScopeNode
+	) => Effect.Effect<void>;
+	get: <T>(
+		name: string,
+		scope?: ScopeNode
+	) => Effect.Effect<Store<T>, StoreNotFoundError>;
 }
 
 export class ScopeService extends Context.Tag('effuse/store/ScopeService')<
-  ScopeService,
-  ScopeServiceApi
->() { }
+	ScopeService,
+	ScopeServiceApi
+>() {}
 
 export const ScopeServiceLive: Layer.Layer<ScopeService> = Layer.succeed(
-  ScopeService,
-  {
-    create: (parent?: ScopeNode) => Effect.sync(() => createScope(parent)),
-    dispose: (scope: ScopeNode) => Effect.sync(() => { disposeScope(scope); }),
-    current: () => Effect.sync(() => getCurrentScope()),
-    run: <R>(scope: ScopeNode, fn: () => R) =>
-      Effect.sync(() => runInScope(scope, fn)),
-    register: <T>(name: string, store: Store<T>, scope?: ScopeNode) =>
-      Effect.sync(() => { registerScopedStore(name, store, scope); }),
-    get: <T>(name: string, scope?: ScopeNode) =>
-      Effect.gen(function* () {
-        const store = getScopedStore<T>(name, scope);
-        if (!store) {
-          return yield* Effect.fail(new StoreNotFoundError(name));
-        }
-        return store;
-      }),
-  }
+	ScopeService,
+	{
+		create: (parent?: ScopeNode) => Effect.sync(() => createScope(parent)),
+		dispose: (scope: ScopeNode) =>
+			Effect.sync(() => {
+				disposeScope(scope);
+			}),
+		current: () => Effect.sync(() => getCurrentScope()),
+		run: <R>(scope: ScopeNode, fn: () => R) =>
+			Effect.sync(() => runInScope(scope, fn)),
+		register: <T>(name: string, store: Store<T>, scope?: ScopeNode) =>
+			Effect.sync(() => {
+				registerScopedStore(name, store, scope);
+			}),
+		get: <T>(name: string, scope?: ScopeNode) =>
+			Effect.gen(function* () {
+				const store = getScopedStore<T>(name, scope);
+				if (!store) {
+					return yield* Effect.fail(new StoreNotFoundError(name));
+				}
+				return store;
+			}),
+	}
 );
 
-export const AllServicesLive = Layer.mergeAll(StoreServiceLive, ScopeServiceLive);
+export const AllServicesLive = Layer.mergeAll(
+	StoreServiceLive,
+	ScopeServiceLive
+);
 
 export const useStoreService = <A, E, R>(
-  fn: (service: StoreServiceApi) => Effect.Effect<A, E, R>
+	fn: (service: StoreServiceApi) => Effect.Effect<A, E, R>
 ) =>
-  Effect.gen(function* () {
-    const service = yield* StoreService;
-    return yield* fn(service);
-  });
+	Effect.gen(function* () {
+		const service = yield* StoreService;
+		return yield* fn(service);
+	});
 
 export const useScopeService = <A, E, R>(
-  fn: (service: ScopeServiceApi) => Effect.Effect<A, E, R>
+	fn: (service: ScopeServiceApi) => Effect.Effect<A, E, R>
 ) =>
-  Effect.gen(function* () {
-    const service = yield* ScopeService;
-    return yield* fn(service);
-  });
+	Effect.gen(function* () {
+		const service = yield* ScopeService;
+		return yield* fn(service);
+	});
 
 export const runWithStore = <A, E>(
-  effect: Effect.Effect<A, E, StoreService>
+	effect: Effect.Effect<A, E, StoreService>
 ): Effect.Effect<A, E> => Effect.provide(effect, StoreServiceLive);
 
 export const runWithScope = <A, E>(
-  effect: Effect.Effect<A, E, ScopeService>
+	effect: Effect.Effect<A, E, ScopeService>
 ): Effect.Effect<A, E> => Effect.provide(effect, ScopeServiceLive);
 
 export const runWithAllServices = <A, E>(
-  effect: Effect.Effect<A, E, StoreService | ScopeService>
+	effect: Effect.Effect<A, E, StoreService | ScopeService>
 ): Effect.Effect<A, E> => Effect.provide(effect, AllServicesLive);

@@ -25,108 +25,108 @@
 import type { Store } from '../core/types.js';
 
 export interface StoreStream<T> {
-  subscribe: (handler: (value: T) => void) => () => void;
-  map: <R>(fn: (value: T) => R) => StoreStream<R>;
-  filter: (predicate: (value: T) => boolean) => StoreStream<T>;
-  debounce: (ms: number) => StoreStream<T>;
+	subscribe: (handler: (value: T) => void) => () => void;
+	map: <R>(fn: (value: T) => R) => StoreStream<R>;
+	filter: (predicate: (value: T) => boolean) => StoreStream<T>;
+	debounce: (ms: number) => StoreStream<T>;
 }
 
 const createBaseStream = <T>(
-  addListener: (handler: (value: T) => void) => () => void
+	addListener: (handler: (value: T) => void) => () => void
 ): StoreStream<T> => {
-  return {
-    subscribe: addListener,
+	return {
+		subscribe: addListener,
 
-    map: <R>(fn: (value: T) => R): StoreStream<R> => {
-      const mappedListeners = new Set<(value: R) => void>();
-      addListener((value) => {
-        const mapped = fn(value);
-        for (const h of mappedListeners) h(mapped);
-      });
-      return createBaseStream((h) => {
-        mappedListeners.add(h);
-        return () => mappedListeners.delete(h);
-      });
-    },
+		map: <R>(fn: (value: T) => R): StoreStream<R> => {
+			const mappedListeners = new Set<(value: R) => void>();
+			addListener((value) => {
+				const mapped = fn(value);
+				for (const h of mappedListeners) h(mapped);
+			});
+			return createBaseStream((h) => {
+				mappedListeners.add(h);
+				return () => mappedListeners.delete(h);
+			});
+		},
 
-    filter: (predicate): StoreStream<T> => {
-      const filteredListeners = new Set<(value: T) => void>();
-      addListener((value) => {
-        if (predicate(value)) {
-          for (const h of filteredListeners) h(value);
-        }
-      });
-      return createBaseStream((h) => {
-        filteredListeners.add(h);
-        return () => filteredListeners.delete(h);
-      });
-    },
+		filter: (predicate): StoreStream<T> => {
+			const filteredListeners = new Set<(value: T) => void>();
+			addListener((value) => {
+				if (predicate(value)) {
+					for (const h of filteredListeners) h(value);
+				}
+			});
+			return createBaseStream((h) => {
+				filteredListeners.add(h);
+				return () => filteredListeners.delete(h);
+			});
+		},
 
-    debounce: (ms): StoreStream<T> => {
-      const debouncedListeners = new Set<(value: T) => void>();
-      let timeout: ReturnType<typeof setTimeout> | null = null;
-      let latestValue: T | undefined;
+		debounce: (ms): StoreStream<T> => {
+			const debouncedListeners = new Set<(value: T) => void>();
+			let timeout: ReturnType<typeof setTimeout> | null = null;
+			let latestValue: T | undefined;
 
-      addListener((value) => {
-        latestValue = value;
-        if (timeout) clearTimeout(timeout);
-        timeout = setTimeout(() => {
-          if (latestValue !== undefined) {
-            for (const h of debouncedListeners) h(latestValue);
-          }
-        }, ms);
-      });
+			addListener((value) => {
+				latestValue = value;
+				if (timeout) clearTimeout(timeout);
+				timeout = setTimeout(() => {
+					if (latestValue !== undefined) {
+						for (const h of debouncedListeners) h(latestValue);
+					}
+				}, ms);
+			});
 
-      return createBaseStream((h) => {
-        debouncedListeners.add(h);
-        return () => debouncedListeners.delete(h);
-      });
-    },
-  };
+			return createBaseStream((h) => {
+				debouncedListeners.add(h);
+				return () => debouncedListeners.delete(h);
+			});
+		},
+	};
 };
 
 export const createStoreStream = <T, K extends keyof T>(
-  store: Store<T>,
-  key: K
+	store: Store<T>,
+	key: K
 ): StoreStream<T[K]> => {
-  const listeners = new Set<(value: T[K]) => void>();
-  let lastValue: T[K] = (store.getSnapshot() as Record<string, unknown>)[
-    key as string
-  ] as T[K];
+	const listeners = new Set<(value: T[K]) => void>();
+	let lastValue: T[K] = (store.getSnapshot() as Record<string, unknown>)[
+		key as string
+	] as T[K];
 
-  store.subscribe(() => {
-    const snapshot = store.getSnapshot() as Record<string, unknown>;
-    const newValue = snapshot[key as string] as T[K];
-    if (newValue !== lastValue) {
-      lastValue = newValue;
-      for (const listener of listeners) {
-        listener(newValue);
-      }
-    }
-  });
+	store.subscribe(() => {
+		const snapshot = store.getSnapshot() as Record<string, unknown>;
+		const newValue = snapshot[key as string] as T[K];
+		if (newValue !== lastValue) {
+			lastValue = newValue;
+			for (const listener of listeners) {
+				listener(newValue);
+			}
+		}
+	});
 
-  return createBaseStream((handler) => {
-    listeners.add(handler);
-    return () => listeners.delete(handler);
-  });
+	return createBaseStream((handler) => {
+		listeners.add(handler);
+		return () => listeners.delete(handler);
+	});
 };
 
 export const streamAll = <T>(
-  store: Store<T>
+	store: Store<T>
 ): StoreStream<ReturnType<Store<T>['getSnapshot']>> => {
-  const listeners = new Set<
-    (value: ReturnType<Store<T>['getSnapshot']>) => void
-  >();
+	const listeners = new Set<
+		(value: ReturnType<Store<T>['getSnapshot']>) => void
+	>();
 
-  store.subscribe(() => {
-    const snapshot = store.getSnapshot();
-    for (const listener of listeners) {
-      listener(snapshot);
-    }
-  });
+	store.subscribe(() => {
+		const snapshot = store.getSnapshot();
+		for (const listener of listeners) {
+			listener(snapshot);
+		}
+	});
 
-  return createBaseStream((handler) => {
-    listeners.add(handler);
-    return () => listeners.delete(handler);
-  });
+	return createBaseStream((handler) => {
+		listeners.add(handler);
+		return () => listeners.delete(handler);
+	});
 };

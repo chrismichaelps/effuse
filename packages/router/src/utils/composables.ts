@@ -44,7 +44,11 @@ export const useRoute = (): Route => {
 
 	return new Proxy(routeSignal.value, {
 		get(_target, prop, receiver) {
-			return Reflect.get(routeSignal.value, prop, receiver) as Route[keyof Route];
+			return Reflect.get(
+				routeSignal.value,
+				prop,
+				receiver
+			) as Route[keyof Route];
 		},
 		ownKeys(_target) {
 			return Reflect.ownKeys(routeSignal.value);
@@ -64,7 +68,7 @@ export const onRouteChange = (
 	const routeSignal = getRouteSignal();
 
 	if (!routeSignal) {
-		return () => { };
+		return () => {};
 	}
 
 	let lastFullPath = routeSignal.value.fullPath;
@@ -193,7 +197,7 @@ export const onBeforeRouteUpdate = (
 export const useFetchOnRouteChange = <T>(
 	fetcher: (route: Route) => Effect.Effect<T>,
 	onData: (data: T) => void,
-	onError: (error: unknown) => void = () => { }
+	onError: (error: unknown) => void = () => {}
 ): (() => void) => {
 	return onRouteChange((route) => {
 		Effect.runPromise(fetcher(route)).then(onData).catch(onError);

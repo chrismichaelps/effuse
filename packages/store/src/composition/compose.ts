@@ -27,97 +27,97 @@ import type { Store, StoreDefinition } from '../core/types.js';
 import { createStore as createStoreImpl } from '../core/store.js';
 
 export interface ComposedStore<T, D extends readonly Store<unknown>[]> {
-  store: Store<T>;
-  dependencies: D;
-  computed: <R>(
-    selector: (
-      state: T,
-      deps: { [K in keyof D]: ReturnType<D[K]['getSnapshot']> }
-    ) => R
-  ) => Signal<R>;
+	store: Store<T>;
+	dependencies: D;
+	computed: <R>(
+		selector: (
+			state: T,
+			deps: { [K in keyof D]: ReturnType<D[K]['getSnapshot']> }
+		) => R
+	) => Signal<R>;
 }
 
 export const composeStores = <T, D extends readonly Store<unknown>[]>(
-  mainStore: Store<T>,
-  dependencies: D
+	mainStore: Store<T>,
+	dependencies: D
 ): ComposedStore<T, D> => {
-  const getDependencySnapshots = (): {
-    [K in keyof D]: ReturnType<D[K]['getSnapshot']>;
-  } => {
-    return dependencies.map((dep) => dep.getSnapshot()) as {
-      [K in keyof D]: ReturnType<D[K]['getSnapshot']>;
-    };
-  };
+	const getDependencySnapshots = (): {
+		[K in keyof D]: ReturnType<D[K]['getSnapshot']>;
+	} => {
+		return dependencies.map((dep) => dep.getSnapshot()) as {
+			[K in keyof D]: ReturnType<D[K]['getSnapshot']>;
+		};
+	};
 
-  return {
-    store: mainStore,
-    dependencies,
-    computed: <R>(
-      selector: (
-        state: T,
-        deps: { [K in keyof D]: ReturnType<D[K]['getSnapshot']> }
-      ) => R
-    ): Signal<R> => {
-      const mainSnapshot = mainStore.getSnapshot() as T;
-      const depSnapshots = getDependencySnapshots();
-      const initialValue = selector(mainSnapshot, depSnapshots);
-      const derived = signal<R>(initialValue);
+	return {
+		store: mainStore,
+		dependencies,
+		computed: <R>(
+			selector: (
+				state: T,
+				deps: { [K in keyof D]: ReturnType<D[K]['getSnapshot']> }
+			) => R
+		): Signal<R> => {
+			const mainSnapshot = mainStore.getSnapshot() as T;
+			const depSnapshots = getDependencySnapshots();
+			const initialValue = selector(mainSnapshot, depSnapshots);
+			const derived = signal<R>(initialValue);
 
-      const update = () => {
-        const mainState = mainStore.getSnapshot() as T;
-        const depStates = getDependencySnapshots();
-        const newValue = selector(mainState, depStates);
-        if (derived.value !== newValue) {
-          derived.value = newValue;
-        }
-      };
+			const update = () => {
+				const mainState = mainStore.getSnapshot() as T;
+				const depStates = getDependencySnapshots();
+				const newValue = selector(mainState, depStates);
+				if (derived.value !== newValue) {
+					derived.value = newValue;
+				}
+			};
 
-      mainStore.subscribe(update);
-      for (const dep of dependencies) {
-        dep.subscribe(update);
-      }
+			mainStore.subscribe(update);
+			for (const dep of dependencies) {
+				dep.subscribe(update);
+			}
 
-      return derived;
-    },
-  };
+			return derived;
+		},
+	};
 };
 
 export interface StoreSlice<T extends object, P extends object> {
-  create: (parent: Store<P>) => Store<T>;
+	create: (parent: Store<P>) => Store<T>;
 }
 
 export const defineSlice = <T extends object, P extends object>(
-  name: string,
-  factory: (parent: Store<P>) => StoreDefinition<T>
+	name: string,
+	factory: (parent: Store<P>) => StoreDefinition<T>
 ): StoreSlice<T, P> => {
-  return {
-    create: (parent: Store<P>): Store<T> => {
-      const definition = factory(parent);
-      return createStoreImpl<T>(name, definition);
-    },
-  };
+	return {
+		create: (parent: Store<P>): Store<T> => {
+			const definition = factory(parent);
+			return createStoreImpl<T>(name, definition);
+		},
+	};
 };
 
 export const mergeStores = <A, B>(
-  storeA: Store<A>,
-  storeB: Store<B>
+	storeA: Store<A>,
+	storeB: Store<B>
 ): {
-  getSnapshot: () => ReturnType<Store<A>['getSnapshot']> &
-    ReturnType<Store<B>['getSnapshot']>;
-  subscribe: (callback: () => void) => () => void;
+	getSnapshot: () => ReturnType<Store<A>['getSnapshot']> &
+		ReturnType<Store<B>['getSnapshot']>;
+	subscribe: (callback: () => void) => () => void;
 } => {
-  return {
-    getSnapshot: () => ({
-      ...storeA.getSnapshot(),
-      ...storeB.getSnapshot(),
-    }),
-    subscribe: (callback: () => void) => {
-      const unsubA = storeA.subscribe(callback);
-      const unsubB = storeB.subscribe(callback);
-      return () => {
-        unsubA();
-        unsubB();
-      };
-    },
-  };
+	return {
+		getSnapshot: () => ({
+			...storeA.getSnapshot(),
+			...storeB.getSnapshot(),
+		}),
+		subscribe: (callback: () => void) => {
+			const unsubA = storeA.subscribe(callback);
+			const unsubB = storeB.subscribe(callback);
+			return () => {
+				unsubA();
+				unsubB();
+			};
+		},
+	};
 };

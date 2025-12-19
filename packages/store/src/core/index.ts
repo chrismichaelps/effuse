@@ -25,12 +25,12 @@
 export { createStore, type CreateStoreOptions } from './store.js';
 export { createAtomicState, type AtomicState } from './state.js';
 export {
-  type Store,
-  type StoreState,
-  type StoreContext,
-  type StoreDefinition,
-  type StoreOptions,
-  type ActionContext,
-  type Middleware,
-  type InferStoreState,
+	type Store,
+	type StoreState,
+	type StoreContext,
+	type StoreDefinition,
+	type StoreOptions,
+	type ActionContext,
+	type Middleware,
+	type InferStoreState,
 } from './types.js';

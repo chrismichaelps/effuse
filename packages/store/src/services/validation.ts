@@ -25,70 +25,70 @@
 import type { Schema } from 'effect';
 import { Context, Effect, Layer } from 'effect';
 import {
-  validateState,
-  createFieldValidator,
-  type StateSchema,
-  type ValidationResult,
+	validateState,
+	createFieldValidator,
+	type StateSchema,
+	type ValidationResult,
 } from '../validation/schema.js';
 
 export class ValidationError extends Error {
-  readonly _tag = 'ValidationError';
-  readonly errors: string[];
-  constructor(errors: string[]) {
-    super(`Validation failed: ${errors.join(', ')}`);
-    this.errors = errors;
-  }
+	readonly _tag = 'ValidationError';
+	readonly errors: string[];
+	constructor(errors: string[]) {
+		super(`Validation failed: ${errors.join(', ')}`);
+		this.errors = errors;
+	}
 }
 
 export interface ValidationServiceApi {
-  validate: <T>(
-    schema: StateSchema<T>,
-    state: unknown
-  ) => Effect.Effect<T, ValidationError>;
-  validateSafe: <T>(
-    schema: StateSchema<T>,
-    state: unknown
-  ) => Effect.Effect<ValidationResult<T>>;
-  createValidator: <T>(
-    schema: Schema.Schema<T, T>
-  ) => (value: unknown) => Effect.Effect<T, ValidationError>;
+	validate: <T>(
+		schema: StateSchema<T>,
+		state: unknown
+	) => Effect.Effect<T, ValidationError>;
+	validateSafe: <T>(
+		schema: StateSchema<T>,
+		state: unknown
+	) => Effect.Effect<ValidationResult<T>>;
+	createValidator: <T>(
+		schema: Schema.Schema<T, T>
+	) => (value: unknown) => Effect.Effect<T, ValidationError>;
 }
 
 export class ValidationService extends Context.Tag(
-  'effuse/store/ValidationService'
-)<ValidationService, ValidationServiceApi>() { }
+	'effuse/store/ValidationService'
+)<ValidationService, ValidationServiceApi>() {}
 
 export const ValidationServiceLive: Layer.Layer<ValidationService> =
-  Layer.succeed(ValidationService, {
-    validate: <T>(schema: StateSchema<T>, state: unknown) =>
-      Effect.gen(function* () {
-        const result = validateState(schema, state);
-        if (!result.success || !result.data) {
-          return yield* Effect.fail(new ValidationError(result.errors));
-        }
-        return result.data;
-      }),
+	Layer.succeed(ValidationService, {
+		validate: <T>(schema: StateSchema<T>, state: unknown) =>
+			Effect.gen(function* () {
+				const result = validateState(schema, state);
+				if (!result.success || !result.data) {
+					return yield* Effect.fail(new ValidationError(result.errors));
+				}
+				return result.data;
+			}),
 
-    validateSafe: <T>(schema: StateSchema<T>, state: unknown) =>
-      Effect.sync(() => validateState(schema, state)),
+		validateSafe: <T>(schema: StateSchema<T>, state: unknown) =>
+			Effect.sync(() => validateState(schema, state)),
 
-    createValidator:
-      <T>(schema: Schema.Schema<T, T>) =>
-        (value: unknown) =>
-          Effect.try({
-            try: () => createFieldValidator(schema)(value),
-            catch: (e) => new ValidationError([String(e)]),
-          }),
-  });
+		createValidator:
+			<T>(schema: Schema.Schema<T, T>) =>
+			(value: unknown) =>
+				Effect.try({
+					try: () => createFieldValidator(schema)(value),
+					catch: (e) => new ValidationError([String(e)]),
+				}),
+	});
 
 export const useValidation = <A, E, R>(
-  fn: (service: ValidationServiceApi) => Effect.Effect<A, E, R>
+	fn: (service: ValidationServiceApi) => Effect.Effect<A, E, R>
 ) =>
-  Effect.gen(function* () {
-    const service = yield* ValidationService;
-    return yield* fn(service);
-  });
+	Effect.gen(function* () {
+		const service = yield* ValidationService;
+		return yield* fn(service);
+	});
 
 export const runWithValidation = <A, E>(
-  effect: Effect.Effect<A, E, ValidationService>
+	effect: Effect.Effect<A, E, ValidationService>
 ): Effect.Effect<A, E> => Effect.provide(effect, ValidationServiceLive);

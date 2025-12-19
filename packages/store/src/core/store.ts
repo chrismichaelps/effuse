@@ -35,7 +35,11 @@ import { createAtomicState } from './state.js';
 import { getStoreConfig } from '../config/index.js';
 import { createMiddlewareManager } from '../middleware/index.js';
 import { registerStore } from '../registry/index.js';
-import { type StorageAdapter, runAdapter, localStorageAdapter } from '../persistence/index.js';
+import {
+	type StorageAdapter,
+	runAdapter,
+	localStorageAdapter,
+} from '../persistence/index.js';
 
 interface StoreInternals {
 	signalMap: Map<string, Signal<unknown>>;
@@ -50,7 +54,9 @@ interface StoreInternals {
 	isBatching: boolean;
 }
 
-const getSnapshot = (signalMap: Map<string, Signal<unknown>>): Record<string, unknown> => {
+const getSnapshot = (
+	signalMap: Map<string, Signal<unknown>>
+): Record<string, unknown> => {
 	const snapshot: Record<string, unknown> = {};
 	for (const [key, sig] of signalMap) {
 		snapshot[key] = sig.value;
@@ -108,7 +114,9 @@ export const createStore = <T extends object>(
 				Effect.runSync(
 					Effect.try(() => JSON.parse(saved) as Record<string, unknown>).pipe(
 						Effect.map(Option.some),
-						Effect.catchAll(() => Effect.succeed(Option.none<Record<string, unknown>>()))
+						Effect.catchAll(() =>
+							Effect.succeed(Option.none<Record<string, unknown>>())
+						)
 					)
 				)
 			),
@@ -275,8 +283,8 @@ export const createStore = <T extends object>(
 		update: (updater) => {
 			const draft = { ...getSnapshot(internals.signalMap) } as {
 				[K in keyof T]: T[K] extends (...args: unknown[]) => unknown
-				? never
-				: T[K];
+					? never
+					: T[K];
 			};
 
 			updater(draft);

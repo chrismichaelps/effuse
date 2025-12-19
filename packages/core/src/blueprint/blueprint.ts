@@ -91,7 +91,9 @@ export const instantiateBlueprint = <P extends Record<string, unknown>>(
 ): BlueprintContext<P> => {
 	let validatedProps = props;
 
-	const defWithSchema = def as unknown as { propsSchema?: PropSchemaBuilder<P> };
+	const defWithSchema = def as unknown as {
+		propsSchema?: PropSchemaBuilder<P>;
+	};
 	if (defWithSchema.propsSchema) {
 		validatedProps = defWithSchema.propsSchema.validateSync(props, def.name);
 	}

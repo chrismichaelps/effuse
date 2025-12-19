@@ -68,7 +68,9 @@ export interface ScriptState<E extends ExposedValues> {
 let globalStoreGetter: ((name: string) => unknown) | null = null;
 let globalRouter: unknown = null;
 
-export const setGlobalStoreGetter = (getter: (name: string) => unknown): void => {
+export const setGlobalStoreGetter = (
+	getter: (name: string) => unknown
+): void => {
 	globalStoreGetter = getter;
 };
 
@@ -138,7 +140,10 @@ export const createScriptContext = <P, E extends ExposedValues>(
 			lifecycle.onBeforeUnmount(callback);
 		},
 
-		watch: <T>(source: Signal<T> | (() => T), callback: (value: T) => void): void => {
+		watch: <T>(
+			source: Signal<T> | (() => T),
+			callback: (value: T) => void
+		): void => {
 			const getValue =
 				typeof source === 'function' ? source : () => source.value;
 

@@ -23,9 +23,9 @@
  */
 
 export {
-  createAsyncAction,
-  dispatch,
-  dispatchSync,
-  type ActionResult,
-  type AsyncAction,
+	createAsyncAction,
+	dispatch,
+	dispatchSync,
+	type ActionResult,
+	type AsyncAction,
 } from './async.js';

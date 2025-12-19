@@ -22,13 +22,18 @@
  * SOFTWARE.
  */
 
-export { deriveFrom, serializeStores, hydrateStores, hydrateStoresSync } from './derived.js';
+export {
+	deriveFrom,
+	serializeStores,
+	hydrateStores,
+	hydrateStoresSync,
+} from './derived.js';
 export { createStoreStream, streamAll, type StoreStream } from './streams.js';
 export {
-  createSelector,
-  pick,
-  combineSelectors,
-  shallowEqual,
-  type Selector,
-  type EqualityFn,
+	createSelector,
+	pick,
+	combineSelectors,
+	shallowEqual,
+	type Selector,
+	type EqualityFn,
 } from './selectors.js';

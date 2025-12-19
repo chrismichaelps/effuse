@@ -23,66 +23,66 @@
  */
 
 export interface PropertyLookupResult {
-  descriptor: PropertyDescriptor | undefined;
-  found: boolean;
+	descriptor: PropertyDescriptor | undefined;
+	found: boolean;
 }
 
 export function findPropertyDescriptor(
-  obj: object,
-  key: string | symbol
+	obj: object,
+	key: string | symbol
 ): PropertyLookupResult {
-  let proto: object | null = obj;
+	let proto: object | null = obj;
 
-  while (proto !== null) {
-    const descriptor = Object.getOwnPropertyDescriptor(proto, key);
-    if (descriptor) {
-      return { descriptor, found: true };
-    }
-    proto = Object.getPrototypeOf(proto) as object | null;
-  }
+	while (proto !== null) {
+		const descriptor = Object.getOwnPropertyDescriptor(proto, key);
+		if (descriptor) {
+			return { descriptor, found: true };
+		}
+		proto = Object.getPrototypeOf(proto) as object | null;
+	}
 
-  return { descriptor: undefined, found: false };
+	return { descriptor: undefined, found: false };
 }
 
 export function getPropertyWithPrivateFieldSupport(
-  target: object,
-  key: string | symbol
+	target: object,
+	key: string | symbol
 ): unknown {
-  const { descriptor, found } = findPropertyDescriptor(target, key);
+	const { descriptor, found } = findPropertyDescriptor(target, key);
 
-  if (found && descriptor) {
-    if (descriptor.get) {
-      return descriptor.get.call(target);
-    } else if ('value' in descriptor) {
-      return descriptor.value;
-    }
-  }
+	if (found && descriptor) {
+		if (descriptor.get) {
+			return descriptor.get.call(target);
+		} else if ('value' in descriptor) {
+			return descriptor.value;
+		}
+	}
 
-  return Reflect.get(target, key, target);
+	return Reflect.get(target, key, target);
 }
 
 export function setPropertyWithPrivateFieldSupport(
-  target: object,
-  key: string | symbol,
-  value: unknown
+	target: object,
+	key: string | symbol,
+	value: unknown
 ): boolean {
-  const { descriptor, found } = findPropertyDescriptor(target, key);
+	const { descriptor, found } = findPropertyDescriptor(target, key);
 
-  if (found && descriptor?.set) {
-    descriptor.set.call(target, value);
-    return true;
-  }
+	if (found && descriptor?.set) {
+		descriptor.set.call(target, value);
+		return true;
+	}
 
-  return Reflect.set(target, key, value, target);
+	return Reflect.set(target, key, value, target);
 }
 
 export function bindMethodToTarget<T>(method: T, target: object): T {
-  if (typeof method === 'function') {
-    return method.bind(target) as T;
-  }
-  return method;
+	if (typeof method === 'function') {
+		return method.bind(target) as T;
+	}
+	return method;
 }
 
 export function getCurrentValue(target: object, key: string | symbol): unknown {
-  return getPropertyWithPrivateFieldSupport(target, key);
+	return getPropertyWithPrivateFieldSupport(target, key);
 }

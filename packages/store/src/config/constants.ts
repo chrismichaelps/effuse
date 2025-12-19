@@ -29,59 +29,59 @@ export const ROOT_SCOPE_ID = '__root__';
 export const SCOPE_PREFIX = 'scope_';
 
 export const StoreConstants = {
-  STORAGE_PREFIX,
-  ROOT_SCOPE_ID,
-  SCOPE_PREFIX,
-  DEBUG_PREFIX: '[store]',
-  DEVTOOLS_PREFIX: 'Effuse:',
+	STORAGE_PREFIX,
+	ROOT_SCOPE_ID,
+	SCOPE_PREFIX,
+	DEBUG_PREFIX: '[store]',
+	DEVTOOLS_PREFIX: 'Effuse:',
 } as const;
 
 export const StoreConfigOptions = {
-  persistByDefault: Config.boolean('EFFUSE_STORE_PERSIST').pipe(
-    Config.withDefault(false)
-  ),
-  storagePrefix: Config.string('EFFUSE_STORE_PREFIX').pipe(
-    Config.withDefault(STORAGE_PREFIX)
-  ),
-  debug: Config.boolean('EFFUSE_STORE_DEBUG').pipe(Config.withDefault(false)),
-  devtools: Config.boolean('EFFUSE_STORE_DEVTOOLS').pipe(
-    Config.withDefault(false)
-  ),
+	persistByDefault: Config.boolean('EFFUSE_STORE_PERSIST').pipe(
+		Config.withDefault(false)
+	),
+	storagePrefix: Config.string('EFFUSE_STORE_PREFIX').pipe(
+		Config.withDefault(STORAGE_PREFIX)
+	),
+	debug: Config.boolean('EFFUSE_STORE_DEBUG').pipe(Config.withDefault(false)),
+	devtools: Config.boolean('EFFUSE_STORE_DEVTOOLS').pipe(
+		Config.withDefault(false)
+	),
 };
 
 export interface StoreConfigValues {
-  persistByDefault: boolean;
-  storagePrefix: string;
-  debug: boolean;
-  devtools: boolean;
+	persistByDefault: boolean;
+	storagePrefix: string;
+	debug: boolean;
+	devtools: boolean;
 }
 
 export const loadStoreConfigValues: Effect.Effect<StoreConfigValues> =
-  Effect.all({
-    persistByDefault: StoreConfigOptions.persistByDefault,
-    storagePrefix: StoreConfigOptions.storagePrefix,
-    debug: StoreConfigOptions.debug,
-    devtools: StoreConfigOptions.devtools,
-  }).pipe(
-    Effect.catchAll(() =>
-      Effect.succeed({
-        persistByDefault: false,
-        storagePrefix: STORAGE_PREFIX,
-        debug: false,
-        devtools: false,
-      })
-    )
-  );
+	Effect.all({
+		persistByDefault: StoreConfigOptions.persistByDefault,
+		storagePrefix: StoreConfigOptions.storagePrefix,
+		debug: StoreConfigOptions.debug,
+		devtools: StoreConfigOptions.devtools,
+	}).pipe(
+		Effect.catchAll(() =>
+			Effect.succeed({
+				persistByDefault: false,
+				storagePrefix: STORAGE_PREFIX,
+				debug: false,
+				devtools: false,
+			})
+		)
+	);
 
 let cachedConfig: StoreConfigValues | null = null;
 
 export const getStoreConfig = (): StoreConfigValues => {
-  if (!cachedConfig) {
-    cachedConfig = Effect.runSync(loadStoreConfigValues);
-  }
-  return cachedConfig;
+	if (!cachedConfig) {
+		cachedConfig = Effect.runSync(loadStoreConfigValues);
+	}
+	return cachedConfig;
 };
 
 export const resetStoreConfigCache = (): void => {
-  cachedConfig = null;
+	cachedConfig = null;
 };

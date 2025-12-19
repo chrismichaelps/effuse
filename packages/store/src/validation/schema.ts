@@ -27,74 +27,74 @@ import { Effect, Schema } from 'effect';
 export type StateSchema<T> = Schema.Schema<T, T>;
 
 export interface ValidationResult<T> {
-  success: boolean;
-  data: T | null;
-  errors: string[];
+	success: boolean;
+	data: T | null;
+	errors: string[];
 }
 
 export const validateState = <T>(
-  schema: StateSchema<T>,
-  state: unknown
+	schema: StateSchema<T>,
+	state: unknown
 ): ValidationResult<T> => {
-  const result = Effect.runSync(
-    Schema.decodeUnknown(schema)(state).pipe(
-      Effect.map((data) => ({
-        success: true as const,
-        data,
-        errors: [] as string[],
-      })),
-      Effect.catchAll((error) =>
-        Effect.succeed({
-          success: false as const,
-          data: null,
-          errors: [String(error)],
-        })
-      )
-    )
-  );
-  return result;
+	const result = Effect.runSync(
+		Schema.decodeUnknown(schema)(state).pipe(
+			Effect.map((data) => ({
+				success: true as const,
+				data,
+				errors: [] as string[],
+			})),
+			Effect.catchAll((error) =>
+				Effect.succeed({
+					success: false as const,
+					data: null,
+					errors: [String(error)],
+				})
+			)
+		)
+	);
+	return result;
 };
 
 export const createValidatedSetter = <T extends Record<string, unknown>>(
-  schema: StateSchema<T>,
-  onValid: (state: T) => void,
-  onInvalid?: (errors: string[]) => void
+	schema: StateSchema<T>,
+	onValid: (state: T) => void,
+	onInvalid?: (errors: string[]) => void
 ): ((state: unknown) => boolean) => {
-  return (state: unknown): boolean => {
-    const result = validateState(schema, state);
-    if (result.success && result.data) {
-      onValid(result.data);
-      return true;
-    }
-    onInvalid?.(result.errors);
-    return false;
-  };
+	return (state: unknown): boolean => {
+		const result = validateState(schema, state);
+		if (result.success && result.data) {
+			onValid(result.data);
+			return true;
+		}
+		onInvalid?.(result.errors);
+		return false;
+	};
 };
 
 export const createFieldValidator = <T>(
-  schema: Schema.Schema<T, T>
+	schema: Schema.Schema<T, T>
 ): ((value: unknown) => T) => {
-  return (value: unknown): T => {
-    return Effect.runSync(Schema.decodeUnknown(schema)(value));
-  };
+	return (value: unknown): T => {
+		return Effect.runSync(Schema.decodeUnknown(schema)(value));
+	};
 };
 
 export const createSafeFieldSetter = <T>(
-  schema: Schema.Schema<T, T>,
-  setter: (value: T) => void
+	schema: Schema.Schema<T, T>,
+	setter: (value: T) => void
 ): ((value: unknown) => boolean) => {
-  return (value: unknown): boolean => {
-    const result = Effect.runSync(
-      Schema.decodeUnknown(schema)(value).pipe(
-        Effect.map((decoded) => {
-          setter(decoded);
-          return true;
-        }),
-        Effect.catchAll(() => Effect.succeed(false))
-      )
-    );
-    return result;
-  };
+	return (value: unknown): boolean => {
+		const result = Effect.runSync(
+			Schema.decodeUnknown(schema)(value).pipe(
+				Effect.map((decoded) => {
+					setter(decoded);
+					return true;
+				}),
+				Effect.catchAll(() => Effect.succeed(false))
+			)
+		);
+		return result;
+	};
 };
 
 export { Schema };

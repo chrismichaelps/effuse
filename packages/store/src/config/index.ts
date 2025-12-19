@@ -23,13 +23,13 @@
  */
 
 export {
-  STORAGE_PREFIX,
-  ROOT_SCOPE_ID,
-  SCOPE_PREFIX,
-  StoreConstants,
-  StoreConfigOptions,
-  loadStoreConfigValues,
-  getStoreConfig,
-  resetStoreConfigCache,
-  type StoreConfigValues,
+	STORAGE_PREFIX,
+	ROOT_SCOPE_ID,
+	SCOPE_PREFIX,
+	StoreConstants,
+	StoreConfigOptions,
+	loadStoreConfigValues,
+	getStoreConfig,
+	resetStoreConfigCache,
+	type StoreConfigValues,
 } from './constants.js';

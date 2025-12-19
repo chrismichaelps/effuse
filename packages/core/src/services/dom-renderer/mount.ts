@@ -65,7 +65,7 @@ export interface MountServiceInterface {
 export class MountService extends Context.Tag('effuse/MountService')<
 	MountService,
 	MountServiceInterface
->() { }
+>() {}
 
 type CleanupFn = () => void;
 

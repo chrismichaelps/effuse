@@ -37,9 +37,9 @@ export interface RouteRecord {
 	readonly redirect?: string | RouteLocation;
 	readonly alias?: string | readonly string[];
 	readonly props?:
-	| boolean
-	| Record<string, unknown>
-	| ((route: Route) => Record<string, unknown>);
+		| boolean
+		| Record<string, unknown>
+		| ((route: Route) => Record<string, unknown>);
 	readonly beforeEnter?: NavigationGuard;
 }
 
@@ -55,11 +55,11 @@ export type RouteLocation =
 	| string
 	| { path: string; query?: Record<string, string>; hash?: string }
 	| {
-		name: string;
-		params?: Record<string, string>;
-		query?: Record<string, string>;
-		hash?: string;
-	};
+			name: string;
+			params?: Record<string, string>;
+			query?: Record<string, string>;
+			hash?: string;
+	  };
 
 export interface ResolvedRoute {
 	readonly path: string;
@@ -129,9 +129,8 @@ export const parseUrl = (
 		queryIndex >= 0 ? urlWithoutHash.slice(0, queryIndex) : urlWithoutHash;
 	const queryString = queryIndex >= 0 ? urlWithoutHash.slice(queryIndex) : '';
 
-	const normalizedPathname = (pathname || '/')
-		.replace(/\/+/g, '/')
-		.replace(/\/$/, '') || '/';
+	const normalizedPathname =
+		(pathname || '/').replace(/\/+/g, '/').replace(/\/$/, '') || '/';
 
 	return { pathname: normalizedPathname, query: parseQuery(queryString), hash };
 };

@@ -27,185 +27,193 @@ import type { EffuseChild } from '../render/node.js';
 import { render } from '../render/index.js';
 
 export interface PortalContainer {
-  readonly id: string;
-  readonly element: Element;
-  readonly cleanup: () => void;
+	readonly id: string;
+	readonly element: Element;
+	readonly cleanup: () => void;
 }
 
 export interface PortalServiceInterface {
-  readonly registerOutlet: (id: string, element: Element) => Effect.Effect<void>;
-  readonly unregisterOutlet: (id: string) => Effect.Effect<void>;
-  readonly getOutlet: (id: string) => Effect.Effect<Element | undefined>;
-  readonly renderToPortal: (
-    id: string,
-    content: EffuseChild
-  ) => Effect.Effect<() => void>;
+	readonly registerOutlet: (
+		id: string,
+		element: Element
+	) => Effect.Effect<void>;
+	readonly unregisterOutlet: (id: string) => Effect.Effect<void>;
+	readonly getOutlet: (id: string) => Effect.Effect<Element | undefined>;
+	readonly renderToPortal: (
+		id: string,
+		content: EffuseChild
+	) => Effect.Effect<() => void>;
 }
 
 export class PortalService extends Context.Tag('effuse/PortalService')<
-  PortalService,
-  PortalServiceInterface
->() { }
+	PortalService,
+	PortalServiceInterface
+>() {}
 
 const createPortalRegistry = () => {
-  const outlets = new Map<string, Element>();
-  const portals = new Map<string, PortalContainer>();
+	const outlets = new Map<string, Element>();
+	const portals = new Map<string, PortalContainer>();
 
-  return {
-    outlets,
-    portals,
-  };
+	return {
+		outlets,
+		portals,
+	};
 };
 
 export const PortalServiceLive = Layer.effect(
-  PortalService,
-  Effect.gen(function* () {
-    const registryRef = yield* Ref.make(createPortalRegistry());
+	PortalService,
+	Effect.gen(function* () {
+		const registryRef = yield* Ref.make(createPortalRegistry());
 
-    const registerOutlet = (id: string, element: Element): Effect.Effect<void> =>
-      Ref.update(registryRef, (registry) => {
-        registry.outlets.set(id, element);
-        return registry;
-      });
+		const registerOutlet = (
+			id: string,
+			element: Element
+		): Effect.Effect<void> =>
+			Ref.update(registryRef, (registry) => {
+				registry.outlets.set(id, element);
+				return registry;
+			});
 
-    const unregisterOutlet = (id: string): Effect.Effect<void> =>
-      Ref.update(registryRef, (registry) => {
-        registry.outlets.delete(id);
-        const portal = registry.portals.get(id);
-        if (portal) {
-          portal.cleanup();
-          registry.portals.delete(id);
-        }
-        return registry;
-      });
+		const unregisterOutlet = (id: string): Effect.Effect<void> =>
+			Ref.update(registryRef, (registry) => {
+				registry.outlets.delete(id);
+				const portal = registry.portals.get(id);
+				if (portal) {
+					portal.cleanup();
+					registry.portals.delete(id);
+				}
+				return registry;
+			});
 
-    const getOutlet = (id: string): Effect.Effect<Element | undefined> =>
-      Ref.get(registryRef).pipe(
-        Effect.map((registry) => registry.outlets.get(id))
-      );
+		const getOutlet = (id: string): Effect.Effect<Element | undefined> =>
+			Ref.get(registryRef).pipe(
+				Effect.map((registry) => registry.outlets.get(id))
+			);
 
-    const renderToPortal = (
-      id: string,
-      content: EffuseChild
-    ): Effect.Effect<() => void> =>
-      Effect.gen(function* () {
-        const registry = yield* Ref.get(registryRef);
-        const outlet = registry.outlets.get(id);
+		const renderToPortal = (
+			id: string,
+			content: EffuseChild
+		): Effect.Effect<() => void> =>
+			Effect.gen(function* () {
+				const registry = yield* Ref.get(registryRef);
+				const outlet = registry.outlets.get(id);
 
-        if (!outlet) {
-          const placeholder = document.createComment(`portal:${id}`);
-          return () => {
-            placeholder.remove();
-          };
-        }
+				if (!outlet) {
+					const placeholder = document.createComment(`portal:${id}`);
+					return () => {
+						placeholder.remove();
+					};
+				}
 
-        const existingPortal = registry.portals.get(id);
-        if (existingPortal) {
-          existingPortal.cleanup();
-        }
+				const existingPortal = registry.portals.get(id);
+				if (existingPortal) {
+					existingPortal.cleanup();
+				}
 
-        const cleanup = render(content, outlet);
+				const cleanup = render(content, outlet);
 
-        const portalContainer: PortalContainer = {
-          id,
-          element: outlet,
-          cleanup,
-        };
+				const portalContainer: PortalContainer = {
+					id,
+					element: outlet,
+					cleanup,
+				};
 
-        yield* Ref.update(registryRef, (reg) => {
-          reg.portals.set(id, portalContainer);
-          return reg;
-        });
+				yield* Ref.update(registryRef, (reg) => {
+					reg.portals.set(id, portalContainer);
+					return reg;
+				});
 
-        return () => {
-          cleanup();
-          Effect.runSync(
-            Ref.update(registryRef, (reg) => {
-              reg.portals.delete(id);
-              return reg;
-            })
-          );
-        };
-      });
+				return () => {
+					cleanup();
+					Effect.runSync(
+						Ref.update(registryRef, (reg) => {
+							reg.portals.delete(id);
+							return reg;
+						})
+					);
+				};
+			});
 
-    return {
-      registerOutlet,
-      unregisterOutlet,
-      getOutlet,
-      renderToPortal,
-    };
-  })
+		return {
+			registerOutlet,
+			unregisterOutlet,
+			getOutlet,
+			renderToPortal,
+		};
+	})
 );
 
 let globalPortalService: PortalServiceInterface | null = null;
 
-export const setGlobalPortalService = (service: PortalServiceInterface): void => {
-  globalPortalService = service;
+export const setGlobalPortalService = (
+	service: PortalServiceInterface
+): void => {
+	globalPortalService = service;
 };
 
 export const getGlobalPortalService = (): PortalServiceInterface | null => {
-  return globalPortalService;
+	return globalPortalService;
 };
 
 export const createPortal = (
-  content: EffuseChild,
-  target: string | Element
+	content: EffuseChild,
+	target: string | Element
 ): { cleanup: () => void } => {
-  const targetElement =
-    typeof target === 'string' ? document.querySelector(target) : target;
+	const targetElement =
+		typeof target === 'string' ? document.querySelector(target) : target;
 
-  if (!targetElement) {
-    return { cleanup: () => { } };
-  }
+	if (!targetElement) {
+		return { cleanup: () => {} };
+	}
 
-  const cleanup = render(content, targetElement);
+	const cleanup = render(content, targetElement);
 
-  return { cleanup };
+	return { cleanup };
 };
 
 const namedOutlets = new Map<string, Element>();
 
 export const registerPortalOutlet = (name: string, element: Element): void => {
-  namedOutlets.set(name, element);
+	namedOutlets.set(name, element);
 };
 
 export const unregisterPortalOutlet = (name: string): void => {
-  namedOutlets.delete(name);
+	namedOutlets.delete(name);
 };
 
 export const getPortalOutlet = (name: string): Element | undefined => {
-  return namedOutlets.get(name);
+	return namedOutlets.get(name);
 };
 
 export const renderToNamedPortal = (
-  name: string,
-  content: EffuseChild
+	name: string,
+	content: EffuseChild
 ): { cleanup: () => void } => {
-  const outlet = namedOutlets.get(name);
-  if (!outlet) {
-    return { cleanup: () => { } };
-  }
-  return createPortal(content, outlet);
+	const outlet = namedOutlets.get(name);
+	if (!outlet) {
+		return { cleanup: () => {} };
+	}
+	return createPortal(content, outlet);
 };
 
 export const Portal = (props: {
-  target: string | Element;
-  children: EffuseChild;
+	target: string | Element;
+	children: EffuseChild;
 }): null => {
-  const result = createPortal(props.children, props.target);
+	const result = createPortal(props.children, props.target);
 
-  if (typeof window !== 'undefined') {
-    queueMicrotask(() => {
-      const cleanup = result.cleanup;
-      window.addEventListener(
-        'beforeunload',
-        () => {
-          cleanup();
-        },
-        { once: true }
-      );
-    });
-  }
+	if (typeof window !== 'undefined') {
+		queueMicrotask(() => {
+			const cleanup = result.cleanup;
+			window.addEventListener(
+				'beforeunload',
+				() => {
+					cleanup();
+				},
+				{ once: true }
+			);
+		});
+	}
 
-  return null;
+	return null;
 };

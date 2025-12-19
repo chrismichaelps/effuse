@@ -23,10 +23,10 @@
  */
 
 export {
-  type StorageAdapter,
-  localStorageAdapter,
-  sessionStorageAdapter,
-  createMemoryAdapter,
-  noopAdapter,
-  runAdapter,
+	type StorageAdapter,
+	localStorageAdapter,
+	sessionStorageAdapter,
+	createMemoryAdapter,
+	noopAdapter,
+	runAdapter,
 } from './adapters.js';

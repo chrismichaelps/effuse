@@ -37,13 +37,13 @@ export const localStorageAdapter: StorageAdapter = {
 			catch: () => Option.none<string>(),
 		}).pipe(Effect.catchAll(() => Effect.succeed(Option.none<string>()))),
 	setItem: (key, value) =>
-		Effect.try(() => { localStorage.setItem(key, value); }).pipe(
-			Effect.catchAll(() => Effect.void)
-		),
+		Effect.try(() => {
+			localStorage.setItem(key, value);
+		}).pipe(Effect.catchAll(() => Effect.void)),
 	removeItem: (key) =>
-		Effect.try(() => { localStorage.removeItem(key); }).pipe(
-			Effect.catchAll(() => Effect.void)
-		),
+		Effect.try(() => {
+			localStorage.removeItem(key);
+		}).pipe(Effect.catchAll(() => Effect.void)),
 };
 
 export const sessionStorageAdapter: StorageAdapter = {
@@ -53,13 +53,13 @@ export const sessionStorageAdapter: StorageAdapter = {
 			catch: () => Option.none<string>(),
 		}).pipe(Effect.catchAll(() => Effect.succeed(Option.none<string>()))),
 	setItem: (key, value) =>
-		Effect.try(() => { sessionStorage.setItem(key, value); }).pipe(
-			Effect.catchAll(() => Effect.void)
-		),
+		Effect.try(() => {
+			sessionStorage.setItem(key, value);
+		}).pipe(Effect.catchAll(() => Effect.void)),
 	removeItem: (key) =>
-		Effect.try(() => { sessionStorage.removeItem(key); }).pipe(
-			Effect.catchAll(() => Effect.void)
-		),
+		Effect.try(() => {
+			sessionStorage.removeItem(key);
+		}).pipe(Effect.catchAll(() => Effect.void)),
 };
 
 export const createMemoryAdapter = (): StorageAdapter => {
@@ -88,6 +88,10 @@ export const runAdapter = {
 		Effect.runSync(
 			adapter.getItem(key).pipe(Effect.map((opt) => Option.getOrNull(opt)))
 		),
-	setItem: (adapter: StorageAdapter, key: string, value: string): void => { Effect.runSync(adapter.setItem(key, value)); },
-	removeItem: (adapter: StorageAdapter, key: string): void => { Effect.runSync(adapter.removeItem(key)); },
+	setItem: (adapter: StorageAdapter, key: string, value: string): void => {
+		Effect.runSync(adapter.setItem(key, value));
+	},
+	removeItem: (adapter: StorageAdapter, key: string): void => {
+		Effect.runSync(adapter.removeItem(key));
+	},
 };

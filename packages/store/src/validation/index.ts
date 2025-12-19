@@ -23,10 +23,10 @@
  */
 
 export {
-  validateState,
-  createValidatedSetter,
-  createFieldValidator,
-  createSafeFieldSetter,
-  type StateSchema,
-  type ValidationResult,
+	validateState,
+	createValidatedSetter,
+	createFieldValidator,
+	createSafeFieldSetter,
+	type StateSchema,
+	type ValidationResult,
 } from './schema.js';

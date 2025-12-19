@@ -24,75 +24,75 @@
 
 import { Context, Effect, Layer, type Option } from 'effect';
 import {
-  type StorageAdapter,
-  localStorageAdapter,
-  sessionStorageAdapter,
-  noopAdapter,
-  createMemoryAdapter,
+	type StorageAdapter,
+	localStorageAdapter,
+	sessionStorageAdapter,
+	noopAdapter,
+	createMemoryAdapter,
 } from '../persistence/adapters.js';
 
 export interface PersistenceServiceApi {
-  get: (key: string) => Effect.Effect<Option.Option<string>>;
-  set: (key: string, value: string) => Effect.Effect<void>;
-  remove: (key: string) => Effect.Effect<void>;
-  clear: () => Effect.Effect<void>;
+	get: (key: string) => Effect.Effect<Option.Option<string>>;
+	set: (key: string, value: string) => Effect.Effect<void>;
+	remove: (key: string) => Effect.Effect<void>;
+	clear: () => Effect.Effect<void>;
 }
 
 export class PersistenceService extends Context.Tag(
-  'effuse/store/PersistenceService'
-)<PersistenceService, PersistenceServiceApi>() { }
+	'effuse/store/PersistenceService'
+)<PersistenceService, PersistenceServiceApi>() {}
 
 const createPersistenceApi = (
-  adapter: StorageAdapter
+	adapter: StorageAdapter
 ): PersistenceServiceApi => ({
-  get: (key: string) => adapter.getItem(key),
-  set: (key: string, value: string) => adapter.setItem(key, value),
-  remove: (key: string) => adapter.removeItem(key),
-  clear: () => Effect.void,
+	get: (key: string) => adapter.getItem(key),
+	set: (key: string, value: string) => adapter.setItem(key, value),
+	remove: (key: string) => adapter.removeItem(key),
+	clear: () => Effect.void,
 });
 
 export const LocalStoragePersistenceLive: Layer.Layer<PersistenceService> =
-  Layer.succeed(PersistenceService, createPersistenceApi(localStorageAdapter));
+	Layer.succeed(PersistenceService, createPersistenceApi(localStorageAdapter));
 
 export const SessionStoragePersistenceLive: Layer.Layer<PersistenceService> =
-  Layer.succeed(
-    PersistenceService,
-    createPersistenceApi(sessionStorageAdapter)
-  );
+	Layer.succeed(
+		PersistenceService,
+		createPersistenceApi(sessionStorageAdapter)
+	);
 
 export const MemoryPersistenceLive: Layer.Layer<PersistenceService> =
-  Layer.succeed(
-    PersistenceService,
-    createPersistenceApi(createMemoryAdapter())
-  );
+	Layer.succeed(
+		PersistenceService,
+		createPersistenceApi(createMemoryAdapter())
+	);
 
 export const NoopPersistenceLive: Layer.Layer<PersistenceService> =
-  Layer.succeed(PersistenceService, createPersistenceApi(noopAdapter));
+	Layer.succeed(PersistenceService, createPersistenceApi(noopAdapter));
 
 export const makePersistenceLayer = (
-  adapter: StorageAdapter
+	adapter: StorageAdapter
 ): Layer.Layer<PersistenceService> =>
-  Layer.succeed(PersistenceService, createPersistenceApi(adapter));
+	Layer.succeed(PersistenceService, createPersistenceApi(adapter));
 
 export const usePersistence = <A, E, R>(
-  fn: (service: PersistenceServiceApi) => Effect.Effect<A, E, R>
+	fn: (service: PersistenceServiceApi) => Effect.Effect<A, E, R>
 ) =>
-  Effect.gen(function* () {
-    const service = yield* PersistenceService;
-    return yield* fn(service);
-  });
+	Effect.gen(function* () {
+		const service = yield* PersistenceService;
+		return yield* fn(service);
+	});
 
 export const runWithPersistence = <A, E>(
-  effect: Effect.Effect<A, E, PersistenceService>,
-  adapter: 'local' | 'session' | 'memory' | 'noop' = 'local'
+	effect: Effect.Effect<A, E, PersistenceService>,
+	adapter: 'local' | 'session' | 'memory' | 'noop' = 'local'
 ): Effect.Effect<A, E> => {
-  const layer =
-    adapter === 'local'
-      ? LocalStoragePersistenceLive
-      : adapter === 'session'
-        ? SessionStoragePersistenceLive
-        : adapter === 'memory'
-          ? MemoryPersistenceLive
-          : NoopPersistenceLive;
-  return Effect.provide(effect, layer);
+	const layer =
+		adapter === 'local'
+			? LocalStoragePersistenceLive
+			: adapter === 'session'
+				? SessionStoragePersistenceLive
+				: adapter === 'memory'
+					? MemoryPersistenceLive
+					: NoopPersistenceLive;
+	return Effect.provide(effect, layer);
 };

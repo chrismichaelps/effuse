@@ -49,19 +49,19 @@ export const connectDevTools = <T>(
 	options?: { name?: string }
 ): (() => void) => {
 	if (!hasDevTools()) {
-		return () => { };
+		return () => {};
 	}
 
 	const w = globalThis as unknown as {
 		__REDUX_DEVTOOLS_EXTENSION__?: DevToolsExtension;
 	};
 	const extension = w.__REDUX_DEVTOOLS_EXTENSION__;
-	if (!extension) return () => { };
+	if (!extension) return () => {};
 
 	const storeName = options?.name ?? store.name;
 
 	if (connections.has(storeName)) {
-		return () => { };
+		return () => {};
 	}
 
 	const devTools = extension.connect({ name: `Effuse: ${storeName}` });

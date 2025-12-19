@@ -25,105 +25,112 @@
 import { Effect, Exit, Scope } from 'effect';
 
 export interface ComponentLifecycle {
-  readonly scope: Scope.CloseableScope;
-  readonly onMount: (fn: () => (() => void) | undefined) => void;
-  readonly onUnmount: (fn: () => void) => void;
-  readonly onBeforeMount: (fn: () => void) => void;
-  readonly onBeforeUnmount: (fn: () => void) => void;
-  readonly runMount: () => void;
-  readonly runCleanup: () => Effect.Effect<void>;
+	readonly scope: Scope.CloseableScope;
+	readonly onMount: (fn: () => (() => void) | undefined) => void;
+	readonly onUnmount: (fn: () => void) => void;
+	readonly onBeforeMount: (fn: () => void) => void;
+	readonly onBeforeUnmount: (fn: () => void) => void;
+	readonly runMount: () => void;
+	readonly runCleanup: () => Effect.Effect<void>;
 }
 
 interface LifecycleState {
-  readonly beforeMountCallbacks: Array<() => void>;
-  readonly mountCallbacks: Array<() => (() => void) | undefined>;
-  readonly beforeUnmountCallbacks: Array<() => void>;
-  readonly mountCleanups: Array<() => void>;
-  mounted: boolean;
+	readonly beforeMountCallbacks: Array<() => void>;
+	readonly mountCallbacks: Array<() => (() => void) | undefined>;
+	readonly beforeUnmountCallbacks: Array<() => void>;
+	readonly mountCleanups: Array<() => void>;
+	mounted: boolean;
 }
 
 const createLifecycleFns = (
-  scope: Scope.CloseableScope,
-  state: LifecycleState
+	scope: Scope.CloseableScope,
+	state: LifecycleState
 ): Omit<ComponentLifecycle, 'scope'> => {
-  const onBeforeMount = (fn: () => void): void => {
-    if (!state.mounted) {
-      state.beforeMountCallbacks.push(fn);
-    }
-  };
+	const onBeforeMount = (fn: () => void): void => {
+		if (!state.mounted) {
+			state.beforeMountCallbacks.push(fn);
+		}
+	};
 
-  const onMount = (fn: () => (() => void) | undefined): void => {
-    if (state.mounted) {
-      const cleanup = fn();
-      if (cleanup) state.mountCleanups.push(cleanup);
-    } else {
-      state.mountCallbacks.push(fn);
-    }
-  };
+	const onMount = (fn: () => (() => void) | undefined): void => {
+		if (state.mounted) {
+			const cleanup = fn();
+			if (cleanup) state.mountCleanups.push(cleanup);
+		} else {
+			state.mountCallbacks.push(fn);
+		}
+	};
 
-  const onBeforeUnmount = (fn: () => void): void => {
-    state.beforeUnmountCallbacks.push(fn);
-  };
+	const onBeforeUnmount = (fn: () => void): void => {
+		state.beforeUnmountCallbacks.push(fn);
+	};
 
-  const onUnmount = (fn: () => void): void => {
-    Effect.runSync(Scope.addFinalizer(scope, Effect.sync(fn)));
-  };
+	const onUnmount = (fn: () => void): void => {
+		Effect.runSync(Scope.addFinalizer(scope, Effect.sync(fn)));
+	};
 
-  const runMount = (): void => {
-    if (state.mounted) return;
+	const runMount = (): void => {
+		if (state.mounted) return;
 
-    for (const fn of state.beforeMountCallbacks) fn();
-    state.beforeMountCallbacks.length = 0;
+		for (const fn of state.beforeMountCallbacks) fn();
+		state.beforeMountCallbacks.length = 0;
 
-    state.mounted = true;
+		state.mounted = true;
 
-    for (const fn of state.mountCallbacks) {
-      const cleanup = fn();
-      if (cleanup) state.mountCleanups.push(cleanup);
-    }
-    state.mountCallbacks.length = 0;
-  };
+		for (const fn of state.mountCallbacks) {
+			const cleanup = fn();
+			if (cleanup) state.mountCleanups.push(cleanup);
+		}
+		state.mountCallbacks.length = 0;
+	};
 
-  const runCleanup = (): Effect.Effect<void> =>
-    Effect.gen(function* () {
-      for (const fn of state.beforeUnmountCallbacks) fn();
-      state.beforeUnmountCallbacks.length = 0;
+	const runCleanup = (): Effect.Effect<void> =>
+		Effect.gen(function* () {
+			for (const fn of state.beforeUnmountCallbacks) fn();
+			state.beforeUnmountCallbacks.length = 0;
 
-      for (const cleanup of state.mountCleanups) {
-        if (typeof cleanup === 'function') {
-          cleanup();
-        }
-      }
-      state.mountCleanups.length = 0;
+			for (const cleanup of state.mountCleanups) {
+				if (typeof cleanup === 'function') {
+					cleanup();
+				}
+			}
+			state.mountCleanups.length = 0;
 
-      yield* Scope.close(scope, Exit.void);
-      state.mounted = false;
-    });
+			yield* Scope.close(scope, Exit.void);
+			state.mounted = false;
+		});
 
-  return { onMount, onUnmount, onBeforeMount, onBeforeUnmount, runMount, runCleanup };
+	return {
+		onMount,
+		onUnmount,
+		onBeforeMount,
+		onBeforeUnmount,
+		runMount,
+		runCleanup,
+	};
 };
 
 const createState = (): LifecycleState => ({
-  beforeMountCallbacks: [],
-  mountCallbacks: [],
-  beforeUnmountCallbacks: [],
-  mountCleanups: [],
-  mounted: false,
+	beforeMountCallbacks: [],
+	mountCallbacks: [],
+	beforeUnmountCallbacks: [],
+	mountCleanups: [],
+	mounted: false,
 });
 
 export const createComponentLifecycle = (): Effect.Effect<
-  ComponentLifecycle,
-  never,
-  Scope.Scope
+	ComponentLifecycle,
+	never,
+	Scope.Scope
 > =>
-  Effect.gen(function* () {
-    const scope = yield* Scope.make();
-    const state = createState();
-    return { scope, ...createLifecycleFns(scope, state) };
-  });
+	Effect.gen(function* () {
+		const scope = yield* Scope.make();
+		const state = createState();
+		return { scope, ...createLifecycleFns(scope, state) };
+	});
 
 export const createComponentLifecycleSync = (): ComponentLifecycle => {
-  const scope = Effect.runSync(Scope.make());
-  const state = createState();
-  return { scope, ...createLifecycleFns(scope, state) };
+	const scope = Effect.runSync(Scope.make());
+	const state = createState();
+	return { scope, ...createLifecycleFns(scope, state) };
 };
