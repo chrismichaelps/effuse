@@ -39,6 +39,7 @@ import type {
 	CleanupFn,
 } from '../types/index.js';
 
+// Initialize reactive effect
 export function effect(
 	fn: (onCleanup: OnCleanup) => void | Promise<void>,
 	options: EffectOptions = {}
@@ -196,6 +197,7 @@ export function effect(
 	};
 }
 
+// Execute effect once and stop
 export function effectOnce(fn: () => void): void {
 	const handle = effect(() => {
 		fn();

@@ -63,6 +63,7 @@ export interface AnyPropSchemaBuilder {
 
 type ExtractPropType<P> = P extends PropDefinition<infer T> ? T : never;
 
+// Build required prop definition
 function required<T>(schema: Schema.Schema<T>): PropDefinition<T>;
 function required<T extends Record<string, unknown>>(
 	builder: PropSchemaBuilder<T>
@@ -140,6 +141,7 @@ function optional<T>(
 	};
 }
 
+// Build property structure definition
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const struct = <const D extends Record<string, PropDefinition<any>>>(
 	definitions: D

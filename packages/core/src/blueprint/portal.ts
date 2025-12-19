@@ -145,16 +145,19 @@ export const PortalServiceLive = Layer.effect(
 
 let globalPortalService: PortalServiceInterface | null = null;
 
+// Update global portal service
 export const setGlobalPortalService = (
 	service: PortalServiceInterface
 ): void => {
 	globalPortalService = service;
 };
 
+// Access global portal service
 export const getGlobalPortalService = (): PortalServiceInterface | null => {
 	return globalPortalService;
 };
 
+// Build application portal
 export const createPortal = (
 	content: EffuseChild,
 	target: string | Element
@@ -173,18 +176,22 @@ export const createPortal = (
 
 const namedOutlets = new Map<string, Element>();
 
+// Initialize portal outlet
 export const registerPortalOutlet = (name: string, element: Element): void => {
 	namedOutlets.set(name, element);
 };
 
+// Remove portal outlet
 export const unregisterPortalOutlet = (name: string): void => {
 	namedOutlets.delete(name);
 };
 
+// Access portal outlet
 export const getPortalOutlet = (name: string): Element | undefined => {
 	return namedOutlets.get(name);
 };
 
+// Initialize named portal rendering
 export const renderToNamedPortal = (
 	name: string,
 	content: EffuseChild
@@ -196,6 +203,7 @@ export const renderToNamedPortal = (
 	return createPortal(content, outlet);
 };
 
+// Build portal component
 export const Portal = (props: {
 	target: string | Element;
 	children: EffuseChild;

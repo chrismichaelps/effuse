@@ -711,6 +711,7 @@ const scanToken = (state: TokenizerState): Token => {
 	return matchText(state);
 };
 
+// Convert markdown input to token stream
 export const tokenize = (input: string): Effect.Effect<Token[], ParseError> =>
 	Effect.sync(() => {
 		const tokens: Token[] = [];

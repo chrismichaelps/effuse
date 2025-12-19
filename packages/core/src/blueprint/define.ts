@@ -51,6 +51,7 @@ interface DefineState<E extends ExposedValues> {
 	[key: string]: unknown;
 }
 
+// Build component definition
 export const define = <
 	P = Record<string, unknown>,
 	E extends ExposedValues = ExposedValues,

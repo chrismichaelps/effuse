@@ -62,10 +62,12 @@ export type TypedRouteLocation<
 	hash?: string;
 };
 
+// Build static route definitions
 export const defineRoutes = <const Routes extends readonly TypedRouteRecord[]>(
 	routes: Routes
 ): Routes => routes;
 
+// Build type safe route navigator
 export const createTypedNavigator = <
 	Params extends Record<string, string>,
 	Query extends Record<string, string> = Record<string, string>,
@@ -84,6 +86,7 @@ export const createTypedNavigator = <
 		route.name === name,
 });
 
+// Verify route parameters against schema
 export const validateParams = <A>(
 	params: Record<string, string>,
 	schema: Schema.Schema<A>
@@ -95,6 +98,7 @@ export const validateParams = <A>(
 	}
 };
 
+// Build navigation guard for parameter validation
 export const createParamsGuard =
 	<A>(
 		schema: Schema.Schema<A>,

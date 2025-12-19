@@ -128,6 +128,7 @@ export interface RouterInstance {
 	readonly isReady: Effect.Effect<boolean>;
 }
 
+// Build application router
 export const createRouter = (options: RouterOptions): RouterInstance => {
 	const config = getConfig();
 
@@ -343,6 +344,7 @@ export const setGlobalRouter = (router: RouterInstance): void => {
 
 export const getGlobalRouter = (): RouterInstance | null => globalRouter;
 
+// Initialize router within application
 export const installRouter = (router: RouterInstance): RouterInstance => {
 	setGlobalRouter(router);
 	provideRouter(router);

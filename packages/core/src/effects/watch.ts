@@ -52,6 +52,7 @@ export type DeepWatchCallback<T> = (
 	onCleanup: OnCleanup
 ) => void | Promise<void>;
 
+// Build reactive source watcher
 export function watch<T>(
 	source: WatchSource<T>,
 	callback: WatchCallback<T>,
@@ -177,6 +178,7 @@ const deepClone = <T>(value: T): T => {
 	return cloned as T;
 };
 
+// Build multiple reactive source watcher
 export const watchMultiple = <T extends readonly WatchSource<unknown>[]>(
 	sources: T,
 	callback: (

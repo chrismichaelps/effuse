@@ -52,6 +52,7 @@ export { el, fragment, toNode } from './element.js';
 
 export type CleanupFn = () => void;
 
+// Initialize reactive rendering
 export const render = (child: EffuseChild, container: Element): CleanupFn => {
 	let mountedResult: MountedNode | null = null;
 
@@ -75,6 +76,7 @@ export const render = (child: EffuseChild, container: Element): CleanupFn => {
 	};
 };
 
+// Finalize and remove application from container
 export const unmount = (container: Element): void => {
 	container.innerHTML = '';
 };

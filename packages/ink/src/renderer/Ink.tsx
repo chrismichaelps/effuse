@@ -40,6 +40,7 @@ interface InkExposed {
 	className: string;
 }
 
+// Build markdown renderer component
 export const Ink = define<InkProps, InkExposed>({
 	script: ({ props }) => {
 		const ast = computed<DocumentNode>(() => {

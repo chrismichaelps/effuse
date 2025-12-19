@@ -27,6 +27,7 @@ export interface PropertyLookupResult {
 	found: boolean;
 }
 
+// Locate property descriptor in prototype chain
 export function findPropertyDescriptor(
 	obj: object,
 	key: string | symbol
@@ -44,6 +45,7 @@ export function findPropertyDescriptor(
 	return { descriptor: undefined, found: false };
 }
 
+// Access property value with private field support
 export function getPropertyWithPrivateFieldSupport(
 	target: object,
 	key: string | symbol
@@ -61,6 +63,7 @@ export function getPropertyWithPrivateFieldSupport(
 	return Reflect.get(target, key, target);
 }
 
+// Update property value with private field support
 export function setPropertyWithPrivateFieldSupport(
 	target: object,
 	key: string | symbol,
@@ -76,6 +79,7 @@ export function setPropertyWithPrivateFieldSupport(
 	return Reflect.set(target, key, value, target);
 }
 
+// Bind method to reactive target
 export function bindMethodToTarget<T>(method: T, target: object): T {
 	if (typeof method === 'function') {
 		return method.bind(target) as T;
@@ -83,6 +87,7 @@ export function bindMethodToTarget<T>(method: T, target: object): T {
 	return method;
 }
 
+// Access current property value
 export function getCurrentValue(target: object, key: string | symbol): unknown {
 	return getPropertyWithPrivateFieldSupport(target, key);
 }

@@ -31,9 +31,11 @@ import { parseTokens } from './parser.js';
 import type { DocumentNode } from '../types/ast.js';
 import type { ParseError } from '../types/errors.js';
 
+// Tokenize and parse markdown input
 export const parse = (input: string): Effect.Effect<DocumentNode, ParseError> =>
 	pipe(tokenize(input), Effect.flatMap(parseTokens));
 
+// Tokenize and parse markdown input synchronously
 export const parseSync = (input: string): DocumentNode => {
 	return Effect.runSync(
 		Effect.catchAll(parse(input), () =>

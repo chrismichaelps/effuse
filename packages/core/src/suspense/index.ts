@@ -111,4 +111,5 @@ export {
 	createMultiResource,
 } from './list.js';
 
+// Initialize suspense component
 export { Suspense, type SuspenseProps } from './Suspense.js';

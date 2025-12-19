@@ -34,25 +34,21 @@ import {
 } from './schema.js';
 import { createSuspendToken, type SuspendToken } from './token.js';
 import { suspenseApi } from './service.js';
-import {
-	RESOURCE_ID_PREFIX,
-	DEFAULT_RETRY_TIMES,
-	DEFAULT_RETRY_DELAY_MS,
-	ResourceErrorMessages,
-} from './config.js';
+import { RESOURCE_ID_PREFIX, ResourceErrorMessages } from './config.js';
 import { isEffect, generateResourceId } from './utils.js';
 
 export interface Resource<T> {
 	readonly value: T;
 	readonly state: Signal<ResourceState<T>>;
 	readonly loading: boolean;
-	readonly error: unknown | undefined;
+	readonly error: unknown;
 	readonly refetch: () => void;
 	readonly mutate: (data: T | ((prev: T | undefined) => T)) => void;
 }
 
 type Fetcher<T> = () => Effect.Effect<T, Error> | Promise<T>;
 
+// Initialize reactive resource
 export const createResource = <T>(
 	fetcher: Fetcher<T>,
 	options?: ResourceOptions
@@ -74,7 +70,7 @@ export const createResource = <T>(
 		if (isEffect(result)) {
 			baseEffect = result;
 		} else {
-			baseEffect = Effect.promise(() => result as Promise<T>);
+			baseEffect = Effect.promise(() => result);
 		}
 
 		if (options?.timeout) {
@@ -86,8 +82,8 @@ export const createResource = <T>(
 
 		if (options?.retry) {
 			const retryConfig = options.retry;
-			const delayMs = retryConfig.delay ?? DEFAULT_RETRY_DELAY_MS;
-			const times = retryConfig.times ?? DEFAULT_RETRY_TIMES;
+			const delayMs = retryConfig.delay;
+			const times = retryConfig.times;
 
 			baseEffect = pipe(
 				baseEffect,
@@ -119,8 +115,8 @@ export const createResource = <T>(
 		} else {
 			const fetcherResult = fetcher();
 			fetchPromise = isEffect(fetcherResult)
-				? Effect.runPromise(fetcherResult as Effect.Effect<T, Error>)
-				: (fetcherResult as Promise<T>);
+				? Effect.runPromise(fetcherResult)
+				: fetcherResult;
 		}
 
 		const resolvePromise = fetchPromise
@@ -133,6 +129,7 @@ export const createResource = <T>(
 				}
 			})
 			.catch((error: unknown) => {
+				// eslint-disable-next-line no-console
 				console.error(`[Resource ${resourceId}] Fetch error:`, error);
 				state.value = createErrorState<T>(error);
 				currentPromise = null;
@@ -168,11 +165,14 @@ export const createResource = <T>(
 					currentPromise,
 					resourceId
 				);
+				// eslint-disable-next-line
 				throw token;
 			}
 
 			if (currentState.status === 'error') {
-				throw currentState.error;
+				throw currentState.error instanceof Error
+					? currentState.error
+					: new Error(String(currentState.error));
 			}
 
 			return currentState.data as T;
@@ -184,7 +184,7 @@ export const createResource = <T>(
 			return state.value.status === 'pending';
 		},
 
-		get error(): unknown | undefined {
+		get error(): unknown {
 			return state.value.error;
 		},
 

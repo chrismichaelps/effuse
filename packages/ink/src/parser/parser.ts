@@ -163,7 +163,7 @@ const parseHeading = (state: ParserState): HeadingNode | null => {
 
 	advance(state);
 
-	const level = (token.meta?.level as 1 | 2 | 3 | 4 | 5 | 6) ?? 1;
+	const level = (token.meta?.level as 1 | 2 | 3 | 4 | 5 | 6 | undefined) ?? 1;
 	const inlineNodes = parseInlineContent(token.value);
 
 	return {
@@ -196,9 +196,11 @@ const parseCodeBlock = (state: ParserState): CodeBlockNode | null => {
 		advance(state);
 	}
 
+	const language = startToken.meta?.language as string | undefined;
+
 	return {
 		type: 'codeBlock',
-		language: (startToken.meta?.language as string) ?? undefined,
+		...(language && { language }),
 		code: codeLines.join(''),
 		position: {
 			start: startToken.position,
@@ -244,19 +246,19 @@ const parseList = (state: ParserState): ListNode | null => {
 		const startToken = peek(state);
 		if (!startToken || startToken.type !== 'listItem') return null;
 
-		const tokenDepth = (startToken.meta?.depth as number) ?? 0;
+		const tokenDepth = (startToken.meta?.depth as number | undefined) ?? 0;
 		if (tokenDepth !== targetDepth) return null;
 
-		const ordered = (startToken.meta?.ordered as boolean) ?? false;
-		const start = (startToken.meta?.start as number) ?? undefined;
+		const ordered = (startToken.meta?.ordered as boolean | undefined) ?? false;
+		const start = startToken.meta?.start as number | undefined;
 		const items: ListItemNode[] = [];
 
 		while (check(state, 'listItem')) {
 			const token = peek(state);
 			if (!token) break;
 
-			const currentDepth = (token.meta?.depth as number) ?? 0;
-			const itemOrdered = (token.meta?.ordered as boolean) ?? false;
+			const currentDepth = (token.meta?.depth as number | undefined) ?? 0;
+			const itemOrdered = (token.meta?.ordered as boolean | undefined) ?? false;
 
 			if (currentDepth < targetDepth) {
 				break;
@@ -308,7 +310,7 @@ const parseList = (state: ParserState): ListNode | null => {
 		};
 	};
 
-	const firstDepth = (firstToken.meta?.depth as number) ?? 0;
+	const firstDepth = (firstToken.meta?.depth as number | undefined) ?? 0;
 	return parseListAtDepth(firstDepth);
 };
 
@@ -334,10 +336,10 @@ const parseComponent = (state: ParserState): ComponentNode | null => {
 	if (token.type === 'componentInline') {
 		advance(state);
 
-		const name = (token.meta?.name as string) ?? token.value;
+		const name = (token.meta?.name as string | undefined) ?? token.value;
 		const propsStr =
-			(token.meta?.props as string) ??
-			(token.meta?.propsString as string) ??
+			(token.meta?.props as string | undefined) ??
+			(token.meta?.propsString as string | undefined) ??
 			'{}';
 		const props = propsStr.includes('=')
 			? parseAttributeProps(propsStr)
@@ -360,8 +362,8 @@ const parseComponent = (state: ParserState): ComponentNode | null => {
 	if (token.type === 'componentBlockStart') {
 		advance(state);
 
-		const name = (token.meta?.name as string) ?? token.value;
-		const propsStr = (token.meta?.props as string) ?? '{}';
+		const name = (token.meta?.name as string | undefined) ?? token.value;
+		const propsStr = (token.meta?.props as string | undefined) ?? '{}';
 		const props = parsePropsString(propsStr);
 
 		const children: BlockNode[] = [];
@@ -565,7 +567,7 @@ const parseInlineContent = (text: string): InlineNode[] => {
 			continue;
 		}
 
-		const textMatch = remaining.match(/^[^*_`~\[!<]+/);
+		const textMatch = remaining.match(/^[^*_`~[!<]+/);
 		if (textMatch) {
 			pushText(textMatch[0]);
 			pos += textMatch[0].length;
@@ -586,7 +588,7 @@ const parseTable = (state: ParserState): TableNode | null => {
 	const headerToken = advance(state);
 	if (!headerToken) return null;
 
-	const headerCells = (headerToken.meta?.cells as string[]) ?? [];
+	const headerCells = (headerToken.meta?.cells as string[] | undefined) ?? [];
 
 	if (!check(state, 'tableSeparator')) {
 		state.current--;
@@ -595,19 +597,16 @@ const parseTable = (state: ParserState): TableNode | null => {
 
 	const separatorToken = advance(state);
 	const alignments =
-		(separatorToken?.meta?.alignments as (
-			| 'left'
-			| 'center'
-			| 'right'
-			| null
-		)[]) ?? [];
+		(separatorToken?.meta?.alignments as
+			| ('left' | 'center' | 'right' | null)[]
+			| undefined) ?? [];
 
 	const rows: TableRowNode[] = [];
 	while (check(state, 'tableRow')) {
 		const rowToken = advance(state);
 		if (!rowToken) break;
 
-		const cells = (rowToken.meta?.cells as string[]) ?? [];
+		const cells = (rowToken.meta?.cells as string[] | undefined) ?? [];
 		const rowNode: TableRowNode = {
 			type: 'tableRow',
 			cells: cells.map(
@@ -643,7 +642,9 @@ const parseTable = (state: ParserState): TableNode | null => {
 };
 
 const parseBlock = (state: ParserState): BlockNode | null => {
-	while (match(state, 'blankLine')) {}
+	while (match(state, 'blankLine')) {
+		continue;
+	}
 
 	if (isAtEnd(state)) return null;
 
@@ -667,6 +668,7 @@ const parseBlock = (state: ParserState): BlockNode | null => {
 	return null;
 };
 
+// Build document AST from token stream
 export const parseTokens = (
 	tokens: Token[]
 ): Effect.Effect<DocumentNode, ParseError> =>

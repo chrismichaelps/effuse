@@ -84,6 +84,7 @@ export {
 	defaultInkConfig,
 } from './config/index.js';
 
+// Tokenize and parse markdown input
 export const parse = (input: string): DocumentNode => {
 	return Effect.runSync(
 		Effect.catchAll(parseEffect(input), () =>
@@ -95,8 +96,10 @@ export const parse = (input: string): DocumentNode => {
 	);
 };
 
+// Tokenize and parse markdown input synchronously
 export const parseSync = parseSyncInternal;
 
+// Render markdown to reactive nodes
 export const render = (
 	input: string,
 	components: ComponentMap = {}
@@ -108,6 +111,7 @@ export const render = (
 	return Effect.runSync(program);
 };
 
+// Build reactive nodes from markdown input
 export const renderEffect = (
 	input: string,
 	components: ComponentMap = {}

@@ -45,6 +45,7 @@ const isMarkedRaw = (obj: object): boolean => {
 	);
 };
 
+// Initialize reactive object proxy
 export const reactive = <T extends object>(target: T): Reactive<T> => {
 	if (isMarkedRaw(target)) {
 		return target as Reactive<T>;
@@ -119,10 +120,10 @@ export const reactive = <T extends object>(target: T): Reactive<T> => {
 			const boundValue = bindMethodToTarget(value, obj);
 
 			if (typeof boundValue === 'object' && boundValue !== null) {
-				if (isMarkedRaw(boundValue as object)) {
+				if (isMarkedRaw(boundValue)) {
 					return boundValue;
 				}
-				return reactive(boundValue as object);
+				return reactive(boundValue);
 			}
 
 			return boundValue;
@@ -184,6 +185,7 @@ export const reactive = <T extends object>(target: T): Reactive<T> => {
 	return proxy;
 };
 
+// Detect reactive proxy
 export const isReactive = (value: unknown): value is Reactive<object> => {
 	return (
 		typeof value === 'object' &&
@@ -192,11 +194,13 @@ export const isReactive = (value: unknown): value is Reactive<object> => {
 	);
 };
 
+// Access raw object
 export const toRaw = <T extends object>(observed: T): T => {
 	const raw = proxyToRaw.get(observed);
 	return raw !== undefined ? (raw as T) : observed;
 };
 
+// Prevent reactivity for object
 export const markRaw = <T extends object>(value: T): T => {
 	Object.defineProperty(value, REACTIVE_MARKER, {
 		value: false,

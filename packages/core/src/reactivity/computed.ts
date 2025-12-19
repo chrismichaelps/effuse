@@ -115,6 +115,7 @@ class ComputedCell<T> {
 	}
 }
 
+// Build computed signal
 export function computed<T>(getter: () => T): ReadonlySignal<T> {
 	const cell = new ComputedCell(getter);
 
@@ -130,6 +131,7 @@ export function computed<T>(getter: () => T): ReadonlySignal<T> {
 	return computedSignal as ReadonlySignal<T>;
 }
 
+// Build writable computed signal
 export function writableComputed<T>(options: {
 	get: () => T;
 	set: (value: T) => void;

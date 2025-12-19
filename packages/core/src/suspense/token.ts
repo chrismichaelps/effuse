@@ -30,6 +30,7 @@ export interface SuspendToken {
 	readonly resourceId: string;
 }
 
+// Build suspense token
 export const createSuspendToken = (
 	promise: Promise<void>,
 	resourceId: string
@@ -39,6 +40,7 @@ export const createSuspendToken = (
 	resourceId,
 });
 
+// Verify suspense token
 export const isSuspendToken = (value: unknown): value is SuspendToken =>
 	typeof value === 'object' &&
 	value !== null &&

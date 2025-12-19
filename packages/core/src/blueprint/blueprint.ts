@@ -47,6 +47,7 @@ export interface BlueprintOptions<
 	readonly loading?: () => EffuseChild;
 }
 
+// Build blueprint definition
 export const blueprint = <
 	P extends Record<string, unknown> = Record<string, unknown>,
 >(
@@ -75,6 +76,7 @@ export const blueprint = <
 	return def;
 };
 
+// Verify blueprint definition
 export const isBlueprint = (value: unknown): value is BlueprintDef => {
 	return (
 		typeof value === 'object' &&
@@ -84,6 +86,7 @@ export const isBlueprint = (value: unknown): value is BlueprintDef => {
 	);
 };
 
+// Initialize blueprint context
 export const instantiateBlueprint = <P extends Record<string, unknown>>(
 	def: BlueprintDef<P>,
 	props: P,
@@ -107,6 +110,7 @@ export const instantiateBlueprint = <P extends Record<string, unknown>>(
 	};
 };
 
+// Build anonymous blueprint
 export const view = (
 	render: () => EffuseChild
 ): BlueprintDef<Record<string, never>> => {

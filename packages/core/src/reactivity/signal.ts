@@ -34,6 +34,7 @@ interface SignalInternal<T> extends Signal<T> {
 	readonly _version: { value: number };
 }
 
+// Initialize reactive signal
 export function signal<T>(initialValue: T): Signal<T> {
 	const refEffect = SubscriptionRef.make(initialValue);
 	const ref = Effect.runSync(refEffect);
@@ -68,6 +69,7 @@ export function signal<T>(initialValue: T): Signal<T> {
 	return signalObj;
 }
 
+// Build readonly signal view
 export function readonlySignal<T>(source: Signal<T>): ReadonlySignal<T> {
 	return {
 		get value() {
@@ -76,6 +78,7 @@ export function readonlySignal<T>(source: Signal<T>): ReadonlySignal<T> {
 	};
 }
 
+// Detect reactive signal
 export function isSignal<T>(value: unknown): value is Signal<T> {
 	if (typeof value !== 'object' || value === null) {
 		return false;
@@ -90,10 +93,12 @@ export function isSignal<T>(value: unknown): value is Signal<T> {
 	return false;
 }
 
+// Resolve signal value
 export function unref<T>(maybeSignal: T | Signal<T>): T {
 	return isSignal<T>(maybeSignal) ? maybeSignal.value : maybeSignal;
 }
 
+// Access internal subscription ref
 export function getSignalRef<T>(
 	sig: Signal<T>
 ): SubscriptionRef.SubscriptionRef<T> | null {
@@ -101,6 +106,7 @@ export function getSignalRef<T>(
 	return '_ref' in internal ? internal._ref : null;
 }
 
+// Access internal dependency tracker
 export function getSignalDep<T>(sig: Signal<T>): Dep | null {
 	const internal = sig as SignalInternal<T>;
 	return '_dep' in internal ? internal._dep : null;

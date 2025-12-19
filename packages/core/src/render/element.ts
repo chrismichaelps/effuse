@@ -94,6 +94,7 @@ export function el(
 	};
 }
 
+// Build fragment node
 export const fragment = (...children: EffuseChild[]): EffuseNode => {
 	return createFragmentNode(normalizeChildren(children));
 };
@@ -116,6 +117,7 @@ const normalizeChildren = (children: EffuseChild[]): EffuseChild[] => {
 	return result;
 };
 
+// Convert child to reactive node
 export const toNode = (child: EffuseChild): EffuseNode | null => {
 	if (child === null || child === undefined || typeof child === 'boolean') {
 		return null;

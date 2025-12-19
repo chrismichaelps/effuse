@@ -28,6 +28,7 @@ import { getGlobalRouter, type RouterInstance } from '../core/router.js';
 import type { Route, RouteLocation } from '../core/route.js';
 import type { NavigationFailure } from '../navigation/errors.js';
 
+// Access global router instance
 export const useRouter = (): RouterInstance => {
 	const router = getGlobalRouter();
 	if (!router) {
@@ -36,6 +37,7 @@ export const useRouter = (): RouterInstance => {
 	return markRaw(router);
 };
 
+// Access current route state
 export const useRoute = (): Route => {
 	const routeSignal = getRouteSignal();
 	if (!routeSignal) {
@@ -62,6 +64,7 @@ export const useRoute = (): Route => {
 import { effect } from '@effuse/core';
 import { getRouteSignal } from '../core/context.js';
 
+// Observe route changes
 export const onRouteChange = (
 	callback: (route: Route) => void
 ): (() => void) => {
@@ -86,6 +89,7 @@ export const onRouteChange = (
 	return stop;
 };
 
+// Navigate to specified location
 export const navigateTo = (
 	to: RouteLocation,
 	options?: { replace?: boolean }
@@ -95,16 +99,19 @@ export const navigateTo = (
 	return Effect.runPromise(navEffect);
 };
 
+// Navigate back in history
 export const goBack = (): void => {
 	const router = useRouter();
 	Effect.runSync(router.back);
 };
 
+// Navigate forward in history
 export const goForward = (): void => {
 	const router = useRouter();
 	Effect.runSync(router.forward);
 };
 
+// Verify active route status
 export const isActiveRoute = (
 	path: string,
 	exact: boolean = false
@@ -116,6 +123,7 @@ export const isActiveRoute = (
 	return route.path.startsWith(path);
 };
 
+// Calculate dynamic link classes
 export const getLinkClasses = (
 	to: string,
 	options?: {
@@ -141,6 +149,7 @@ export const getLinkClasses = (
 	return classes.join(' ');
 };
 
+// Build navigation guard for route exit
 export const onBeforeRouteLeave = (
 	guard: (to: Route, from: Route) => boolean | undefined
 ): (() => void) => {
@@ -165,6 +174,7 @@ export const onBeforeRouteLeave = (
 	);
 };
 
+// Build navigation guard for route update
 export const onBeforeRouteUpdate = (
 	guard: (to: Route, from: Route) => boolean | undefined
 ): (() => void) => {
@@ -194,6 +204,7 @@ export const onBeforeRouteUpdate = (
 	);
 };
 
+// Initialize data fetch on route change
 export const useFetchOnRouteChange = <T>(
 	fetcher: (route: Route) => Effect.Effect<T>,
 	onData: (data: T) => void,
@@ -204,6 +215,7 @@ export const useFetchOnRouteChange = <T>(
 	});
 };
 
+// Build reactive route data loader
 export const createRouteDataLoader = <T>(
 	loaders: Record<string, (route: Route) => Effect.Effect<T>>
 ): ((route: Route) => Effect.Effect<T | null>) => {

@@ -410,6 +410,7 @@ const transformBlock = (
 	}
 };
 
+// Build reactive nodes from document AST
 export const transformDocument = (
 	doc: DocumentNode,
 	components: ComponentMap = {}

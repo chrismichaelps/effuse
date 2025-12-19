@@ -29,7 +29,7 @@ let BatchDepth = 0;
 let GlobalVersion = 0;
 let TrackingPaused = false;
 
-let pendingEffects = new Set<() => void>();
+const pendingEffects = new Set<() => void>();
 let effectExecutionDepth = 0;
 
 function flushPendingEffects(): void {
@@ -49,6 +49,7 @@ function flushPendingEffects(): void {
 	}
 }
 
+// Dependency tracker for reactive signals
 export class Dep {
 	version = 0;
 	private subscribers = new Set<() => void>();
@@ -94,21 +95,25 @@ export class Dep {
 	}
 }
 
+// Access tracked dependencies in current context
 export function getTrackedDeps(): Dep[] {
 	const current = TrackingContextStack[TrackingContextStack.length - 1];
 	return current ? [...current] : [];
 }
 
+// Initialize tracking context
 export function startTracking(): void {
 	TrackingContextStack.push(new Set());
 }
 
+// Finalize and return tracked dependencies
 export function stopTracking(): Dep[] {
 	const deps = getTrackedDeps();
 	TrackingContextStack.pop();
 	return deps;
 }
 
+// Execute function with batched reactive updates
 export function batch<T>(fn: () => T): T {
 	BatchDepth++;
 	if (!BatchQueue) {
@@ -128,6 +133,7 @@ export function batch<T>(fn: () => T): T {
 	}
 }
 
+// Execute function without reactive tracking
 export function untrack<T>(fn: () => T): T {
 	const wasPaused = TrackingPaused;
 	TrackingPaused = true;
@@ -138,22 +144,27 @@ export function untrack<T>(fn: () => T): T {
 	}
 }
 
+// Detect if tracking is currently paused
 export function getTrackingPaused(): boolean {
 	return TrackingPaused;
 }
 
+// Disable reactive tracking globally
 export function pauseTracking(): void {
 	TrackingPaused = true;
 }
 
+// Reenable reactive tracking globally
 export function resumeTracking(): void {
 	TrackingPaused = false;
 }
 
+// Detect if reactive tracking is active
 export function isTracking(): boolean {
 	return !TrackingPaused && TrackingContextStack.length > 0;
 }
 
+// Initialize update batching
 export function startBatch(): void {
 	BatchDepth++;
 	if (!BatchQueue) {
@@ -161,6 +172,7 @@ export function startBatch(): void {
 	}
 }
 
+// Execute batched updates and finalize batch
 export function endBatch(): void {
 	BatchDepth--;
 	if (BatchDepth === 0 && BatchQueue) {
@@ -172,10 +184,12 @@ export function endBatch(): void {
 	}
 }
 
+// Access global reactivity version
 export function getGlobalVersion(): number {
 	return GlobalVersion;
 }
 
+// Initialize cleanup scope
 export function createScope<T>(fn: (dispose: () => void) => T): T {
 	const disposers: (() => void)[] = [];
 
@@ -194,6 +208,7 @@ export function createScope<T>(fn: (dispose: () => void) => T): T {
 	}
 }
 
+// Execute reactive updates or initial function
 export function executeUpdates<T>(fn: () => T, init: boolean): T {
 	if (init) {
 		return fn();

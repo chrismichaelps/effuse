@@ -32,6 +32,7 @@ export type DeepReadonly<T> = T extends object
 	? { readonly [K in keyof T]: DeepReadonly<T[K]> }
 	: T;
 
+// Build deep readonly wrapper
 export function readonly<T>(target: Signal<T>): ReadonlySignal<T>;
 export function readonly<T extends object>(
 	target: Reactive<T>
@@ -73,6 +74,7 @@ const createReadonlyProxy = <T extends object>(target: T): DeepReadonly<T> => {
 
 		set(_obj, key) {
 			if (isStrictMode() || isDebugEnabled()) {
+				// eslint-disable-next-line no-console
 				console.warn(
 					`Cannot set property "${String(key)}" on a readonly value.`
 				);
@@ -82,6 +84,7 @@ const createReadonlyProxy = <T extends object>(target: T): DeepReadonly<T> => {
 
 		deleteProperty(_obj, key) {
 			if (isStrictMode() || isDebugEnabled()) {
+				// eslint-disable-next-line no-console
 				console.warn(
 					`Cannot delete property "${String(key)}" from a readonly value.`
 				);
@@ -93,6 +96,7 @@ const createReadonlyProxy = <T extends object>(target: T): DeepReadonly<T> => {
 	return new Proxy(target, handler) as DeepReadonly<T>;
 };
 
+// Detect readonly proxy
 export const isReadonly = (value: unknown): boolean => {
 	return (
 		typeof value === 'object' &&
@@ -101,6 +105,7 @@ export const isReadonly = (value: unknown): boolean => {
 	);
 };
 
+// Build shallow readonly wrapper
 export const shallowReadonly = <T extends object>(target: T): Readonly<T> => {
 	const handler: ProxyHandler<T> = {
 		get(obj, key, receiver) {
@@ -112,6 +117,7 @@ export const shallowReadonly = <T extends object>(target: T): Readonly<T> => {
 
 		set(_obj, key) {
 			if (isStrictMode() || isDebugEnabled()) {
+				// eslint-disable-next-line no-console
 				console.warn(
 					`Cannot set property "${String(key)}" on a readonly value.`
 				);
@@ -121,6 +127,7 @@ export const shallowReadonly = <T extends object>(target: T): Readonly<T> => {
 
 		deleteProperty(_obj, key) {
 			if (isStrictMode() || isDebugEnabled()) {
+				// eslint-disable-next-line no-console
 				console.warn(
 					`Cannot delete property "${String(key)}" from a readonly value.`
 				);
