@@ -29,6 +29,7 @@ import {
 	type CancellationToken,
 } from '../actions/cancellation.js';
 
+// Shallow value comparison
 export const shallowEqual = <T>(a: T, b: T): boolean => {
 	if (Object.is(a, b)) return true;
 	if (
@@ -66,10 +67,13 @@ export const shallowEqual = <T>(a: T, b: T): boolean => {
 	return true;
 };
 
+// State extraction selector
 export type Selector<T, R> = (state: T) => R;
 
+// State equality check
 export type EqualityFn<T> = (a: T, b: T) => boolean;
 
+// Build memoized selector signal
 export const createSelector = <T, R>(
 	store: Store<T>,
 	selector: Selector<ReturnType<Store<T>['getSnapshot']>, R>,
@@ -90,11 +94,13 @@ export const createSelector = <T, R>(
 	return derived;
 };
 
+// Asynchronous state selector
 export type AsyncSelector<T, R> = (
 	state: T,
 	token: CancellationToken
 ) => Promise<R>;
 
+// Build asynchronous selector signal
 export const createSelectorAsync = <T, R>(
 	store: Store<T>,
 	asyncSelector: AsyncSelector<ReturnType<Store<T>['getSnapshot']>, R>,
@@ -141,6 +147,7 @@ export const createSelectorAsync = <T, R>(
 	return result;
 };
 
+// Build property pick selector
 export const pick = <T, K extends keyof T>(
 	store: Store<T>,
 	keys: K[]
@@ -156,6 +163,7 @@ export const pick = <T, K extends keyof T>(
 	});
 };
 
+// Build combined selector signal
 export const combineSelectors = <T, R extends Record<string, unknown>>(
 	store: Store<T>,
 	selectors: {

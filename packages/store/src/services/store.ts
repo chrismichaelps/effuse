@@ -44,6 +44,7 @@ import {
 import { TimeoutError } from '../actions/async.js';
 import { DEFAULT_TIMEOUT_MS } from '../config/constants.js';
 
+// Store not found error
 export class StoreNotFoundError extends Error {
 	readonly _tag = 'StoreNotFoundError';
 	constructor(name: string) {
@@ -51,6 +52,7 @@ export class StoreNotFoundError extends Error {
 	}
 }
 
+// Store already exists error
 export class StoreAlreadyExistsError extends Error {
 	readonly _tag = 'StoreAlreadyExistsError';
 	constructor(name: string) {
@@ -79,11 +81,13 @@ export interface StoreServiceApi {
 	) => Effect.Effect<() => void, StoreNotFoundError>;
 }
 
+// Store service identifier
 export class StoreService extends Context.Tag('effuse/store/StoreService')<
 	StoreService,
 	StoreServiceApi
 >() {}
 
+// Live store service
 export const StoreServiceLive: Layer.Layer<StoreService> = Layer.succeed(
 	StoreService,
 	{
@@ -148,11 +152,13 @@ export interface ScopeServiceApi {
 	) => Effect.Effect<Store<T>, StoreNotFoundError>;
 }
 
+// Scope service identifier
 export class ScopeService extends Context.Tag('effuse/store/ScopeService')<
 	ScopeService,
 	ScopeServiceApi
 >() {}
 
+// Live scope service
 export const ScopeServiceLive: Layer.Layer<ScopeService> = Layer.succeed(
 	ScopeService,
 	{
@@ -179,11 +185,13 @@ export const ScopeServiceLive: Layer.Layer<ScopeService> = Layer.succeed(
 	}
 );
 
+// Combined live services layer
 export const AllServicesLive = Layer.mergeAll(
 	StoreServiceLive,
 	ScopeServiceLive
 );
 
+// Access store service
 export const useStoreService = <A, E, R>(
 	fn: (service: StoreServiceApi) => Effect.Effect<A, E, R>
 ) =>
@@ -192,6 +200,7 @@ export const useStoreService = <A, E, R>(
 		return yield* fn(service);
 	});
 
+// Access scope service
 export const useScopeService = <A, E, R>(
 	fn: (service: ScopeServiceApi) => Effect.Effect<A, E, R>
 ) =>
@@ -200,14 +209,17 @@ export const useScopeService = <A, E, R>(
 		return yield* fn(service);
 	});
 
+// Run with store service
 export const runWithStore = <A, E>(
 	effect: Effect.Effect<A, E, StoreService>
 ): Effect.Effect<A, E> => Effect.provide(effect, StoreServiceLive);
 
+// Run with scope service
 export const runWithScope = <A, E>(
 	effect: Effect.Effect<A, E, ScopeService>
 ): Effect.Effect<A, E> => Effect.provide(effect, ScopeServiceLive);
 
+// Run with all core services
 export const runWithAllServices = <A, E>(
 	effect: Effect.Effect<A, E, StoreService | ScopeService>
 ): Effect.Effect<A, E> => Effect.provide(effect, AllServicesLive);

@@ -72,10 +72,12 @@ const getSnapshot = (
 	return snapshot;
 };
 
+// Store configuration options
 export interface CreateStoreOptions extends StoreOptions {
 	storage?: StorageAdapter;
 }
 
+// Initialize reactive store
 export const createStore = <T extends object>(
 	name: string,
 	definition: StoreDefinition<T>,

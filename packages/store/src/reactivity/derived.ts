@@ -31,6 +31,7 @@ import {
 	type CancellationToken,
 } from '../actions/cancellation.js';
 
+// Build derived reactive signal
 export const deriveFrom = <S extends Store<unknown>[], R>(
 	stores: [...S],
 	selector: (
@@ -66,6 +67,7 @@ export const deriveFrom = <S extends Store<unknown>[], R>(
 	return signalWithCleanup;
 };
 
+// Build asynchronous derived signal
 export const deriveFromAsync = <S extends Store<unknown>[], R>(
 	stores: [...S],
 	asyncSelector: (
@@ -121,16 +123,18 @@ export const deriveFromAsync = <S extends Store<unknown>[], R>(
 	return signalWithCleanup;
 };
 
+// Serialize registered stores
 export const serializeStores = (): string => {
 	const storeNames = getStoreNames();
 	const allSnapshots: Record<string, unknown> = {};
 	for (const name of storeNames) {
 		const store = getStore(name);
-		allSnapshots[name] = (store as Store<unknown>).getSnapshot();
+		allSnapshots[name] = store.getSnapshot();
 	}
 	return JSON.stringify(allSnapshots);
 };
 
+// Hydrate stores with Effect
 export const hydrateStores = (serialized: string): Effect.Effect<void> =>
 	Effect.try({
 		try: () => {
@@ -141,8 +145,8 @@ export const hydrateStores = (serialized: string): Effect.Effect<void> =>
 			for (const [name, snapshot] of Object.entries(allSnapshots)) {
 				Effect.runSync(
 					Effect.try(() => {
-						const store = getStore(name);
-						(store as Store<unknown>).update((draft) => {
+						const store = getStore<Record<string, unknown>>(name);
+						store.update((draft: Record<string, unknown>) => {
 							Object.assign(draft, snapshot);
 						});
 					}).pipe(Effect.catchAll(() => Effect.void))
@@ -152,6 +156,7 @@ export const hydrateStores = (serialized: string): Effect.Effect<void> =>
 		catch: () => new Error('Failed to hydrate stores'),
 	}).pipe(Effect.catchAll(() => Effect.void));
 
+// Hydrate stores synchronously
 export const hydrateStoresSync = (serialized: string): void => {
 	Effect.runSync(
 		hydrateStores(serialized).pipe(

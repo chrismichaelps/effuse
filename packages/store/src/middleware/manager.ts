@@ -25,6 +25,7 @@
 import { Array as Arr } from 'effect';
 import type { Middleware } from '../core/types.js';
 
+// Middleware pipeline manager
 export interface MiddlewareManager<T extends Record<string, unknown>> {
 	add: (middleware: Middleware<T>) => () => void;
 	remove: (middleware: Middleware<T>) => void;
@@ -32,6 +33,7 @@ export interface MiddlewareManager<T extends Record<string, unknown>> {
 	getAll: () => readonly Middleware<T>[];
 }
 
+// Initialize middleware manager
 export const createMiddlewareManager = <
 	T extends Record<string, unknown>,
 >(): MiddlewareManager<T> => {

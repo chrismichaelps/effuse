@@ -31,34 +31,41 @@ export const StoreOptionsSchema = Schema.Struct({
 	devtools: Schema.optional(Schema.Boolean),
 });
 
+// Store configuration schema
 export type StoreOptions = Schema.Schema.Type<typeof StoreOptionsSchema>;
 
+// Reactive store state
 export type StoreState<T> = {
 	[K in keyof T]: T[K] extends (...args: infer A) => infer R
 		? (...args: A) => R
 		: Signal<T[K]>;
 };
 
+// Internal store context
 export type StoreContext<T> = {
 	[K in keyof T]: T[K] extends (...args: unknown[]) => unknown
 		? T[K]
 		: Signal<T[K]>;
 };
 
+// Store definition structure
 export type StoreDefinition<T> = {
 	[K in keyof T]: T[K] extends (...args: infer A) => infer R
 		? (this: StoreContext<T>, ...args: A) => R
 		: T[K];
 };
 
+// Action execution context
 export type ActionContext<T> = StoreContext<T>;
 
+// Global state middleware
 export type Middleware<T> = (
 	state: T,
 	action: string,
 	args: unknown[]
 ) => T | undefined;
 
+// Reactive store instance
 export interface Store<T> {
 	readonly name: string;
 	readonly state: StoreState<T>;
@@ -89,6 +96,7 @@ export interface Store<T> {
 	select: <R>(selector: (snapshot: Record<string, unknown>) => R) => Signal<R>;
 }
 
+// Extract state type from store
 export type InferStoreState<S> =
 	S extends Store<infer T>
 		? {

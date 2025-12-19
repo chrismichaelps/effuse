@@ -25,12 +25,14 @@
 import { Effect, SubscriptionRef } from 'effect';
 import { createAtomicRef } from '../actions/cancellation.js';
 
+// Atomic state management with synchronous accessors
 export interface AtomicState<T extends Record<string, unknown>> {
 	get: () => T;
 	set: (value: T) => void;
 	update: (fn: (state: T) => T) => void;
 }
 
+// Build atomic state container
 export const createAtomicState = <T extends Record<string, unknown>>(
 	initial: T
 ): AtomicState<T> => {
@@ -46,6 +48,7 @@ export const createAtomicState = <T extends Record<string, unknown>>(
 	};
 };
 
+// Atomic state management with Effect operations
 export interface AtomicStateEffect<T extends Record<string, unknown>> {
 	get: Effect.Effect<T>;
 	set: (value: T) => Effect.Effect<void>;
@@ -53,6 +56,7 @@ export interface AtomicStateEffect<T extends Record<string, unknown>> {
 	getAndSet: (value: T) => Effect.Effect<T>;
 }
 
+// Build Effect native atomic state
 export const createAtomicStateWithEffect = <T extends Record<string, unknown>>(
 	initial: T
 ): Effect.Effect<AtomicStateEffect<T>> => {

@@ -26,14 +26,17 @@ import { Effect, Schema, Duration } from 'effect';
 import { TimeoutError } from '../actions/async.js';
 import { DEFAULT_TIMEOUT_MS } from '../config/constants.js';
 
+// State validation schema type
 export type StateSchema<T> = Schema.Schema<T, T>;
 
+// Validation check result
 export interface ValidationResult<T> {
 	success: boolean;
 	data: T | null;
 	errors: string[];
 }
 
+// Validate state synchronously
 export const validateState = <T>(
 	schema: StateSchema<T>,
 	state: unknown
@@ -57,6 +60,7 @@ export const validateState = <T>(
 	return result;
 };
 
+// Validate state asynchronously
 export const validateStateAsync = <T>(
 	schema: StateSchema<T>,
 	state: unknown,
@@ -88,6 +92,7 @@ export const validateStateAsync = <T>(
 	);
 };
 
+// Build validated state setter
 export const createValidatedSetter = <T extends Record<string, unknown>>(
 	schema: StateSchema<T>,
 	onValid: (state: T) => void,
@@ -104,6 +109,7 @@ export const createValidatedSetter = <T extends Record<string, unknown>>(
 	};
 };
 
+// Build field validator
 export const createFieldValidator = <T>(
 	schema: Schema.Schema<T, T>
 ): ((value: unknown) => T) => {
@@ -112,6 +118,7 @@ export const createFieldValidator = <T>(
 	};
 };
 
+// Build safe field setter
 export const createSafeFieldSetter = <T>(
 	schema: Schema.Schema<T, T>,
 	setter: (value: T) => void

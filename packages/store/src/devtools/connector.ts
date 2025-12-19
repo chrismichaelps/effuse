@@ -34,6 +34,7 @@ interface DevToolsConnection {
 	subscribe: (listener: (message: { type: string }) => void) => () => void;
 }
 
+// Detect Redux DevTools extension
 export const hasDevTools = (): boolean => {
 	if (typeof globalThis === 'undefined') return false;
 	const w = globalThis as unknown as {
@@ -44,6 +45,7 @@ export const hasDevTools = (): boolean => {
 
 const connections = new Map<string, DevToolsConnection>();
 
+// Connect store to DevTools
 export const connectDevTools = <T>(
 	store: Store<T>,
 	options?: { name?: string }
@@ -79,6 +81,7 @@ export const connectDevTools = <T>(
 	};
 };
 
+// DevTools reporting middleware
 export const devToolsMiddleware = <T>(storeName: string) => {
 	return (state: T, action: string, args: unknown[]): T | undefined => {
 		const connection = connections.get(storeName);
@@ -92,13 +95,16 @@ export const devToolsMiddleware = <T>(storeName: string) => {
 	};
 };
 
+// Build DevTools middleware
 export const createDevToolsMiddleware = <T>(storeName: string) =>
 	devToolsMiddleware<T>(storeName);
 
+// Disconnect store from DevTools
 export const disconnectDevTools = (storeName: string): void => {
 	connections.delete(storeName);
 };
 
+// Disconnect all DevTools connections
 export const disconnectAllDevTools = (): void => {
 	connections.clear();
 };

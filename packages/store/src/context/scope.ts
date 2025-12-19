@@ -24,9 +24,11 @@
 
 import type { Store } from '../core/types.js';
 
-type ScopeId = string;
+// Scope identifier
+export type ScopeId = string;
 
-interface ScopeNode {
+// Scope tree node
+export interface ScopeNode {
 	id: ScopeId;
 	parent: ScopeNode | null;
 	stores: Map<string, Store<unknown>>;
@@ -44,6 +46,7 @@ const scopeRegistry = new Map<ScopeId, ScopeNode>([
 ]);
 let scopeCounter = 0;
 
+// Initialize child scope
 export const createScope = (parentScope?: ScopeNode): ScopeNode => {
 	scopeCounter++;
 	const id = `scope_${String(scopeCounter)}`;
@@ -56,25 +59,31 @@ export const createScope = (parentScope?: ScopeNode): ScopeNode => {
 	return node;
 };
 
+// Dispose scope
 export const disposeScope = (scope: ScopeNode): void => {
 	scope.stores.clear();
 	scopeRegistry.delete(scope.id);
 };
 
+// Activate scope
 export const enterScope = (scope: ScopeNode): void => {
 	currentScope = scope;
 };
 
+// Exit active scope
 export const exitScope = (): void => {
 	if (currentScope.parent) {
 		currentScope = currentScope.parent;
 	}
 };
 
+// Current scope access
 export const getCurrentScope = (): ScopeNode => currentScope;
 
+// Root scope access
 export const getRootScope = (): ScopeNode => ROOT_SCOPE;
 
+// Register store in scope
 export const registerScopedStore = <T>(
 	name: string,
 	store: Store<T>,
@@ -83,6 +92,7 @@ export const registerScopedStore = <T>(
 	scope.stores.set(name, store as Store<unknown>);
 };
 
+// Find store in scope hierarchy
 export const getScopedStore = <T>(
 	name: string,
 	scope: ScopeNode = currentScope
@@ -96,6 +106,7 @@ export const getScopedStore = <T>(
 	return null;
 };
 
+// Scope store detection
 export const hasScopedStore = (
 	name: string,
 	scope: ScopeNode = currentScope
@@ -103,6 +114,7 @@ export const hasScopedStore = (
 	return getScopedStore(name, scope) !== null;
 };
 
+// Execute in scope
 export const runInScope = <R>(scope: ScopeNode, fn: () => R): R => {
 	const prev = currentScope;
 	currentScope = scope;
@@ -113,6 +125,7 @@ export const runInScope = <R>(scope: ScopeNode, fn: () => R): R => {
 	}
 };
 
+// Execute in transient scope
 export const withScope = <R>(fn: (scope: ScopeNode) => R): R => {
 	const scope = createScope();
 	try {
@@ -121,5 +134,3 @@ export const withScope = <R>(fn: (scope: ScopeNode) => R): R => {
 		disposeScope(scope);
 	}
 };
-
-export type { ScopeNode, ScopeId };

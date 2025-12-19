@@ -22,76 +22,66 @@
  * SOFTWARE.
  */
 
-/**
- * @effuse/store/effect
- *
- * Effect.ts native APIs for users who want direct Effect integration.
- * Import from '@effuse/store/effect' to access Effect-native services,
- * layers, and utilities.
- *
- * For Promise-based APIs, use the main '@effuse/store' export instead.
- */
-
 export {
-  StoreService,
-  StoreServiceLive,
-  ScopeService,
-  ScopeServiceLive,
-  AllServicesLive,
-  useStoreService,
-  useScopeService,
-  runWithStore,
-  runWithScope,
-  runWithAllServices,
-  StoreNotFoundError,
-  StoreAlreadyExistsError,
-  type StoreServiceApi,
-  type ScopeServiceApi,
+	StoreService,
+	StoreServiceLive,
+	ScopeService,
+	ScopeServiceLive,
+	AllServicesLive,
+	useStoreService,
+	useScopeService,
+	runWithStore,
+	runWithScope,
+	runWithAllServices,
+	StoreNotFoundError,
+	StoreAlreadyExistsError,
+	type StoreServiceApi,
+	type ScopeServiceApi,
 } from './services/store.js';
 
 export {
-  PersistenceService,
-  LocalStoragePersistenceLive,
-  SessionStoragePersistenceLive,
-  MemoryPersistenceLive,
-  NoopPersistenceLive,
-  makePersistenceLayer,
-  usePersistence,
-  runWithPersistence,
-  type PersistenceServiceApi,
+	PersistenceService,
+	LocalStoragePersistenceLive,
+	SessionStoragePersistenceLive,
+	MemoryPersistenceLive,
+	NoopPersistenceLive,
+	makePersistenceLayer,
+	usePersistence,
+	runWithPersistence,
+	type PersistenceServiceApi,
 } from './services/persistence.js';
 
 export {
-  ValidationService,
-  ValidationServiceLive,
-  ValidationError,
-  useValidation,
-  runWithValidation,
-  type ValidationServiceApi,
+	ValidationService,
+	ValidationServiceLive,
+	ValidationError,
+	useValidation,
+	runWithValidation,
+	type ValidationServiceApi,
 } from './services/validation.js';
 
 export {
-  type StorageAdapter,
-  localStorageAdapter,
-  sessionStorageAdapter,
-  createMemoryAdapter,
-  noopAdapter,
-  runAdapter,
-  raceAdapters,
+	type StorageAdapter,
+	localStorageAdapter,
+	sessionStorageAdapter,
+	createMemoryAdapter,
+	noopAdapter,
+	runAdapter,
+	raceAdapters,
 } from './persistence/adapters.js';
 
 export {
-  loadStoreConfigValues,
-  StoreConfigOptions,
-  DEFAULT_TIMEOUT,
+	loadStoreConfigValues,
+	StoreConfigOptions,
+	DEFAULT_TIMEOUT,
 } from './config/constants.js';
 
 export {
-  raceAll,
-  forkInterruptible,
-  createDeferred,
-  createAtomicRef,
-  runWithAbortSignal,
+	raceAll,
+	forkInterruptible,
+	createDeferred,
+	createAtomicRef,
+	runWithAbortSignal,
 } from './actions/cancellation.js';
 
 export { createAtomicStateWithEffect } from './core/state.js';

@@ -25,6 +25,7 @@
 import type { Fiber } from 'effect';
 import { Effect, Deferred, Ref } from 'effect';
 
+// Operation cancellation error
 export class CancellationError extends Error {
 	readonly _tag = 'CancellationError';
 	constructor(message = 'Operation was cancelled') {
@@ -33,6 +34,7 @@ export class CancellationError extends Error {
 	}
 }
 
+// Cancellation tracking token
 export interface CancellationToken {
 	readonly isCancelled: boolean;
 	cancel: () => void;
@@ -40,6 +42,7 @@ export interface CancellationToken {
 	onCancel: (callback: () => void) => () => void;
 }
 
+// Build cancellation token
 export const createCancellationToken = (): CancellationToken => {
 	let cancelled = false;
 	const callbacks = new Set<() => void>();
@@ -69,12 +72,14 @@ export const createCancellationToken = (): CancellationToken => {
 	};
 };
 
+// Nested cancellation scope
 export interface CancellationScope {
 	readonly token: CancellationToken;
 	createChild: () => CancellationToken;
 	dispose: () => void;
 }
 
+// Build cancellation scope
 export const createCancellationScope = (): CancellationScope => {
 	const children = new Set<CancellationToken>();
 	const token = createCancellationToken();
@@ -97,6 +102,7 @@ export const createCancellationScope = (): CancellationScope => {
 	};
 };
 
+// Connect external abort signal
 export const runWithAbortSignal = <A, E>(
 	effect: Effect.Effect<A, E>,
 	signal: AbortSignal
@@ -124,12 +130,14 @@ export const runWithAbortSignal = <A, E>(
 	});
 };
 
+// Fork interruptible Effect
 export const forkInterruptible = <A, E, R>(
 	effect: Effect.Effect<A, E, R>
 ): Effect.Effect<Fiber.RuntimeFiber<A, E>, never, R> => {
 	return Effect.fork(effect);
 };
 
+// Race multiple Effects
 export const raceAll = <A, E>(
 	effects: Effect.Effect<A, E>[]
 ): Effect.Effect<A, E> => {
@@ -146,6 +154,7 @@ export const raceAll = <A, E>(
 	return Effect.raceAll(effects);
 };
 
+// Build deferred value
 export const createDeferred = <A, E = never>(): Effect.Effect<{
 	await: Effect.Effect<A, E>;
 	succeed: (value: A) => Effect.Effect<boolean>;
@@ -161,6 +170,7 @@ export const createDeferred = <A, E = never>(): Effect.Effect<{
 	});
 };
 
+// Build atomic reference
 export const createAtomicRef = <A>(
 	initial: A
 ): Effect.Effect<{

@@ -25,12 +25,14 @@
 import { Effect, Option } from 'effect';
 import { raceAll } from '../actions/cancellation.js';
 
+// Storage engine interface
 export interface StorageAdapter {
 	getItem: (key: string) => Effect.Effect<Option.Option<string>>;
 	setItem: (key: string, value: string) => Effect.Effect<void>;
 	removeItem: (key: string) => Effect.Effect<void>;
 }
 
+// Browser local storage adapter
 export const localStorageAdapter: StorageAdapter = {
 	getItem: (key) =>
 		Effect.try({
@@ -47,6 +49,7 @@ export const localStorageAdapter: StorageAdapter = {
 		}).pipe(Effect.catchAll(() => Effect.void)),
 };
 
+// Browser session storage adapter
 export const sessionStorageAdapter: StorageAdapter = {
 	getItem: (key) =>
 		Effect.try({
@@ -63,6 +66,7 @@ export const sessionStorageAdapter: StorageAdapter = {
 		}).pipe(Effect.catchAll(() => Effect.void)),
 };
 
+// Build in memory storage adapter
 export const createMemoryAdapter = (): StorageAdapter => {
 	const storage = new Map<string, string>();
 	return {
@@ -78,12 +82,14 @@ export const createMemoryAdapter = (): StorageAdapter => {
 	};
 };
 
+// No-op storage adapter
 export const noopAdapter: StorageAdapter = {
 	getItem: () => Effect.succeed(Option.none()),
 	setItem: () => Effect.void,
 	removeItem: () => Effect.void,
 };
 
+// Synchronous storage adapter bridge
 export const runAdapter = {
 	getItem: (adapter: StorageAdapter, key: string): string | null =>
 		Effect.runSync(

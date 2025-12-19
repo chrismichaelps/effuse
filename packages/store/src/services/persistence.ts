@@ -33,6 +33,7 @@ import {
 import { TimeoutError } from '../actions/async.js';
 import { DEFAULT_TIMEOUT_MS } from '../config/constants.js';
 
+// Persistence service API
 export interface PersistenceServiceApi {
 	get: (key: string) => Effect.Effect<Option.Option<string>>;
 	set: (key: string, value: string) => Effect.Effect<void>;
@@ -49,6 +50,7 @@ export interface PersistenceServiceApi {
 	) => Effect.Effect<void, TimeoutError>;
 }
 
+// Persistence service identifier
 export class PersistenceService extends Context.Tag(
 	'effuse/store/PersistenceService'
 )<PersistenceService, PersistenceServiceApi>() {}
@@ -107,29 +109,35 @@ const createPersistenceApi = (
 	},
 });
 
+// Browser local storage persistence
 export const LocalStoragePersistenceLive: Layer.Layer<PersistenceService> =
 	Layer.succeed(PersistenceService, createPersistenceApi(localStorageAdapter));
 
+// Browser session storage persistence
 export const SessionStoragePersistenceLive: Layer.Layer<PersistenceService> =
 	Layer.succeed(
 		PersistenceService,
 		createPersistenceApi(sessionStorageAdapter)
 	);
 
+// Memory storage persistence
 export const MemoryPersistenceLive: Layer.Layer<PersistenceService> =
 	Layer.succeed(
 		PersistenceService,
 		createPersistenceApi(createMemoryAdapter())
 	);
 
+// No-op storage persistence
 export const NoopPersistenceLive: Layer.Layer<PersistenceService> =
 	Layer.succeed(PersistenceService, createPersistenceApi(noopAdapter));
 
+// Build persistence layer
 export const makePersistenceLayer = (
 	adapter: StorageAdapter
 ): Layer.Layer<PersistenceService> =>
 	Layer.succeed(PersistenceService, createPersistenceApi(adapter));
 
+// Access persistence service
 export const usePersistence = <A, E, R>(
 	fn: (service: PersistenceServiceApi) => Effect.Effect<A, E, R>
 ) =>
@@ -138,6 +146,7 @@ export const usePersistence = <A, E, R>(
 		return yield* fn(service);
 	});
 
+// Run with persistence service
 export const runWithPersistence = <A, E>(
 	effect: Effect.Effect<A, E, PersistenceService>,
 	adapter: 'local' | 'session' | 'memory' | 'noop' = 'local'

@@ -24,18 +24,27 @@
 
 import { Config, Duration, Effect } from 'effect';
 
+// Storage key prefix
 export const STORAGE_PREFIX = 'effuse-store:';
+// Root scope identifier
 export const ROOT_SCOPE_ID = '__root__';
+// Scope identifier prefix
 export const SCOPE_PREFIX = 'scope_';
 
+// Default timeout milliseconds
 export const DEFAULT_TIMEOUT_MS = 5000;
 
+// Default timeout duration
 export const DEFAULT_TIMEOUT = Duration.millis(DEFAULT_TIMEOUT_MS);
 
+// Initial retry delay
 export const DEFAULT_RETRY_INITIAL_DELAY_MS = 100;
+// Maximum retry delay
 export const DEFAULT_RETRY_MAX_DELAY_MS = 5000;
+// Retry backoff factor
 export const DEFAULT_RETRY_BACKOFF_FACTOR = 2;
 
+// Internal constants collection
 export const StoreConstants = {
 	STORAGE_PREFIX,
 	ROOT_SCOPE_ID,
@@ -45,6 +54,7 @@ export const StoreConstants = {
 	DEFAULT_TIMEOUT_MS,
 } as const;
 
+// Store configuration parameters
 export const StoreConfigOptions = {
 	persistByDefault: Config.boolean('EFFUSE_STORE_PERSIST').pipe(
 		Config.withDefault(false)
@@ -58,6 +68,7 @@ export const StoreConfigOptions = {
 	),
 };
 
+// Store configuration values
 export interface StoreConfigValues {
 	persistByDefault: boolean;
 	storagePrefix: string;
@@ -65,6 +76,7 @@ export interface StoreConfigValues {
 	devtools: boolean;
 }
 
+// Load configuration values
 export const loadStoreConfigValues: Effect.Effect<StoreConfigValues> =
 	Effect.all({
 		persistByDefault: StoreConfigOptions.persistByDefault,
@@ -84,6 +96,7 @@ export const loadStoreConfigValues: Effect.Effect<StoreConfigValues> =
 
 let cachedConfig: StoreConfigValues | null = null;
 
+// Access store configuration
 export const getStoreConfig = (): StoreConfigValues => {
 	if (!cachedConfig) {
 		cachedConfig = Effect.runSync(loadStoreConfigValues);
@@ -91,6 +104,7 @@ export const getStoreConfig = (): StoreConfigValues => {
 	return cachedConfig;
 };
 
+// Reset configuration cache
 export const resetStoreConfigCache = (): void => {
 	cachedConfig = null;
 };

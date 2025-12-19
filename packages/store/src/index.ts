@@ -158,6 +158,7 @@ export {
 	ValidationError,
 } from './services/index.js';
 
+// Bootstrap store system
 export const installStore = (): ((name: string) => unknown) => {
 	return getStore;
 };

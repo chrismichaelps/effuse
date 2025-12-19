@@ -32,6 +32,7 @@ import {
 } from '../validation/schema.js';
 import { createDeferred } from '../actions/cancellation.js';
 
+// Schema validation error
 export class ValidationError extends Error {
 	readonly _tag = 'ValidationError';
 	readonly errors: string[];
@@ -41,6 +42,7 @@ export class ValidationError extends Error {
 	}
 }
 
+// Validation service API
 export interface ValidationServiceApi {
 	validate: <T>(
 		schema: StateSchema<T>,
@@ -62,10 +64,12 @@ export interface ValidationServiceApi {
 	}>;
 }
 
+// Validation service identifier
 export class ValidationService extends Context.Tag(
 	'effuse/store/ValidationService'
 )<ValidationService, ValidationServiceApi>() {}
 
+// Live validation service
 export const ValidationServiceLive: Layer.Layer<ValidationService> =
 	Layer.succeed(ValidationService, {
 		validate: <T>(schema: StateSchema<T>, state: unknown) =>
@@ -107,6 +111,7 @@ export const ValidationServiceLive: Layer.Layer<ValidationService> =
 			}),
 	});
 
+// Access validation service
 export const useValidation = <A, E, R>(
 	fn: (service: ValidationServiceApi) => Effect.Effect<A, E, R>
 ) =>
@@ -115,6 +120,7 @@ export const useValidation = <A, E, R>(
 		return yield* fn(service);
 	});
 
+// Run with validation service
 export const runWithValidation = <A, E>(
 	effect: Effect.Effect<A, E, ValidationService>
 ): Effect.Effect<A, E> => Effect.provide(effect, ValidationServiceLive);

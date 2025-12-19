@@ -30,6 +30,7 @@ import {
 	type CancellationToken,
 } from '../actions/cancellation.js';
 
+// Composed store container
 export interface ComposedStore<T, D extends readonly Store<unknown>[]> {
 	store: Store<T>;
 	dependencies: D;
@@ -49,6 +50,7 @@ export interface ComposedStore<T, D extends readonly Store<unknown>[]> {
 	) => Signal<R> & { pending: Signal<boolean>; cleanup: () => void };
 }
 
+// Compose stores with dependencies
 export const composeStores = <T, D extends readonly Store<unknown>[]>(
 	mainStore: Store<T>,
 	dependencies: D
@@ -148,10 +150,12 @@ export const composeStores = <T, D extends readonly Store<unknown>[]>(
 	};
 };
 
+// Store slice definition
 export interface StoreSlice<T extends object, P extends object> {
 	create: (parent: Store<P>) => Store<T>;
 }
 
+// Define reusable store slice
 export const defineSlice = <T extends object, P extends object>(
 	name: string,
 	factory: (parent: Store<P>) => StoreDefinition<T>
@@ -164,6 +168,7 @@ export const defineSlice = <T extends object, P extends object>(
 	};
 };
 
+// Merge multiple stores
 export const mergeStores = <A, B>(
 	storeA: Store<A>,
 	storeB: Store<B>
