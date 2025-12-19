@@ -167,6 +167,22 @@ export {
 	type ScriptContext,
 	setGlobalStoreGetter,
 	setGlobalRouter,
+	createComponentLifecycle,
+	createComponentLifecycleSync,
+	type ComponentLifecycle,
+	PropSchema,
+	PropsValidationError,
+	type PropDefinition,
+	type PropSchemaBuilder,
+	type PropSchemaInfer,
+	PortalService,
+	PortalServiceLive,
+	Portal,
+	createPortal,
+	setGlobalPortalService,
+	getGlobalPortalService,
+	type PortalServiceInterface,
+	type PortalContainer,
 } from './blueprint/index.js';
 
 export {

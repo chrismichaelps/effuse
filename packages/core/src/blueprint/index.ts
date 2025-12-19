@@ -43,3 +43,28 @@ export {
 	setGlobalStoreGetter,
 	setGlobalRouter,
 } from './script-context.js';
+
+export {
+	createComponentLifecycle,
+	createComponentLifecycleSync,
+	type ComponentLifecycle,
+} from './lifecycle.js';
+
+export {
+	PropSchema,
+	PropsValidationError,
+	type PropDefinition,
+	type PropSchemaBuilder,
+	type PropSchemaInfer,
+} from './props.js';
+
+export {
+	PortalService,
+	PortalServiceLive,
+	Portal,
+	createPortal,
+	setGlobalPortalService,
+	getGlobalPortalService,
+	type PortalServiceInterface,
+	type PortalContainer,
+} from './portal.js';

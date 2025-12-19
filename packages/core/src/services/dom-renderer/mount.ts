@@ -396,6 +396,18 @@ const mountNode = (
 			blueprintNode.props,
 			blueprintNode.portals ?? {}
 		);
+
+		const stateWithLifecycle = context.state as unknown as {
+			lifecycle?: { runCleanup: () => Effect.Effect<void> };
+		};
+
+		if (stateWithLifecycle.lifecycle) {
+			const lifecycle = stateWithLifecycle.lifecycle;
+			cleanups.push(() => {
+				Effect.runSync(lifecycle.runCleanup());
+			});
+		}
+
 		const childView = blueprintNode.blueprint.view(context as BlueprintContext);
 		return mountChild(childView, cleanups);
 	}

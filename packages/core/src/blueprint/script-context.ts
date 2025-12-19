@@ -22,17 +22,22 @@
  * SOFTWARE.
  */
 
+import { Effect } from 'effect';
 import type { Scope } from 'effect';
 import type { Signal } from '../types/index.js';
 import { signal } from '../reactivity/index.js';
 import { effect as createEffect } from '../effects/index.js';
+import {
+	createComponentLifecycleSync,
+	type ComponentLifecycle,
+} from './lifecycle.js';
 
 export type ExposedValues = object;
 
 export interface ScriptContext<P> {
 	readonly props: Readonly<P>;
 
-	expose: <E extends ExposedValues>(values: E) => void;
+	expose: (values: ExposedValues) => void;
 
 	signal: typeof signal;
 
@@ -40,9 +45,13 @@ export interface ScriptContext<P> {
 
 	router: unknown;
 
-	onMount: (callback: () => void) => void;
+	onMount: (callback: () => (() => void) | undefined) => void;
 
 	onUnmount: (callback: () => void) => void;
+
+	onBeforeMount: (callback: () => void) => void;
+
+	onBeforeUnmount: (callback: () => void) => void;
 
 	watch: <T>(
 		source: Signal<T> | (() => T),
@@ -52,15 +61,14 @@ export interface ScriptContext<P> {
 
 export interface ScriptState<E extends ExposedValues> {
 	exposed: E;
-	mountCallbacks: Array<() => void>;
-	unmountCallbacks: Array<() => void>;
+	lifecycle: ComponentLifecycle;
 	scope: Scope.CloseableScope | null;
 }
 
-let globalStoreGetter: (<T>(name: string) => T) | null = null;
+let globalStoreGetter: ((name: string) => unknown) | null = null;
 let globalRouter: unknown = null;
 
-export const setGlobalStoreGetter = (getter: <T>(name: string) => T) => {
+export const setGlobalStoreGetter = (getter: (name: string) => unknown): void => {
 	globalStoreGetter = getter;
 };
 
@@ -70,14 +78,14 @@ export const setGlobalRouter = (router: unknown): void => {
 
 export const createScriptContext = <P, E extends ExposedValues>(
 	props: P,
-
-	storeGetter?: <T>(name: string) => T
+	storeGetter?: (name: string) => unknown
 ): { context: ScriptContext<P>; state: ScriptState<E> } => {
+	const lifecycle = createComponentLifecycleSync();
+
 	const state: ScriptState<E> = {
 		exposed: {} as E,
-		mountCallbacks: [],
-		unmountCallbacks: [],
-		scope: null,
+		lifecycle,
+		scope: lifecycle.scope,
 	};
 
 	const getStore = storeGetter ?? globalStoreGetter;
@@ -85,7 +93,7 @@ export const createScriptContext = <P, E extends ExposedValues>(
 	const context: ScriptContext<P> = {
 		props: Object.freeze({ ...props }),
 
-		expose: <Exp extends ExposedValues>(values: Exp) => {
+		expose: (values: ExposedValues): void => {
 			Object.assign(state.exposed, values);
 		},
 
@@ -97,7 +105,7 @@ export const createScriptContext = <P, E extends ExposedValues>(
 					'Store getter not configured. Call setGlobalStoreGetter() with getStore.'
 				);
 			}
-			return getStore<T>(name);
+			return getStore(name) as T;
 		},
 
 		router: (() => {
@@ -114,15 +122,23 @@ export const createScriptContext = <P, E extends ExposedValues>(
 			return globalRouter;
 		})(),
 
-		onMount: (callback) => {
-			state.mountCallbacks.push(callback);
+		onMount: (callback): void => {
+			lifecycle.onMount(callback as () => (() => void) | undefined);
 		},
 
-		onUnmount: (callback) => {
-			state.unmountCallbacks.push(callback);
+		onUnmount: (callback): void => {
+			lifecycle.onUnmount(callback);
 		},
 
-		watch: <T>(source: Signal<T> | (() => T), callback: (value: T) => void) => {
+		onBeforeMount: (callback): void => {
+			lifecycle.onBeforeMount(callback);
+		},
+
+		onBeforeUnmount: (callback): void => {
+			lifecycle.onBeforeUnmount(callback);
+		},
+
+		watch: <T>(source: Signal<T> | (() => T), callback: (value: T) => void): void => {
 			const getValue =
 				typeof source === 'function' ? source : () => source.value;
 
@@ -139,15 +155,17 @@ export const createScriptContext = <P, E extends ExposedValues>(
 export const runMountCallbacks = <E extends ExposedValues>(
 	state: ScriptState<E>
 ): void => {
-	for (const callback of state.mountCallbacks) {
-		callback();
-	}
+	state.lifecycle.runMount();
 };
 
 export const runUnmountCallbacks = <E extends ExposedValues>(
 	state: ScriptState<E>
 ): void => {
-	for (const callback of state.unmountCallbacks) {
-		callback();
-	}
+	Effect.runSync(state.lifecycle.runCleanup());
+};
+
+export const runCleanupEffect = <E extends ExposedValues>(
+	state: ScriptState<E>
+): Effect.Effect<void> => {
+	return state.lifecycle.runCleanup();
 };

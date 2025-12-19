@@ -30,6 +30,7 @@ import type {
 } from '../render/node.js';
 import type { ScriptContext, ExposedValues } from './script-context.js';
 import { createScriptContext, runMountCallbacks } from './script-context.js';
+import type { ComponentLifecycle } from './lifecycle.js';
 
 export interface PropsSchema<P> {
 	Type: P;
@@ -43,9 +44,8 @@ export interface DefineOptions<P, E extends ExposedValues> {
 
 interface DefineState<E extends ExposedValues> {
 	exposed: E;
+	lifecycle: ComponentLifecycle;
 	_template: (exposed: E, props: unknown) => EffuseChild;
-	_mountCallbacks: Array<() => void>;
-	_unmountCallbacks: Array<() => void>;
 	[key: string]: unknown;
 }
 
@@ -64,22 +64,16 @@ export const define = <
 			const { context, state } = createScriptContext<P, E>(props);
 
 			const scriptResult = options.script(context);
+			Object.assign(state.exposed, scriptResult);
 
-			if (scriptResult !== undefined) {
-				Object.assign(state.exposed, scriptResult);
-			}
-
-			if (state.mountCallbacks.length > 0) {
-				queueMicrotask(() => {
-					runMountCallbacks(state);
-				});
-			}
+			queueMicrotask(() => {
+				runMountCallbacks(state);
+			});
 
 			return {
 				exposed: state.exposed,
+				lifecycle: state.lifecycle,
 				_template: options.template,
-				_mountCallbacks: state.mountCallbacks,
-				_unmountCallbacks: state.unmountCallbacks,
 			} as DefineState<E> as unknown as Record<string, never>;
 		},
 

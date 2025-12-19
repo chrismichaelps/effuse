@@ -75,7 +75,7 @@ export const Link = define<LinkProps, LinkState>({
 		};
 
 		onMount(() => {
-			if (!router) return;
+			if (!router) return undefined;
 
 			const currentRoute = Effect.runSync(
 				SubscriptionRef.get(router.currentRoute)
@@ -89,6 +89,7 @@ export const Link = define<LinkProps, LinkState>({
 				});
 				stopWatch = h.stop;
 			}
+			return undefined;
 		});
 
 		onUnmount(() => {
