@@ -1,7 +1,7 @@
 {
 	"name": "@effuse/query",
 	"version": "0.1.0",
-	"description": "An advanced data fetching library for Effuse, leveraging Effect.ts for structured concurrency, automatic resource management, retries, timeouts, and cancellation.",
+	"description": "Effuse Query handles loading, caching, and synchronizing server state. It provides reactive hooks for data fetching with built-in reliability.",
 	"author": "Chris M. Pérez",
 	"license": "MIT",
 	"repository": {
@@ -35,12 +35,24 @@
 		"test": "vitest run"
 	},
 	"keywords": [
-		"data-fetching",
-		"query",
-		"effect-ts",
 		"effuse",
+		"effuse-query",
+		"useQuery",
+		"useMutation",
+		"useInfiniteQuery",
+		"data-fetching",
+		"caching",
+		"server-state",
+		"query-client",
+		"invalidate-queries",
+		"refetch",
+		"fine-grained",
+		"signals",
+		"reactive",
 		"typescript",
-		"suspense"
+		"type-safe",
+		"effect-ts",
+		"structured-concurrency"
 	],
 	"engines": {
 		"node": ">=23.0.0"
