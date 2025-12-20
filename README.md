@@ -20,6 +20,7 @@ It's designed to be intuitive and minimalist, helping you build fast, interactiv
 - **@effuse/router**: A simple, type-safe router for SPA navigation.
 - **@effuse/store**: A functional, Effect-based state management library.
 - **@effuse/ink**: A reactive Markdown renderer with component embedding support.
+- **@effuse/query**: A reactive data fetching library with built-in reliability.
 
 ---
 
