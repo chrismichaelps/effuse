@@ -1,7 +1,7 @@
 {
-	"name": "@effuse/router",
+	"name": "@effuse/query",
 	"version": "0.1.0",
-	"description": "A simple, type-safe router for Single Page Applications (SPA). It manages URL state and navigation seamlessly for Effuse applications.",
+	"description": "An advanced data fetching library for Effuse, leveraging Effect.ts for structured concurrency, automatic resource management, retries, timeouts, and cancellation.",
 	"author": "Chris M. Pérez",
 	"license": "MIT",
 	"repository": {
@@ -18,14 +18,9 @@
 	"types": "./dist/index.d.ts",
 	"exports": {
 		".": {
-			"import": {
-				"types": "./dist/index.d.ts",
-				"default": "./dist/index.js"
-			},
-			"require": {
-				"types": "./dist/index.d.cts",
-				"default": "./dist/index.cjs"
-			}
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js",
+			"require": "./dist/index.cjs"
 		}
 	},
 	"files": [
@@ -36,16 +31,16 @@
 		"build": "tsup",
 		"dev": "tsup --watch",
 		"lint": "eslint src",
-		"typecheck": "tsc --noEmit"
+		"typecheck": "tsc --noEmit",
+		"test": "vitest run"
 	},
 	"keywords": [
-		"router",
-		"spa",
-		"navigation",
-		"simple",
-		"type-safe",
+		"data-fetching",
+		"query",
+		"effect-ts",
 		"effuse",
-		"typescript"
+		"typescript",
+		"suspense"
 	],
 	"engines": {
 		"node": ">=23.0.0"

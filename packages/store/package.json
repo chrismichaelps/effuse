@@ -48,7 +48,7 @@
 		"@effuse/core": "workspace:*"
 	},
 	"dependencies": {
-		"effect": "^3.19.12"
+		"effect": "^3.19.13"
 	},
 	"devDependencies": {
 		"@effect/eslint-plugin": "^0.3.2",
