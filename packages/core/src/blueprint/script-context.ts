@@ -34,6 +34,11 @@ import {
 
 export type ExposedValues = object;
 
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+export interface EffuseRegistry {}
+
+type RouterType = EffuseRegistry extends { router: infer R } ? R : unknown;
+
 export interface ScriptContext<P> {
 	readonly props: Readonly<P>;
 
@@ -43,7 +48,7 @@ export interface ScriptContext<P> {
 
 	store: <T>(name: string) => T;
 
-	router: unknown;
+	router: RouterType;
 
 	onMount: (callback: () => (() => void) | undefined) => void;
 

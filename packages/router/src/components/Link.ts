@@ -107,7 +107,7 @@ export const Link = define<LinkProps, LinkState>({
 			event.preventDefault();
 
 			if (router) {
-				Effect.runFork(router.push(to));
+				router.push(to);
 			}
 		};
 

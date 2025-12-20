@@ -165,6 +165,7 @@ export {
 	type BlueprintOptions,
 	type DefineOptions,
 	type ScriptContext,
+	type EffuseRegistry,
 	setGlobalStoreGetter,
 	setGlobalRouter,
 	createComponentLifecycle,

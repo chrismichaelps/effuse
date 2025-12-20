@@ -23,6 +23,7 @@
  */
 
 import { Effect, SubscriptionRef } from 'effect';
+import { setGlobalRouter as setCoreGlobalRouter } from '@effuse/core';
 import type { RouterHistory } from './history.js';
 import { createWebHistory, createHashHistory } from './history.js';
 import {
@@ -102,15 +103,11 @@ export interface RouterInstance {
 	readonly routes: readonly NormalizedRouteRecord[];
 	readonly options: RouterOptions;
 
-	readonly push: (
-		to: RouteLocation
-	) => Effect.Effect<Route | NavigationFailure>;
-	readonly replace: (
-		to: RouteLocation
-	) => Effect.Effect<Route | NavigationFailure>;
-	readonly back: Effect.Effect<void>;
-	readonly forward: Effect.Effect<void>;
-	readonly go: (delta: number) => Effect.Effect<void>;
+	readonly push: (to: RouteLocation) => Route | NavigationFailure;
+	readonly replace: (to: RouteLocation) => Route | NavigationFailure;
+	readonly back: () => void;
+	readonly forward: () => void;
+	readonly go: (delta: number) => void;
 
 	readonly beforeEach: (guard: NavigationGuardEffect) => () => void;
 	readonly beforeResolve: (guard: NavigationGuardEffect) => () => void;
@@ -124,8 +121,8 @@ export interface RouterInstance {
 	readonly removeRoute: (name: string) => void;
 	readonly getRoutes: () => readonly NormalizedRouteRecord[];
 
-	readonly start: Effect.Effect<() => void>;
-	readonly isReady: Effect.Effect<boolean>;
+	readonly start: () => () => void;
+	readonly isReady: boolean;
 }
 
 // Build application router
@@ -270,18 +267,17 @@ export const createRouter = (options: RouterOptions): RouterInstance => {
 		routes: normalizedRoutes,
 		options,
 
-		push: (to) => navigate(to, { replace: false }),
-		replace: (to) => navigate(to, { replace: true }),
-		back: Effect.sync(() => {
+		push: (to) => Effect.runSync(navigate(to, { replace: false })),
+		replace: (to) => Effect.runSync(navigate(to, { replace: true })),
+		back: () => {
 			history.back();
-		}),
-		forward: Effect.sync(() => {
+		},
+		forward: () => {
 			history.forward();
-		}),
-		go: (delta) =>
-			Effect.sync(() => {
-				history.go(delta);
-			}),
+		},
+		go: (delta) => {
+			history.go(delta);
+		},
 
 		beforeEach: (guard) => registerGuard(guards.beforeEach, guard),
 		beforeResolve: (guard) => registerGuard(guards.beforeResolve, guard),
@@ -308,7 +304,7 @@ export const createRouter = (options: RouterOptions): RouterInstance => {
 
 		getRoutes: () => normalizedRoutes,
 
-		start: Effect.sync(() => {
+		start: () => {
 			if (isStarted) return () => {};
 			isStarted = true;
 
@@ -328,9 +324,11 @@ export const createRouter = (options: RouterOptions): RouterInstance => {
 			});
 
 			return cleanup;
-		}),
+		},
 
-		isReady: Effect.sync(() => isStarted),
+		get isReady() {
+			return isStarted;
+		},
 	};
 
 	return router;
@@ -347,6 +345,7 @@ export const getGlobalRouter = (): RouterInstance | null => globalRouter;
 // Initialize router within application
 export const installRouter = (router: RouterInstance): RouterInstance => {
 	setGlobalRouter(router);
+	setCoreGlobalRouter(router);
 	provideRouter(router);
 
 	const initialRoute = Effect.runSync(SubscriptionRef.get(router.currentRoute));
@@ -354,6 +353,6 @@ export const installRouter = (router: RouterInstance): RouterInstance => {
 
 	provideDepth(0);
 
-	Effect.runSync(router.start);
+	router.start();
 	return router;
 };
