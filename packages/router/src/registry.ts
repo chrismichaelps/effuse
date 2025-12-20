@@ -22,54 +22,14 @@
  * SOFTWARE.
  */
 
-// Augment core ScriptContext with router types
-import './registry.js';
+import type { RouterInstance } from './core/router.js';
 
-export {
-	createRouter,
-	installRouter,
-	type RouterInstance,
-	type RouterOptions,
-	type NavigateOptions,
-} from './core/router.js';
+// Augment core type registry with router types
+declare module '@effuse/core' {
+	interface EffuseRegistry {
+		router: RouterInstance;
+	}
+}
 
-export {
-	createWebHistory,
-	createHashHistory,
-	type RouterHistory,
-} from './core/history.js';
-
-export {
-	type Route,
-	type RouteRecord,
-	type RouteLocation,
-	type RouteComponent,
-	type LazyRouteComponent,
-} from './core/route.js';
-
-export {
-	useRouter,
-	useRoute,
-	onRouteChange,
-	navigateTo,
-	goBack,
-	goForward,
-	isActiveRoute,
-	getLinkClasses,
-} from './utils/composables.js';
-
-export { RouterView, type RouterViewProps } from './components/RouterView.js';
-
-export { Link, RouterLink } from './components/Link.js';
-
-export {
-	type TypedRouteRecord,
-	type TypedRoute,
-	defineRoutes,
-} from './types/index.js';
-
-export {
-	type TransitionConfig,
-	type TransitionMode,
-	transitions,
-} from './utils/transitions.js';
+// Empty export to make this a proper module
+export {};

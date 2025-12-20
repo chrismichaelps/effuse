@@ -40,6 +40,7 @@ export {
 export {
 	type ScriptContext,
 	type ExposedValues,
+	type EffuseRegistry,
 	setGlobalStoreGetter,
 	setGlobalRouter,
 } from './script-context.js';

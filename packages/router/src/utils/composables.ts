@@ -93,22 +93,21 @@ export const onRouteChange = (
 export const navigateTo = (
 	to: RouteLocation,
 	options?: { replace?: boolean }
-): Promise<Route | NavigationFailure> => {
+): Route | NavigationFailure => {
 	const router = useRouter();
-	const navEffect = options?.replace ? router.replace(to) : router.push(to);
-	return Effect.runPromise(navEffect);
+	return options?.replace ? router.replace(to) : router.push(to);
 };
 
 // Navigate back in history
 export const goBack = (): void => {
 	const router = useRouter();
-	Effect.runSync(router.back);
+	router.back();
 };
 
 // Navigate forward in history
 export const goForward = (): void => {
 	const router = useRouter();
-	Effect.runSync(router.forward);
+	router.forward();
 };
 
 // Verify active route status
