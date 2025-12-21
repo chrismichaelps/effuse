@@ -321,3 +321,22 @@ export {
 	type DevToolsState,
 	type DevToolsConfigType,
 } from './devtools/index.js';
+
+export {
+	useForm,
+	v,
+	validateField,
+	validateForm,
+	hasErrors,
+	type FormOptions,
+	type FormValidators,
+	type FieldValidator,
+	type ValidationResult,
+	type FormValidationOptions,
+	type FormFields,
+	type FormTouched,
+	type FormErrors,
+	type UseFormReturn,
+	type BindResult,
+} from './form/index.js';
+
