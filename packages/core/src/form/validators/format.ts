@@ -27,99 +27,99 @@ import { ERROR_MESSAGES, PATTERNS } from '../config.js';
 
 /** Email format validation. */
 export function email(message?: string): FieldValidator<string> {
-  return (value: string): ValidationResult => {
-    if (typeof value !== 'string' || !PATTERNS.EMAIL.test(value)) {
-      return message ?? ERROR_MESSAGES.INVALID_EMAIL;
-    }
-    return undefined;
-  };
+	return (value: string): ValidationResult => {
+		if (typeof value !== 'string' || !PATTERNS.EMAIL.test(value)) {
+			return message ?? ERROR_MESSAGES.INVALID_EMAIL;
+		}
+		return undefined;
+	};
 }
 
 /** URL format validation. */
 export function url(message?: string): FieldValidator<string> {
-  return (value: string): ValidationResult => {
-    try {
-      new URL(value);
-      return undefined;
-    } catch {
-      return message ?? ERROR_MESSAGES.INVALID_URL;
-    }
-  };
+	return (value: string): ValidationResult => {
+		try {
+			new URL(value);
+			return undefined;
+		} catch {
+			return message ?? ERROR_MESSAGES.INVALID_URL;
+		}
+	};
 }
 
 /** UUID format validation. */
 export function uuid(message?: string): FieldValidator<string> {
-  return (value: string): ValidationResult => {
-    if (typeof value !== 'string' || !PATTERNS.UUID.test(value)) {
-      return message ?? ERROR_MESSAGES.INVALID_UUID;
-    }
-    return undefined;
-  };
+	return (value: string): ValidationResult => {
+		if (typeof value !== 'string' || !PATTERNS.UUID.test(value)) {
+			return message ?? ERROR_MESSAGES.INVALID_UUID;
+		}
+		return undefined;
+	};
 }
 
 /** ULID format validation. */
 export function ulid(message?: string): FieldValidator<string> {
-  return (value: string): ValidationResult => {
-    if (typeof value !== 'string' || !PATTERNS.ULID.test(value)) {
-      return message ?? ERROR_MESSAGES.INVALID_ULID;
-    }
-    return undefined;
-  };
+	return (value: string): ValidationResult => {
+		if (typeof value !== 'string' || !PATTERNS.ULID.test(value)) {
+			return message ?? ERROR_MESSAGES.INVALID_ULID;
+		}
+		return undefined;
+	};
 }
 
 /** JSON parseable string validation. */
 export function json(message?: string): FieldValidator<string> {
-  return (value: string): ValidationResult => {
-    try {
-      JSON.parse(value);
-      return undefined;
-    } catch {
-      return message ?? ERROR_MESSAGES.INVALID_JSON;
-    }
-  };
+	return (value: string): ValidationResult => {
+		try {
+			JSON.parse(value);
+			return undefined;
+		} catch {
+			return message ?? ERROR_MESSAGES.INVALID_JSON;
+		}
+	};
 }
 
 /** Base64 encoded string validation. */
 export function base64(message?: string): FieldValidator<string> {
-  return (value: string): ValidationResult => {
-    try {
-      if (typeof value !== 'string' || value.length === 0) {
-        return message ?? ERROR_MESSAGES.INVALID_BASE64;
-      }
-      atob(value);
-      return undefined;
-    } catch {
-      return message ?? ERROR_MESSAGES.INVALID_BASE64;
-    }
-  };
+	return (value: string): ValidationResult => {
+		try {
+			if (typeof value !== 'string' || value.length === 0) {
+				return message ?? ERROR_MESSAGES.INVALID_BASE64;
+			}
+			atob(value);
+			return undefined;
+		} catch {
+			return message ?? ERROR_MESSAGES.INVALID_BASE64;
+		}
+	};
 }
 
 /** Hex string validation. */
 export function hex(message?: string): FieldValidator<string> {
-  return (value: string): ValidationResult => {
-    if (typeof value !== 'string' || !PATTERNS.HEX.test(value)) {
-      return message ?? ERROR_MESSAGES.INVALID_HEX;
-    }
-    return undefined;
-  };
+	return (value: string): ValidationResult => {
+		if (typeof value !== 'string' || !PATTERNS.HEX.test(value)) {
+			return message ?? ERROR_MESSAGES.INVALID_HEX;
+		}
+		return undefined;
+	};
 }
 
 /** Numeric string validation (string containing only digits). */
 export function numeric(message?: string): FieldValidator<string> {
-  return (value: string): ValidationResult => {
-    if (typeof value !== 'string' || !PATTERNS.NUMERIC.test(value)) {
-      return message ?? ERROR_MESSAGES.MUST_BE_NUMERIC;
-    }
-    return undefined;
-  };
+	return (value: string): ValidationResult => {
+		if (typeof value !== 'string' || !PATTERNS.NUMERIC.test(value)) {
+			return message ?? ERROR_MESSAGES.MUST_BE_NUMERIC;
+		}
+		return undefined;
+	};
 }
 
 /** Alphanumeric string validation. */
 export function alphanumeric(message?: string): FieldValidator<string> {
-  return (value: string): ValidationResult => {
-    if (typeof value !== 'string' || !PATTERNS.ALPHANUMERIC.test(value)) {
-      return message ?? ERROR_MESSAGES.MUST_BE_ALPHANUMERIC;
-    }
-    return undefined;
-  };
+	return (value: string): ValidationResult => {
+		if (typeof value !== 'string' || !PATTERNS.ALPHANUMERIC.test(value)) {
+			return message ?? ERROR_MESSAGES.MUST_BE_ALPHANUMERIC;
+		}
+		return undefined;
+	};
 }

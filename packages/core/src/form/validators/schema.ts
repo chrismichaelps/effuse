@@ -29,30 +29,30 @@ import { ERROR_MESSAGES } from '../config.js';
 
 /** Extract error message from Effect Schema validation result. */
 export function extractSchemaError<T>(
-  schema: Schema.Schema<T>,
-  value: unknown
+	schema: Schema.Schema<T>,
+	value: unknown
 ): ValidationResult {
-  const result = Schema.decodeUnknownEither(schema)(value);
-  if (Either.isRight(result)) {
-    return undefined;
-  }
-  const formatted = ArrayFormatter.formatErrorSync(result.left);
-  if (formatted.length > 0 && formatted[0] !== undefined) {
-    return formatted[0].message;
-  }
-  return ERROR_MESSAGES.VALIDATION_FAILED;
+	const result = Schema.decodeUnknownEither(schema)(value);
+	if (Either.isRight(result)) {
+		return undefined;
+	}
+	const formatted = ArrayFormatter.formatErrorSync(result.left);
+	if (formatted.length > 0 && formatted[0] !== undefined) {
+		return formatted[0].message;
+	}
+	return ERROR_MESSAGES.VALIDATION_FAILED;
 }
 
 /** Validates values. */
 export function fromSchema<T>(
-  schema: Schema.Schema<T>,
-  message?: string
+	schema: Schema.Schema<T>,
+	message?: string
 ): FieldValidator<T> {
-  return (value: T): ValidationResult => {
-    const error = extractSchemaError(schema, value);
-    if (error !== undefined && message !== undefined) {
-      return message;
-    }
-    return error;
-  };
+	return (value: T): ValidationResult => {
+		const error = extractSchemaError(schema, value);
+		if (error !== undefined && message !== undefined) {
+			return message;
+		}
+		return error;
+	};
 }

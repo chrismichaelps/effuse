@@ -28,73 +28,98 @@ import { fromSchema } from './schema.js';
 import { ERROR_MESSAGES } from '../config.js';
 
 /** Greater than value. */
-export function greaterThan(min: number, message?: string): FieldValidator<number> {
-  const schema = Schema.Number.pipe(Schema.greaterThan(min));
-  return fromSchema(schema, message ?? `Must be greater than ${String(min)}`);
+export function greaterThan(
+	min: number,
+	message?: string
+): FieldValidator<number> {
+	const schema = Schema.Number.pipe(Schema.greaterThan(min));
+	return fromSchema(schema, message ?? `Must be greater than ${String(min)}`);
 }
 
 /** Greater than or equal to value. */
-export function greaterThanOrEqualTo(min: number, message?: string): FieldValidator<number> {
-  const schema = Schema.Number.pipe(Schema.greaterThanOrEqualTo(min));
-  return fromSchema(schema, message ?? `Must be at least ${String(min)}`);
+export function greaterThanOrEqualTo(
+	min: number,
+	message?: string
+): FieldValidator<number> {
+	const schema = Schema.Number.pipe(Schema.greaterThanOrEqualTo(min));
+	return fromSchema(schema, message ?? `Must be at least ${String(min)}`);
 }
 
 /** Less than value. */
-export function lessThan(max: number, message?: string): FieldValidator<number> {
-  const schema = Schema.Number.pipe(Schema.lessThan(max));
-  return fromSchema(schema, message ?? `Must be less than ${String(max)}`);
+export function lessThan(
+	max: number,
+	message?: string
+): FieldValidator<number> {
+	const schema = Schema.Number.pipe(Schema.lessThan(max));
+	return fromSchema(schema, message ?? `Must be less than ${String(max)}`);
 }
 
 /** Less than or equal to value. */
-export function lessThanOrEqualTo(max: number, message?: string): FieldValidator<number> {
-  const schema = Schema.Number.pipe(Schema.lessThanOrEqualTo(max));
-  return fromSchema(schema, message ?? `Must be at most ${String(max)}`);
+export function lessThanOrEqualTo(
+	max: number,
+	message?: string
+): FieldValidator<number> {
+	const schema = Schema.Number.pipe(Schema.lessThanOrEqualTo(max));
+	return fromSchema(schema, message ?? `Must be at most ${String(max)}`);
 }
 
 /** Value between min and max inclusive. */
-export function between(min: number, max: number, message?: string): FieldValidator<number> {
-  const schema = Schema.Number.pipe(Schema.between(min, max));
-  return fromSchema(schema, message ?? `Must be between ${String(min)} and ${String(max)}`);
+export function between(
+	min: number,
+	max: number,
+	message?: string
+): FieldValidator<number> {
+	const schema = Schema.Number.pipe(Schema.between(min, max));
+	return fromSchema(
+		schema,
+		message ?? `Must be between ${String(min)} and ${String(max)}`
+	);
 }
 
 /** Integer value. */
 export function integer(message?: string): FieldValidator<number> {
-  const schema = Schema.Number.pipe(Schema.int());
-  return fromSchema(schema, message ?? ERROR_MESSAGES.MUST_BE_INTEGER);
+	const schema = Schema.Number.pipe(Schema.int());
+	return fromSchema(schema, message ?? ERROR_MESSAGES.MUST_BE_INTEGER);
 }
 
 /** Finite number (excludes NaN, Infinity). */
 export function finite(message?: string): FieldValidator<number> {
-  const schema = Schema.Number.pipe(Schema.finite());
-  return fromSchema(schema, message ?? ERROR_MESSAGES.MUST_BE_FINITE);
+	const schema = Schema.Number.pipe(Schema.finite());
+	return fromSchema(schema, message ?? ERROR_MESSAGES.MUST_BE_FINITE);
 }
 
 /** Positive number (> 0). */
 export function positive(message?: string): FieldValidator<number> {
-  const schema = Schema.Number.pipe(Schema.positive());
-  return fromSchema(schema, message ?? ERROR_MESSAGES.MUST_BE_POSITIVE);
+	const schema = Schema.Number.pipe(Schema.positive());
+	return fromSchema(schema, message ?? ERROR_MESSAGES.MUST_BE_POSITIVE);
 }
 
 /** Non negative number (>= 0). */
 export function nonNegative(message?: string): FieldValidator<number> {
-  const schema = Schema.Number.pipe(Schema.nonNegative());
-  return fromSchema(schema, message ?? ERROR_MESSAGES.MUST_BE_NON_NEGATIVE);
+	const schema = Schema.Number.pipe(Schema.nonNegative());
+	return fromSchema(schema, message ?? ERROR_MESSAGES.MUST_BE_NON_NEGATIVE);
 }
 
 /** Negative number (< 0). */
 export function negative(message?: string): FieldValidator<number> {
-  const schema = Schema.Number.pipe(Schema.negative());
-  return fromSchema(schema, message ?? ERROR_MESSAGES.MUST_BE_NEGATIVE);
+	const schema = Schema.Number.pipe(Schema.negative());
+	return fromSchema(schema, message ?? ERROR_MESSAGES.MUST_BE_NEGATIVE);
 }
 
 /** Non positive number (<= 0). */
 export function nonPositive(message?: string): FieldValidator<number> {
-  const schema = Schema.Number.pipe(Schema.nonPositive());
-  return fromSchema(schema, message ?? ERROR_MESSAGES.MUST_BE_NON_POSITIVE);
+	const schema = Schema.Number.pipe(Schema.nonPositive());
+	return fromSchema(schema, message ?? ERROR_MESSAGES.MUST_BE_NON_POSITIVE);
 }
 
 /** Multiple of divisor. */
-export function multipleOf(divisor: number, message?: string): FieldValidator<number> {
-  const schema = Schema.Number.pipe(Schema.multipleOf(divisor));
-  return fromSchema(schema, message ?? `Must be a multiple of ${String(divisor)}`);
+export function multipleOf(
+	divisor: number,
+	message?: string
+): FieldValidator<number> {
+	const schema = Schema.Number.pipe(Schema.multipleOf(divisor));
+	return fromSchema(
+		schema,
+		message ?? `Must be a multiple of ${String(divisor)}`
+	);
 }

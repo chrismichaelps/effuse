@@ -27,16 +27,16 @@ export { useForm } from './useForm.js';
 export * as v from './validators/index.js';
 
 export type {
-  FormOptions,
-  FormValidators,
-  FieldValidator,
-  ValidationResult,
-  FormValidationOptions,
-  FormFields,
-  FormTouched,
-  FormErrors,
-  UseFormReturn,
-  BindResult,
+	FormOptions,
+	FormValidators,
+	FieldValidator,
+	ValidationResult,
+	FormValidationOptions,
+	FormFields,
+	FormTouched,
+	FormErrors,
+	UseFormReturn,
+	BindResult,
 } from './types.js';
 
 export { validateField, validateForm, hasErrors } from './validation.js';

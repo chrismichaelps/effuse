@@ -26,40 +26,40 @@ import type { FormValidators, FormErrors } from './types.js';
 
 /** Single field validation. Returns error message or undefined. */
 export function validateField<T>(
-  validator: ((value: T) => string | undefined) | undefined,
-  value: T
+	validator: ((value: T) => string | undefined) | undefined,
+	value: T
 ): string | undefined {
-  if (!validator) {
-    return undefined;
-  }
-  return validator(value);
+	if (!validator) {
+		return undefined;
+	}
+	return validator(value);
 }
 
 /** Full form validation. Returns error map. */
 export function validateForm<T extends Record<string, unknown>>(
-  validators: FormValidators<T>,
-  values: T
+	validators: FormValidators<T>,
+	values: T
 ): FormErrors<T> {
-  const errors: FormErrors<T> = {};
+	const errors: FormErrors<T> = {};
 
-  for (const key of Object.keys(validators) as Array<keyof T>) {
-    const validator = validators[key];
-    const value = values[key];
-    const error = validateField(validator, value);
+	for (const key of Object.keys(validators) as Array<keyof T>) {
+		const validator = validators[key];
+		const value = values[key];
+		const error = validateField(validator, value);
 
-    if (error !== undefined) {
-      errors[key] = error;
-    }
-  }
+		if (error !== undefined) {
+			errors[key] = error;
+		}
+	}
 
-  return errors;
+	return errors;
 }
 
 /** Check if error map contains any errors. */
 export function hasErrors<T extends Record<string, unknown>>(
-  errors: FormErrors<T>
+	errors: FormErrors<T>
 ): boolean {
-  return Object.keys(errors).some(
-    (key) => errors[key as keyof T] !== undefined
-  );
+	return Object.keys(errors).some(
+		(key) => errors[key as keyof T] !== undefined
+	);
 }
