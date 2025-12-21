@@ -339,3 +339,9 @@ export {
 	type UseFormReturn,
 	type BindResult,
 } from './form/index.js';
+
+export {
+	useStyles,
+	type StyleOptions,
+	type StyleCleanup,
+} from './styles/index.js';
