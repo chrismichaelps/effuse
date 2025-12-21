@@ -28,21 +28,21 @@ import { CssLoaderLive, loadStyles, unloadStyles } from './service.js';
 
 /** Inject CSS stylesheets. */
 export function useStyles(
-  styles: string | readonly string[],
-  options: StyleOptions = {}
+	styles: string | readonly string[],
+	options: StyleOptions = {}
 ): StyleCleanup {
-  const urls = Array.isArray(styles) ? styles : [styles];
+	const urls = Array.isArray(styles) ? styles : [styles];
 
-  const program = loadStyles(urls, options).pipe(Effect.provide(CssLoaderLive));
+	const program = loadStyles(urls, options).pipe(Effect.provide(CssLoaderLive));
 
-  Effect.runPromise(program).catch(() => {
-    /* */
-  });
+	Effect.runPromise(program).catch(() => {
+		/* */
+	});
 
-  return () => {
-    const cleanup = unloadStyles(urls).pipe(Effect.provide(CssLoaderLive));
-    Effect.runPromise(cleanup).catch(() => {
-      /* */
-    });
-  };
+	return () => {
+		const cleanup = unloadStyles(urls).pipe(Effect.provide(CssLoaderLive));
+		Effect.runPromise(cleanup).catch(() => {
+			/* */
+		});
+	};
 }
