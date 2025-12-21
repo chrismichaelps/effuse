@@ -34,6 +34,7 @@ import { EFFUSE_NODE, NodeType, FRAGMENT as Fragment } from '../constants.js';
 import { el, fragment } from '../render/element.js';
 import { isBlueprint } from '../blueprint/blueprint.js';
 import type { Signal } from '../reactivity/signal.js';
+import type { ReadonlySignal } from '../types/index.js';
 
 export type JSXElement = EffuseNode;
 
@@ -53,8 +54,8 @@ export const jsx = (
 	if (isBlueprint(type)) {
 		const portals =
 			typeof children === 'object' &&
-			children !== null &&
-			!Array.isArray(children)
+				children !== null &&
+				!Array.isArray(children)
 				? (children as Portals)
 				: children
 					? { default: () => children as EffuseChild }
@@ -141,15 +142,15 @@ export namespace JSX {
 		key?: string | number | undefined;
 		ref?: ((el: unknown) => void) | undefined;
 		class?:
-			| string
-			| Record<string, boolean>
-			| (string | Record<string, boolean>)[]
-			| (() => string | undefined | null);
+		| string
+		| Record<string, boolean>
+		| (string | Record<string, boolean>)[]
+		| (() => string | undefined | null);
 		className?: string | (() => string | undefined | null);
 		style?:
-			| string
-			| Record<string, string | number>
-			| (() => Record<string, string | number>);
+		| string
+		| Record<string, string | number>
+		| (() => Record<string, string | number>);
 		id?: string | (() => string);
 		title?: string | (() => string);
 		tabIndex?: number;
@@ -185,7 +186,7 @@ export namespace JSX {
 
 	export interface ButtonAttributes extends HTMLAttributes {
 		type?: 'button' | 'submit' | 'reset';
-		disabled?: boolean;
+		disabled?: boolean | Signal<boolean> | ReadonlySignal<boolean> | (() => boolean);
 	}
 
 	export interface InputAttributes extends HTMLAttributes {
