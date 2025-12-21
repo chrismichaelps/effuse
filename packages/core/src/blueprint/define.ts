@@ -39,19 +39,27 @@ export interface PropsSchema<P> {
 	Type: P;
 }
 
+interface PropsWithChildren {
+	readonly children?: EffuseChild;
+}
+
+export type TemplateArgs<E extends ExposedValues> = E & {
+	readonly children?: EffuseChild;
+};
+
 export interface DefineOptions<P, E extends ExposedValues> {
 	props?: PropsSchema<P>;
 	propsSchema?: AnyPropSchemaBuilder;
 	styles?: string | readonly string[];
 	styleOptions?: StyleOptions;
 	script: (ctx: ScriptContext<P>) => E | undefined;
-	template: (exposed: E, props: Readonly<P>) => EffuseChild;
+	template: (exposed: TemplateArgs<E>, props: Readonly<P>) => EffuseChild;
 }
 
 interface DefineState<E extends ExposedValues> {
 	exposed: E;
 	lifecycle: ComponentLifecycle;
-	_template: (exposed: E, props: unknown) => EffuseChild;
+	_template: (exposed: TemplateArgs<E>, props: unknown) => EffuseChild;
 	_styleCleanup?: StyleCleanup;
 	[key: string]: unknown;
 }
@@ -66,7 +74,7 @@ export const define = <
 	styles?: string | readonly string[];
 	styleOptions?: StyleOptions;
 	script: (ctx: ScriptContext<P>) => E;
-	template: (exposed: E, props: Readonly<P>) => EffuseChild;
+	template: (exposed: TemplateArgs<E>, props: Readonly<P>) => EffuseChild;
 }): Component<P> => {
 	const blueprint: BlueprintDef<P> = {
 		_tag: 'Blueprint',
@@ -101,7 +109,14 @@ export const define = <
 
 		view: (ctx: BlueprintContext<P>) => {
 			const state = ctx.state as unknown as DefineState<E>;
-			return state._template(state.exposed, ctx.props);
+
+			const propsWithChildren = ctx.props as unknown as PropsWithChildren;
+			const exposedWithChildren: TemplateArgs<E> = {
+				...state.exposed,
+				children: propsWithChildren.children,
+			};
+
+			return state._template(exposedWithChildren, ctx.props);
 		},
 	};
 

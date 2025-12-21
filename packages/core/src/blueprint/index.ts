@@ -36,6 +36,7 @@ export {
 	type DefineOptions,
 	type InferExposed,
 	type InferProps,
+	type TemplateArgs,
 } from './define.js';
 export {
 	type ScriptContext,
