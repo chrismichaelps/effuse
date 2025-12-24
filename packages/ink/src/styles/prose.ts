@@ -91,12 +91,13 @@ export const InkProseLayer: EffuseLayer = {
 }
 
 .prose pre, .prose .ink-code-block {
-	background: #1a1a2e;
-	padding: 1rem 1.25rem;
-	border-radius: 8px;
+	background: #09090b;
+	padding: 1.5rem;
+	border-radius: 12px;
 	overflow-x: auto;
 	margin: 1.5rem 0;
-	border: 1px solid rgba(255, 255, 255, 0.1);
+	border: 1px solid rgba(255, 255, 255, 0.08);
+	box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
 }
 
 .prose pre code {
