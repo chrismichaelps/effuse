@@ -31,6 +31,7 @@ import {
 	createComponentLifecycleSync,
 	type ComponentLifecycle,
 } from './lifecycle.js';
+import { useCallback, useMemo } from './hooks.js';
 
 export type ExposedValues = object;
 
@@ -62,6 +63,10 @@ export interface ScriptContext<P> {
 		source: Signal<T> | (() => T),
 		callback: (value: T) => void
 	) => void;
+
+	useCallback: typeof useCallback;
+
+	useMemo: typeof useMemo;
 }
 
 export interface ScriptState<E extends ExposedValues> {
@@ -157,6 +162,10 @@ export const createScriptContext = <P, E extends ExposedValues>(
 				callback(value);
 			});
 		},
+
+		useCallback,
+
+		useMemo,
 	};
 
 	return { context, state };

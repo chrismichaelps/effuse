@@ -22,58 +22,26 @@
  * SOFTWARE.
  */
 
-export {
-	blueprint,
-	isBlueprint,
-	instantiateBlueprint,
-	view,
-	type BlueprintOptions,
-	type PropsDef,
-} from './blueprint.js';
+import { computed } from '../reactivity/computed.js';
+import { isSignal } from '../reactivity/signal.js';
+import type { ReadonlySignal } from '../types/index.js';
 
-export {
-	define,
-	type DefineOptions,
-	type InferExposed,
-	type InferProps,
-	type TemplateArgs,
-} from './define.js';
-export {
-	type ScriptContext,
-	type ExposedValues,
-	type EffuseRegistry,
-	setGlobalStoreGetter,
-	setGlobalRouter,
-} from './script-context.js';
+// Memoized callback with stable identity and automatic dependency tracking via closure
+export function useCallback<T extends (...args: any[]) => any>(
+	fn: T,
+	deps?: unknown[]
+): T {
+	return computed(() => {
+		deps?.forEach((d) => isSignal(d) && (d as ReadonlySignal<unknown>).value);
+		return fn;
+	}).value as T;
+}
 
-export {
-	createComponentLifecycle,
-	createComponentLifecycleSync,
-	type ComponentLifecycle,
-} from './lifecycle.js';
-
-export {
-	PropSchema,
-	PropsValidationError,
-	type PropDefinition,
-	type PropSchemaBuilder,
-	type AnyPropSchemaBuilder,
-	type PropSchemaInfer,
-} from './props.js';
-
-export {
-	PortalService,
-	PortalServiceLive,
-	Portal,
-	createPortal,
-	registerPortalOutlet,
-	unregisterPortalOutlet,
-	getPortalOutlet,
-	renderToNamedPortal,
-	setGlobalPortalService,
-	getGlobalPortalService,
-	type PortalServiceInterface,
-	type PortalContainer,
-} from './portal.js';
-
-export { useCallback, useMemo } from './hooks.js';
+// Memoizes a value with automatic dependency tracking; explicit deps optional
+export function useMemo<T>(fn: () => T, deps?: unknown[]): () => T {
+	const memoized = computed(() => {
+		deps?.forEach((d) => isSignal(d) && (d as ReadonlySignal<unknown>).value);
+		return fn();
+	});
+	return () => memoized.value;
+}
