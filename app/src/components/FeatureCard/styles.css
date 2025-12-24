@@ -1,0 +1,20 @@
+.feature-card {
+	padding: 1.5rem;
+	background: transparent;
+	border: 1px solid #27272a;
+	border-radius: 12px;
+	transition: all 0.2s ease;
+}
+.feature-card:hover {
+	border-color: #3f3f46;
+	background: rgba(255, 255, 255, 0.02);
+}
+.feature-icon-box {
+	width: 40px;
+	height: 40px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	margin-bottom: 0.5rem;
+	color: #71717a;
+}
