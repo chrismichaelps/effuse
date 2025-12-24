@@ -50,7 +50,7 @@ export interface ScriptContext<P> {
 
 	router: RouterType;
 
-	onMount: (callback: () => (() => void) | undefined) => void;
+	onMount: (callback: () => (() => void) | void) => void;
 
 	onUnmount: (callback: () => void) => void;
 
@@ -130,7 +130,7 @@ export const createScriptContext = <P, E extends ExposedValues>(
 		})(),
 
 		onMount: (callback): void => {
-			lifecycle.onMount(callback as () => (() => void) | undefined);
+			lifecycle.onMount(callback);
 		},
 
 		onUnmount: (callback): void => {
