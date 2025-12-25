@@ -122,16 +122,13 @@ export const createScriptContext = <P, E extends ExposedValues>(
 
 		router: (() => {
 			if (!globalRouter) {
-				return new Proxy(
-					{},
-					{
-						get: () => {
-							throw new Error('Router not configured. Call setGlobalRouter().');
-						},
-					}
-				);
+				return new Proxy({} as object, {
+					get: () => {
+						throw new Error('Router not configured. Call setGlobalRouter().');
+					},
+				}) as RouterType;
 			}
-			return globalRouter;
+			return globalRouter as RouterType;
 		})(),
 
 		onMount: (callback): void => {
