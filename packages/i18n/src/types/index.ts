@@ -57,9 +57,9 @@ export type ExtractVariables<T extends string> =
 
 export type ParamsFor<T> = T extends string
 	? ExtractVariables<T> extends never
-		? { count?: number } | undefined
-		: { [K in ExtractVariables<T>]: string | number }
-	: { count?: number } | undefined;
+		? TranslationParams | undefined
+		: { [K in ExtractVariables<T>]: string | number } & { count?: number }
+	: TranslationParams | undefined;
 
 export type InferParams<TTranslations, TKey extends string> = ParamsFor<
 	GetNestedType<TTranslations, TKey>
