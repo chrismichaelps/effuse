@@ -1,0 +1,71 @@
+{
+	"name": "@effuse/i18n",
+	"version": "0.1.0",
+	"description": "The official internationalization library for Effuse.",
+	"author": "Chris M. Pérez",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/chrismichaelps/effuse.git"
+	},
+	"bugs": {
+		"url": "https://github.com/chrismichaelps/effuse/issues"
+	},
+	"homepage": "https://github.com/chrismichaelps/effuse#readme",
+	"type": "module",
+	"main": "./dist/index.cjs",
+	"module": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"import": {
+				"types": "./dist/index.d.ts",
+				"default": "./dist/index.js"
+			},
+			"require": {
+				"types": "./dist/index.d.cts",
+				"default": "./dist/index.cjs"
+			}
+		}
+	},
+	"files": [
+		"dist",
+		"src"
+	],
+	"scripts": {
+		"build": "tsup",
+		"dev": "tsup --watch",
+		"lint": "eslint src",
+		"typecheck": "tsc --noEmit"
+	},
+	"keywords": [
+		"i18n",
+		"internationalization",
+		"localization",
+		"translation",
+		"effuse",
+		"typescript",
+		"type-safe",
+		"reactive",
+		"signals",
+		"intl"
+	],
+	"engines": {
+		"node": ">=23.0.0"
+	},
+	"peerDependencies": {
+		"@effuse/core": "workspace:*"
+	},
+	"dependencies": {
+		"effect": "^3.19.13"
+	},
+	"devDependencies": {
+		"@effect/eslint-plugin": "^0.3.2",
+		"@types/node": "^25.0.3",
+		"@effuse/core": "workspace:*",
+		"eslint": "^9.39.2",
+		"tsup": "^8.5.1",
+		"typescript": "^5.9.3",
+		"vitest": "^4.0.16"
+	}
+}
