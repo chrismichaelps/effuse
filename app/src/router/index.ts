@@ -13,6 +13,7 @@ import { TermsPage } from '../pages/Terms';
 import { DisclaimerPage } from '../pages/Disclaimer';
 import { PrivacyPage } from '../pages/Privacy';
 import { ContactPage } from '../pages/Contact';
+import { NotFoundPage } from '../pages/NotFound';
 
 const routes: RouteRecord[] = [
 	{
@@ -64,6 +65,11 @@ const routes: RouteRecord[] = [
 		path: '/props',
 		name: 'props',
 		component: PropsPage,
+	},
+	{
+		path: '*',
+		name: 'not-found',
+		component: NotFoundPage,
 	},
 ];
 
