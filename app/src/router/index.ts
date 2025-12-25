@@ -14,6 +14,7 @@ import { DisclaimerPage } from '../pages/Disclaimer';
 import { PrivacyPage } from '../pages/Privacy';
 import { ContactPage } from '../pages/Contact';
 import { NotFoundPage } from '../pages/NotFound';
+import { I18nPage } from '../pages/I18n';
 
 const routes: RouteRecord[] = [
 	{
@@ -65,6 +66,11 @@ const routes: RouteRecord[] = [
 		path: '/props',
 		name: 'props',
 		component: PropsPage,
+	},
+	{
+		path: '/i18n',
+		name: 'i18n',
+		component: I18nPage,
 	},
 	{
 		path: '*',

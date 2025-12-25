@@ -26,62 +26,11 @@ interface DocsHeaderExposed {
 	tocItems: ReadonlySignal<TocItem[]>;
 	dropdownOpen: Signal<boolean>;
 	toggleDropdown: () => void;
-	scrollProgress: Signal<number>;
 	activeSectionId: Signal<string>;
 	activeSectionTitle: ReadonlySignal<string>;
 	docsStore: typeof docsStore;
+	handleTocItemClick: (e: Event, id: string, title: string) => void;
 }
-
-const ProgressRing = define<
-	{ progress: Signal<number> },
-	{ strokeOffset: () => string }
->({
-	script: ({ props }) => {
-		const circumference = 2 * Math.PI * 11;
-		return {
-			strokeOffset: () => {
-				const offset =
-					circumference - (props.progress.value / 100) * circumference;
-				return `${offset}`;
-			},
-		};
-	},
-	template: ({ strokeOffset }) => (
-		<svg
-			xmlns="http://www.w3.org/2000/svg"
-			role="progressbar"
-			viewBox="0 0 24 24"
-			aria-valuenow="0"
-			aria-valuemin="0"
-			aria-valuemax="100"
-			class="toc-progress-ring shrink-0 text-orange-600"
-			width="16"
-			height="16"
-		>
-			<circle
-				cx="12"
-				cy="12"
-				r="11"
-				fill="none"
-				stroke-width="2"
-				class="stroke-current/25"
-			></circle>
-			<circle
-				cx="12"
-				cy="12"
-				r="11"
-				fill="none"
-				stroke-width="2"
-				stroke="currentColor"
-				stroke-dasharray="69.11503837897544"
-				stroke-dashoffset={strokeOffset}
-				stroke-linecap="round"
-				transform="rotate(-90 12 12)"
-				class="transition-all"
-			></circle>
-		</svg>
-	),
-});
 
 const TocChevron = define<
 	{ isOpen: Signal<boolean> },
@@ -106,7 +55,6 @@ export const DocsHeader = define<DocsHeaderProps, DocsHeaderExposed>({
 		const pageTitle = computed(() => props.pageTitle ?? 'Documentation');
 		const tocItems = computed<TocItem[]>(() => props.tocItems ?? []);
 		const dropdownOpen = signal(false);
-		const scrollProgress = signal(0);
 		const activeSectionId = props.activeId ?? signal('');
 		const activeSectionTitle = computed(() => {
 			const items = tocItems.value;
@@ -114,28 +62,76 @@ export const DocsHeader = define<DocsHeaderProps, DocsHeaderExposed>({
 			const found = items.find((item) => item.id === activeId);
 			return found?.title ?? pageTitle.value;
 		});
+
 		const toggleDropdown = useCallback(() => {
 			dropdownOpen.value = !dropdownOpen.value;
 		});
+
+		const handleTocItemClick = useCallback(
+			(e: Event, id: string, title: string) => {
+				e.preventDefault();
+				dropdownOpen.value = false;
+
+				let el = document.getElementById(id);
+				if (!el) {
+					const headings = document.querySelectorAll('h1, h2, h3');
+					for (const h of headings) {
+						if (h.textContent?.trim() === title) {
+							el = h as HTMLElement;
+							break;
+						}
+					}
+				}
+
+				if (!el) return;
+
+				// Scroll to element
+				const scrollContainer = document.querySelector('.docs-main');
+				const isContainerScrollable =
+					scrollContainer &&
+					scrollContainer.scrollHeight > scrollContainer.clientHeight;
+
+				if (isContainerScrollable) {
+					const rect = el.getBoundingClientRect();
+					const containerRect = scrollContainer.getBoundingClientRect();
+					const offsetTop =
+						rect.top - containerRect.top + scrollContainer.scrollTop;
+					scrollContainer.scrollTo({
+						top: offsetTop - 80,
+						behavior: 'smooth',
+					});
+				} else {
+					// Mobile fallback: use window scroll
+					const rect = el.getBoundingClientRect();
+					const scrollTop =
+						window.pageYOffset || document.documentElement.scrollTop;
+					window.scrollTo({
+						top: rect.top + scrollTop - 100,
+						behavior: 'smooth',
+					});
+				}
+			}
+		);
+
 		return {
 			pageTitle,
 			tocItems,
 			dropdownOpen,
 			toggleDropdown,
-			scrollProgress,
 			activeSectionId,
 			activeSectionTitle,
 			docsStore,
+			handleTocItemClick,
 		};
 	},
 	template: ({
 		tocItems,
 		dropdownOpen,
 		toggleDropdown,
-		scrollProgress,
 		activeSectionId,
 		activeSectionTitle,
 		docsStore,
+		handleTocItemClick,
 	}) => (
 		<header class="toc-nav shadow-lg" id="nd-tocnav">
 			<div class="flex items-center w-full h-full relative px-4">
@@ -153,7 +149,6 @@ export const DocsHeader = define<DocsHeaderProps, DocsHeaderExposed>({
 						onClick={toggleDropdown}
 						aria-expanded={() => dropdownOpen.value}
 					>
-						<ProgressRing progress={scrollProgress} />
 						<div class="toc-text-container">
 							<span class="toc-text">{activeSectionTitle}</span>
 						</div>
@@ -176,39 +171,13 @@ export const DocsHeader = define<DocsHeaderProps, DocsHeaderExposed>({
 									class={() =>
 										`toc-item ${activeSectionId.value === itemSignal.value.id ? 'active' : ''}`
 									}
-									onClick={(e: Event) => {
-										e.preventDefault();
-										dropdownOpen.value = false;
-										const id = itemSignal.value.id;
-										const title = itemSignal.value.title;
-										let el = document.getElementById(id);
-										if (!el) {
-											const headings = document.querySelectorAll('h1, h2, h3');
-											for (const h of headings) {
-												if (h.textContent?.trim() === title) {
-													el = h as HTMLElement;
-													break;
-												}
-											}
-										}
-										if (el) {
-											const scrollContainer =
-												document.querySelector('.docs-main');
-											if (scrollContainer) {
-												const rect = el.getBoundingClientRect();
-												const containerRect =
-													scrollContainer.getBoundingClientRect();
-												const offsetTop =
-													rect.top -
-													containerRect.top +
-													scrollContainer.scrollTop;
-												scrollContainer.scrollTo({
-													top: offsetTop - 60,
-													behavior: 'smooth',
-												});
-											}
-										}
-									}}
+									onClick={(e: Event) =>
+										handleTocItemClick(
+											e,
+											itemSignal.value.id,
+											itemSignal.value.title
+										)
+									}
 								>
 									{itemSignal.value.title}
 								</a>

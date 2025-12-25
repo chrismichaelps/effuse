@@ -27,12 +27,15 @@ interface DocsLayoutExposed {
 export const DocsLayout = define<DocsLayoutProps, DocsLayoutExposed>({
 	script: ({ props, onMount }) => {
 		const activeSectionId = signal('');
+
 		onMount(() => {
 			const scrollContainer = document.querySelector('.docs-main');
 			if (!scrollContainer) return;
+
 			const handleScroll = () => {
 				const items = props.tocItems ?? [];
 				if (items.length === 0) return;
+
 				let activeId = '';
 				for (const item of items) {
 					let el = document.getElementById(item.id);
@@ -54,6 +57,7 @@ export const DocsLayout = define<DocsLayoutProps, DocsLayoutExposed>({
 				}
 				activeSectionId.value = activeId || items[0]?.id || '';
 			};
+
 			scrollContainer.addEventListener('scroll', handleScroll, {
 				passive: true,
 			});
@@ -61,11 +65,13 @@ export const DocsLayout = define<DocsLayoutProps, DocsLayoutExposed>({
 				passive: true,
 			});
 			handleScroll();
+
 			return () => {
 				scrollContainer.removeEventListener('scroll', handleScroll);
 				window.removeEventListener('scroll', handleScroll);
 			};
 		});
+
 		return {
 			docsStore,
 			activeSectionId,

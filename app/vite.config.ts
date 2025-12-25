@@ -26,12 +26,14 @@ export default defineConfig({
 				'../packages/query/src/index.ts'
 			),
 			'@effuse/ink': path.resolve(__dirname, '../packages/ink/src/index.ts'),
+			'@effuse/i18n': path.resolve(__dirname, '../packages/i18n/src/index.ts'),
 		},
 		dedupe: [
 			'@effuse/core',
 			'@effuse/store',
 			'@effuse/router',
 			'@effuse/query',
+			'@effuse/i18n',
 		],
 	},
 });

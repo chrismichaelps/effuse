@@ -13,6 +13,7 @@
 	},
 	"dependencies": {
 		"@effuse/core": "workspace:*",
+		"@effuse/i18n": "workspace:*",
 		"@effuse/ink": "workspace:*",
 		"@effuse/query": "workspace:*",
 		"@effuse/router": "workspace:*",
