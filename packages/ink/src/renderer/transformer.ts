@@ -140,16 +140,57 @@ const transformInline = (
 	}
 };
 
+const usedHeadingIds = new Map<string, number>();
+
+const generateHeadingId = (text: string): string => {
+	let id = text
+		.toLowerCase()
+		.replace(/\s+/g, '-')
+		.replace(/[^\p{L}\p{N}\-]/gu, '')
+		.replace(/-+/g, '-')
+		.replace(/^-|-$/g, '');
+
+	if (!id) {
+		id = 'section';
+	}
+
+	const count = usedHeadingIds.get(id) ?? 0;
+	usedHeadingIds.set(id, count + 1);
+
+	return count === 0 ? id : `${id}-${String(count)}`;
+};
+
+export const resetHeadingIds = (): void => {
+	usedHeadingIds.clear();
+};
+
+const getHeadingText = (children: InlineNode[]): string => {
+	return children
+		.map((child) => {
+			if (child.type === 'text') return child.value;
+			if (child.type === 'inlineCode') return child.value;
+			if ('children' in child)
+				return getHeadingText(child.children as InlineNode[]);
+			return '';
+		})
+		.join('');
+};
+
 const transformHeading = (
 	node: HeadingNode,
 	components: ComponentMap
-): ElementNode => ({
-	[EFFUSE_NODE]: true,
-	type: NodeType.ELEMENT,
-	tag: `h${String(node.level)}`,
-	props: { class: `ink-h${String(node.level)}` },
-	children: node.children.map((child) => transformInline(child, components)),
-});
+): ElementNode => {
+	const text = getHeadingText(node.children);
+	const id = generateHeadingId(text);
+
+	return {
+		[EFFUSE_NODE]: true,
+		type: NodeType.ELEMENT,
+		tag: `h${String(node.level)}`,
+		props: { class: `ink-h${String(node.level)}`, id },
+		children: node.children.map((child) => transformInline(child, components)),
+	};
+};
 
 const transformParagraph = (
 	node: ParagraphNode,
@@ -414,5 +455,7 @@ const transformBlock = (
 export const transformDocument = (
 	doc: DocumentNode,
 	components: ComponentMap = {}
-): EffuseChild[] =>
-	doc.children.map((node) => transformBlock(node, components));
+): EffuseChild[] => {
+	resetHeadingIds();
+	return doc.children.map((node) => transformBlock(node, components));
+};
