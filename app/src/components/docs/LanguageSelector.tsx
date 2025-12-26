@@ -17,7 +17,8 @@ interface LanguageSelectorExposed {
 	handleToggle: (e: MouseEvent) => void;
 	handleSelectEn: (e: MouseEvent) => void;
 	handleSelectEs: (e: MouseEvent) => void;
-	languageLabels: ReadonlySignal<{ english: string; spanish: string }>;
+	englishLabel: ReadonlySignal<string>;
+	spanishLabel: ReadonlySignal<string>;
 	dropdownClass: () => string;
 }
 
@@ -29,12 +30,12 @@ export const LanguageSelector = define<
 		const isOpen = signal(false);
 		const currentLocale = i18nStore.locale;
 
-		const languageLabels = computed(() => {
-			const trans = i18nStore.translations.value;
-			return {
-				english: trans?.language?.english as string,
-				spanish: trans?.language?.spanish as string,
-			};
+		const englishLabel = computed(() => {
+			return i18nStore.translations.value?.language?.english as string;
+		});
+
+		const spanishLabel = computed(() => {
+			return i18nStore.translations.value?.language?.spanish as string;
 		});
 
 		const handleToggle = useCallback((e: MouseEvent) => {
@@ -63,7 +64,8 @@ export const LanguageSelector = define<
 			handleToggle,
 			handleSelectEn,
 			handleSelectEs,
-			languageLabels,
+			englishLabel,
+			spanishLabel,
 			dropdownClass,
 		};
 	},
@@ -72,7 +74,8 @@ export const LanguageSelector = define<
 		handleToggle,
 		handleSelectEn,
 		handleSelectEs,
-		languageLabels,
+		englishLabel,
+		spanishLabel,
 		dropdownClass,
 	}) => (
 		<div class="lang-selector relative">
@@ -95,21 +98,21 @@ export const LanguageSelector = define<
 					type="button"
 					onClick={handleSelectEn}
 					class={() =>
-						`w-full px-4 py-2 text-left text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center gap-2 ${currentLocale.value === 'en' ? 'text-orange-600 font-medium' : 'text-slate-700 dark:text-slate-300'}`
+						`lang-option ${currentLocale.value === 'en' ? 'active' : ''}`
 					}
 				>
-					<span class="text-base">🇺🇸</span>
-					{languageLabels.value.english}
+					<span class="lang-flag">🇺🇸</span>
+					<span class="lang-label">{englishLabel}</span>
 				</button>
 				<button
 					type="button"
 					onClick={handleSelectEs}
 					class={() =>
-						`w-full px-4 py-2 text-left text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center gap-2 ${currentLocale.value === 'es' ? 'text-orange-600 font-medium' : 'text-slate-700 dark:text-slate-300'}`
+						`lang-option ${currentLocale.value === 'es' ? 'active' : ''}`
 					}
 				>
-					<span class="text-base">🇪🇸</span>
-					{languageLabels.value.spanish}
+					<span class="lang-flag">🇪🇸</span>
+					<span class="lang-label">{spanishLabel}</span>
 				</button>
 			</div>
 		</div>

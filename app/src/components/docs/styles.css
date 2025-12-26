@@ -961,3 +961,35 @@
 	opacity: 1;
 	margin-bottom: 1rem;
 }
+
+.lang-option {
+	width: 100%;
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	padding: 0.5rem 1rem;
+	background: transparent;
+	border: none;
+	text-align: left;
+	font-size: 0.875rem;
+	color: #374151;
+	cursor: pointer;
+	transition: background 0.15s ease;
+}
+
+.lang-option:hover {
+	background: #f3f4f6;
+}
+
+.lang-option.active {
+	color: #ea580c;
+	font-weight: 600;
+}
+
+.lang-flag {
+	font-size: 1rem;
+}
+
+.lang-label {
+	color: inherit;
+}
