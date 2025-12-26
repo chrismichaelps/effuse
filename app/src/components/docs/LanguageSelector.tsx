@@ -42,23 +42,23 @@ export const LanguageSelector = define<
 			return [
 				{
 					locale: 'en',
-					label: (trans.language.english as string) || 'English',
+					label: trans.language.english as string,
 					flag: '🇺🇸',
 				},
 				{
-					locale: 'es',
-					label: (trans.language.spanish as string) || 'Español',
-					flag: '🇪🇸',
-				},
-				{
 					locale: 'ja',
-					label: (trans.language.japanese as string) || '日本語',
+					label: trans.language.japanese as string,
 					flag: '🇯🇵',
 				},
 				{
 					locale: 'zh',
-					label: (trans.language.mandarin as string) || '简体中文',
+					label: trans.language.mandarin as string,
 					flag: '🇨🇳',
+				},
+				{
+					locale: 'es',
+					label: trans.language.spanish as string,
+					flag: '🇪🇸',
 				},
 			];
 		});
