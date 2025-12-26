@@ -13,6 +13,15 @@ interface HeaderExposed {
 	aboutLabel: ReadonlySignal<string>;
 }
 
+const LOCALIZED_SECTIONS = [
+	'/docs',
+	'/form',
+	'/todos',
+	'/props',
+	'/i18n',
+	'/about',
+] as const;
+
 export const Header = define<Record<string, never>, HeaderExposed>({
 	script: () => {
 		const mobileMenuOpen = signal(false);
@@ -21,15 +30,17 @@ export const Header = define<Record<string, never>, HeaderExposed>({
 		};
 
 		const route = useRoute();
+
 		const isDocsPath = computed(() => {
-			return route.path.startsWith('/docs');
+			const path = route.path;
+			return LOCALIZED_SECTIONS.some((section) => path.startsWith(section));
 		});
 
 		const docsLabel = computed(() => {
-			return i18nStore.translations.value?.nav?.docs ?? 'Docs';
+			return i18nStore.translations.value?.nav?.docs as string;
 		});
 		const aboutLabel = computed(() => {
-			return i18nStore.translations.value?.nav?.about ?? 'About';
+			return i18nStore.translations.value?.nav?.about as string;
 		});
 
 		return { mobileMenuOpen, toggleMenu, isDocsPath, docsLabel, aboutLabel };

@@ -54,11 +54,223 @@
 			"router",
 			"store"
 		],
-		"focusTitle": "Enfoque Activo"
+		"focusTitle": "Enfoque Activo",
+		"meta": {
+			"title": "Sobre Mí - Effuse",
+			"description": "Conoce al equipo detrás del framework Effuse."
+		}
+	},
+	"notFound": {
+		"code": "404",
+		"title": "Página No Encontrada",
+		"description": "La página que buscas no existe o ha sido movida.",
+		"track": "Vamos a ponerte de nuevo en camino.",
+		"goHome": "Ir a Inicio",
+		"meta": {
+			"title": "404 - Página No Encontrada | Effuse",
+			"description": "La página que buscas no existe."
+		}
 	},
 	"language": {
 		"selectLanguage": "Seleccionar Idioma",
-		"english": "English",
-		"spanish": "Español"
+		"english": "Inglés",
+		"spanish": "Español",
+		"japanese": "Japonés",
+		"mandarin": "Mandarin"
+	},
+	"examples": {
+		"form": {
+			"title": "Gestión de Formularios",
+			"description": "Demostrando manejo reactivo de formularios con useForm y useMutation",
+			"createPost": "Crear Nueva Publicación",
+			"apiNote": "Usando la API JSONPlaceholder para demostración",
+			"titleLabel": "Título",
+			"emailLabel": "Correo Electrónico",
+			"bodyLabel": "Contenido",
+			"userIdLabel": "ID de Usuario (1-10)",
+			"enterTitlePlaceholder": "Introduce un título descriptivo...",
+			"emailPlaceholder": "tu@ejemplo.com",
+			"bodyPlaceholder": "Escribe el contenido de tu publicación aquí...",
+			"required": "Requerido",
+			"valid": "Válido",
+			"invalid": "Inválido",
+			"state": "Estado",
+			"modified": "Modificado",
+			"pristine": "Sin cambios",
+			"submitting": "Enviando",
+			"yes": "Sí",
+			"no": "No",
+			"createButton": "Crear Publicación",
+			"submittingButton": "Enviando...",
+			"reset": "Reiniciar",
+			"createdPosts": "Publicaciones Creadas",
+			"loadingPosts": "Cargando publicaciones...",
+			"noPosts": "Aún no hay publicaciones. Envía el formulario para comenzar.",
+			"user": "Usuario"
+		},
+		"todos": {
+			"title": "Tareas con Query + Portal",
+			"description": "Usando useInfiniteQuery + @effuse/store",
+			"enterTodoTitlePlaceholder": "Introduce el título de la tarea...",
+			"addPlaceholder": "Agregar una nueva tarea...",
+			"add": "Agregar",
+			"adding": "Agregando...",
+			"total": "Total",
+			"completed": "Completadas",
+			"pending": "Pendientes",
+			"all": "Todas",
+			"edit": "Editar",
+			"delete": "Eliminar",
+			"editTodo": "Editar Tarea",
+			"todoTitle": "Título de la Tarea",
+			"cancel": "Cancelar",
+			"saveChanges": "Guardar Cambios",
+			"loadingTodos": "Cargando tareas...",
+			"noTodos": "Aún no hay tareas. ¡Agrega una arriba!",
+			"loadMore": "Cargar Más",
+			"loadingMore": "Cargando más...",
+			"refreshing": "Actualizando...",
+			"user": "Usuario"
+		},
+		"props": {
+			"title": "Demo de Reactividad de Props",
+			"description": "Modifica el estado del padre a continuación para ver cómo los componentes hijos se actualizan en tiempo real. Algunos componentes hijos también tienen botones para activar actualizaciones desde el hijo hacia el padre.",
+			"parentControls": "Controles del Padre",
+			"incrementCount": "Incrementar Contador",
+			"changeColor": "Cambiar Color",
+			"toggleStatus": "Alternar Estado",
+			"reset": "Reiniciar",
+			"currentCount": "Contador Actual",
+			"derivedValue": "Valor Derivado (x2)",
+			"currentColor": "Color Actual",
+			"activeStatus": "Estado Activo",
+			"active": "Activo",
+			"inactive": "Inactivo",
+			"triggerUpdate": "Activar Actualización",
+			"howItWorks": "Cómo funciona:"
+		},
+		"i18n": {
+			"title": "Demo de Internacionalización",
+			"description": "Esta página demuestra el paquete @effuse/i18n con cambio de idioma reactivo.",
+			"welcome": "Bienvenido a la demo de i18n",
+			"currentLocale": "Idioma actual",
+			"changeLocale": "Cambiar idioma",
+			"greeting": "¡Hola, {{name}}!",
+			"featuresTitle": "Características",
+			"featuresTypeSafe": "Claves de traducción con autocompletado",
+			"featuresInterpolation": "Interpolación de variables con {{llaves}}",
+			"featuresReactive": "Cambio de idioma reactivo con signals",
+			"featuresNested": "Soporte para claves anidadas",
+			"itemsOne": "{{count}} elemento",
+			"itemsOther": "{{count}} elementos",
+			"summary": "Hola {{name}}, estás construyendo {{project}} v{{version}} — ¡un viaje increíble hacia la i18n moderna!",
+			"yourName": "Tu nombre:",
+			"footer": "Construido con Effuse y @effuse/i18n"
+		}
+	},
+	"legal": {
+		"terms": {
+			"title": "Términos de Servicio",
+			"lastUpdated": "Última actualización: Diciembre 2025",
+			"sections": {
+				"acceptance": {
+					"title": "1. Aceptación de los Términos",
+					"content": "Al acceder y utilizar el framework Effuse, la documentación y los servicios relacionados, usted acepta y acuerda estar sujeto a los términos y disposiciones de este acuerdo."
+				},
+				"license": {
+					"title": "2. Licencia",
+					"content": "Effuse se publica bajo la Licencia MIT. Usted es libre de usar, copiar, modificar, fusionar, publicar, distribuir, sublicenciar y/o vender copias del Software, sujeto a las condiciones de la Licencia MIT."
+				},
+				"usage": {
+					"title": "3. Uso del Framework",
+					"content": "Usted acepta utilizar Effuse solo para fines legales y de una manera que no infrinja los derechos de terceros.",
+					"list": [
+						"Puede utilizar Effuse para proyectos personales y comerciales",
+						"Debe incluir el aviso de derechos de autor original en cualquier copia",
+						"No puede utilizar el nombre de Effuse para respaldar productos sin permiso"
+					]
+				},
+				"disclaimer": {
+					"title": "4. Renuncia de Garantías",
+					"content": "El software se proporciona \"tal cual\", sin garantía de ningún tipo, expresa o implícita, incluyendo pero no limitado a las garantías de comerciabilidad, idoneidad para un propósito particular y no infracción."
+				},
+				"liability": {
+					"title": "5. Limitación de Responsabilidad",
+					"content": "En ningún caso los autores o titulares de derechos de autor serán responsables de ninguna reclamación, daño u otra responsabilidad, ya sea en una acción de contrato, agravio o de otro modo, que surja de, fuera de o en conexión con el software o el uso u otros tratos en el software."
+				},
+				"changes": {
+					"title": "6. Cambios en los Términos",
+					"content": "Estos términos pueden modificarse en cualquier momento. Los cambios se publicarán en esta página con una fecha de revisión actualizada."
+				},
+				"contact": {
+					"title": "7. Contacto",
+					"content": "Si tiene alguna pregunta sobre estos Términos, por favor"
+				}
+			},
+			"meta": {
+				"title": "Términos de Servicio - Effuse",
+				"description": "Términos de Servicio para el uso del framework Effuse y servicios relacionados."
+			}
+		},
+		"privacy": {
+			"title": "Política de Privacidad",
+			"lastUpdated": "Última actualización: Diciembre 2025",
+			"sections": {
+				"overview": {
+					"title": "1. Resumen",
+					"content": "Este es un sitio web de documentación para el framework Effuse. Su único propósito es proporcionar información y ejemplos a los desarrolladores."
+				},
+				"collection": {
+					"title": "2. Recopilación de Datos",
+					"content": "No recopilo ninguna información personal de los visitantes. Puede navegar por la documentación libremente sin proporcionar ningún dato."
+				},
+				"cookies": {
+					"title": "3. Cookies",
+					"content": "Este sitio web no utiliza cookies ni ningún mecanismo de seguimiento de almacenamiento local."
+				},
+				"services": {
+					"title": "4. Servicios de Terceros",
+					"content": "La documentación y los ejemplos se alojan de forma estática. No se utilizan servicios de análisis o seguimiento de terceros."
+				},
+				"contact": {
+					"title": "5. Contacto",
+					"content": "Si tiene alguna pregunta, puede contactarme en"
+				}
+			},
+			"meta": {
+				"title": "Política de Privacidad - Effuse",
+				"description": "Política de Privacidad para el framework Effuse - sitio web de documentación."
+			}
+		},
+		"disclaimer": {
+			"title": "Descargo de Responsabilidad",
+			"sections": {
+				"experimental": {
+					"title": "Naturaleza Experimental",
+					"content": "Effuse es un framework de UI experimental creado principalmente con fines educativos y para explorar nuevos enfoques de reactividad y arquitectura de componentes."
+				},
+				"competitor": {
+					"title": "No es un Competidor",
+					"content1": "Este framework <strong>no</strong> pretende competir con ni reemplazar soluciones establecidas y de grado de producción como React, Vue, Angular, Svelte o SolidJS.",
+					"content2": "Si bien Effuse demuestra conceptos reactivos modernos, los frameworks principales ofrecen ecosistemas maduros, herramientas extensas y una estabilidad probada en batalla que Effuse no pretende replicar."
+				},
+				"risk": {
+					"title": "Uso bajo su propio riesgo",
+					"content": "Utilice este framework entendiendo que es experimental. Las API pueden cambiar y puede no ser adecuado para aplicaciones de producción críticas."
+				}
+			},
+			"meta": {
+				"title": "Descargo de Responsabilidad - Effuse",
+				"description": "Descargo de responsabilidad sobre la naturaleza experimental del framework Effuse."
+			}
+		},
+		"contact": {
+			"title": "Contacto",
+			"content": "Puede contactarme directamente por correo electrónico:",
+			"meta": {
+				"title": "Contacto - Effuse",
+				"description": "Póngase en contacto con el creador de Effuse."
+			}
+		}
 	}
 }

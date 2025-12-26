@@ -4,28 +4,32 @@ import {
 	computed,
 	useHead,
 	unref,
+	effect,
 	type Signal,
 	type ReadonlySignal,
 } from '@effuse/core';
 import { Ink } from '@effuse/ink';
 import { DocsLayout } from '../../components/docs/DocsLayout';
+import { i18nStore } from '../../store/appI18n';
 
 interface DisplayProps {
-	label: string;
+	label: string | ReadonlySignal<string>;
 	value: Signal<string | number>;
 	color?: string | Signal<string>;
 	onAction?: () => void;
 }
 
-interface StatDisplayExposed extends Omit<DisplayProps, 'color'> {
+interface StatDisplayExposed extends Omit<DisplayProps, 'color' | 'label'> {
+	label: ReadonlySignal<string>;
 	color: ReadonlySignal<string>;
 }
 
 const StatDisplay = define<DisplayProps, StatDisplayExposed>({
 	script: ({ props }) => {
-		const colorSig = computed(() => unref(props.color) ?? 'blue');
+		const colorSig = computed(() => unref(props.color) || 'blue');
+		const labelSig = computed(() => unref(props.label));
 		return {
-			label: props.label,
+			label: labelSig,
 			value: props.value,
 			color: colorSig,
 			onAction: props.onAction,
@@ -44,7 +48,11 @@ const StatDisplay = define<DisplayProps, StatDisplayExposed>({
 					onClick={() => onAction()}
 					class={`text-xs px-2 py-1 rounded bg-${color.value}-100 text-${color.value}-700 hover:bg-${color.value}-200 transition font-medium`}
 				>
-					Trigger Update
+					{computed(
+						() =>
+							i18nStore.translations.value?.examples?.props
+								?.triggerUpdate as string
+					)}
 				</button>
 			)}
 		</div>
@@ -53,10 +61,13 @@ const StatDisplay = define<DisplayProps, StatDisplayExposed>({
 
 export const PropsPage = define({
 	script: () => {
-		useHead({
-			title: 'Props Reactivity - Effuse Playground',
-			description:
-				'Demo showing how props flow between parent and child components with reactive signals.',
+		const t = computed(() => i18nStore.translations.value?.examples?.props);
+
+		effect(() => {
+			useHead({
+				title: `${t.value?.title as string} - Effuse Playground`,
+				description: t.value?.description as string,
+			});
 		});
 		const count = signal(0);
 		const currentColor = signal('Default');
@@ -84,6 +95,7 @@ export const PropsPage = define({
 \`\`\`
 `.trim();
 		return {
+			t,
 			count,
 			currentColor,
 			isActive,
@@ -96,6 +108,7 @@ export const PropsPage = define({
 		};
 	},
 	template: ({
+		t,
 		count,
 		currentColor,
 		isActive,
@@ -110,33 +123,29 @@ export const PropsPage = define({
 			<div class="space-y-8 p-6 max-w-4xl mx-auto">
 				<div class="text-center space-y-2">
 					<h1 class="text-3xl font-bold text-slate-900">
-						Props Reactivity Demo
+						{computed(() => t.value?.title as string)}
 					</h1>
 					<p class="text-slate-600">
-						Modify the parent state below to see child components update in
-						real-time.
-						<br />
-						Some child components also have buttons to trigger updates from the
-						child up to the parent.
+						{computed(() => t.value?.description as string)}
 					</p>
 				</div>
 
 				<div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
 					<h2 class="text-lg font-semibold text-slate-800 mb-4">
-						Parent Controls
+						{computed(() => t.value?.parentControls as string)}
 					</h2>
 					<div class="flex flex-wrap gap-4">
 						<button
 							onClick={() => increment()}
 							class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
 						>
-							Increment Count
+							{computed(() => t.value?.incrementCount as string)}
 						</button>
 						<button
 							onClick={() => changeColor()}
 							class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
 						>
-							Change Color
+							{computed(() => t.value?.changeColor as string)}
 						</button>
 						<button
 							onClick={() => toggleActive()}
@@ -146,38 +155,42 @@ export const PropsPage = define({
 									: 'bg-slate-500 hover:bg-slate-600'
 							}`}
 						>
-							Toggle Status
+							{computed(() => t.value?.toggleStatus as string)}
 						</button>
 						<button
 							onClick={() => reset()}
 							class="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition ml-auto"
 						>
-							Reset
+							{computed(() => t.value?.reset as string)}
 						</button>
 					</div>
 				</div>
 
 				<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
 					<StatDisplay
-						label="Current Count"
+						label={computed(() => t.value?.currentCount as string)}
 						value={count}
 						color="blue"
 						onAction={increment}
 					/>
 					<StatDisplay
-						label="Derived Value (x2)"
+						label={computed(() => t.value?.derivedValue as string)}
 						value={doubleCount}
 						color="indigo"
 					/>
 					<StatDisplay
-						label="Current Color"
+						label={computed(() => t.value?.currentColor as string)}
 						value={currentColor}
 						color="purple"
 						onAction={changeColor}
 					/>
 					<StatDisplay
-						label="Active Status"
-						value={computed(() => (isActive.value ? 'Active' : 'Inactive'))}
+						label={computed(() => t.value?.activeStatus as string)}
+						value={computed(() =>
+							isActive.value
+								? (t.value?.active as string)
+								: (t.value?.inactive as string)
+						)}
 						color={computed(() => (isActive.value ? 'green' : 'red'))}
 						onAction={toggleActive}
 					/>
@@ -185,7 +198,7 @@ export const PropsPage = define({
 
 				<div class="mt-8 p-4 bg-slate-100 rounded-lg text-sm text-slate-600 overflow-x-auto">
 					<p class="mb-2 font-sans font-semibold text-slate-700">
-						How it works:
+						{computed(() => t.value?.howItWorks as string)}
 					</p>
 					<Ink content={codeSnippet} />
 				</div>

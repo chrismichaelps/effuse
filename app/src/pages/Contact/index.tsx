@@ -1,15 +1,21 @@
-import { define, useHead } from '@effuse/core';
+import { define, useHead, computed, effect } from '@effuse/core';
+import { i18nStore } from '../../store/appI18n.js';
 import '../Legal/styles.css';
 
 export const ContactPage = define({
 	script: () => {
-		useHead({
-			title: 'Contact - Effuse',
-			description: 'Get in touch with the creator of Effuse.',
+		const t = computed(() => i18nStore.translations.value?.legal?.contact);
+
+		effect(() => {
+			useHead({
+				title: t.value?.meta.title as string,
+				description: t.value?.meta.description as string,
+			});
 		});
-		return {};
+
+		return { t };
 	},
-	template: () => (
+	template: ({ t }) => (
 		<main class="legal-page">
 			<div class="vibrant-bg">
 				<div class="aurora-blob blob-1"></div>
@@ -18,13 +24,15 @@ export const ContactPage = define({
 			</div>
 			<div class="legal-container">
 				<header class="legal-header">
-					<h1 class="legal-title">Contact</h1>
+					<h1 class="legal-title">
+						{computed(() => t.value?.title as string)}
+					</h1>
 				</header>
 
 				<div class="legal-content">
 					<section class="legal-section" style={{ textAlign: 'center' }}>
 						<p class="legal-text">
-							You can reach out to me directly via email:
+							{computed(() => t.value?.content as string)}
 						</p>
 						<p class="legal-text" style={{ fontSize: '1.25rem' }}>
 							<a href="mailto:chrisperezsantiago1@gmail.com" class="legal-link">

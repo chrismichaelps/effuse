@@ -1,16 +1,22 @@
-import { define, useHead } from '@effuse/core';
+import { define, useHead, computed, effect } from '@effuse/core';
 import { Link } from '@effuse/router';
+import { i18nStore } from '../../store/appI18n';
 import './styles.css';
 
 export const NotFoundPage = define({
 	script: () => {
-		useHead({
-			title: '404 - Page Not Found | Effuse',
-			description: 'The page you are looking for does not exist.',
+		const t = computed(() => i18nStore.translations.value?.notFound);
+
+		effect(() => {
+			useHead({
+				title: t.value?.meta.title as string,
+				description: t.value?.meta.description as string,
+			});
 		});
-		return {};
+
+		return { t };
 	},
-	template: () => (
+	template: ({ t }) => (
 		<div class="not-found-page">
 			<div class="vibrant-bg">
 				<div class="aurora-blob blob-1"></div>
@@ -19,15 +25,15 @@ export const NotFoundPage = define({
 			</div>
 
 			<div class="not-found-content">
-				<div class="error-code">404</div>
-				<h1 class="error-title">Page Not Found</h1>
+				<div class="error-code">{computed(() => t.value?.code as string)}</div>
+				<h1 class="error-title">{computed(() => t.value?.title as string)}</h1>
 				<p class="error-message">
-					The page you are looking for doesn't exist or has been moved.
+					{computed(() => t.value?.description as string)}
 					<br />
-					Let's get you back on track.
+					{computed(() => t.value?.track as string)}
 				</p>
 				<Link to="/" class="cta-primary">
-					Go Home
+					{computed(() => t.value?.goHome as string)}
 					<img src="/icons/home.svg" alt="Home" class="w-5 h-5 text-zinc-950" />
 				</Link>
 			</div>

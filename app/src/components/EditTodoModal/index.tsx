@@ -1,4 +1,10 @@
-import { define, type Signal } from '@effuse/core';
+import {
+	define,
+	computed,
+	type Signal,
+	type ReadonlySignal,
+} from '@effuse/core';
+import { i18nStore } from '../../store/appI18n';
 
 interface EditTodoModalProps {
 	isOpen: Signal<boolean>;
@@ -8,11 +14,15 @@ interface EditTodoModalProps {
 	onClose: () => void;
 }
 
-interface EditTodoModalExposed extends EditTodoModalProps {}
+interface EditTodoModalExposed extends EditTodoModalProps {
+	t: ReadonlySignal<any>;
+}
 
 export const EditTodoModal = define<EditTodoModalProps, EditTodoModalExposed>({
 	script: ({ props }) => {
+		const t = computed(() => i18nStore.translations.value?.examples?.todos);
 		return {
+			t,
 			isOpen: props.isOpen,
 			title: props.title,
 			onTitleChange: props.onTitleChange,
@@ -20,7 +30,7 @@ export const EditTodoModal = define<EditTodoModalProps, EditTodoModalExposed>({
 			onClose: props.onClose,
 		};
 	},
-	template: ({ isOpen, title, onTitleChange, onSave, onClose }) => {
+	template: ({ t, isOpen, title, onTitleChange, onSave, onClose }) => {
 		if (!isOpen.value) return null;
 		return (
 			<div class="fixed inset-0 z-50 flex items-center justify-center">
@@ -31,12 +41,14 @@ export const EditTodoModal = define<EditTodoModalProps, EditTodoModalExposed>({
 
 				<div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
 					<div class="bg-gradient-to-r from-slate-800 to-slate-700 px-6 py-4">
-						<h2 class="text-xl font-semibold text-white">Edit Todo</h2>
+						<h2 class="text-xl font-semibold text-white">
+							{computed(() => t.value?.editTodo as string)}
+						</h2>
 					</div>
 
 					<div class="p-6">
 						<label class="block mb-2 text-sm font-medium text-slate-700">
-							Todo Title
+							{computed(() => t.value?.todoTitle as string)}
 						</label>
 						<input
 							type="text"
@@ -49,7 +61,11 @@ export const EditTodoModal = define<EditTodoModalProps, EditTodoModalExposed>({
 								if (e.key === 'Escape') onClose();
 							}}
 							class="w-full px-4 py-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-							placeholder="Enter todo title..."
+							placeholder={
+								computed(
+									() => t.value?.enterTodoTitlePlaceholder as string
+								) as unknown as string
+							}
 						/>
 					</div>
 
@@ -59,14 +75,14 @@ export const EditTodoModal = define<EditTodoModalProps, EditTodoModalExposed>({
 							onClick={() => onClose()}
 							class="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg font-medium hover:bg-slate-300 transition-colors"
 						>
-							Cancel
+							{computed(() => t.value?.cancel as string)}
 						</button>
 						<button
 							type="button"
 							onClick={() => onSave()}
 							class="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
 						>
-							Save Changes
+							{computed(() => t.value?.saveChanges as string)}
 						</button>
 					</div>
 				</div>

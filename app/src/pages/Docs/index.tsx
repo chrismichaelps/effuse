@@ -2,13 +2,14 @@ import {
 	define,
 	signal,
 	computed,
+	effect,
 	useHead,
 	type Signal,
 	type ReadonlySignal,
 } from '@effuse/core';
 import { Ink } from '@effuse/ink';
 import { DocsLayout } from '../../components/docs/DocsLayout.js';
-import { docsRegistry } from '../../content/docs';
+import { currentDocsRegistry, docsRegistry } from '../../content/docs';
 import type { TocItem } from '../../components/docs/DocsHeader.js';
 
 interface DocsPageExposed {
@@ -27,15 +28,35 @@ const getSlugFromPath = (): string => {
 const extractTocItems = (markdown: string): TocItem[] => {
 	const headingRegex = /^(#{1,3})\s+(.+)$/gm;
 	const items: TocItem[] = [];
+	const usedIds = new Set<string>();
 	let match;
+	let index = 0;
+
 	while ((match = headingRegex.exec(markdown)) !== null) {
 		const level = match[1].length;
 		const title = match[2].trim();
-		const id = title
+
+		let id = title
 			.toLowerCase()
-			.replace(/[^\w\s-]/g, '')
-			.replace(/\s+/g, '-');
+			.replace(/\s+/g, '-') // Replace spaces with hyphens
+			.replace(/[^\p{L}\p{N}\-]/gu, '') // Keep Unicode letters, numbers, hyphens
+			.replace(/-+/g, '-') // Collapse multiple hyphens
+			.replace(/^-|-$/g, ''); // Trim leading/trailing hyphens
+
+		if (!id) {
+			id = 'section';
+		}
+
+		const originalId = id;
+		let counter = 1;
+		while (usedIds.has(id)) {
+			id = `${originalId}-${counter}`;
+			counter++;
+		}
+		usedIds.add(id);
+
 		items.push({ id, title, level });
+		index++;
 	}
 	return items;
 };
@@ -43,21 +64,26 @@ const extractTocItems = (markdown: string): TocItem[] => {
 export const DocsPage = define<{}, DocsPageExposed>({
 	script: ({ onMount }) => {
 		const currentSlug = signal(getSlugFromPath());
+
 		const content = computed(() => {
+			const registry = currentDocsRegistry.value;
 			const slug = currentSlug.value;
-			return (
-				docsRegistry[slug]?.content ?? docsRegistry['getting-started'].content
-			);
+			const doc = registry[slug] ?? docsRegistry['getting-started'];
+			return doc.content;
 		});
 
 		const pageTitle = computed(() => {
+			const registry = currentDocsRegistry.value;
 			const slug = currentSlug.value;
-			return docsRegistry[slug]?.title ?? 'Getting Started';
+			const doc = registry[slug] ?? docsRegistry['getting-started'];
+			return doc.title;
 		});
 
-		useHead({
-			title: `${pageTitle.value} - Effuse Docs`,
-			description: `Documentation for ${pageTitle.value} in the Effuse framework.`,
+		effect(() => {
+			useHead({
+				title: `${pageTitle.value} - Effuse Docs`,
+				description: `Documentation for ${pageTitle.value} in the Effuse framework.`,
+			});
 		});
 
 		const tocItems = computed(() => {
@@ -80,10 +106,10 @@ export const DocsPage = define<{}, DocsPageExposed>({
 		<DocsLayout
 			currentPath={`/docs/${currentSlug.value}`}
 			pageTitle={pageTitle.value}
-			tocItems={tocItems.value}
+			tocItems={tocItems}
 		>
 			<article class="prose prose-slate max-w-none">
-				<Ink content={content.value} />
+				<Ink content={content} />
 			</article>
 		</DocsLayout>
 	),

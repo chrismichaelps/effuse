@@ -1,6 +1,7 @@
 import {
 	define,
 	signal,
+	effect,
 	type Signal,
 	For,
 	computed,
@@ -10,30 +11,52 @@ import { Sidebar } from './Sidebar.js';
 import { DocsHeader, type TocItem } from './DocsHeader.js';
 import { SidebarToggle } from './SidebarToggle.js';
 import { docsStore } from '../../store/docsUIStore.js';
+import { i18nStore } from '../../store/appI18n.js';
 import './styles.css';
 
 interface DocsLayoutProps {
 	children: any;
 	currentPath?: string;
 	pageTitle?: string;
-	tocItems?: TocItem[];
+	tocItems?: TocItem[] | ReadonlySignal<TocItem[]>;
 }
 
 interface DocsLayoutExposed {
 	docsStore: typeof docsStore;
 	activeSectionId: Signal<string>;
+	normalizedTocItems: ReadonlySignal<TocItem[]>;
+	t: ReadonlySignal<any>;
 }
+
+const unwrapTocItems = (
+	items: TocItem[] | ReadonlySignal<TocItem[]> | undefined
+): TocItem[] => {
+	if (!items) return [];
+	if (Array.isArray(items)) return items;
+	return items.value;
+};
 
 export const DocsLayout = define<DocsLayoutProps, DocsLayoutExposed>({
 	script: ({ props, onMount }) => {
 		const activeSectionId = signal('');
+
+		const normalizedTocItems = computed(() => unwrapTocItems(props.tocItems));
+
+		effect(() => {
+			const items = normalizedTocItems.value;
+			if (items.length > 0) {
+				activeSectionId.value = items[0].id;
+			}
+		});
+
+		const t = computed(() => i18nStore.translations.value?.toc);
 
 		onMount(() => {
 			const scrollContainer = document.querySelector('.docs-main');
 			if (!scrollContainer) return;
 
 			const handleScroll = () => {
-				const items = props.tocItems ?? [];
+				const items = normalizedTocItems.value;
 				if (items.length === 0) return;
 
 				let activeId = '';
@@ -64,7 +87,15 @@ export const DocsLayout = define<DocsLayoutProps, DocsLayoutExposed>({
 			window.addEventListener('scroll', handleScroll, {
 				passive: true,
 			});
-			handleScroll();
+
+			// Use requestAnimationFrame to ensure DOM is ready
+			requestAnimationFrame(() => {
+				const items = normalizedTocItems.value;
+				if (items.length > 0) {
+					activeSectionId.value = items[0].id;
+				}
+				handleScroll();
+			});
 
 			return () => {
 				scrollContainer.removeEventListener('scroll', handleScroll);
@@ -75,9 +106,14 @@ export const DocsLayout = define<DocsLayoutProps, DocsLayoutExposed>({
 		return {
 			docsStore,
 			activeSectionId,
+			normalizedTocItems,
+			t,
 		};
 	},
-	template: ({ docsStore, activeSectionId, children }, props) => (
+	template: (
+		{ docsStore, activeSectionId, normalizedTocItems, t, children },
+		props
+	) => (
 		<div
 			class={() =>
 				`docs-layout ${docsStore.isSidebarCollapsed.value ? 'sidebar-collapsed' : ''}`
@@ -110,7 +146,7 @@ export const DocsLayout = define<DocsLayoutProps, DocsLayoutExposed>({
 				<div class="md:hidden sticky top-0 z-20">
 					<DocsHeader
 						pageTitle={props.pageTitle}
-						tocItems={props.tocItems}
+						tocItems={normalizedTocItems}
 						activeId={activeSectionId}
 					/>
 				</div>
@@ -121,11 +157,11 @@ export const DocsLayout = define<DocsLayoutProps, DocsLayoutExposed>({
 						<div class="toc-sidebar-container">
 							<div class="toc-sidebar-title flex items-center gap-2">
 								<img src="/icons/list.svg" width="14" height="14" alt="List" />
-								On this page
+								{computed(() => t.value?.onThisPage as string)}
 							</div>
 							<nav class="toc-sidebar-nav">
 								<For
-									each={computed(() => props.tocItems ?? [])}
+									each={normalizedTocItems}
 									keyExtractor={(item: TocItem) => item.id}
 								>
 									{(itemSignal: ReadonlySignal<TocItem>) => (
@@ -138,7 +174,12 @@ export const DocsLayout = define<DocsLayoutProps, DocsLayoutExposed>({
 												e.preventDefault();
 												const title = itemSignal.value.title;
 												const id = itemSignal.value.id;
-												let el = document.getElementById(id);
+												let el: HTMLElement | null = null;
+												try {
+													el = document.querySelector(`#${CSS.escape(id)}`);
+												} catch {
+													el = document.getElementById(id);
+												}
 												if (!el) {
 													const headings =
 														document.querySelectorAll('h1, h2, h3');

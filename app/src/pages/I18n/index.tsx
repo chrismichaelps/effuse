@@ -3,186 +3,103 @@ import {
 	useHead,
 	signal,
 	computed,
+	effect,
 	type ReadonlySignal,
 	type Signal,
 } from '@effuse/core';
-import { createI18n, useTranslation } from '@effuse/i18n';
 import { DocsLayout } from '../../components/docs/DocsLayout';
-
-const enTranslations = {
-	app: {
-		title: 'Internationalization Demo',
-		description:
-			'This page demonstrates the @effuse/i18n package with reactive locale switching.',
-	},
-	greeting: 'Hello, {{name}}!',
-	welcome: 'Welcome to the i18n demo',
-	currentLocale: 'Current locale',
-	changeLocale: 'Change language',
-	features: {
-		title: 'Features',
-		typeSafe: 'Type-safe translation keys with autocomplete',
-		interpolation: 'Variable interpolation with {{brackets}}',
-		reactive: 'Reactive locale switching with signals',
-		nested: 'Nested translation keys support',
-	},
-	items: {
-		count_one: '{{count}} item',
-		count_other: '{{count}} items',
-	},
-	summary:
-		'Hi {{name}}, you are building {{project}} v{{version}} — an amazing journey into modern i18n!',
-	footer: 'Built with Effuse and @effuse/i18n',
-};
-
-const esTranslations = {
-	app: {
-		title: 'Demo de Internacionalización',
-		description:
-			'Esta página demuestra el paquete @effuse/i18n con cambio de idioma reactivo.',
-	},
-	greeting: '¡Hola, {{name}}!',
-	welcome: 'Bienvenido a la demo de i18n',
-	currentLocale: 'Idioma actual',
-	changeLocale: 'Cambiar idioma',
-	features: {
-		title: 'Características',
-		typeSafe: 'Claves de traducción con autocompletado',
-		interpolation: 'Interpolación de variables con {{llaves}}',
-		reactive: 'Cambio de idioma reactivo con signals',
-		nested: 'Soporte para claves anidadas',
-	},
-	items: {
-		count_one: '{{count}} elemento',
-		count_other: '{{count}} elementos',
-	},
-	summary:
-		'Hola {{name}}, estás construyendo {{project}} v{{version}} — ¡un viaje increíble hacia la i18n moderna!',
-	footer: 'Construido con Effuse y @effuse/i18n',
-};
-
-createI18n({
-	defaultLocale: 'en',
-	fallbackLocale: 'en',
-	translations: {
-		en: enTranslations,
-		es: esTranslations,
-	},
-	detectLocale: false,
-	persistLocale: true,
-});
+import { i18nStore } from '../../store/appI18n';
 
 interface I18nPageExposed {
+	t: ReadonlySignal<any>;
 	currentLocale: ReadonlySignal<string>;
 	toggleLocale: () => void;
 	itemCount: Signal<number>;
 	userName: Signal<string>;
 	greetingText: ReadonlySignal<string>;
-	appTitle: ReadonlySignal<string>;
-	appDescription: ReadonlySignal<string>;
-	welcomeText: ReadonlySignal<string>;
-	currentLocaleLabel: ReadonlySignal<string>;
-	changeLocaleLabel: ReadonlySignal<string>;
-	featuresTitle: ReadonlySignal<string>;
-	featuresTypeSafe: ReadonlySignal<string>;
-	featuresInterpolation: ReadonlySignal<string>;
-	featuresReactive: ReadonlySignal<string>;
-	featuresNested: ReadonlySignal<string>;
-	itemsCountText: ReadonlySignal<string>;
 	summaryText: ReadonlySignal<string>;
-	footerText: ReadonlySignal<string>;
+	itemsCountText: ReadonlySignal<string>;
+	yourNameLabel: ReadonlySignal<string>;
 }
 
 export const I18nPage = define<object, I18nPageExposed>({
 	script: ({ useCallback }) => {
-		useHead({
-			title: 'I18n Demo - Effuse Playground',
-			description: 'Internationalization demo with @effuse/i18n package.',
+		const t = computed(() => i18nStore.translations.value?.examples?.i18n);
+
+		effect(() => {
+			useHead({
+				title: `${t.value?.title as string} - Effuse Playground`,
+				description: t.value?.description as string,
+			});
 		});
 
-		const { t, locale, setLocale } = useTranslation();
+		const currentLocale = i18nStore.locale;
 		const itemCount = signal(3);
 		const userName = signal('Developer');
 
-		const currentLocale = computed(() => locale.value);
-
 		const toggleLocale = useCallback(() => {
-			const newLocale = locale.value === 'en' ? 'es' : 'en';
-			void setLocale(newLocale);
+			const locales = ['en', 'es', 'ja', 'zh'];
+			const currentIdx = locales.indexOf(i18nStore.locale.value);
+			const nextLocale = locales[(currentIdx + 1) % locales.length] as any;
+			void i18nStore.setLocale(nextLocale);
 		});
 
-		const greetingText = computed(() =>
-			t('greeting', { name: userName.value })
-		);
-		const appTitle = computed(() => t('app.title'));
-		const appDescription = computed(() => t('app.description'));
-		const welcomeText = computed(() => t('welcome'));
-		const currentLocaleLabel = computed(() => t('currentLocale'));
-		const changeLocaleLabel = computed(() => t('changeLocale'));
-		const featuresTitle = computed(() => t('features.title'));
-		const featuresTypeSafe = computed(() => t('features.typeSafe'));
-		const featuresInterpolation = computed(() => t('features.interpolation'));
-		const featuresReactive = computed(() => t('features.reactive'));
-		const featuresNested = computed(() => t('features.nested'));
-		const itemsCountText = computed(() =>
-			t('items.count', { count: itemCount.value })
-		);
-		const summaryText = computed(() =>
-			t('summary', {
-				name: userName.value,
-				project: 'Effuse',
-				version: '0.1.0',
-			})
-		);
-		const footerText = computed(() => t('footer'));
+		const greetingText = computed(() => {
+			const template = t.value?.greeting as string;
+			return template.replace('{{name}}', userName.value);
+		});
+
+		const summaryText = computed(() => {
+			const template = t.value?.summary as string;
+			return template
+				.replace('{{name}}', userName.value)
+				.replace('{{project}}', 'Effuse')
+				.replace('{{version}}', '0.1.0');
+		});
+
+		const itemsCountText = computed(() => {
+			const template =
+				itemCount.value === 1
+					? (t.value?.itemsOne as string)
+					: (t.value?.itemsOther as string);
+			return template.replace('{{count}}', String(itemCount.value));
+		});
+
+		const yourNameLabel = computed(() => t.value?.yourName as string);
 
 		return {
+			t,
 			currentLocale,
 			toggleLocale,
 			itemCount,
 			userName,
 			greetingText,
-			appTitle,
-			appDescription,
-			welcomeText,
-			currentLocaleLabel,
-			changeLocaleLabel,
-			featuresTitle,
-			featuresTypeSafe,
-			featuresInterpolation,
-			featuresReactive,
-			featuresNested,
-			itemsCountText,
 			summaryText,
-			footerText,
+			itemsCountText,
+			yourNameLabel,
 		};
 	},
 	template: ({
+		t,
 		currentLocale,
 		toggleLocale,
 		itemCount,
 		userName,
 		greetingText,
-		appTitle,
-		appDescription,
-		welcomeText,
-		currentLocaleLabel,
-		changeLocaleLabel,
-		featuresTitle,
-		featuresTypeSafe,
-		featuresInterpolation,
-		featuresReactive,
-		featuresNested,
-		itemsCountText,
 		summaryText,
-		footerText,
+		itemsCountText,
+		yourNameLabel,
 	}) => (
 		<DocsLayout currentPath="/i18n">
 			<div class="min-h-screen py-12 px-4">
 				<div class="max-w-2xl mx-auto">
 					<header class="text-center mb-10">
-						<h1 class="text-4xl font-bold text-slate-800 mb-3">{appTitle}</h1>
-						<p class="text-slate-600 text-lg">{appDescription}</p>
+						<h1 class="text-4xl font-bold text-slate-800 mb-3">
+							{computed(() => t.value?.title as string)}
+						</h1>
+						<p class="text-slate-600 text-lg">
+							{computed(() => t.value?.description as string)}
+						</p>
 					</header>
 
 					<div class="flex flex-wrap justify-center gap-3 mb-10">
@@ -199,14 +116,16 @@ export const I18nPage = define<object, I18nPageExposed>({
 
 					<div class="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden mb-8">
 						<div class="bg-gradient-to-r from-slate-800 to-slate-700 px-6 py-4">
-							<h2 class="text-xl font-semibold text-white">{welcomeText}</h2>
+							<h2 class="text-xl font-semibold text-white">
+								{computed(() => t.value?.welcome as string)}
+							</h2>
 						</div>
 
 						<div class="p-6 space-y-6">
 							<div class="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-200">
 								<div>
 									<span class="text-slate-500 text-sm">
-										{currentLocaleLabel}:
+										{computed(() => t.value?.currentLocale as string)}:
 									</span>
 									<span class="ml-2 text-lg font-bold text-slate-800 uppercase">
 										{currentLocale}
@@ -217,7 +136,7 @@ export const I18nPage = define<object, I18nPageExposed>({
 									onClick={() => toggleLocale()}
 									class="bg-green-600 text-white px-5 py-2.5 rounded-lg font-semibold hover:bg-green-700 transition-colors shadow-sm"
 								>
-									{changeLocaleLabel}
+									{computed(() => t.value?.changeLocale)}
 								</button>
 							</div>
 
@@ -228,24 +147,32 @@ export const I18nPage = define<object, I18nPageExposed>({
 
 							<div class="p-4 bg-white rounded-xl border border-slate-200">
 								<h3 class="text-lg font-semibold text-slate-700 mb-4">
-									{featuresTitle}
+									{computed(() => t.value?.featuresTitle as string)}
 								</h3>
 								<ul class="space-y-2">
 									<li class="flex items-start gap-2">
 										<span class="text-green-600 mt-1">✓</span>
-										<span class="text-slate-600">{featuresTypeSafe}</span>
+										<span class="text-slate-600">
+											{computed(() => t.value?.featuresTypeSafe ?? '')}
+										</span>
 									</li>
 									<li class="flex items-start gap-2">
 										<span class="text-green-600 mt-1">✓</span>
-										<span class="text-slate-600">{featuresInterpolation}</span>
+										<span class="text-slate-600">
+											{computed(() => t.value?.featuresInterpolation ?? '')}
+										</span>
 									</li>
 									<li class="flex items-start gap-2">
 										<span class="text-green-600 mt-1">✓</span>
-										<span class="text-slate-600">{featuresReactive}</span>
+										<span class="text-slate-600">
+											{computed(() => t.value?.featuresReactive ?? '')}
+										</span>
 									</li>
 									<li class="flex items-start gap-2">
 										<span class="text-green-600 mt-1">✓</span>
-										<span class="text-slate-600">{featuresNested}</span>
+										<span class="text-slate-600">
+											{computed(() => t.value?.featuresNested ?? '')}
+										</span>
 									</li>
 								</ul>
 							</div>
@@ -278,7 +205,7 @@ export const I18nPage = define<object, I18nPageExposed>({
 
 							<div class="flex items-center gap-4 p-4 bg-slate-100 rounded-xl">
 								<label class="text-slate-600 text-sm font-medium">
-									Your name:
+									{yourNameLabel}
 								</label>
 								<input
 									type="text"
@@ -292,7 +219,9 @@ export const I18nPage = define<object, I18nPageExposed>({
 						</div>
 
 						<div class="px-6 pb-6">
-							<p class="text-center text-slate-500 text-sm">{footerText}</p>
+							<p class="text-center text-slate-500 text-sm">
+								{computed(() => t.value?.footer as string)}
+							</p>
 						</div>
 					</div>
 				</div>

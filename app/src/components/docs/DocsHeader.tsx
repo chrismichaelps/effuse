@@ -18,7 +18,7 @@ export interface TocItem {
 
 interface DocsHeaderProps {
 	pageTitle?: string;
-	tocItems?: TocItem[];
+	tocItems?: TocItem[] | ReadonlySignal<TocItem[]>;
 	activeId?: Signal<string>;
 }
 
@@ -54,10 +54,18 @@ const TocChevron = define<
 
 export const DocsHeader = define<DocsHeaderProps, DocsHeaderExposed>({
 	script: ({ props, useCallback }) => {
-		const pageTitle = computed(() => props.pageTitle ?? 'Documentation');
-		const tocItems = computed<TocItem[]>(() => props.tocItems ?? []);
+		const pageTitle = computed(() => props.pageTitle as string);
+
+		const tocItems = computed<TocItem[]>(() => {
+			const items = props.tocItems;
+			if (!items) return [];
+			if (Array.isArray(items)) return items;
+			return items.value;
+		});
+
 		const dropdownOpen = signal(false);
 		const activeSectionId = props.activeId ?? signal('');
+
 		const activeSectionTitle = computed(() => {
 			const items = tocItems.value;
 			const activeId = activeSectionId.value;
@@ -79,7 +87,13 @@ export const DocsHeader = define<DocsHeaderProps, DocsHeaderExposed>({
 				e.preventDefault();
 				dropdownOpen.value = false;
 
-				let el = document.getElementById(id);
+				let el: HTMLElement | null = null;
+				try {
+					el = document.querySelector(`#${CSS.escape(id)}`);
+				} catch {
+					el = document.getElementById(id);
+				}
+
 				if (!el) {
 					const headings = document.querySelectorAll('h1, h2, h3');
 					for (const h of headings) {

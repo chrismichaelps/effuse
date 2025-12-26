@@ -1,0 +1,276 @@
+{
+  "nav": {
+    "home": "首页",
+    "docs": "文档",
+    "about": "关于",
+    "examples": "示例",
+    "github": "GitHub"
+  },
+  "sidebar": {
+    "gettingStarted": "快速入门",
+    "introduction": "简介",
+    "quickStart": "快速开始",
+    "installation": "安装指南",
+    "coreConceptsTitle": "核心概念",
+    "components": "组件",
+    "reactivity": "响应式原理",
+    "lifecycle": "生命周期",
+    "advancedTitle": "高级功能",
+    "routing": "路由管理",
+    "stateManagement": "状态管理",
+    "seoHead": "SEO 与 Head",
+    "internationalization": "国际化 (i18n)",
+    "examplesTitle": "示例项目",
+    "form": "表单处理",
+    "todos": "待办事项",
+    "props": "Props 传参",
+    "i18n": "国际化"
+  },
+  "toc": {
+    "onThisPage": "本页目录"
+  },
+  "footer": {
+    "builtWith": "基于 Effuse 构建"
+  },
+  "about": {
+    "title": "遇见团队",
+    "description": "Effuse 由致力于构建下一代响应式 Web 应用的开发者社区驱动。以下是塑造该生态系统的核心贡献者。",
+    "sections": [
+      {
+        "title": "核心团队成员",
+        "description": "核心团队负责 Effuse 框架的持续开发和维护。他们引领着核心库的架构设计、长期愿景和日常维护工作。"
+      }
+    ],
+    "sponsor": "赞助支持",
+    "name": "Chris M. Pérez",
+    "role": "Effuse 创始人",
+    "location": "美国纽约 ⇄ 波多黎各",
+    "languages": "英语, 西班牙语",
+    "projects": [
+      "core",
+      "i18n",
+      "ink",
+      "query",
+      "router",
+      "store"
+    ],
+    "focusTitle": "当前聚焦",
+    "meta": {
+      "title": "关于我 - Effuse",
+      "description": "认识 Effuse 框架背后的团队。"
+    }
+  },
+  "notFound": {
+    "code": "404",
+    "title": "页面未找到",
+    "description": "您查找的页面不存在或已被移动。",
+    "track": "让我们带您回到正轨。",
+    "goHome": "返回首页",
+    "meta": {
+      "title": "404 - 页面未找到 | Effuse",
+      "description": "您查找的页面不存在。"
+    }
+  },
+  "language": {
+    "selectLanguage": "选择语言",
+    "english": "英语",
+    "spanish": "西班牙语",
+    "japanese": "日语",
+    "mandarin": "简体中文"
+  },
+  "examples": {
+    "form": {
+      "title": "表单管理",
+      "description": "演示使用 useForm 和 useMutation 钩子的响应式表单处理",
+      "createPost": "创建新帖子",
+      "apiNote": "使用 JSONPlaceholder API 进行演示",
+      "titleLabel": "标题",
+      "emailLabel": "邮箱",
+      "bodyLabel": "内容",
+      "userIdLabel": "用户 ID (1-10)",
+      "enterTitlePlaceholder": "输入描述性标题...",
+      "emailPlaceholder": "you@example.com",
+      "bodyPlaceholder": "在此处撰写帖子内容...",
+      "required": "必填",
+      "valid": "有效",
+      "invalid": "无效",
+      "state": "状态",
+      "modified": "已修改",
+      "pristine": "未修改",
+      "submitting": "提交中",
+      "yes": "是",
+      "no": "否",
+      "createButton": "创建帖子",
+      "submittingButton": "提交中...",
+      "reset": "重置",
+      "createdPosts": "已创建的帖子",
+      "loadingPosts": "加载帖子中...",
+      "noPosts": "还没有帖子。提交上面的表单开始吧。",
+      "user": "用户"
+    },
+    "todos": {
+      "title": "使用 Query + Portal 的待办事项",
+      "description": "使用 useInfiniteQuery + @effuse/store",
+      "enterTodoTitlePlaceholder": "输入待办事项标题...",
+      "addPlaceholder": "添加新待办事项...",
+      "add": "添加",
+      "adding": "添加中...",
+      "total": "总计",
+      "completed": "已完成",
+      "pending": "待处理",
+      "all": "全部",
+      "edit": "编辑",
+      "delete": "删除",
+      "editTodo": "编辑待办事项",
+      "todoTitle": "待办事项标题",
+      "cancel": "取消",
+      "saveChanges": "保存更改",
+      "loadingTodos": "加载待办事项中...",
+      "noTodos": "还没有待办事项。在上面添加一个！",
+      "loadMore": "加载更多",
+      "loadingMore": "加载更多中...",
+      "refreshing": "刷新中...",
+      "user": "用户"
+    },
+    "props": {
+      "title": "Props 响应式演示",
+      "description": "修改下方的父级状态，查看子组件如何实时更新。某些子组件还带有按钮，可以触发从子级到父级的更新。",
+      "parentControls": "父级控制",
+      "incrementCount": "增加计数",
+      "changeColor": "更改颜色",
+      "toggleStatus": "切换状态",
+      "reset": "重置",
+      "currentCount": "当前计数",
+      "derivedValue": "派生值 (x2)",
+      "currentColor": "当前颜色",
+      "activeStatus": "激活状态",
+      "active": "激活",
+      "inactive": "未激活",
+      "triggerUpdate": "触发更新",
+      "howItWorks": "工作原理："
+    },
+    "i18n": {
+      "title": "国际化演示",
+      "description": "本页面演示了具有响应式语言切换功能的 @effuse/i18n 软件包。",
+      "welcome": "欢迎来到 i18n 演示",
+      "currentLocale": "当前语言",
+      "changeLocale": "更改语言",
+      "greeting": "你好，{{name}}！",
+      "featuresTitle": "功能集",
+      "featuresTypeSafe": "带有自动完成功能的类型安全翻译键",
+      "featuresInterpolation": "使用 {{brackets}} 进行变量插值",
+      "featuresReactive": "使用信号进行响应式语言切换",
+      "featuresNested": "支持嵌套翻译键",
+      "itemsOne": "{{count}} 个项目",
+      "itemsOther": "{{count}} 个项目",
+      "summary": "你好 {{name}}，你正在构建 {{project}} v{{version}} — 现代 i18n 的奇妙旅程！",
+      "yourName": "你的名字：",
+      "footer": "使用 Effuse 和 @effuse/i18n 构建"
+    }
+  },
+  "legal": {
+    "terms": {
+      "title": "服务条款",
+      "lastUpdated": "最后更新：2025年12月",
+      "sections": {
+        "acceptance": {
+          "title": "1. 条款接受",
+          "content": "访问并使用 Effuse 框架、文档及相关服务，即表示您接受并同意受本协议条款和规定的约束。"
+        },
+        "license": {
+          "title": "2. 许可证",
+          "content": "Effuse 根据 MIT 许可证发布。根据 MIT 许可证的条件，您可以自由使用、复制、修改、合并、发布、分发、再许可和/或出售软件副本。"
+        },
+        "usage": {
+          "title": "3. 框架使用",
+          "content": "您同意仅出于合法目的使用 Effuse，且使用方式不得侵犯他人权利。",
+          "list": [
+            "您可以将 Effuse 用于个人和商业项目",
+            "您必须在任何副本中包含原始版权声明",
+            "未经许可，不得使用 Effuse 名称代言产品"
+          ]
+        },
+        "disclaimer": {
+          "title": "4. 免责声明",
+          "content": "本软件按“原样”提供，不提供任何形式的明示或暗示保证，包括但不限于适销性、特定用途适用性和非侵权保证。"
+        },
+        "liability": {
+          "title": "5. 责任限制",
+          "content": "作者或版权持有人在任何情况下均不对任何索赔、损害或其他责任承担责任，无论是合同行为、侵权行为还是其他行为，无论是源于、出于还是关于本软件或本软件的使用或其他交易。"
+        },
+        "changes": {
+          "title": "6. 条款变更",
+          "content": "这些条款可能随时修改。变更将发布在此页面上，并更新修订日期。"
+        },
+        "contact": {
+          "title": "7. 联系方式",
+          "content": "如果您对这些条款有任何疑问，请"
+        }
+      },
+      "meta": {
+        "title": "服务条款 - Effuse",
+        "description": "使用 Effuse 框架及相关服务的服务条款。"
+      }
+    },
+    "privacy": {
+      "title": "隐私政策",
+      "lastUpdated": "最后更新：2025年12月",
+      "sections": {
+        "overview": {
+          "title": "1. 概述",
+          "content": "这是 Effuse 框架的文档网站。其唯一目的是为开发人员提供信息和示例。"
+        },
+        "collection": {
+          "title": "2. 数据收集",
+          "content": "我不会从访问者那里收集任何个人信息。您可以自由浏览文档而无需提供任何数据。"
+        },
+        "cookies": {
+          "title": "3. Cookie",
+          "content": "本网站不使用 Cookie 或任何本地存储跟踪机制。"
+        },
+        "services": {
+          "title": "4. 第三方服务",
+          "content": "文档和示例均为静态托管。不使用第三方分析或跟踪服务。"
+        },
+        "contact": {
+          "title": "5. 联系方式",
+          "content": "如果您有任何疑问，可以通过以下方式联系我："
+        }
+      },
+      "meta": {
+        "title": "隐私政策 - Effuse",
+        "description": "Effuse 框架隐私政策 - 文档网站。"
+      }
+    },
+    "disclaimer": {
+      "title": "免责声明",
+      "sections": {
+        "experimental": {
+          "title": "实验性质",
+          "content": "Effuse 是一个实验性 UI 框架，主要用于教育目的，旨在探索响应式和组件架构的新方法。"
+        },
+        "competitor": {
+          "title": "非竞争对手",
+          "content1": "本框架**不**旨在与 React、Vue、Angular、Svelte 或 SolidJS 等成熟的生产级解决方案竞争或取而代之。",
+          "content2": "虽然 Effuse 展示了现代响应式概念，但主要框架提供了成熟的生态系统、广泛的工具和经实战检验的稳定性，这些是 Effuse 不旨在复制的。"
+        },
+        "risk": {
+          "title": "风险自负",
+          "content": "请在理解本框架为实验性质的前提下使用。API 可能会发生变化，并且可能不适用于关键的生产应用程序。"
+        }
+      },
+      "meta": {
+        "title": "免责声明 - Effuse",
+        "description": "关于 Effuse 框架实验性质的免责声明。"
+      }
+    },
+    "contact": {
+      "title": "联系方式",
+      "content": "您可以通过电子邮件直接联系我：",
+      "meta": {
+        "title": "联系方式 - Effuse",
+        "description": "联系 Effuse 的创建者。"
+      }
+    }
+  }
+}

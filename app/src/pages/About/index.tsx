@@ -1,15 +1,17 @@
-import { define, computed, useHead, For } from '@effuse/core';
+import { define, computed, useHead, For, effect } from '@effuse/core';
 import { i18nStore } from '../../store/appI18n';
 import './styles.css';
 
 export const AboutPage = define({
 	script: () => {
-		useHead({
-			title: 'About Me - Effuse',
-			description: 'Meet the team behind the Effuse framework.',
-		});
-
 		const trans = computed(() => i18nStore.translations.value?.about);
+
+		effect(() => {
+			useHead({
+				title: trans.value?.meta.title as string,
+				description: trans.value?.meta.description as string,
+			});
+		});
 		const title = computed(() => trans.value?.title ?? '');
 		const description = computed(() => trans.value?.description ?? '');
 		const sponsor = computed(() => trans.value?.sponsor ?? '');

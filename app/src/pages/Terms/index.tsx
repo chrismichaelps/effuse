@@ -1,16 +1,21 @@
-import { define, useHead } from '@effuse/core';
+import { define, useHead, computed, effect } from '@effuse/core';
+import { i18nStore } from '../../store/appI18n.js';
 import '../Legal/styles.css';
 
 export const TermsPage = define({
 	script: () => {
-		useHead({
-			title: 'Terms of Service - Effuse',
-			description:
-				'Terms of Service for using the Effuse framework and related services.',
+		const t = computed(() => i18nStore.translations.value?.legal?.terms);
+
+		effect(() => {
+			useHead({
+				title: t.value?.meta.title as string,
+				description: t.value?.meta.description as string,
+			});
 		});
-		return {};
+
+		return { t };
 	},
-	template: () => (
+	template: ({ t }) => (
 		<main class="legal-page">
 			<div class="vibrant-bg">
 				<div class="aurora-blob blob-1"></div>
@@ -19,83 +24,87 @@ export const TermsPage = define({
 			</div>
 			<div class="legal-container">
 				<header class="legal-header">
-					<h1 class="legal-title">Terms of Service</h1>
-					<p class="legal-subtitle">Last updated: December 2025</p>
+					<h1 class="legal-title">
+						{computed(() => t.value?.title as string)}
+					</h1>
+					<p class="legal-subtitle">
+						{computed(() => t.value?.lastUpdated as string)}
+					</p>
 				</header>
 
 				<div class="legal-content">
 					<section class="legal-section">
-						<h2 class="legal-section-title">1. Acceptance of Terms</h2>
+						<h2 class="legal-section-title">
+							{computed(() => t.value?.sections.acceptance.title as string)}
+						</h2>
 						<p class="legal-text">
-							By accessing and using the Effuse framework, documentation, and
-							related services, you accept and agree to be bound by the terms
-							and provisions of this agreement.
+							{computed(() => t.value?.sections.acceptance.content as string)}
 						</p>
 					</section>
 
 					<section class="legal-section">
-						<h2 class="legal-section-title">2. License</h2>
+						<h2 class="legal-section-title">
+							{computed(() => t.value?.sections.license.title as string)}
+						</h2>
 						<p class="legal-text">
-							Effuse is released under the MIT License. You are free to use,
-							copy, modify, merge, publish, distribute, sublicense, and/or sell
-							copies of the Software, subject to the conditions of the MIT
-							License.
+							{computed(() => t.value?.sections.license.content as string)}
 						</p>
 					</section>
 
 					<section class="legal-section">
-						<h2 class="legal-section-title">3. Use of the Framework</h2>
+						<h2 class="legal-section-title">
+							{computed(() => t.value?.sections.usage.title as string)}
+						</h2>
 						<p class="legal-text">
-							You agree to use Effuse only for lawful purposes and in a way that
-							does not infringe upon the rights of others.
+							{computed(() => t.value?.sections.usage.content as string)}
 						</p>
 						<ul class="legal-list">
-							<li>You may use Effuse for personal and commercial projects</li>
-							<li>
-								You must include the original copyright notice in any copies
-							</li>
-							<li>
-								You may not use the Effuse name to endorse products without
-								permission
-							</li>
+							{computed(() =>
+								t.value?.sections.usage.list.map((item: string) => (
+									<li>{item}</li>
+								))
+							)}
 						</ul>
 					</section>
 
 					<section class="legal-section">
-						<h2 class="legal-section-title">4. Disclaimer of Warranties</h2>
+						<h2 class="legal-section-title">
+							{computed(() => t.value?.sections.disclaimer.title as string)}
+						</h2>
 						<p class="legal-text">
-							The software is provided "as is", without warranty of any kind,
-							express or implied, including but not limited to the warranties of
-							merchantability, fitness for a particular purpose, and
-							noninfringement.
+							{computed(() => t.value?.sections.disclaimer.content as string)}
 						</p>
 					</section>
 
 					<section class="legal-section">
-						<h2 class="legal-section-title">5. Limitation of Liability</h2>
+						<h2 class="legal-section-title">
+							{computed(() => t.value?.sections.liability.title as string)}
+						</h2>
 						<p class="legal-text">
-							In no event shall the authors or copyright holders be liable for
-							any claim, damages, or other liability, whether in an action of
-							contract, tort, or otherwise, arising from, out of, or in
-							connection with the software or the use or other dealings in the
-							software.
+							{computed(() => t.value?.sections.liability.content as string)}
 						</p>
 					</section>
 
 					<section class="legal-section">
-						<h2 class="legal-section-title">6. Changes to Terms</h2>
+						<h2 class="legal-section-title">
+							{computed(() => t.value?.sections.changes.title as string)}
+						</h2>
 						<p class="legal-text">
-							These terms may be modified at any time. Changes will be posted on
-							this page with an updated revision date.
+							{computed(() => t.value?.sections.changes.content as string)}
 						</p>
 					</section>
 
 					<section class="legal-section">
-						<h2 class="legal-section-title">7. Contact</h2>
+						<h2 class="legal-section-title">
+							{computed(() => t.value?.sections.contact.title as string)}
+						</h2>
 						<p class="legal-text">
-							If you have any questions about these Terms, please{' '}
+							{computed(() => t.value?.sections.contact.content as string)}{' '}
 							<a href="/contact" class="legal-link">
-								contact me
+								{computed(
+									() =>
+										i18nStore.translations.value?.legal?.contact.title as string
+								)}
 							</a>
 							.
 						</p>

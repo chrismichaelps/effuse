@@ -4,6 +4,7 @@ import {
 	computed,
 	type Signal,
 	type ReadonlySignal,
+	For,
 } from '@effuse/core';
 import { i18nStore, type Locale } from '../../store/appI18n';
 
@@ -11,14 +12,18 @@ interface LanguageSelectorProps {
 	isMobile?: boolean;
 }
 
+interface LanguageOption {
+	locale: Locale;
+	label: string;
+	flag: string;
+}
+
 interface LanguageSelectorExposed {
 	isOpen: Signal<boolean>;
 	currentLocale: ReadonlySignal<Locale>;
 	handleToggle: (e: MouseEvent) => void;
-	handleSelectEn: (e: MouseEvent) => void;
-	handleSelectEs: (e: MouseEvent) => void;
-	englishLabel: ReadonlySignal<string>;
-	spanishLabel: ReadonlySignal<string>;
+	handleSelect: (e: MouseEvent, loc: Locale) => void;
+	availableLanguages: ReadonlySignal<LanguageOption[]>;
 	dropdownClass: () => string;
 }
 
@@ -30,12 +35,32 @@ export const LanguageSelector = define<
 		const isOpen = signal(false);
 		const currentLocale = i18nStore.locale;
 
-		const englishLabel = computed(() => {
-			return i18nStore.translations.value?.language?.english as string;
-		});
+		const availableLanguages = computed<LanguageOption[]>(() => {
+			const trans = i18nStore.translations.value;
+			if (!trans) return [];
 
-		const spanishLabel = computed(() => {
-			return i18nStore.translations.value?.language?.spanish as string;
+			return [
+				{
+					locale: 'en',
+					label: (trans.language.english as string) || 'English',
+					flag: '🇺🇸',
+				},
+				{
+					locale: 'es',
+					label: (trans.language.spanish as string) || 'Español',
+					flag: '🇪🇸',
+				},
+				{
+					locale: 'ja',
+					label: (trans.language.japanese as string) || '日本語',
+					flag: '🇯🇵',
+				},
+				{
+					locale: 'zh',
+					label: (trans.language.mandarin as string) || '简体中文',
+					flag: '🇨🇳',
+				},
+			];
 		});
 
 		const handleToggle = useCallback((e: MouseEvent) => {
@@ -43,15 +68,9 @@ export const LanguageSelector = define<
 			isOpen.value = !isOpen.value;
 		});
 
-		const handleSelectEn = useCallback((e: MouseEvent) => {
+		const handleSelect = useCallback((e: MouseEvent, loc: Locale) => {
 			e.stopPropagation();
-			i18nStore.setLocale('en');
-			isOpen.value = false;
-		});
-
-		const handleSelectEs = useCallback((e: MouseEvent) => {
-			e.stopPropagation();
-			i18nStore.setLocale('es');
+			i18nStore.setLocale(loc);
 			isOpen.value = false;
 		});
 
@@ -62,20 +81,16 @@ export const LanguageSelector = define<
 			isOpen,
 			currentLocale,
 			handleToggle,
-			handleSelectEn,
-			handleSelectEs,
-			englishLabel,
-			spanishLabel,
+			handleSelect,
+			availableLanguages,
 			dropdownClass,
 		};
 	},
 	template: ({
 		currentLocale,
 		handleToggle,
-		handleSelectEn,
-		handleSelectEs,
-		englishLabel,
-		spanishLabel,
+		handleSelect,
+		availableLanguages,
 		dropdownClass,
 	}) => (
 		<div class="lang-selector relative">
@@ -94,26 +109,27 @@ export const LanguageSelector = define<
 				/>
 			</button>
 			<div class={dropdownClass}>
-				<button
-					type="button"
-					onClick={handleSelectEn}
-					class={() =>
-						`lang-option ${currentLocale.value === 'en' ? 'active' : ''}`
+				<For
+					each={availableLanguages}
+					keyExtractor={(item: LanguageOption) =>
+						`${item.locale}-${item.label}`
 					}
 				>
-					<span class="lang-flag">🇺🇸</span>
-					<span class="lang-label">{englishLabel}</span>
-				</button>
-				<button
-					type="button"
-					onClick={handleSelectEs}
-					class={() =>
-						`lang-option ${currentLocale.value === 'es' ? 'active' : ''}`
-					}
-				>
-					<span class="lang-flag">🇪🇸</span>
-					<span class="lang-label">{spanishLabel}</span>
-				</button>
+					{(itemSignal: ReadonlySignal<LanguageOption>) => (
+						<button
+							type="button"
+							onClick={(e: MouseEvent) =>
+								handleSelect(e, itemSignal.value.locale)
+							}
+							class={() =>
+								`lang-option ${currentLocale.value === itemSignal.value.locale ? 'active' : ''}`
+							}
+						>
+							<span class="lang-flag">{itemSignal.value.flag}</span>
+							<span class="lang-label">{itemSignal.value.label}</span>
+						</button>
+					)}
+				</For>
 			</div>
 		</div>
 	),

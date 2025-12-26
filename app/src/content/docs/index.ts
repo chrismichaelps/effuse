@@ -1,3 +1,6 @@
+import { computed, type ReadonlySignal } from '@effuse/core';
+import { i18nStore } from '../../store/appI18n';
+
 interface DocEntry {
 	title: string;
 	content: string;
@@ -20,25 +23,40 @@ const parseFrontmatter = (
 	return { title, content: markdown };
 };
 
-const markdownModules = import.meta.glob('./md/*.md', {
+const allMarkdownModules = import.meta.glob('./*/*.md', {
 	query: '?raw',
 	import: 'default',
 	eager: true,
 }) as Record<string, string>;
-const buildDocsRegistry = (): Record<string, DocEntry> => {
-	const registry: Record<string, DocEntry> = {};
-	for (const [path, content] of Object.entries(markdownModules)) {
-		const slug = path.replace('./md/', '').replace('.md', '');
+
+const buildAllDocsRegistries = (): Record<string, Record<string, DocEntry>> => {
+	const registries: Record<string, Record<string, DocEntry>> = {};
+
+	for (const [path, content] of Object.entries(allMarkdownModules)) {
+		const match = path.match(/^\.\/([^/]+)\/(.+)\.md$/);
+		if (!match) continue;
+
+		const locale = match[1];
+		const slug = match[2];
+
+		if (!registries[locale]) {
+			registries[locale] = {};
+		}
+
 		const { title, content: docContent } = parseFrontmatter(content);
-		registry[slug] = { title, content: docContent };
+		registries[locale][slug] = { title, content: docContent };
 	}
-	return registry;
+
+	return registries;
 };
 
-export const docsRegistry = buildDocsRegistry();
+const docsRegistryByLocale = buildAllDocsRegistries();
+const fallbackRegistry = docsRegistryByLocale['en'] ?? {};
 
-export const docSlugs = Object.keys(docsRegistry);
+export const currentDocsRegistry: ReadonlySignal<Record<string, DocEntry>> =
+	computed(() => {
+		const locale = i18nStore.locale.value;
+		return docsRegistryByLocale[locale] ?? fallbackRegistry;
+	});
 
-export const getDoc = (slug: string): DocEntry => {
-	return docsRegistry[slug] ?? docsRegistry['getting-started'];
-};
+export const docsRegistry = fallbackRegistry;
