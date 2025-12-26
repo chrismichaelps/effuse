@@ -1,0 +1,218 @@
+import {
+	define,
+	computed,
+	type ReadonlySignal,
+	For,
+	type Signal,
+} from '@effuse/core';
+import { Link } from '@effuse/router';
+import { SidebarToggle } from './SidebarToggle.js';
+import { docsStore } from '../../store/docsUIStore.js';
+import { i18nStore } from '../../store/appI18n';
+
+interface NavItem {
+	label: string;
+	href: string;
+}
+
+interface NavSection {
+	key: string;
+	titleKey: keyof typeof sectionTitleKeys;
+	items: { labelKey: string; href: string }[];
+	isOpen?: boolean;
+}
+
+interface SectionState {
+	title: string;
+	items: ReadonlySignal<NavItem[]>;
+	isOpen: Signal<boolean>;
+	toggle: () => void;
+}
+
+interface SidebarProps {
+	currentPath?: string;
+}
+
+interface SidebarExposed {
+	sectionStates: ReadonlySignal<SectionState[]>;
+	docsStore: typeof docsStore;
+	isSidebarOpen: Signal<boolean>;
+	toggleSidebar: () => void;
+}
+
+const sectionTitleKeys = {
+	gettingStarted: 'gettingStarted',
+	coreConcepts: 'coreConceptsTitle',
+	advanced: 'advancedTitle',
+	examples: 'examplesTitle',
+} as const;
+
+const sectionsConfig: NavSection[] = [
+	{
+		key: 'Getting Started',
+		titleKey: 'gettingStarted',
+		items: [
+			{ labelKey: 'introduction', href: '/docs/getting-started' },
+			{ labelKey: 'installation', href: '/docs/installation' },
+			{ labelKey: 'quickStart', href: '/docs/quick-start' },
+		],
+		isOpen: true,
+	},
+	{
+		key: 'Core Concepts',
+		titleKey: 'coreConcepts',
+		items: [
+			{ labelKey: 'components', href: '/docs/components' },
+			{ labelKey: 'reactivity', href: '/docs/signals' },
+			{ labelKey: 'lifecycle', href: '/docs/effects' },
+			{ labelKey: 'form', href: '/docs/use-form' },
+		],
+		isOpen: true,
+	},
+	{
+		key: 'Advanced',
+		titleKey: 'advanced',
+		items: [
+			{ labelKey: 'routing', href: '/docs/routing' },
+			{ labelKey: 'stateManagement', href: '/docs/state' },
+			{ labelKey: 'seoHead', href: '/docs/seo' },
+			{ labelKey: 'internationalization', href: '/docs/i18n' },
+		],
+		isOpen: false,
+	},
+	{
+		key: 'Examples',
+		titleKey: 'examples',
+		items: [
+			{ labelKey: 'form', href: '/form' },
+			{ labelKey: 'todos', href: '/todos' },
+			{ labelKey: 'props', href: '/props' },
+			{ labelKey: 'i18n', href: '/i18n' },
+		],
+		isOpen: false,
+	},
+];
+
+const ChevronIcon = define<
+	{ isOpen: Signal<boolean> },
+	{ getClass: () => string }
+>({
+	script: ({ props }) => ({
+		getClass: () => `sidebar-chevron ${props.isOpen.value ? 'open' : ''}`,
+	}),
+	template: ({ getClass }) => (
+		<img
+			src="/icons/chevron-down.svg"
+			class={getClass}
+			width="16"
+			height="16"
+			alt="Chevron"
+		/>
+	),
+});
+
+export const Sidebar = define<SidebarProps, SidebarExposed>({
+	script: () => {
+		const sectionStates = computed(() => {
+			const trans = i18nStore.translations.value;
+			const sidebar = trans?.sidebar;
+
+			return sectionsConfig.map((section) => {
+				const titleKeyMapping: Record<string, string | undefined> = {
+					gettingStarted: sidebar?.gettingStarted,
+					coreConcepts: sidebar?.coreConceptsTitle,
+					advanced: sidebar?.advancedTitle,
+					examples: sidebar?.examplesTitle,
+				};
+
+				const labelMapping: Record<string, string | undefined> = {
+					introduction: sidebar?.introduction,
+					installation: sidebar?.installation,
+					quickStart: sidebar?.quickStart,
+					components: sidebar?.components,
+					reactivity: sidebar?.reactivity,
+					lifecycle: sidebar?.lifecycle,
+					form: sidebar?.form,
+					routing: sidebar?.routing,
+					stateManagement: sidebar?.stateManagement,
+					seoHead: sidebar?.seoHead,
+					internationalization: sidebar?.internationalization,
+					todos: sidebar?.todos,
+					props: sidebar?.props,
+					i18n: sidebar?.i18n,
+				};
+
+				return {
+					title: titleKeyMapping[section.titleKey] ?? section.key,
+					items: computed(() =>
+						section.items.map((item) => ({
+							label: labelMapping[item.labelKey] ?? item.labelKey,
+							href: item.href,
+						}))
+					),
+					isOpen: computed(() => docsStore.isSectionOpen(section.key)),
+					toggle: () => docsStore.toggleSection(section.key),
+				};
+			});
+		});
+
+		return {
+			sectionStates,
+			docsStore,
+			isSidebarOpen: docsStore.isSidebarOpen,
+			toggleSidebar: () => docsStore.toggleSidebar(),
+		};
+	},
+	template: ({ sectionStates }) => (
+		<aside class="docs-sidebar" data-lenis-prevent>
+			<div class="sidebar-header">
+				<div class="sidebar-top-row">
+					<div class="flex items-center gap-2">
+						<img src="/logo/logo.svg" width="20" height="20" alt="Logo" />
+						<span class="font-bold text-slate-800 tracking-tight">
+							Documentation
+						</span>
+					</div>
+					<SidebarToggle class="sidebar-brand-toggle" />
+				</div>
+			</div>
+			<nav class="sidebar-nav">
+				<For each={sectionStates} keyExtractor={(s: SectionState) => s.title}>
+					{(sectionSignal: ReadonlySignal<SectionState>) => (
+						<div class="sidebar-section">
+							<button
+								class="sidebar-section-header"
+								onClick={() => sectionSignal.value.toggle()}
+							>
+								<span class="sidebar-title">{sectionSignal.value.title}</span>
+								<ChevronIcon isOpen={sectionSignal.value.isOpen} />
+							</button>
+
+							<div
+								class={() =>
+									`sidebar-items ${sectionSignal.value.isOpen.value ? 'open' : ''}`
+								}
+							>
+								<For
+									each={sectionSignal.value.items}
+									keyExtractor={(item: NavItem) => item.href}
+								>
+									{(itemSignal: ReadonlySignal<NavItem>) => (
+										<Link
+											to={itemSignal.value.href}
+											class="sidebar-link"
+											activeClass="router-link-exact-active"
+											exactActiveClass="router-link-exact-active"
+										>
+											{itemSignal.value.label}
+										</Link>
+									)}
+								</For>
+							</div>
+						</div>
+					)}
+				</For>
+			</nav>
+		</aside>
+	),
+});

@@ -170,7 +170,7 @@ export interface DocumentNode extends BaseNode {
 
 export interface InkProps {
 	readonly [key: string]: unknown;
-	readonly content: string;
+	readonly content: string | { readonly value: string };
 	readonly components?: Record<string, unknown>;
 	readonly class?: string;
 }

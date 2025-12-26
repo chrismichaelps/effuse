@@ -1,0 +1,141 @@
+.not-found-page {
+	background: #09090b;
+	min-height: 100vh;
+	color: #fafafa;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	position: relative;
+	overflow: hidden;
+}
+
+.not-found-content {
+	position: relative;
+	z-index: 10;
+	text-align: center;
+	padding: 2rem;
+}
+
+.error-code {
+	font-size: 8rem;
+	font-weight: 200;
+	line-height: 1;
+	letter-spacing: -0.05em;
+	background: linear-gradient(to bottom right, #ffffff, #a1a1aa);
+	-webkit-background-clip: text;
+	-webkit-text-fill-color: transparent;
+	margin-bottom: 1rem;
+}
+
+.error-title {
+	font-size: 2rem;
+	font-weight: 400;
+	margin-bottom: 1rem;
+	color: #fafafa;
+}
+
+.error-message {
+	font-size: 1.125rem;
+	color: #a1a1aa;
+	margin-bottom: 2.5rem;
+	max-width: 400px;
+	margin-left: auto;
+	margin-right: auto;
+	line-height: 1.6;
+}
+
+.vibrant-bg {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100vh;
+	overflow: hidden;
+	pointer-events: none;
+	z-index: 0;
+}
+
+.aurora-blob {
+	position: absolute;
+	border-radius: 50%;
+	filter: blur(80px);
+	opacity: 0.3;
+	animation: float 20s infinite alternate;
+}
+
+.blob-1 {
+	top: -10%;
+	left: -10%;
+	width: 50vw;
+	height: 50vw;
+	background: radial-gradient(
+		circle,
+		rgba(124, 58, 237, 0.4) 0%,
+		transparent 70%
+	);
+	animation-duration: 25s;
+}
+
+.blob-2 {
+	top: 20%;
+	right: -20%;
+	width: 60vw;
+	height: 60vw;
+	background: radial-gradient(
+		circle,
+		rgba(59, 130, 246, 0.3) 0%,
+		transparent 70%
+	);
+	animation-duration: 30s;
+	animation-delay: -5s;
+}
+
+.blob-3 {
+	bottom: -20%;
+	left: 20%;
+	width: 40vw;
+	height: 40vw;
+	background: radial-gradient(
+		circle,
+		rgba(236, 72, 153, 0.3) 0%,
+		transparent 70%
+	);
+	animation-duration: 22s;
+	animation-delay: -10s;
+}
+
+@keyframes float {
+	0% {
+		transform: translate(0, 0) scale(1);
+	}
+	33% {
+		transform: translate(30px, -50px) scale(1.1);
+	}
+	66% {
+		transform: translate(-20px, 20px) scale(0.9);
+	}
+	100% {
+		transform: translate(0, 0) scale(1);
+	}
+}
+
+.cta-primary {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.5rem;
+	padding: 0.875rem 2rem;
+	background: linear-gradient(to bottom, #ffffff, #d4d4d8);
+	color: #09090b;
+	font-weight: 500;
+	font-size: 0.975rem;
+	border-radius: 12px;
+	text-decoration: none;
+	transition: all 0.2s ease;
+	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.cta-primary:hover {
+	transform: translateY(-1px);
+	box-shadow: 0 4px 12px rgba(255, 255, 255, 0.15);
+}

@@ -114,7 +114,6 @@ dist
 .pnp.*
 
 # App
-app/
 
 # CHANGELOG
 CHANGELOG/

@@ -1,0 +1,35 @@
+.footer-section {
+	background: #000000 !important;
+	color: #ffffff !important;
+}
+.footer-brand-text {
+	color: #a1a1aa !important;
+}
+.footer-heading {
+	color: #a1a1aa !important;
+	font-weight: 500 !important;
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+}
+.footer-link {
+	color: #71717a !important;
+	font-size: 0.875rem;
+	text-decoration: none;
+	transition: color 0.15s ease;
+}
+.footer-link:hover {
+	color: #ffffff !important;
+}
+.footer-bottom-text {
+	color: #52525b !important;
+}
+.social-icon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: #71717a !important;
+	transition: color 0.15s ease;
+}
+.social-icon:hover {
+	color: #ffffff !important;
+}
