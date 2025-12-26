@@ -8,6 +8,7 @@ import {
 import { Link } from '@effuse/router';
 import { SidebarToggle } from './SidebarToggle.js';
 import { docsStore } from '../../store/docsUIStore.js';
+import { i18nStore } from '../../store/appI18n';
 
 interface NavItem {
 	label: string;
@@ -15,14 +16,15 @@ interface NavItem {
 }
 
 interface NavSection {
-	title: string;
-	items: NavItem[];
+	key: string;
+	titleKey: keyof typeof sectionTitleKeys;
+	items: { labelKey: string; href: string }[];
 	isOpen?: boolean;
 }
 
 interface SectionState {
 	title: string;
-	items: NavItem[];
+	items: ReadonlySignal<NavItem[]>;
 	isOpen: Signal<boolean>;
 	toggle: () => void;
 }
@@ -38,44 +40,54 @@ interface SidebarExposed {
 	toggleSidebar: () => void;
 }
 
-const sectionsData: NavSection[] = [
+const sectionTitleKeys = {
+	gettingStarted: 'gettingStarted',
+	coreConcepts: 'coreConceptsTitle',
+	advanced: 'advancedTitle',
+	examples: 'examplesTitle',
+} as const;
+
+const sectionsConfig: NavSection[] = [
 	{
-		title: 'Getting Started',
+		key: 'Getting Started',
+		titleKey: 'gettingStarted',
 		items: [
-			{ label: 'Introduction', href: '/docs/getting-started' },
-			{ label: 'Installation', href: '/docs/installation' },
-			{ label: 'Quick Start', href: '/docs/quick-start' },
+			{ labelKey: 'introduction', href: '/docs/getting-started' },
+			{ labelKey: 'installation', href: '/docs/installation' },
+			{ labelKey: 'quickStart', href: '/docs/quick-start' },
 		],
 		isOpen: true,
 	},
 	{
-		title: 'Core Concepts',
+		key: 'Core Concepts',
+		titleKey: 'coreConcepts',
 		items: [
-			{ label: 'Signals', href: '/docs/signals' },
-			{ label: 'Components', href: '/docs/components' },
-			{ label: 'Props', href: '/docs/props' },
-			{ label: 'Effects', href: '/docs/effects' },
-			{ label: 'Form Management', href: '/docs/use-form' },
+			{ labelKey: 'components', href: '/docs/components' },
+			{ labelKey: 'reactivity', href: '/docs/signals' },
+			{ labelKey: 'lifecycle', href: '/docs/effects' },
+			{ labelKey: 'form', href: '/docs/use-form' },
 		],
 		isOpen: true,
 	},
 	{
-		title: 'Advanced',
+		key: 'Advanced',
+		titleKey: 'advanced',
 		items: [
-			{ label: 'Routing', href: '/docs/routing' },
-			{ label: 'State Management', href: '/docs/state' },
-			{ label: 'SEO & Head', href: '/docs/seo' },
-			{ label: 'Internationalization', href: '/docs/i18n' },
+			{ labelKey: 'routing', href: '/docs/routing' },
+			{ labelKey: 'stateManagement', href: '/docs/state' },
+			{ labelKey: 'seoHead', href: '/docs/seo' },
+			{ labelKey: 'internationalization', href: '/docs/i18n' },
 		],
 		isOpen: false,
 	},
 	{
-		title: 'Examples',
+		key: 'Examples',
+		titleKey: 'examples',
 		items: [
-			{ label: 'Form', href: '/form' },
-			{ label: 'Todos', href: '/todos' },
-			{ label: 'Props', href: '/props' },
-			{ label: 'I18n', href: '/i18n' },
+			{ labelKey: 'form', href: '/form' },
+			{ labelKey: 'todos', href: '/todos' },
+			{ labelKey: 'props', href: '/props' },
+			{ labelKey: 'i18n', href: '/i18n' },
 		],
 		isOpen: false,
 	},
@@ -101,14 +113,48 @@ const ChevronIcon = define<
 
 export const Sidebar = define<SidebarProps, SidebarExposed>({
 	script: () => {
-		const sectionStates = computed(() =>
-			sectionsData.map((section) => ({
-				title: section.title,
-				items: section.items,
-				isOpen: computed(() => docsStore.isSectionOpen(section.title)),
-				toggle: () => docsStore.toggleSection(section.title),
-			}))
-		);
+		const sectionStates = computed(() => {
+			const trans = i18nStore.translations.value;
+			const sidebar = trans?.sidebar;
+
+			return sectionsConfig.map((section) => {
+				const titleKeyMapping: Record<string, string | undefined> = {
+					gettingStarted: sidebar?.gettingStarted,
+					coreConcepts: sidebar?.coreConceptsTitle,
+					advanced: sidebar?.advancedTitle,
+					examples: sidebar?.examplesTitle,
+				};
+
+				const labelMapping: Record<string, string | undefined> = {
+					introduction: sidebar?.introduction,
+					installation: sidebar?.installation,
+					quickStart: sidebar?.quickStart,
+					components: sidebar?.components,
+					reactivity: sidebar?.reactivity,
+					lifecycle: sidebar?.lifecycle,
+					form: sidebar?.form,
+					routing: sidebar?.routing,
+					stateManagement: sidebar?.stateManagement,
+					seoHead: sidebar?.seoHead,
+					internationalization: sidebar?.internationalization,
+					todos: sidebar?.todos,
+					props: sidebar?.props,
+					i18n: sidebar?.i18n,
+				};
+
+				return {
+					title: titleKeyMapping[section.titleKey] ?? section.key,
+					items: computed(() =>
+						section.items.map((item) => ({
+							label: labelMapping[item.labelKey] ?? item.labelKey,
+							href: item.href,
+						}))
+					),
+					isOpen: computed(() => docsStore.isSectionOpen(section.key)),
+					toggle: () => docsStore.toggleSection(section.key),
+				};
+			});
+		});
 
 		return {
 			sectionStates,
@@ -148,14 +194,15 @@ export const Sidebar = define<SidebarProps, SidebarExposed>({
 								}
 							>
 								<For
-									each={computed(() => sectionSignal.value.items)}
-									keyExtractor={(item: NavItem) => item.label}
+									each={sectionSignal.value.items}
+									keyExtractor={(item: NavItem) => item.href}
 								>
 									{(itemSignal: ReadonlySignal<NavItem>) => (
 										<Link
 											to={itemSignal.value.href}
 											class="sidebar-link"
-											activeClass="active"
+											activeClass="router-link-exact-active"
+											exactActiveClass="router-link-exact-active"
 										>
 											{itemSignal.value.label}
 										</Link>

@@ -918,3 +918,46 @@
 	position: relative;
 	z-index: 10;
 }
+
+.lang-selector {
+	position: relative;
+}
+
+.lang-dropdown {
+	position: absolute;
+	right: 0;
+	top: 100%;
+	margin-top: 0.5rem;
+	width: 9rem;
+	background: #ffffff;
+	border-radius: 0.5rem;
+	box-shadow:
+		0 10px 15px -3px rgba(0, 0, 0, 0.1),
+		0 4px 6px -2px rgba(0, 0, 0, 0.05);
+	border: 1px solid #e5e7eb;
+	z-index: 50;
+	max-height: 0;
+	overflow: hidden;
+	opacity: 0;
+	transition: all 0.2s ease;
+}
+
+.lang-dropdown.open {
+	max-height: 200px;
+	opacity: 1;
+}
+
+.lang-dropdown.is-mobile {
+	position: static;
+	width: 100%;
+	box-shadow: none;
+	border: none;
+	margin-top: 0;
+	background: transparent;
+}
+
+.lang-dropdown.is-mobile.open {
+	max-height: 200px;
+	opacity: 1;
+	margin-bottom: 1rem;
+}

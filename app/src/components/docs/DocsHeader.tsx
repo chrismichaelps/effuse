@@ -7,6 +7,7 @@ import {
 	For,
 } from '@effuse/core';
 import { docsStore } from '../../store/docsUIStore.js';
+import { i18nStore } from '../../store/appI18n';
 import { SidebarToggle } from './SidebarToggle.js';
 
 export interface TocItem {
@@ -30,6 +31,7 @@ interface DocsHeaderExposed {
 	activeSectionTitle: ReadonlySignal<string>;
 	docsStore: typeof docsStore;
 	handleTocItemClick: (e: Event, id: string, title: string) => void;
+	onThisPageText: ReadonlySignal<string>;
 }
 
 const TocChevron = define<
@@ -61,6 +63,11 @@ export const DocsHeader = define<DocsHeaderProps, DocsHeaderExposed>({
 			const activeId = activeSectionId.value;
 			const found = items.find((item) => item.id === activeId);
 			return found?.title ?? pageTitle.value;
+		});
+
+		const onThisPageText = computed(() => {
+			const trans = i18nStore.translations.value;
+			return trans?.toc?.onThisPage as string;
 		});
 
 		const toggleDropdown = useCallback(() => {
@@ -122,6 +129,7 @@ export const DocsHeader = define<DocsHeaderProps, DocsHeaderExposed>({
 			activeSectionTitle,
 			docsStore,
 			handleTocItemClick,
+			onThisPageText,
 		};
 	},
 	template: ({
@@ -132,6 +140,7 @@ export const DocsHeader = define<DocsHeaderProps, DocsHeaderExposed>({
 		activeSectionTitle,
 		docsStore,
 		handleTocItemClick,
+		onThisPageText,
 	}) => (
 		<header class="toc-nav shadow-lg" id="nd-tocnav">
 			<div class="flex items-center w-full h-full relative px-4">
@@ -155,13 +164,12 @@ export const DocsHeader = define<DocsHeaderProps, DocsHeaderExposed>({
 						<TocChevron isOpen={dropdownOpen} />
 					</button>
 				</div>
-				<div class="w-9 flex-shrink-0 md:hidden"></div>
 			</div>
 			<div class={() => `toc-dropdown ${dropdownOpen.value ? 'open' : ''}`}>
 				<nav class="toc-dropdown-nav">
 					<div class="toc-dropdown-header">
 						<img src="/icons/list.svg" width="14" height="14" alt="List" />
-						On this page
+						{onThisPageText}
 					</div>
 					<div class="toc-items">
 						<For each={tocItems} keyExtractor={(item: TocItem) => item.id}>

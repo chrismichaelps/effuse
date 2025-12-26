@@ -1,0 +1,64 @@
+{
+	"nav": {
+		"home": "Inicio",
+		"docs": "Documentación",
+		"about": "Sobre",
+		"examples": "Ejemplos",
+		"github": "GitHub"
+	},
+	"sidebar": {
+		"gettingStarted": "Primeros Pasos",
+		"introduction": "Introducción",
+		"quickStart": "Inicio Rápido",
+		"installation": "Instalación",
+		"coreConceptsTitle": "Conceptos Básicos",
+		"components": "Componentes",
+		"reactivity": "Reactividad",
+		"lifecycle": "Ciclo de Vida",
+		"advancedTitle": "Avanzado",
+		"routing": "Enrutamiento",
+		"stateManagement": "Gestión de Estado",
+		"seoHead": "SEO y Cabeceras",
+		"internationalization": "Internacionalización",
+		"examplesTitle": "Ejemplos",
+		"form": "Formulario",
+		"todos": "Tareas",
+		"props": "Propiedades",
+		"i18n": "I18n"
+	},
+	"toc": {
+		"onThisPage": "En esta página"
+	},
+	"footer": {
+		"builtWith": "Construido con Effuse"
+	},
+	"about": {
+		"title": "Conoce al Equipo",
+		"description": "Effuse está impulsado por una comunidad de desarrolladores dedicados a construir el futuro de las aplicaciones web reactivas. Conoce a algunos de los colaboradores que dan forma al ecosistema a continuación.",
+		"sections": [
+			{
+				"title": "Miembros del Equipo Principal",
+				"description": "El equipo principal es responsable del desarrollo continuo y la gestión del framework Effuse. Estos individuos lideran la arquitectura, el mantenimiento y la visión a largo plazo de nuestras librerías principales."
+			}
+		],
+		"sponsor": "Patrocinar",
+		"name": "Chris M. Pérez",
+		"role": "Creador @ Effuse",
+		"location": "New York, USA ⇄ Puerto Rico",
+		"languages": "Inglés, Español",
+		"projects": [
+			"core",
+			"i18n",
+			"ink",
+			"query",
+			"router",
+			"store"
+		],
+		"focusTitle": "Enfoque Activo"
+	},
+	"language": {
+		"selectLanguage": "Seleccionar Idioma",
+		"english": "English",
+		"spanish": "Español"
+	}
+}

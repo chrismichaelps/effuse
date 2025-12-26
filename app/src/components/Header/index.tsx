@@ -1,11 +1,16 @@
-import { define, signal } from '@effuse/core';
-import { Link } from '@effuse/router';
+import { define, signal, computed, type ReadonlySignal } from '@effuse/core';
+import { Link, useRoute } from '@effuse/router';
 import { HamburgerButton } from '../HamburgerButton';
+import { LanguageSelector } from '../docs/LanguageSelector';
+import { i18nStore } from '../../store/appI18n';
 import './styles.css';
 
 interface HeaderExposed {
 	mobileMenuOpen: ReturnType<typeof signal<boolean>>;
 	toggleMenu: () => void;
+	isDocsPath: ReadonlySignal<boolean>;
+	docsLabel: ReadonlySignal<string>;
+	aboutLabel: ReadonlySignal<string>;
 }
 
 export const Header = define<Record<string, never>, HeaderExposed>({
@@ -14,34 +19,77 @@ export const Header = define<Record<string, never>, HeaderExposed>({
 		const toggleMenu = () => {
 			mobileMenuOpen.value = !mobileMenuOpen.value;
 		};
-		return { mobileMenuOpen, toggleMenu };
+
+		const route = useRoute();
+		const isDocsPath = computed(() => {
+			return route.path.startsWith('/docs');
+		});
+
+		const docsLabel = computed(() => {
+			return i18nStore.translations.value?.nav?.docs ?? 'Docs';
+		});
+		const aboutLabel = computed(() => {
+			return i18nStore.translations.value?.nav?.about ?? 'About';
+		});
+
+		return { mobileMenuOpen, toggleMenu, isDocsPath, docsLabel, aboutLabel };
 	},
-	template: ({ mobileMenuOpen, toggleMenu }) => (
+	template: ({
+		mobileMenuOpen,
+		toggleMenu,
+		isDocsPath,
+		docsLabel,
+		aboutLabel,
+	}) => (
 		<header class="header-main">
 			<div class="header-container">
 				<div class="header-inner">
-					<Link to="/" class="header-brand">
-						<img
-							src="/logo/logo.svg"
-							alt="Effuse Logo"
-							class="header-brand-logo"
-						/>
-						<span class="header-brand-text">Effuse</span>
-					</Link>
-
-					<nav class="header-nav">
-						<Link
-							to="/docs"
-							class="header-nav-link"
-							activeClass="header-nav-link-active"
-							exactActiveClass="header-nav-link-active"
-						>
-							Docs
+					<div class="header-left">
+						<Link to="/" class="header-brand">
+							<img
+								src="/logo/logo.svg"
+								alt="Effuse Logo"
+								class="header-brand-logo"
+							/>
+							<span class="header-brand-text">Effuse</span>
 						</Link>
-					</nav>
+					</div>
 
-					<div class="md:hidden">
-						<HamburgerButton isOpen={mobileMenuOpen} onToggle={toggleMenu} />
+					<div class="header-right">
+						<nav class="header-nav">
+							<Link
+								to="/docs"
+								class="header-nav-link"
+								activeClass="header-nav-link-active"
+								exactActiveClass="header-nav-link-active"
+							>
+								{docsLabel}
+							</Link>
+							<Link
+								to="/about"
+								class="header-nav-link"
+								activeClass="header-nav-link-active"
+								exactActiveClass="header-nav-link-active"
+							>
+								{aboutLabel}
+							</Link>
+						</nav>
+
+						<div
+							class={() =>
+								`header-desktop-actions ${isDocsPath.value ? 'visible' : 'hidden'}`
+							}
+						>
+							<div class="header-divider"></div>
+							<div class="header-lang-wrapper">
+								<LanguageSelector />
+							</div>
+							<div class="header-divider"></div>
+						</div>
+
+						<div class="md:hidden">
+							<HamburgerButton isOpen={mobileMenuOpen} onToggle={toggleMenu} />
+						</div>
 					</div>
 				</div>
 
@@ -50,15 +98,33 @@ export const Header = define<Record<string, never>, HeaderExposed>({
 						`header-mobile-menu ${mobileMenuOpen.value ? 'open' : 'closed'}`
 					}
 				>
-					<Link
-						to="/docs"
-						class="header-mobile-link"
-						activeClass="header-mobile-link-active"
-						exactActiveClass="header-mobile-link-active"
-						onClick={toggleMenu}
-					>
-						Docs
-					</Link>
+					<div class="header-mobile-row">
+						<Link
+							to="/docs"
+							class="header-mobile-link"
+							activeClass="header-mobile-link-active"
+							exactActiveClass="header-mobile-link-active"
+							onClick={toggleMenu}
+						>
+							{docsLabel}
+						</Link>
+						<Link
+							to="/about"
+							class="header-mobile-link"
+							activeClass="header-mobile-link-active"
+							exactActiveClass="header-mobile-link-active"
+							onClick={toggleMenu}
+						>
+							{aboutLabel}
+						</Link>
+						<div
+							class={() =>
+								`header-lang-mobile ${isDocsPath.value ? 'visible' : 'hidden'}`
+							}
+						>
+							<LanguageSelector isMobile />
+						</div>
+					</div>
 				</nav>
 			</div>
 		</header>

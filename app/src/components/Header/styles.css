@@ -122,3 +122,74 @@
 	color: #ea580c !important;
 	font-weight: 600;
 }
+
+.header-left {
+	display: flex;
+	align-items: center;
+	gap: 3rem;
+}
+
+.header-right {
+	display: flex;
+	align-items: center;
+	gap: 1rem;
+}
+
+.header-lang-desktop {
+	display: none;
+	transition:
+		opacity 0.2s ease,
+		visibility 0.2s ease;
+}
+
+.header-desktop-actions {
+	display: none;
+	align-items: center;
+	transition:
+		opacity 0.2s ease,
+		visibility 0.2s ease;
+}
+
+@media (min-width: 768px) {
+	.header-lang-desktop.visible,
+	.header-desktop-actions.visible {
+		display: flex;
+		opacity: 1;
+		visibility: visible;
+	}
+}
+
+.header-divider {
+	width: 1px;
+	height: 1.25rem;
+	background: #e4e4e7;
+	margin: 0 0.25rem;
+}
+
+.header-lang-wrapper {
+	display: flex;
+	align-items: center;
+}
+
+.header-mobile-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	width: 100%;
+}
+
+.header-lang-mobile {
+	padding: 0;
+	transition:
+		opacity 0.2s ease,
+		visibility 0.2s ease;
+}
+
+.header-lang-mobile.visible {
+	opacity: 1;
+	visibility: visible;
+}
+
+.header-lang-mobile.hidden {
+	display: none;
+}

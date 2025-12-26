@@ -1,0 +1,64 @@
+{
+	"nav": {
+		"home": "Home",
+		"docs": "Docs",
+		"about": "About",
+		"examples": "Examples",
+		"github": "GitHub"
+	},
+	"sidebar": {
+		"gettingStarted": "Getting Started",
+		"introduction": "Introduction",
+		"quickStart": "Quick Start",
+		"installation": "Installation",
+		"coreConceptsTitle": "Core Concepts",
+		"components": "Components",
+		"reactivity": "Reactivity",
+		"lifecycle": "Lifecycle",
+		"advancedTitle": "Advanced",
+		"routing": "Routing",
+		"stateManagement": "State Management",
+		"seoHead": "SEO & Head",
+		"internationalization": "Internationalization",
+		"examplesTitle": "Examples",
+		"form": "Form",
+		"todos": "Todos",
+		"props": "Props",
+		"i18n": "I18n"
+	},
+	"toc": {
+		"onThisPage": "On this page"
+	},
+	"footer": {
+		"builtWith": "Built with Effuse"
+	},
+	"about": {
+		"title": "Meet the Team",
+		"description": "Effuse is powered by a community of dedicated developers committed to building the future of reactive web applications. Meet some of the contributors shaping the ecosystem below.",
+		"sections": [
+			{
+				"title": "Core Team Members",
+				"description": "The core team is responsible for the ongoing development and stewardship of the Effuse framework. These individuals lead the architecture, maintenance, and long-term vision of our core libraries."
+			}
+		],
+		"sponsor": "Sponsor",
+		"name": "Chris M. Pérez",
+		"role": "Creator @ Effuse",
+		"location": "New York, USA ⇄ Puerto Rico",
+		"languages": "English, Spanish",
+		"projects": [
+			"core",
+			"i18n",
+			"ink",
+			"query",
+			"router",
+			"store"
+		],
+		"focusTitle": "Active Focus"
+	},
+	"language": {
+		"selectLanguage": "Select Language",
+		"english": "English",
+		"spanish": "Español"
+	}
+}
