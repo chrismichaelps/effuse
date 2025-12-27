@@ -22,9 +22,9 @@ Effuseは、`useEmits`フックを通じて強力で型安全なイベントエ�
 
 ```typescript
 interface ChatEvents {
-  message: { text: string; author: string; timestamp: number };
-  userJoined: { userId: string; name: string };
-  userLeft: { userId: string };
+	message: { text: string; author: string; timestamp: number };
+	userJoined: { userId: string; name: string };
+	userLeft: { userId: string };
 }
 ```
 
@@ -67,25 +67,25 @@ const ChatRoom = define({
 
 ```typescript
 function useEmits<T extends EventMap>(
-  initialHandlers?: Partial<{ [K in keyof T]: EmitHandler<T[K]> }>
+	initialHandlers?: Partial<{ [K in keyof T]: EmitHandler<T[K]> }>
 ): {
-  emit: EmitFn<T>;
-  emitAsync: EmitFnAsync<T>;
-  on: SubscribeFn<T>;
-  off: (event: K, handler: EmitHandler<T[K]>) => void;
-  context: EmitContextData<T>;
-}
+	emit: EmitFn<T>;
+	emitAsync: EmitFnAsync<T>;
+	on: SubscribeFn<T>;
+	off: (event: K, handler: EmitHandler<T[K]>) => void;
+	context: EmitContextData<T>;
+};
 ```
 
 #### 戻り値
 
-| プロパティ  | 型                             | 説明                                           |
-| ----------- | ------------------------------ | ---------------------------------------------- |
-| `emit`      | `EmitFn<T>`                    | ペイロードを付けてイベントを同期的に発行します |
-| `emitAsync` | `EmitFnAsync<T>`               | イベントを非同期的に発行します（次のマイクロタスク） |
-| `on`        | `SubscribeFn<T>`               | イベントを購読し、購読解除関数を返します       |
-| `off`       | `(event, handler) => void`     | ハンドラーを手動で購読解除します               |
-| `context`   | `EmitContextData<T>`           | `useEventSignal`で使用する内部コンテキスト    |
+| プロパティ  | 型                         | 説明                                                 |
+| ----------- | -------------------------- | ---------------------------------------------------- |
+| `emit`      | `EmitFn<T>`                | ペイロードを付けてイベントを同期的に発行します       |
+| `emitAsync` | `EmitFnAsync<T>`           | イベントを非同期的に発行します（次のマイクロタスク） |
+| `on`        | `SubscribeFn<T>`           | イベントを購読し、購読解除関数を返します             |
+| `off`       | `(event, handler) => void` | ハンドラーを手動で購読解除します                     |
+| `context`   | `EmitContextData<T>`       | `useEventSignal`で使用する内部コンテキスト           |
 
 ### useEventSignal<T, P>
 
@@ -93,20 +93,20 @@ function useEmits<T extends EventMap>(
 
 ```typescript
 function useEventSignal<T extends EventMap, P>(
-  ctx: EmitContextData<T>,
-  event: string,
-  options?: EmitOptions
-): EventSignal<P>
+	ctx: EmitContextData<T>,
+	event: string,
+	options?: EmitOptions
+): EventSignal<P>;
 ```
 
 #### オプション
 
-| オプション | 型                            | 説明                                          |
-| ---------- | ----------------------------- | --------------------------------------------- |
-| `debounce` | `number`                      | 指定されたミリ秒だけ更新を遅らせます          |
-| `throttle` | `number`                      | 更新を一定の間隔ごとに1回に制限します         |
-| `once`     | `boolean`                     | 1回だけ更新し、その後停止します               |
-| `filter`   | `(payload: unknown) => bool`  | 条件式が真を返す場合のみ更新します            |
+| オプション | 型                           | 説明                                  |
+| ---------- | ---------------------------- | ------------------------------------- |
+| `debounce` | `number`                     | 指定されたミリ秒だけ更新を遅らせます  |
+| `throttle` | `number`                     | 更新を一定の間隔ごとに1回に制限します |
+| `once`     | `boolean`                    | 1回だけ更新し、その後停止します       |
+| `filter`   | `(payload: unknown) => bool` | 条件式が真を返す場合のみ更新します    |
 
 #### 例
 
@@ -138,7 +138,7 @@ import { createDebounce } from '@effuse/core';
 const debounce = createDebounce<string>(300); // 300ミリ秒の遅延
 
 debounce.apply('検索ワード', (value) => {
-  performSearch(value);
+	performSearch(value);
 });
 
 // 保留中の実行をキャンセルする
@@ -155,9 +155,9 @@ import { createThrottle } from '@effuse/core';
 const throttle = createThrottle<MouseEvent>(100); // 最大100ミリ秒に1回
 
 document.addEventListener('mousemove', (e) => {
-  throttle.apply(e, (event) => {
-    updatePosition(event.clientX, event.clientY);
-  });
+	throttle.apply(e, (event) => {
+		updatePosition(event.clientX, event.clientY);
+	});
 });
 
 // スロットル状態をリセットする
@@ -174,9 +174,9 @@ import { createOnce } from '@effuse/core';
 const once = createOnce<void>();
 
 button.addEventListener('click', () => {
-  once.apply(undefined, () => {
-    initializeApp();
-  });
+	once.apply(undefined, () => {
+		initializeApp();
+	});
 });
 
 // すでに実行されたか確認する
@@ -195,8 +195,8 @@ import { createFilter } from '@effuse/core';
 
 const filter = createFilter<number>((n) => n > 10);
 
-filter.apply(5, (n) => console.log(n));   // スキップされる
-filter.apply(15, (n) => console.log(n));  // ログ出力: 15
+filter.apply(5, (n) => console.log(n)); // スキップされる
+filter.apply(15, (n) => console.log(n)); // ログ出力: 15
 ```
 
 ## サービスAPI
@@ -232,20 +232,20 @@ type EmitHandler<P> = (payload: P) => void;
 
 // エミット関数の型
 type EmitFn<T extends EventMap> = <K extends keyof T & string>(
-  event: K,
-  payload: T[K]
+	event: K,
+	payload: T[K]
 ) => void;
 
 // 非同期エミット関数の型
 type EmitFnAsync<T extends EventMap> = <K extends keyof T & string>(
-  event: K,
-  payload: T[K]
+	event: K,
+	payload: T[K]
 ) => Promise<void>;
 
 // 購読関数の型
 type SubscribeFn<T extends EventMap> = <K extends keyof T & string>(
-  event: K,
-  handler: EmitHandler<T[K]>
+	event: K,
+	handler: EmitHandler<T[K]>
 ) => () => void;
 
 // イベント信号 (読み取り専用)

@@ -371,4 +371,3 @@ export {
 	createFilter,
 	type FilterPredicate,
 } from './emit/index.js';
-

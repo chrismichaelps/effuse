@@ -28,81 +28,81 @@ import type { Signal } from '../../types/index.js';
 import type { EmitHandler, EmitContextData, EventMap } from '../types/index.js';
 
 export interface EmitServiceApi {
-  createContext: <T extends EventMap>() => EmitContextData<T>;
-  registerHandler: <T extends EventMap>(
-    ctx: EmitContextData<T>,
-    event: string,
-    handler: EmitHandler<unknown>
-  ) => () => void;
-  emit: <T extends EventMap>(
-    ctx: EmitContextData<T>,
-    event: string,
-    payload: unknown
-  ) => void;
-  getSignal: <T extends EventMap>(
-    ctx: EmitContextData<T>,
-    event: string
-  ) => Signal<unknown>;
+	createContext: <T extends EventMap>() => EmitContextData<T>;
+	registerHandler: <T extends EventMap>(
+		ctx: EmitContextData<T>,
+		event: string,
+		handler: EmitHandler<unknown>
+	) => () => void;
+	emit: <T extends EventMap>(
+		ctx: EmitContextData<T>,
+		event: string,
+		payload: unknown
+	) => void;
+	getSignal: <T extends EventMap>(
+		ctx: EmitContextData<T>,
+		event: string
+	) => Signal<unknown>;
 }
 
 const defaultService: EmitServiceApi = {
-  createContext: <T extends EventMap>(): EmitContextData<T> => ({
-    handlers: new Map(),
-    signals: new Map(),
-  }),
+	createContext: <T extends EventMap>(): EmitContextData<T> => ({
+		handlers: new Map(),
+		signals: new Map(),
+	}),
 
-  registerHandler: <T extends EventMap>(
-    ctx: EmitContextData<T>,
-    event: string,
-    handler: EmitHandler<unknown>
-  ): (() => void) => {
-    let handlersSet = ctx.handlers.get(event);
-    if (!handlersSet) {
-      handlersSet = new Set();
-      ctx.handlers.set(event, handlersSet);
-    }
-    handlersSet.add(handler);
-    const storedHandlers = handlersSet;
-    return () => storedHandlers.delete(handler);
-  },
+	registerHandler: <T extends EventMap>(
+		ctx: EmitContextData<T>,
+		event: string,
+		handler: EmitHandler<unknown>
+	): (() => void) => {
+		let handlersSet = ctx.handlers.get(event);
+		if (!handlersSet) {
+			handlersSet = new Set();
+			ctx.handlers.set(event, handlersSet);
+		}
+		handlersSet.add(handler);
+		const storedHandlers = handlersSet;
+		return () => storedHandlers.delete(handler);
+	},
 
-  emit: <T extends EventMap>(
-    ctx: EmitContextData<T>,
-    event: string,
-    payload: unknown
-  ): void => {
-    batch(() => {
-      const handlers = ctx.handlers.get(event);
-      if (handlers) {
-        for (const handler of handlers) {
-          handler(payload);
-        }
-      }
+	emit: <T extends EventMap>(
+		ctx: EmitContextData<T>,
+		event: string,
+		payload: unknown
+	): void => {
+		batch(() => {
+			const handlers = ctx.handlers.get(event);
+			if (handlers) {
+				for (const handler of handlers) {
+					handler(payload);
+				}
+			}
 
-      let sig = ctx.signals.get(event);
-      if (!sig) {
-        sig = signal<unknown>(undefined);
-        ctx.signals.set(event, sig);
-      }
-      sig.value = payload;
-    });
-  },
+			let sig = ctx.signals.get(event);
+			if (!sig) {
+				sig = signal<unknown>(undefined);
+				ctx.signals.set(event, sig);
+			}
+			sig.value = payload;
+		});
+	},
 
-  getSignal: <T extends EventMap>(
-    ctx: EmitContextData<T>,
-    event: string
-  ): Signal<unknown> => {
-    let sig = ctx.signals.get(event);
-    if (!sig) {
-      sig = signal<unknown>(undefined);
-      ctx.signals.set(event, sig);
-    }
-    return sig;
-  },
+	getSignal: <T extends EventMap>(
+		ctx: EmitContextData<T>,
+		event: string
+	): Signal<unknown> => {
+		let sig = ctx.signals.get(event);
+		if (!sig) {
+			sig = signal<unknown>(undefined);
+			ctx.signals.set(event, sig);
+		}
+		return sig;
+	},
 };
 
 export const getEmitService = (): EmitServiceApi => defaultService;
 
 export const useEmitService = (fn: (service: EmitServiceApi) => void): void => {
-  fn(defaultService);
+	fn(defaultService);
 };

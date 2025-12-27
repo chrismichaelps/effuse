@@ -33,31 +33,31 @@ export type EmitEvents<T extends EventMap> = T;
 export type InferPayload<T> = T;
 
 export interface EmitOptions {
-  readonly debounce?: number;
-  readonly throttle?: number;
-  readonly once?: boolean;
-  readonly filter?: (payload: unknown) => boolean;
+	readonly debounce?: number;
+	readonly throttle?: number;
+	readonly once?: boolean;
+	readonly filter?: (payload: unknown) => boolean;
 }
 
 export interface EmitContextData<T extends EventMap> {
-  readonly handlers: Map<string, Set<EmitHandler<unknown>>>;
-  readonly signals: Map<string, Signal<unknown>>;
-  readonly _phantom?: T;
+	readonly handlers: Map<string, Set<EmitHandler<unknown>>>;
+	readonly signals: Map<string, Signal<unknown>>;
+	readonly _phantom?: T;
 }
 
 export type EmitFn<T extends EventMap> = <K extends keyof T & string>(
-  event: K,
-  payload: T[K]
+	event: K,
+	payload: T[K]
 ) => void;
 
 export type EmitFnAsync<T extends EventMap> = <K extends keyof T & string>(
-  event: K,
-  payload: T[K]
+	event: K,
+	payload: T[K]
 ) => Promise<void>;
 
 export type SubscribeFn<T extends EventMap> = <K extends keyof T & string>(
-  event: K,
-  handler: EmitHandler<T[K]>
+	event: K,
+	handler: EmitHandler<T[K]>
 ) => () => void;
 
 export type EventSignal<P> = ReadonlySignal<P | undefined>;

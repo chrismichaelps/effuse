@@ -48,7 +48,7 @@ export interface PropServiceInterface {
 export class PropService extends Context.Tag('effuse/PropService')<
 	PropService,
 	PropServiceInterface
->() { }
+>() {}
 
 const setElementProp = (
 	element: Element,
@@ -199,7 +199,7 @@ export const PropServiceLive = Layer.succeed(PropService, {
 			}
 
 			setElementProp(element, key, value);
-			return { cleanup: () => { } };
+			return { cleanup: () => {} };
 		}),
 
 	bindFormControl: (

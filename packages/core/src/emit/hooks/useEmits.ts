@@ -25,98 +25,101 @@
 import { signal } from '../../reactivity/signal.js';
 import { batch } from '../../reactivity/dep.js';
 import type {
-  EmitContextData,
-  EmitFn,
-  EmitFnAsync,
-  EmitHandler,
-  SubscribeFn,
-  EventMap,
+	EmitContextData,
+	EmitFn,
+	EmitFnAsync,
+	EmitHandler,
+	SubscribeFn,
+	EventMap,
 } from '../types/index.js';
 
 export function useEmits<T extends EventMap>(
-  initialHandlers?: Partial<{ [K in keyof T]: EmitHandler<T[K]> }>
+	initialHandlers?: Partial<{ [K in keyof T]: EmitHandler<T[K]> }>
 ): {
-  emit: EmitFn<T>;
-  emitAsync: EmitFnAsync<T>;
-  on: SubscribeFn<T>;
-  off: <K extends keyof T & string>(event: K, handler: EmitHandler<T[K]>) => void;
-  context: EmitContextData<T>;
+	emit: EmitFn<T>;
+	emitAsync: EmitFnAsync<T>;
+	on: SubscribeFn<T>;
+	off: <K extends keyof T & string>(
+		event: K,
+		handler: EmitHandler<T[K]>
+	) => void;
+	context: EmitContextData<T>;
 } {
-  const ctx: EmitContextData<T> = {
-    handlers: new Map(),
-    signals: new Map(),
-  };
+	const ctx: EmitContextData<T> = {
+		handlers: new Map(),
+		signals: new Map(),
+	};
 
-  if (initialHandlers) {
-    for (const [event, handler] of Object.entries(initialHandlers)) {
-      if (handler) {
-        let handlers = ctx.handlers.get(event);
-        if (!handlers) {
-          handlers = new Set();
-          ctx.handlers.set(event, handlers);
-        }
-        handlers.add(handler as EmitHandler<unknown>);
-      }
-    }
-  }
+	if (initialHandlers) {
+		for (const [event, handler] of Object.entries(initialHandlers)) {
+			if (handler) {
+				let handlers = ctx.handlers.get(event);
+				if (!handlers) {
+					handlers = new Set();
+					ctx.handlers.set(event, handlers);
+				}
+				handlers.add(handler as EmitHandler<unknown>);
+			}
+		}
+	}
 
-  const emit = <K extends keyof T & string>(event: K, payload: T[K]): void => {
-    batch(() => {
-      const handlers = ctx.handlers.get(event);
-      if (handlers) {
-        for (const handler of handlers) {
-          handler(payload);
-        }
-      }
+	const emit = <K extends keyof T & string>(event: K, payload: T[K]): void => {
+		batch(() => {
+			const handlers = ctx.handlers.get(event);
+			if (handlers) {
+				for (const handler of handlers) {
+					handler(payload);
+				}
+			}
 
-      let sig = ctx.signals.get(event);
-      if (!sig) {
-        sig = signal<unknown>(undefined);
-        ctx.signals.set(event, sig);
-      }
-      sig.value = payload;
-    });
-  };
+			let sig = ctx.signals.get(event);
+			if (!sig) {
+				sig = signal<unknown>(undefined);
+				ctx.signals.set(event, sig);
+			}
+			sig.value = payload;
+		});
+	};
 
-  const emitAsync = <K extends keyof T & string>(
-    event: K,
-    payload: T[K]
-  ): Promise<void> => {
-    return new Promise((resolve) => {
-      queueMicrotask(() => {
-        emit(event, payload);
-        resolve();
-      });
-    });
-  };
+	const emitAsync = <K extends keyof T & string>(
+		event: K,
+		payload: T[K]
+	): Promise<void> => {
+		return new Promise((resolve) => {
+			queueMicrotask(() => {
+				emit(event, payload);
+				resolve();
+			});
+		});
+	};
 
-  const on: SubscribeFn<T> = <K extends keyof T & string>(
-    event: K,
-    handler: EmitHandler<T[K]>
-  ): (() => void) => {
-    let handlersSet = ctx.handlers.get(event);
-    if (!handlersSet) {
-      handlersSet = new Set();
-      ctx.handlers.set(event, handlersSet);
-    }
-    const typedHandler = handler as EmitHandler<unknown>;
-    handlersSet.add(typedHandler);
+	const on: SubscribeFn<T> = <K extends keyof T & string>(
+		event: K,
+		handler: EmitHandler<T[K]>
+	): (() => void) => {
+		let handlersSet = ctx.handlers.get(event);
+		if (!handlersSet) {
+			handlersSet = new Set();
+			ctx.handlers.set(event, handlersSet);
+		}
+		const typedHandler = handler as EmitHandler<unknown>;
+		handlersSet.add(typedHandler);
 
-    const storedHandlers = handlersSet;
-    return () => {
-      storedHandlers.delete(typedHandler);
-    };
-  };
+		const storedHandlers = handlersSet;
+		return () => {
+			storedHandlers.delete(typedHandler);
+		};
+	};
 
-  const off = <K extends keyof T & string>(
-    event: K,
-    handler: EmitHandler<T[K]>
-  ): void => {
-    const handlers = ctx.handlers.get(event);
-    if (handlers) {
-      handlers.delete(handler as EmitHandler<unknown>);
-    }
-  };
+	const off = <K extends keyof T & string>(
+		event: K,
+		handler: EmitHandler<T[K]>
+	): void => {
+		const handlers = ctx.handlers.get(event);
+		if (handlers) {
+			handlers.delete(handler as EmitHandler<unknown>);
+		}
+	};
 
-  return { emit, emitAsync, on, off, context: ctx };
+	return { emit, emitAsync, on, off, context: ctx };
 }

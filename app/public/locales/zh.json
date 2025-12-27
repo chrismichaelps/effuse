@@ -48,14 +48,7 @@
 		"role": "Effuse 创始人",
 		"location": "美国纽约 ⇄ 波多黎各",
 		"languages": "英语, 西班牙语",
-		"projects": [
-			"core",
-			"i18n",
-			"ink",
-			"query",
-			"router",
-			"store"
-		],
+		"projects": ["core", "i18n", "ink", "query", "router", "store"],
 		"focusTitle": "当前聚焦",
 		"meta": {
 			"title": "关于我 - Effuse",

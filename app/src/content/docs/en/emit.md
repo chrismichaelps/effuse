@@ -22,9 +22,9 @@ Start by defining an interface that describes your events:
 
 ```typescript
 interface ChatEvents {
-  message: { text: string; author: string; timestamp: number };
-  userJoined: { userId: string; name: string };
-  userLeft: { userId: string };
+	message: { text: string; author: string; timestamp: number };
+	userJoined: { userId: string; name: string };
+	userLeft: { userId: string };
 }
 ```
 
@@ -67,25 +67,25 @@ Creates a typed event emitter with subscription support.
 
 ```typescript
 function useEmits<T extends EventMap>(
-  initialHandlers?: Partial<{ [K in keyof T]: EmitHandler<T[K]> }>
+	initialHandlers?: Partial<{ [K in keyof T]: EmitHandler<T[K]> }>
 ): {
-  emit: EmitFn<T>;
-  emitAsync: EmitFnAsync<T>;
-  on: SubscribeFn<T>;
-  off: (event: K, handler: EmitHandler<T[K]>) => void;
-  context: EmitContextData<T>;
-}
+	emit: EmitFn<T>;
+	emitAsync: EmitFnAsync<T>;
+	on: SubscribeFn<T>;
+	off: (event: K, handler: EmitHandler<T[K]>) => void;
+	context: EmitContextData<T>;
+};
 ```
 
 #### Return Values
 
-| Property    | Type                           | Description                                    |
-| ----------- | ------------------------------ | ---------------------------------------------- |
-| `emit`      | `EmitFn<T>`                    | Synchronously emit an event with a payload     |
-| `emitAsync` | `EmitFnAsync<T>`               | Asynchronously emit an event (next microtask)  |
-| `on`        | `SubscribeFn<T>`               | Subscribe to an event, returns unsubscribe fn  |
-| `off`       | `(event, handler) => void`     | Manually unsubscribe a handler                 |
-| `context`   | `EmitContextData<T>`           | Internal context for use with `useEventSignal` |
+| Property    | Type                       | Description                                    |
+| ----------- | -------------------------- | ---------------------------------------------- |
+| `emit`      | `EmitFn<T>`                | Synchronously emit an event with a payload     |
+| `emitAsync` | `EmitFnAsync<T>`           | Asynchronously emit an event (next microtask)  |
+| `on`        | `SubscribeFn<T>`           | Subscribe to an event, returns unsubscribe fn  |
+| `off`       | `(event, handler) => void` | Manually unsubscribe a handler                 |
+| `context`   | `EmitContextData<T>`       | Internal context for use with `useEventSignal` |
 
 ### useEventSignal<T, P>
 
@@ -93,20 +93,20 @@ Creates a reactive signal that updates whenever a specific event is emitted.
 
 ```typescript
 function useEventSignal<T extends EventMap, P>(
-  ctx: EmitContextData<T>,
-  event: string,
-  options?: EmitOptions
-): EventSignal<P>
+	ctx: EmitContextData<T>,
+	event: string,
+	options?: EmitOptions
+): EventSignal<P>;
 ```
 
 #### Options
 
-| Option     | Type                          | Description                              |
-| ---------- | ----------------------------- | ---------------------------------------- |
-| `debounce` | `number`                      | Delay updates by specified milliseconds  |
-| `throttle` | `number`                      | Limit updates to once per interval       |
-| `once`     | `boolean`                     | Only update once, then stop              |
-| `filter`   | `(payload: unknown) => bool`  | Only update if predicate returns true    |
+| Option     | Type                         | Description                             |
+| ---------- | ---------------------------- | --------------------------------------- |
+| `debounce` | `number`                     | Delay updates by specified milliseconds |
+| `throttle` | `number`                     | Limit updates to once per interval      |
+| `once`     | `boolean`                    | Only update once, then stop             |
+| `filter`   | `(payload: unknown) => bool` | Only update if predicate returns true   |
 
 #### Example
 
@@ -138,7 +138,7 @@ import { createDebounce } from '@effuse/core';
 const debounce = createDebounce<string>(300); // 300ms delay
 
 debounce.apply('search term', (value) => {
-  performSearch(value);
+	performSearch(value);
 });
 
 // Cancel pending execution
@@ -155,9 +155,9 @@ import { createThrottle } from '@effuse/core';
 const throttle = createThrottle<MouseEvent>(100); // Max once per 100ms
 
 document.addEventListener('mousemove', (e) => {
-  throttle.apply(e, (event) => {
-    updatePosition(event.clientX, event.clientY);
-  });
+	throttle.apply(e, (event) => {
+		updatePosition(event.clientX, event.clientY);
+	});
 });
 
 // Reset throttle state
@@ -174,9 +174,9 @@ import { createOnce } from '@effuse/core';
 const once = createOnce<void>();
 
 button.addEventListener('click', () => {
-  once.apply(undefined, () => {
-    initializeApp();
-  });
+	once.apply(undefined, () => {
+		initializeApp();
+	});
 });
 
 // Check if already fired
@@ -195,8 +195,8 @@ import { createFilter } from '@effuse/core';
 
 const filter = createFilter<number>((n) => n > 10);
 
-filter.apply(5, (n) => console.log(n));   // Skipped
-filter.apply(15, (n) => console.log(n));  // Logs: 15
+filter.apply(5, (n) => console.log(n)); // Skipped
+filter.apply(15, (n) => console.log(n)); // Logs: 15
 ```
 
 ## Service API
@@ -232,20 +232,20 @@ type EmitHandler<P> = (payload: P) => void;
 
 // Emit function type
 type EmitFn<T extends EventMap> = <K extends keyof T & string>(
-  event: K,
-  payload: T[K]
+	event: K,
+	payload: T[K]
 ) => void;
 
 // Async emit function type
 type EmitFnAsync<T extends EventMap> = <K extends keyof T & string>(
-  event: K,
-  payload: T[K]
+	event: K,
+	payload: T[K]
 ) => Promise<void>;
 
 // Subscribe function type
 type SubscribeFn<T extends EventMap> = <K extends keyof T & string>(
-  event: K,
-  handler: EmitHandler<T[K]>
+	event: K,
+	handler: EmitHandler<T[K]>
 ) => () => void;
 
 // Event signal (readonly)

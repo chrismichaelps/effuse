@@ -22,9 +22,9 @@ Comienza definiendo una interfaz que describa tus eventos:
 
 ```typescript
 interface ChatEvents {
-  message: { text: string; author: string; timestamp: number };
-  userJoined: { userId: string; name: string };
-  userLeft: { userId: string };
+	message: { text: string; author: string; timestamp: number };
+	userJoined: { userId: string; name: string };
+	userLeft: { userId: string };
 }
 ```
 
@@ -67,25 +67,25 @@ Crea un emisor de eventos tipado con soporte de suscripción.
 
 ```typescript
 function useEmits<T extends EventMap>(
-  initialHandlers?: Partial<{ [K in keyof T]: EmitHandler<T[K]> }>
+	initialHandlers?: Partial<{ [K in keyof T]: EmitHandler<T[K]> }>
 ): {
-  emit: EmitFn<T>;
-  emitAsync: EmitFnAsync<T>;
-  on: SubscribeFn<T>;
-  off: (event: K, handler: EmitHandler<T[K]>) => void;
-  context: EmitContextData<T>;
-}
+	emit: EmitFn<T>;
+	emitAsync: EmitFnAsync<T>;
+	on: SubscribeFn<T>;
+	off: (event: K, handler: EmitHandler<T[K]>) => void;
+	context: EmitContextData<T>;
+};
 ```
 
 #### Valores de Retorno
 
-| Propiedad   | Tipo                           | Descripción                                       |
-| ----------- | ------------------------------ | ------------------------------------------------- |
-| `emit`      | `EmitFn<T>`                    | Emite un evento síncronamente con una carga      |
-| `emitAsync` | `EmitFnAsync<T>`               | Emite un evento asíncronamente (próxima microtarea) |
-| `on`        | `SubscribeFn<T>`               | Se suscribe a un evento, retorna función de desuscripción |
-| `off`       | `(event, handler) => void`     | Desuscribe manualmente un manejador              |
-| `context`   | `EmitContextData<T>`           | Contexto interno para usar con `useEventSignal`  |
+| Propiedad   | Tipo                       | Descripción                                               |
+| ----------- | -------------------------- | --------------------------------------------------------- |
+| `emit`      | `EmitFn<T>`                | Emite un evento síncronamente con una carga               |
+| `emitAsync` | `EmitFnAsync<T>`           | Emite un evento asíncronamente (próxima microtarea)       |
+| `on`        | `SubscribeFn<T>`           | Se suscribe a un evento, retorna función de desuscripción |
+| `off`       | `(event, handler) => void` | Desuscribe manualmente un manejador                       |
+| `context`   | `EmitContextData<T>`       | Contexto interno para usar con `useEventSignal`           |
 
 ### useEventSignal<T, P>
 
@@ -93,20 +93,20 @@ Crea una señal reactiva que se actualiza cada vez que se emite un evento espec�
 
 ```typescript
 function useEventSignal<T extends EventMap, P>(
-  ctx: EmitContextData<T>,
-  event: string,
-  options?: EmitOptions
-): EventSignal<P>
+	ctx: EmitContextData<T>,
+	event: string,
+	options?: EmitOptions
+): EventSignal<P>;
 ```
 
 #### Opciones
 
-| Opción     | Tipo                          | Descripción                                      |
-| ---------- | ----------------------------- | ------------------------------------------------ |
-| `debounce` | `number`                      | Retrasa las actualizaciones por milisegundos especificados |
-| `throttle` | `number`                      | Limita las actualizaciones a una vez por intervalo |
-| `once`     | `boolean`                     | Solo actualiza una vez, luego se detiene        |
-| `filter`   | `(payload: unknown) => bool`  | Solo actualiza si el predicado retorna verdadero |
+| Opción     | Tipo                         | Descripción                                                |
+| ---------- | ---------------------------- | ---------------------------------------------------------- |
+| `debounce` | `number`                     | Retrasa las actualizaciones por milisegundos especificados |
+| `throttle` | `number`                     | Limita las actualizaciones a una vez por intervalo         |
+| `once`     | `boolean`                    | Solo actualiza una vez, luego se detiene                   |
+| `filter`   | `(payload: unknown) => bool` | Solo actualiza si el predicado retorna verdadero           |
 
 #### Ejemplo
 
@@ -138,7 +138,7 @@ import { createDebounce } from '@effuse/core';
 const debounce = createDebounce<string>(300); // Retraso de 300ms
 
 debounce.apply('término de búsqueda', (value) => {
-  performSearch(value);
+	performSearch(value);
 });
 
 // Cancelar ejecución pendiente
@@ -155,9 +155,9 @@ import { createThrottle } from '@effuse/core';
 const throttle = createThrottle<MouseEvent>(100); // Máximo una vez por 100ms
 
 document.addEventListener('mousemove', (e) => {
-  throttle.apply(e, (event) => {
-    updatePosition(event.clientX, event.clientY);
-  });
+	throttle.apply(e, (event) => {
+		updatePosition(event.clientX, event.clientY);
+	});
 });
 
 // Reiniciar estado del throttle
@@ -174,9 +174,9 @@ import { createOnce } from '@effuse/core';
 const once = createOnce<void>();
 
 button.addEventListener('click', () => {
-  once.apply(undefined, () => {
-    initializeApp();
-  });
+	once.apply(undefined, () => {
+		initializeApp();
+	});
 });
 
 // Verificar si ya se ejecutó
@@ -195,8 +195,8 @@ import { createFilter } from '@effuse/core';
 
 const filter = createFilter<number>((n) => n > 10);
 
-filter.apply(5, (n) => console.log(n));   // Omitido
-filter.apply(15, (n) => console.log(n));  // Registra: 15
+filter.apply(5, (n) => console.log(n)); // Omitido
+filter.apply(15, (n) => console.log(n)); // Registra: 15
 ```
 
 ## API del Servicio
@@ -232,20 +232,20 @@ type EmitHandler<P> = (payload: P) => void;
 
 // Tipo de función de emisión
 type EmitFn<T extends EventMap> = <K extends keyof T & string>(
-  event: K,
-  payload: T[K]
+	event: K,
+	payload: T[K]
 ) => void;
 
 // Tipo de función de emisión asíncrona
 type EmitFnAsync<T extends EventMap> = <K extends keyof T & string>(
-  event: K,
-  payload: T[K]
+	event: K,
+	payload: T[K]
 ) => Promise<void>;
 
 // Tipo de función de suscripción
 type SubscribeFn<T extends EventMap> = <K extends keyof T & string>(
-  event: K,
-  handler: EmitHandler<T[K]>
+	event: K,
+	handler: EmitHandler<T[K]>
 ) => () => void;
 
 // Señal de evento (solo lectura)

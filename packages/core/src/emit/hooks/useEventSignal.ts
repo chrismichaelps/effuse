@@ -25,69 +25,79 @@
 import { signal } from '../../reactivity/signal.js';
 import { effect } from '../../effects/effect.js';
 import type { Signal } from '../../types/index.js';
-import type { EmitContextData, EmitOptions, EventSignal, EventMap } from '../types/index.js';
+import type {
+	EmitContextData,
+	EmitOptions,
+	EventSignal,
+	EventMap,
+} from '../types/index.js';
 
 export function useEventSignal<T extends EventMap, P>(
-  ctx: EmitContextData<T>,
-  event: string,
-  options: EmitOptions = {}
+	ctx: EmitContextData<T>,
+	event: string,
+	options: EmitOptions = {}
 ): EventSignal<P> {
-  let sourceSig = ctx.signals.get(event) as Signal<P | undefined> | undefined;
-  if (!sourceSig) {
-    sourceSig = signal<P | undefined>(undefined);
-    ctx.signals.set(event, sourceSig as Signal<unknown>);
-  }
+	let sourceSig = ctx.signals.get(event) as Signal<P | undefined> | undefined;
+	if (!sourceSig) {
+		sourceSig = signal<P | undefined>(undefined);
+		ctx.signals.set(event, sourceSig as Signal<unknown>);
+	}
 
-  if (!options.debounce && !options.throttle && !options.once && !options.filter) {
-    const sig = sourceSig;
-    return {
-      get value() {
-        return sig.value;
-      },
-    };
-  }
+	if (
+		!options.debounce &&
+		!options.throttle &&
+		!options.once &&
+		!options.filter
+	) {
+		const sig = sourceSig;
+		return {
+			get value() {
+				return sig.value;
+			},
+		};
+	}
 
-  const resultSig = signal<P | undefined>(undefined);
-  let lastUpdateTime = 0;
-  let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-  let hasFired = false;
-  const source = sourceSig;
+	const resultSig = signal<P | undefined>(undefined);
+	let lastUpdateTime = 0;
+	let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+	let hasFired = false;
+	const source = sourceSig;
 
-  effect(() => {
-    const value = source.value;
-    if (value === undefined) return;
+	effect(() => {
+		const value = source.value;
+		if (value === undefined) return;
 
-    if (options.once && hasFired) return;
+		if (options.once && hasFired) return;
 
-    if (options.filter && !options.filter(value)) return;
+		if (options.filter && !options.filter(value)) return;
 
-    const now = Date.now();
+		const now = Date.now();
 
-    if (typeof options.throttle === 'number') {
-      if (now - lastUpdateTime < options.throttle) return;
-      lastUpdateTime = now;
-    }
+		if (typeof options.throttle === 'number') {
+			if (now - lastUpdateTime < options.throttle) return;
+			lastUpdateTime = now;
+		}
 
-    if (typeof options.debounce === 'number') {
-      if (debounceTimer) clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => {
-        resultSig.value = value;
-        if (options.once) hasFired = true;
-      }, options.debounce);
-      return;
-    }
+		if (typeof options.debounce === 'number') {
+			if (debounceTimer) clearTimeout(debounceTimer);
+			debounceTimer = setTimeout(() => {
+				resultSig.value = value;
+				if (options.once) hasFired = true;
+			}, options.debounce);
+			return;
+		}
 
-    resultSig.value = value;
-    if (options.once) hasFired = true;
-  });
+		resultSig.value = value;
+		if (options.once) hasFired = true;
+	});
 
-  return {
-    get value() {
-      return resultSig.value;
-    },
-  };
+	return {
+		get value() {
+			return resultSig.value;
+		},
+	};
 }
 
 export function createEventSignal<P>(initialValue?: P): Signal<P | undefined> {
-  return signal<P | undefined>(initialValue);
+	return signal<P | undefined>(initialValue);
 }

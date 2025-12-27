@@ -30,4 +30,4 @@ export class EmitValidationError extends Data.TaggedError(
 	readonly event: string;
 	readonly message: string;
 	readonly cause?: unknown;
-}> { }
+}> {}

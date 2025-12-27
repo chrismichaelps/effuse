@@ -25,31 +25,31 @@
 export { DEFAULT_DEBOUNCE_MS, DEFAULT_THROTTLE_MS } from './config/index.js';
 
 export type {
-  EmitHandler,
-  EmitEvents,
-  EventMap,
-  InferPayload,
-  EmitOptions,
-  EmitContextData,
-  EmitFn,
-  EmitFnAsync,
-  SubscribeFn,
-  EventSignal,
+	EmitHandler,
+	EmitEvents,
+	EventMap,
+	InferPayload,
+	EmitOptions,
+	EmitContextData,
+	EmitFn,
+	EmitFnAsync,
+	SubscribeFn,
+	EventSignal,
 } from './types/index.js';
 
 export {
-  useEmitService,
-  getEmitService,
-  type EmitServiceApi,
+	useEmitService,
+	getEmitService,
+	type EmitServiceApi,
 } from './services/index.js';
 
 export { useEmits } from './hooks/useEmits.js';
 export { useEventSignal, createEventSignal } from './hooks/useEventSignal.js';
 
 export {
-  createDebounce,
-  createThrottle,
-  createOnce,
-  createFilter,
-  type FilterPredicate,
+	createDebounce,
+	createThrottle,
+	createOnce,
+	createFilter,
+	type FilterPredicate,
 } from './modifiers/index.js';

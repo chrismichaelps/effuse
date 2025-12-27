@@ -31,7 +31,7 @@ export interface StoreApi {
 export class StoreService extends Context.Tag('effuse/StoreService')<
 	StoreService,
 	StoreApi
->() { }
+>() {}
 
 export const makeStoreLayer = (
 	// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters

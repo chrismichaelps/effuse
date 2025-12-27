@@ -48,14 +48,7 @@
 		"role": "Creator @ Effuse",
 		"location": "New York, USA ⇄ Puerto Rico",
 		"languages": "English, Spanish",
-		"projects": [
-			"core",
-			"i18n",
-			"ink",
-			"query",
-			"router",
-			"store"
-		],
+		"projects": ["core", "i18n", "ink", "query", "router", "store"],
 		"focusTitle": "Active Focus",
 		"meta": {
 			"title": "About Me - Effuse",

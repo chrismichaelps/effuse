@@ -22,9 +22,9 @@ Effuse 通过 `useEmits` 钩子提供了一个强大且类型安全的事件发�
 
 ```typescript
 interface ChatEvents {
-  message: { text: string; author: string; timestamp: number };
-  userJoined: { userId: string; name: string };
-  userLeft: { userId: string };
+	message: { text: string; author: string; timestamp: number };
+	userJoined: { userId: string; name: string };
+	userLeft: { userId: string };
 }
 ```
 
@@ -67,25 +67,25 @@ const ChatRoom = define({
 
 ```typescript
 function useEmits<T extends EventMap>(
-  initialHandlers?: Partial<{ [K in keyof T]: EmitHandler<T[K]> }>
+	initialHandlers?: Partial<{ [K in keyof T]: EmitHandler<T[K]> }>
 ): {
-  emit: EmitFn<T>;
-  emitAsync: EmitFnAsync<T>;
-  on: SubscribeFn<T>;
-  off: (event: K, handler: EmitHandler<T[K]>) => void;
-  context: EmitContextData<T>;
-}
+	emit: EmitFn<T>;
+	emitAsync: EmitFnAsync<T>;
+	on: SubscribeFn<T>;
+	off: (event: K, handler: EmitHandler<T[K]>) => void;
+	context: EmitContextData<T>;
+};
 ```
 
 #### 返回值
 
-| 属性        | 类型                           | 描述                                     |
-| ----------- | ------------------------------ | ---------------------------------------- |
-| `emit`      | `EmitFn<T>`                    | 同步发送带有负载的事件                   |
-| `emitAsync` | `EmitFnAsync<T>`               | 异步发送事件（下一个微任务）             |
-| `on`        | `SubscribeFn<T>`               | 订阅事件，返回取消订阅函数               |
-| `off`       | `(event, handler) => void`     | 手动取消订阅处理程序                     |
-| `context`   | `EmitContextData<T>`           | 内部上下文，用于 `useEventSignal`        |
+| 属性        | 类型                       | 描述                              |
+| ----------- | -------------------------- | --------------------------------- |
+| `emit`      | `EmitFn<T>`                | 同步发送带有负载的事件            |
+| `emitAsync` | `EmitFnAsync<T>`           | 异步发送事件（下一个微任务）      |
+| `on`        | `SubscribeFn<T>`           | 订阅事件，返回取消订阅函数        |
+| `off`       | `(event, handler) => void` | 手动取消订阅处理程序              |
+| `context`   | `EmitContextData<T>`       | 内部上下文，用于 `useEventSignal` |
 
 ### useEventSignal<T, P>
 
@@ -93,20 +93,20 @@ function useEmits<T extends EventMap>(
 
 ```typescript
 function useEventSignal<T extends EventMap, P>(
-  ctx: EmitContextData<T>,
-  event: string,
-  options?: EmitOptions
-): EventSignal<P>
+	ctx: EmitContextData<T>,
+	event: string,
+	options?: EmitOptions
+): EventSignal<P>;
 ```
 
 #### 选项
 
-| 选项       | 类型                          | 描述                                     |
-| ---------- | ----------------------------- | ---------------------------------------- |
-| `debounce` | `number`                      | 按指定的毫秒数延迟更新                   |
-| `throttle` | `number`                      | 将更新限制为每个间隔一次                 |
-| `once`     | `boolean`                     | 仅更新一次，然后停止                     |
-| `filter`   | `(payload: unknown) => bool`  | 仅当谓词返回 true 时更新                 |
+| 选项       | 类型                         | 描述                     |
+| ---------- | ---------------------------- | ------------------------ |
+| `debounce` | `number`                     | 按指定的毫秒数延迟更新   |
+| `throttle` | `number`                     | 将更新限制为每个间隔一次 |
+| `once`     | `boolean`                    | 仅更新一次，然后停止     |
+| `filter`   | `(payload: unknown) => bool` | 仅当谓词返回 true 时更新 |
 
 #### 示例
 
@@ -138,7 +138,7 @@ import { createDebounce } from '@effuse/core';
 const debounce = createDebounce<string>(300); // 300 毫秒延迟
 
 debounce.apply('搜索词', (value) => {
-  performSearch(value);
+	performSearch(value);
 });
 
 // 取消挂起的执行
@@ -155,9 +155,9 @@ import { createThrottle } from '@effuse/core';
 const throttle = createThrottle<MouseEvent>(100); // 每 100 毫秒最多一次
 
 document.addEventListener('mousemove', (e) => {
-  throttle.apply(e, (event) => {
-    updatePosition(event.clientX, event.clientY);
-  });
+	throttle.apply(e, (event) => {
+		updatePosition(event.clientX, event.clientY);
+	});
 });
 
 // 重置限制状态
@@ -174,9 +174,9 @@ import { createOnce } from '@effuse/core';
 const once = createOnce<void>();
 
 button.addEventListener('click', () => {
-  once.apply(undefined, () => {
-    initializeApp();
-  });
+	once.apply(undefined, () => {
+		initializeApp();
+	});
 });
 
 // 检查是否已触发
@@ -195,8 +195,8 @@ import { createFilter } from '@effuse/core';
 
 const filter = createFilter<number>((n) => n > 10);
 
-filter.apply(5, (n) => console.log(n));   // 跳过
-filter.apply(15, (n) => console.log(n));  // 打印: 15
+filter.apply(5, (n) => console.log(n)); // 跳过
+filter.apply(15, (n) => console.log(n)); // 打印: 15
 ```
 
 ## 服务 API
@@ -232,20 +232,20 @@ type EmitHandler<P> = (payload: P) => void;
 
 // 发送函数类型
 type EmitFn<T extends EventMap> = <K extends keyof T & string>(
-  event: K,
-  payload: T[K]
+	event: K,
+	payload: T[K]
 ) => void;
 
 // 异步发送函数类型
 type EmitFnAsync<T extends EventMap> = <K extends keyof T & string>(
-  event: K,
-  payload: T[K]
+	event: K,
+	payload: T[K]
 ) => Promise<void>;
 
 // 订阅函数类型
 type SubscribeFn<T extends EventMap> = <K extends keyof T & string>(
-  event: K,
-  handler: EmitHandler<T[K]>
+	event: K,
+	handler: EmitHandler<T[K]>
 ) => () => void;
 
 // 事件信号 (只读)
