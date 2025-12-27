@@ -24,7 +24,8 @@
 		"form": "Formulario",
 		"todos": "Tareas",
 		"props": "Propiedades",
-		"i18n": "I18n"
+		"i18n": "I18n",
+		"emit": "Emit"
 	},
 	"toc": {
 		"onThisPage": "En esta página"
@@ -46,7 +47,14 @@
 		"role": "Creador @ Effuse",
 		"location": "New York, USA ⇄ Puerto Rico",
 		"languages": "Inglés, Español",
-		"projects": ["core", "i18n", "ink", "query", "router", "store"],
+		"projects": [
+			"core",
+			"i18n",
+			"ink",
+			"query",
+			"router",
+			"store"
+		],
 		"focusTitle": "Enfoque Activo",
 		"meta": {
 			"title": "Sobre Mí - Effuse",
@@ -159,6 +167,24 @@
 			"summary": "Hola {{name}}, estás construyendo {{project}} v{{version}} — ¡un viaje increíble hacia la i18n moderna!",
 			"yourName": "Tu nombre:",
 			"footer": "Construido con Effuse y @effuse/i18n"
+		},
+		"emit": {
+			"title": "Emisión de Eventos",
+			"description": "Emisor de eventos con soporte de señales reactivas",
+			"placeholder": "Escribe un mensaje...",
+			"send": "Enviar",
+			"actingAs": "Actuando como",
+			"stats": {
+				"messages": "Mensajes",
+				"emits": "Emisiones",
+				"online": "En línea"
+			},
+			"reset": "Reiniciar",
+			"noMessages": "Aún no hay mensajes. ¡Empieza a escribir!",
+			"howItWorks": "Cómo funciona",
+			"mention": "Mencionar",
+			"sessionStarted": "Sesión iniciada. ¡Emisor de eventos listo!",
+			"switchedTo": "Cambiado a {{user}}"
 		}
 	},
 	"legal": {

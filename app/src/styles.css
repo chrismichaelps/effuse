@@ -149,6 +149,15 @@ html.lenis body {
 .bg-slate-50 {
 	background-color: #f8fafc;
 }
+.bg-orange-500 {
+	background-color: #f97316 !important;
+}
+.bg-red-600 {
+	background-color: #dc2626 !important;
+}
+.bg-blue-600 {
+	background-color: #2563eb !important;
+}
 .border-b {
 	border-bottom-width: 1px;
 }

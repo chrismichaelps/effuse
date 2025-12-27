@@ -24,7 +24,8 @@
 		"form": "Form",
 		"todos": "Todos",
 		"props": "Props",
-		"i18n": "I18n"
+		"i18n": "I18n",
+		"emit": "Emit"
 	},
 	"toc": {
 		"onThisPage": "On this page"
@@ -46,7 +47,14 @@
 		"role": "Creator @ Effuse",
 		"location": "New York, USA ⇄ Puerto Rico",
 		"languages": "English, Spanish",
-		"projects": ["core", "i18n", "ink", "query", "router", "store"],
+		"projects": [
+			"core",
+			"i18n",
+			"ink",
+			"query",
+			"router",
+			"store"
+		],
 		"focusTitle": "Active Focus",
 		"meta": {
 			"title": "About Me - Effuse",
@@ -159,6 +167,24 @@
 			"summary": "Hi {{name}}, you are building {{project}} v{{version}} — an amazing journey into modern i18n!",
 			"yourName": "Your name:",
 			"footer": "Built with Effuse and @effuse/i18n"
+		},
+		"emit": {
+			"title": "Event Emits",
+			"description": "Event emitter with reactive signal support",
+			"placeholder": "Type a message...",
+			"send": "Send",
+			"actingAs": "Acting as",
+			"stats": {
+				"messages": "Messages",
+				"emits": "Emits",
+				"online": "Online"
+			},
+			"reset": "Reset",
+			"noMessages": "No messages yet. Start typing!",
+			"howItWorks": "How it works",
+			"mention": "Mention",
+			"sessionStarted": "Session started. Event emitter ready!",
+			"switchedTo": "Switched to {{user}}"
 		}
 	},
 	"legal": {
