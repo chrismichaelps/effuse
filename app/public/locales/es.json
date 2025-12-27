@@ -25,7 +25,8 @@
 		"todos": "Tareas",
 		"props": "Propiedades",
 		"i18n": "I18n",
-		"emit": "Emit"
+		"emit": "Ejemplo Emit",
+		"events": "Emisión de Eventos"
 	},
 	"toc": {
 		"onThisPage": "En esta página"

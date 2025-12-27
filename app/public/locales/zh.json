@@ -25,7 +25,8 @@
 		"todos": "待办事项",
 		"props": "Props 传参",
 		"i18n": "国际化",
-		"emit": "Emit"
+		"emit": "Emit 示例",
+		"events": "事件发送"
 	},
 	"toc": {
 		"onThisPage": "本页目录"

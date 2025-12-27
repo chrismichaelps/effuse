@@ -25,7 +25,8 @@
 		"todos": "Todoアプリ",
 		"props": "Props (プロパティ)",
 		"i18n": "国際化",
-		"emit": "Emit"
+		"emit": "Emit サンプル",
+		"events": "イベントエミッション"
 	},
 	"toc": {
 		"onThisPage": "このページの内容"

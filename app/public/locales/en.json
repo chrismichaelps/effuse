@@ -25,7 +25,8 @@
 		"todos": "Todos",
 		"props": "Props",
 		"i18n": "I18n",
-		"emit": "Emit"
+		"emit": "Emit Example",
+		"events": "Event Emission"
 	},
 	"toc": {
 		"onThisPage": "On this page"

@@ -42,6 +42,7 @@ interface Translations {
 		props: string;
 		i18n: string;
 		emit: string;
+		events: string;
 	};
 	toc: {
 		onThisPage: string;
