@@ -47,11 +47,11 @@ export interface ScriptContext<P> {
 
 	signal: typeof signal;
 
-	store: <T>(name: string) => T;
+	store: (name: string) => unknown;
 
 	router: RouterType;
 
-	onMount: (callback: () => (() => void) | void) => void;
+	onMount: (callback: () => (() => void) | undefined) => void;
 
 	onUnmount: (callback: () => void) => void;
 
@@ -111,13 +111,13 @@ export const createScriptContext = <P, E extends ExposedValues>(
 
 		signal,
 
-		store: <T>(name: string): T => {
+		store: (name: string): unknown => {
 			if (!getStore) {
 				throw new Error(
 					'Store getter not configured. Call setGlobalStoreGetter() with getStore.'
 				);
 			}
-			return getStore(name) as T;
+			return getStore(name);
 		},
 
 		router: (() => {

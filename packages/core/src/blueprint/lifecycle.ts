@@ -26,7 +26,7 @@ import { Effect, Exit, Scope } from 'effect';
 
 export interface ComponentLifecycle {
 	readonly scope: Scope.CloseableScope;
-	readonly onMount: (fn: () => (() => void) | void) => void;
+	readonly onMount: (fn: () => (() => void) | undefined) => void;
 	readonly onUnmount: (fn: () => void) => void;
 	readonly onBeforeMount: (fn: () => void) => void;
 	readonly onBeforeUnmount: (fn: () => void) => void;
@@ -36,7 +36,7 @@ export interface ComponentLifecycle {
 
 interface LifecycleState {
 	readonly beforeMountCallbacks: Array<() => void>;
-	readonly mountCallbacks: Array<() => (() => void) | void>;
+	readonly mountCallbacks: Array<() => (() => void) | undefined>;
 	readonly beforeUnmountCallbacks: Array<() => void>;
 	readonly mountCleanups: Array<() => void>;
 	mounted: boolean;
@@ -52,7 +52,7 @@ const createLifecycleFns = (
 		}
 	};
 
-	const onMount = (fn: () => (() => void) | void): void => {
+	const onMount = (fn: () => (() => void) | undefined): void => {
 		if (state.mounted) {
 			const cleanup = fn();
 			if (cleanup) state.mountCleanups.push(cleanup);

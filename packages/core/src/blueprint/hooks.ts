@@ -27,10 +27,12 @@ import { isSignal } from '../reactivity/signal.js';
 import type { ReadonlySignal } from '../types/index.js';
 
 // Memoized callback with stable identity and automatic dependency tracking via closure
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function useCallback<T extends (...args: any[]) => any>(
 	fn: T,
 	deps?: unknown[]
 ): T {
+	// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
 	return computed(() => {
 		deps?.forEach((d) => isSignal(d) && (d as ReadonlySignal<unknown>).value);
 		return fn;

@@ -31,7 +31,7 @@ import type { ResourceOptions } from './schema.js';
 export interface ListResource<T> {
 	readonly items: Signal<T[]>;
 	readonly loading: boolean;
-	readonly error: unknown | undefined;
+	readonly error: unknown;
 	readonly length: ReadonlySignal<number>;
 	readonly isEmpty: ReadonlySignal<boolean>;
 	readonly refetch: () => void;
@@ -51,6 +51,7 @@ export const createListResource = <T>(
 		initialValue: (options?.initialValue as T[] | undefined) ?? [],
 	});
 
+	// eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
 	const items = signal<T[]>((resource.state.value.data as T[]) ?? []);
 
 	const length = computed(() => items.value.length);
@@ -162,6 +163,7 @@ export const createMultiResource = <T extends Record<string, unknown>>(
 	const dataProxy = new Proxy({} as { [K in keyof T]: T[K] | undefined }, {
 		get(_, key: string) {
 			const sig = data[key as keyof T];
+			// eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
 			return sig?.value;
 		},
 	});

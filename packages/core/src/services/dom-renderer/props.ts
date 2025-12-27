@@ -48,7 +48,7 @@ export interface PropServiceInterface {
 export class PropService extends Context.Tag('effuse/PropService')<
 	PropService,
 	PropServiceInterface
->() {}
+>() { }
 
 const setElementProp = (
 	element: Element,
@@ -181,6 +181,7 @@ export const PropServiceLive = Layer.succeed(PropService, {
 	bindProp: (element: Element, key: string, value: unknown) =>
 		Effect.sync(() => {
 			if (isSignal(value)) {
+				// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
 				const sig = value as Signal<unknown>;
 				const handle: EffectHandle = effect(() => {
 					setElementProp(element, key, sig.value);
@@ -198,7 +199,7 @@ export const PropServiceLive = Layer.succeed(PropService, {
 			}
 
 			setElementProp(element, key, value);
-			return { cleanup: () => {} };
+			return { cleanup: () => { } };
 		}),
 
 	bindFormControl: (
