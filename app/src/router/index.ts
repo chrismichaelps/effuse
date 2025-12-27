@@ -16,6 +16,7 @@ import { ContactPage } from '../pages/Contact';
 import { NotFoundPage } from '../pages/NotFound';
 import { I18nPage } from '../pages/I18n';
 import { AboutPage } from '../pages/About';
+import { EmitDemoPage } from '../pages/Emit';
 
 const routes: RouteRecord[] = [
 	{
@@ -77,6 +78,11 @@ const routes: RouteRecord[] = [
 		path: '/i18n',
 		name: 'i18n',
 		component: I18nPage,
+	},
+	{
+		path: '/emit',
+		name: 'emit-demo',
+		component: EmitDemoPage,
 	},
 	{
 		path: '*',

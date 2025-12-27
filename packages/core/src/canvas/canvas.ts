@@ -73,7 +73,7 @@ export const canvas = (target: Element | string): Canvas => {
 				}
 
 				const node = el(blueprint, props ?? ({} as P));
-				cleanupFn = render(node as EffuseChild, container as Element);
+				cleanupFn = render(node as EffuseChild, container);
 			},
 			catch: (error) =>
 				new RenderError({
@@ -92,7 +92,7 @@ export const canvas = (target: Element | string): Canvas => {
 					cleanupFn = null;
 				}
 
-				cleanupFn = render(node, container as Element);
+				cleanupFn = render(node, container);
 			},
 			catch: (error) =>
 				new RenderError({

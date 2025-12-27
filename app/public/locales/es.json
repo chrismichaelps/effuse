@@ -24,7 +24,9 @@
 		"form": "Formulario",
 		"todos": "Tareas",
 		"props": "Propiedades",
-		"i18n": "I18n"
+		"i18n": "I18n",
+		"emit": "Ejemplo Emit",
+		"events": "Emisión de Eventos"
 	},
 	"toc": {
 		"onThisPage": "En esta página"
@@ -159,6 +161,24 @@
 			"summary": "Hola {{name}}, estás construyendo {{project}} v{{version}} — ¡un viaje increíble hacia la i18n moderna!",
 			"yourName": "Tu nombre:",
 			"footer": "Construido con Effuse y @effuse/i18n"
+		},
+		"emit": {
+			"title": "Emisión de Eventos",
+			"description": "Emisor de eventos con soporte de señales reactivas",
+			"placeholder": "Escribe un mensaje...",
+			"send": "Enviar",
+			"actingAs": "Actuando como",
+			"stats": {
+				"messages": "Mensajes",
+				"emits": "Emisiones",
+				"online": "En línea"
+			},
+			"reset": "Reiniciar",
+			"noMessages": "Aún no hay mensajes. ¡Empieza a escribir!",
+			"howItWorks": "Cómo funciona",
+			"mention": "Mencionar",
+			"sessionStarted": "Sesión iniciada. ¡Emisor de eventos listo!",
+			"switchedTo": "Cambiado a {{user}}"
 		}
 	},
 	"legal": {

@@ -124,11 +124,11 @@ export namespace JSX {
 		key?: string | number | undefined;
 	}
 
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	export type ElementType =
 		| string
 		| BlueprintDef
 		| Component
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		| ((props: any) => EffuseNode);
 
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars

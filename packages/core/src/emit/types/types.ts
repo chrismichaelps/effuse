@@ -22,37 +22,42 @@
  * SOFTWARE.
  */
 
-import { Effect } from 'effect';
+import type { Signal, ReadonlySignal } from '../../types/index.js';
 
-export const isEffect = <T>(
-	value: Effect.Effect<T, Error> | Promise<T>
-): value is Effect.Effect<T, Error> =>
-	// eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-	typeof value === 'object' && value !== null && '_op' in value;
+export type EmitHandler<P> = (payload: P) => void;
 
-export const promiseToEffect = <T>(
-	promise: Promise<T>
-): Effect.Effect<T, Error> => Effect.promise(() => promise);
+export type EventMap = Record<string, any>;
 
-export const toEffect = <T>(
-	value: Effect.Effect<T, Error> | Promise<T>
-): Effect.Effect<T, Error> => {
-	if (isEffect(value)) {
-		return value;
-	}
-	return promiseToEffect(value);
-};
+export type EmitEvents<T extends EventMap> = T;
 
-let resourceIdCounter = 0;
-let boundaryIdCounter = 0;
+export type InferPayload<T> = T;
 
-export const generateResourceId = (prefix: string): string =>
-	`${prefix}${String(++resourceIdCounter)}`;
+export interface EmitOptions {
+	readonly debounce?: number;
+	readonly throttle?: number;
+	readonly once?: boolean;
+	readonly filter?: (payload: unknown) => boolean;
+}
 
-export const generateBoundaryId = (prefix: string): string =>
-	`${prefix}${String(++boundaryIdCounter)}`;
+export interface EmitContextData<T extends EventMap> {
+	readonly handlers: Map<string, Set<EmitHandler<unknown>>>;
+	readonly signals: Map<string, Signal<unknown>>;
+	readonly _phantom?: T;
+}
 
-export const resetIdCounters = (): void => {
-	resourceIdCounter = 0;
-	boundaryIdCounter = 0;
-};
+export type EmitFn<T extends EventMap> = <K extends keyof T & string>(
+	event: K,
+	payload: T[K]
+) => void;
+
+export type EmitFnAsync<T extends EventMap> = <K extends keyof T & string>(
+	event: K,
+	payload: T[K]
+) => Promise<void>;
+
+export type SubscribeFn<T extends EventMap> = <K extends keyof T & string>(
+	event: K,
+	handler: EmitHandler<T[K]>
+) => () => void;
+
+export type EventSignal<P> = ReadonlySignal<P | undefined>;

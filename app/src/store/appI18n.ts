@@ -41,6 +41,8 @@ interface Translations {
 		todos: string;
 		props: string;
 		i18n: string;
+		emit: string;
+		events: string;
 	};
 	toc: {
 		onThisPage: string;
@@ -173,6 +175,24 @@ interface Translations {
 			summary: string;
 			yourName: string;
 			footer: string;
+		};
+		emit: {
+			title: string;
+			description: string;
+			placeholder: string;
+			send: string;
+			actingAs: string;
+			stats: {
+				messages: string;
+				emits: string;
+				online: string;
+			};
+			reset: string;
+			noMessages: string;
+			howItWorks: string;
+			mention: string;
+			sessionStarted: string;
+			switchedTo: string;
 		};
 	};
 	legal: {

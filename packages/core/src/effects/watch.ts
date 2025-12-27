@@ -66,7 +66,9 @@ export function watch<T>(
 		for (const cleanup of cleanupQueue) {
 			try {
 				cleanup();
-			} catch {}
+			} catch {
+				/* */
+			}
 		}
 		cleanupQueue = [];
 	};
@@ -201,7 +203,9 @@ export const watchMultiple = <T extends readonly WatchSource<unknown>[]>(
 		for (const cleanup of cleanupQueue) {
 			try {
 				cleanup();
-			} catch {}
+			} catch {
+				/* */
+			}
 		}
 		cleanupQueue = [];
 	};

@@ -22,37 +22,27 @@
  * SOFTWARE.
  */
 
-import { Effect } from 'effect';
+import { DEFAULT_DEBOUNCE_MS } from '../config/index.js';
 
-export const isEffect = <T>(
-	value: Effect.Effect<T, Error> | Promise<T>
-): value is Effect.Effect<T, Error> =>
-	// eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-	typeof value === 'object' && value !== null && '_op' in value;
+export function createDebounce<T>(ms: number = DEFAULT_DEBOUNCE_MS): {
+	apply: (value: T, callback: (v: T) => void) => void;
+	cancel: () => void;
+} {
+	let timer: ReturnType<typeof setTimeout> | null = null;
 
-export const promiseToEffect = <T>(
-	promise: Promise<T>
-): Effect.Effect<T, Error> => Effect.promise(() => promise);
-
-export const toEffect = <T>(
-	value: Effect.Effect<T, Error> | Promise<T>
-): Effect.Effect<T, Error> => {
-	if (isEffect(value)) {
-		return value;
-	}
-	return promiseToEffect(value);
-};
-
-let resourceIdCounter = 0;
-let boundaryIdCounter = 0;
-
-export const generateResourceId = (prefix: string): string =>
-	`${prefix}${String(++resourceIdCounter)}`;
-
-export const generateBoundaryId = (prefix: string): string =>
-	`${prefix}${String(++boundaryIdCounter)}`;
-
-export const resetIdCounters = (): void => {
-	resourceIdCounter = 0;
-	boundaryIdCounter = 0;
-};
+	return {
+		apply: (value: T, callback: (v: T) => void) => {
+			if (timer) clearTimeout(timer);
+			timer = setTimeout(() => {
+				callback(value);
+				timer = null;
+			}, ms);
+		},
+		cancel: () => {
+			if (timer) {
+				clearTimeout(timer);
+				timer = null;
+			}
+		},
+	};
+}

@@ -22,37 +22,34 @@
  * SOFTWARE.
  */
 
-import { Effect } from 'effect';
+export { DEFAULT_DEBOUNCE_MS, DEFAULT_THROTTLE_MS } from './config/index.js';
 
-export const isEffect = <T>(
-	value: Effect.Effect<T, Error> | Promise<T>
-): value is Effect.Effect<T, Error> =>
-	// eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-	typeof value === 'object' && value !== null && '_op' in value;
+export type {
+	EmitHandler,
+	EmitEvents,
+	EventMap,
+	InferPayload,
+	EmitOptions,
+	EmitContextData,
+	EmitFn,
+	EmitFnAsync,
+	SubscribeFn,
+	EventSignal,
+} from './types/index.js';
 
-export const promiseToEffect = <T>(
-	promise: Promise<T>
-): Effect.Effect<T, Error> => Effect.promise(() => promise);
+export {
+	useEmitService,
+	getEmitService,
+	type EmitServiceApi,
+} from './services/index.js';
 
-export const toEffect = <T>(
-	value: Effect.Effect<T, Error> | Promise<T>
-): Effect.Effect<T, Error> => {
-	if (isEffect(value)) {
-		return value;
-	}
-	return promiseToEffect(value);
-};
+export { useEmits } from './hooks/useEmits.js';
+export { useEventSignal, createEventSignal } from './hooks/useEventSignal.js';
 
-let resourceIdCounter = 0;
-let boundaryIdCounter = 0;
-
-export const generateResourceId = (prefix: string): string =>
-	`${prefix}${String(++resourceIdCounter)}`;
-
-export const generateBoundaryId = (prefix: string): string =>
-	`${prefix}${String(++boundaryIdCounter)}`;
-
-export const resetIdCounters = (): void => {
-	resourceIdCounter = 0;
-	boundaryIdCounter = 0;
-};
+export {
+	createDebounce,
+	createThrottle,
+	createOnce,
+	createFilter,
+	type FilterPredicate,
+} from './modifiers/index.js';

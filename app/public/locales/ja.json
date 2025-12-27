@@ -24,7 +24,9 @@
 		"form": "フォーム",
 		"todos": "Todoアプリ",
 		"props": "Props (プロパティ)",
-		"i18n": "国際化"
+		"i18n": "国際化",
+		"emit": "Emit サンプル",
+		"events": "イベントエミッション"
 	},
 	"toc": {
 		"onThisPage": "このページの内容"
@@ -159,6 +161,24 @@
 			"summary": "こんにちは {{name}} さん、あなたは {{project}} v{{version}} を構築しています — 現代的な i18n への素晴らしい旅です！",
 			"yourName": "あなたの名前:",
 			"footer": "Effuse と @effuse/i18n で構築"
+		},
+		"emit": {
+			"title": "イベントエミット",
+			"description": "リアクティブ信号をサポートするイベントエミッター",
+			"placeholder": "メッセージを入力...",
+			"send": "送信",
+			"actingAs": "実行ユーザー:",
+			"stats": {
+				"messages": "メッセージ",
+				"emits": "エミット数",
+				"online": "オンライン"
+			},
+			"reset": "リセット",
+			"noMessages": "まだメッセージはありません。入力を開始してください！",
+			"howItWorks": "仕組み",
+			"mention": "メンション",
+			"sessionStarted": "セッションを開始しました。イベントエミッターの準備が整いました！",
+			"switchedTo": "{{user}} に切り替えました"
 		}
 	},
 	"legal": {

@@ -18,6 +18,7 @@ const LOCALIZED_SECTIONS = [
 	'/form',
 	'/todos',
 	'/props',
+	'/emit',
 	'/i18n',
 	'/about',
 ] as const;

@@ -66,6 +66,7 @@ const sectionsConfig: NavSection[] = [
 			{ labelKey: 'reactivity', href: '/docs/signals' },
 			{ labelKey: 'lifecycle', href: '/docs/effects' },
 			{ labelKey: 'form', href: '/docs/use-form' },
+			{ labelKey: 'events', href: '/docs/emit' },
 		],
 		isOpen: true,
 	},
@@ -88,6 +89,7 @@ const sectionsConfig: NavSection[] = [
 			{ labelKey: 'todos', href: '/todos' },
 			{ labelKey: 'props', href: '/props' },
 			{ labelKey: 'i18n', href: '/i18n' },
+			{ labelKey: 'emit', href: '/emit' },
 		],
 		isOpen: false,
 	},
@@ -140,6 +142,8 @@ export const Sidebar = define<SidebarProps, SidebarExposed>({
 					todos: sidebar?.todos,
 					props: sidebar?.props,
 					i18n: sidebar?.i18n,
+					emit: sidebar?.emit,
+					events: sidebar?.events,
 				};
 
 				return {

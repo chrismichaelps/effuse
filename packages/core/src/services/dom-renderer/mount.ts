@@ -138,7 +138,8 @@ const mountChild = (
 								if (isSuspendToken(anyErr.cause)) return true;
 								if (isSuspendToken(anyErr.error)) return true;
 								if (isSuspendToken(anyErr.defect)) return true;
-								const msg = String(anyErr.message || '');
+								const msg =
+									typeof anyErr.message === 'string' ? anyErr.message : '';
 								if (msg.includes('"resourceId"') && msg.includes('"promise"')) {
 									return true;
 								}
@@ -360,7 +361,8 @@ const mountNode = (
 						}
 						currentNodes = mountResult;
 						listCleanups.push(...childCleanups);
-					} catch (err) {
+					} catch {
+						// Error during list mounting - silently recover
 						currentNodes = [];
 					}
 				});
@@ -385,6 +387,7 @@ const mountNode = (
 		);
 	}
 
+	// eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
 	if (nodeType === NodeType.BLUEPRINT) {
 		const blueprintNode = node as unknown as {
 			blueprint: BlueprintDef;

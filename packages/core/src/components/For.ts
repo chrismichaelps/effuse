@@ -83,6 +83,7 @@ export const For = <T>(props: ForProps<T>): EffuseNode => {
 
 			const prevChildren = listNode._cachedChildren ?? [];
 
+			// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
 			const newChildren: EffuseNode[] = new Array(newItems.length);
 
 			const metaMap = listNode._meta ?? (listNode._meta = new WeakMap());

@@ -46,13 +46,14 @@ export function el<P>(
 	blueprint: BlueprintDef<P>,
 	props?: P | null,
 
+	// eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
 	portals?: Portals | PortalFn | null
 ): BlueprintNode<P>;
 
 export function el(
 	tagOrBlueprint: string | BlueprintDef,
 	propsOrNull?: ElementProps | Record<string, never> | null,
-
+	// eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
 	...rest: (EffuseChild | Portals | PortalFn | null)[]
 ): EffuseNode {
 	if (typeof tagOrBlueprint === 'string') {
