@@ -38,7 +38,7 @@ import type { Route } from '../core/route.js';
 
 interface LinkProps {
 	[key: string]: unknown;
-	to: string;
+	to: string | (() => string);
 	activeClass?: string;
 	exactActiveClass?: string;
 	class?: string;
@@ -47,7 +47,7 @@ interface LinkProps {
 }
 
 interface LinkState {
-	to: string;
+	to: () => string;
 	isActive: Signal<boolean>;
 	isExactActive: Signal<boolean>;
 	activeClass: string;
@@ -60,7 +60,8 @@ export const Link = define<LinkProps, LinkState>({
 	script: ({ props, signal, onMount, onUnmount }): LinkState => {
 		const router = getGlobalRouter();
 
-		const to = props.to;
+		const resolveTo = (): string =>
+			typeof props.to === 'function' ? props.to() : props.to;
 		const activeClass = props.activeClass ?? 'router-link-active';
 		const exactActiveClass =
 			props.exactActiveClass ?? 'router-link-exact-active';
@@ -71,6 +72,7 @@ export const Link = define<LinkProps, LinkState>({
 		let stopWatch: (() => void) | null = null;
 
 		const updateActiveState = (route: Route): void => {
+			const to = resolveTo();
 			isExactActive.value = route.path === to;
 			isActive.value = route.path.startsWith(to) || isExactActive.value;
 		};
@@ -107,12 +109,12 @@ export const Link = define<LinkProps, LinkState>({
 			event.preventDefault();
 
 			if (router) {
-				router.push(to);
+				router.push(resolveTo());
 			}
 		};
 
 		return {
-			to,
+			to: resolveTo,
 			isActive,
 			isExactActive,
 			activeClass,

@@ -28,7 +28,7 @@ import type { Signal } from '../types/index.js';
 import { computed, untrack, signal } from '../reactivity/index.js';
 
 export interface ForProps<T> {
-	each: Signal<T[]>;
+	each: Signal<T[]> | (() => T[]);
 	keyExtractor?: (item: T, index: number) => unknown;
 	children: (item: Signal<T>, index: Signal<number>) => EffuseNode;
 	fallback?: EffuseChild | (() => EffuseChild);
@@ -61,7 +61,11 @@ export const For = <T>(props: ForProps<T>): EffuseNode => {
 		enumerable: true,
 		configurable: true,
 		get: function () {
-			const fullItems = listSignal.value;
+			const fullItems =
+				typeof listSignal === 'function' ? listSignal() : listSignal.value;
+			if (!Array.isArray(fullItems)) {
+				return [];
+			}
 			const r = props.range?.value;
 			const hasValidRange = !!r && r.end > r.start && r.start >= 0;
 			const start = hasValidRange ? Math.min(r.start, fullItems.length) : 0;

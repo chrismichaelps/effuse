@@ -10,6 +10,7 @@ rm -rf packages/router/dist
 rm -rf packages/ink/dist
 rm -rf packages/query/dist
 rm -rf packages/i18n/dist
+rm -rf packages/compiler/dist
 rm -rf app/dist
 
 rm -rf app/node_modules/.vite

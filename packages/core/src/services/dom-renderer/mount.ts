@@ -86,6 +86,97 @@ const mountChild = (
 		return Effect.succeed([]);
 	}
 
+	if (typeof child === 'function') {
+		const fn = child as () => unknown;
+		const anchor = document.createComment('fn');
+		let currentNodes: Node[] = [];
+		const fnCleanups: CleanupFn[] = [];
+		let effectHandle: EffectHandle | null = null;
+
+		const runEffect = () => {
+			effectHandle = effect(() => {
+				const value = fn();
+
+				for (const node of currentNodes) {
+					node.parentNode?.removeChild(node);
+				}
+
+				for (const cleanup of fnCleanups) {
+					cleanup();
+				}
+				fnCleanups.length = 0;
+
+				if (value == null) {
+					currentNodes = [];
+					return;
+				}
+
+				if (typeof value === 'string' || typeof value === 'number') {
+					const textNode = document.createTextNode(String(value));
+					anchor.parentNode?.insertBefore(textNode, anchor.nextSibling);
+					currentNodes = [textNode];
+					return;
+				}
+
+				if (typeof value === 'boolean') {
+					currentNodes = [];
+					return;
+				}
+
+				untrack(() => {
+					const childCleanups: CleanupFn[] = [];
+
+					let mountResult: Node[];
+					try {
+						mountResult = Effect.runSync(
+							pipe(
+								mountChild(value as EffuseChild, childCleanups),
+								Effect.provide(PropServiceLive),
+								Effect.provide(EventServiceLive)
+							)
+						);
+					} catch (err) {
+						const isSuspendError = (e: unknown): boolean => {
+							if (isSuspendToken(e)) return true;
+							if (typeof e === 'object' && e !== null) {
+								const anyErr = e as Record<string, unknown>;
+								if (isSuspendToken(anyErr.cause)) return true;
+								if (isSuspendToken(anyErr.error)) return true;
+								if (isSuspendToken(anyErr.defect)) return true;
+							}
+							return false;
+						};
+
+						if (isSuspendError(err)) {
+							currentNodes = [];
+							return;
+						}
+						throw err;
+					}
+
+					const insertPoint: Node | null = anchor.nextSibling;
+					for (const node of mountResult) {
+						if (anchor.parentNode) {
+							anchor.parentNode.insertBefore(node, insertPoint);
+						}
+					}
+					currentNodes = mountResult;
+					fnCleanups.push(...childCleanups);
+				});
+			});
+		};
+
+		queueMicrotask(runEffect);
+
+		cleanups.push(() => {
+			effectHandle?.stop();
+			for (const cleanup of fnCleanups) {
+				cleanup();
+			}
+		});
+		return Effect.succeed([anchor]);
+	}
+
 	if (isSignal(child)) {
 		const sig = child as Signal<EffuseChild>;
 		const anchor = document.createComment('signal');
@@ -259,6 +350,23 @@ const mountNode = (
 									value as EventListener
 								)
 							);
+							continue;
+						}
+
+						if (
+							(key === 'value' || key === 'checked') &&
+							typeof value === 'function' &&
+							(element instanceof HTMLInputElement ||
+								element instanceof HTMLTextAreaElement ||
+								element instanceof HTMLSelectElement)
+						) {
+							const result = Effect.runSync(
+								propService.bindFormControl(
+									element,
+									value as () => string | number | boolean
+								)
+							);
+							bindingCleanups.push(result.cleanup);
 							continue;
 						}
 
