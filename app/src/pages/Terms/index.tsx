@@ -24,87 +24,64 @@ export const TermsPage = define({
 			</div>
 			<div class="legal-container">
 				<header class="legal-header">
-					<h1 class="legal-title">
-						{computed(() => t.value?.title as string)}
-					</h1>
-					<p class="legal-subtitle">
-						{computed(() => t.value?.lastUpdated as string)}
-					</p>
+					<h1 class="legal-title">{t.value?.title}</h1>
+					<p class="legal-subtitle">{t.value?.lastUpdated}</p>
 				</header>
 
 				<div class="legal-content">
 					<section class="legal-section">
 						<h2 class="legal-section-title">
-							{computed(() => t.value?.sections.acceptance.title as string)}
+							{t.value?.sections.acceptance.title}
 						</h2>
-						<p class="legal-text">
-							{computed(() => t.value?.sections.acceptance.content as string)}
-						</p>
+						<p class="legal-text">{t.value?.sections.acceptance.content}</p>
 					</section>
 
 					<section class="legal-section">
 						<h2 class="legal-section-title">
-							{computed(() => t.value?.sections.license.title as string)}
+							{t.value?.sections.license.title}
 						</h2>
-						<p class="legal-text">
-							{computed(() => t.value?.sections.license.content as string)}
-						</p>
+						<p class="legal-text">{t.value?.sections.license.content}</p>
 					</section>
 
 					<section class="legal-section">
-						<h2 class="legal-section-title">
-							{computed(() => t.value?.sections.usage.title as string)}
-						</h2>
-						<p class="legal-text">
-							{computed(() => t.value?.sections.usage.content as string)}
-						</p>
+						<h2 class="legal-section-title">{t.value?.sections.usage.title}</h2>
+						<p class="legal-text">{t.value?.sections.usage.content}</p>
 						<ul class="legal-list">
-							{computed(() =>
-								t.value?.sections.usage.list.map((item: string) => (
-									<li>{item}</li>
-								))
-							)}
+							{t.value?.sections.usage.list.map((item: string) => (
+								<li>{item}</li>
+							))}
 						</ul>
 					</section>
 
 					<section class="legal-section">
 						<h2 class="legal-section-title">
-							{computed(() => t.value?.sections.disclaimer.title as string)}
+							{t.value?.sections.disclaimer.title}
 						</h2>
-						<p class="legal-text">
-							{computed(() => t.value?.sections.disclaimer.content as string)}
-						</p>
+						<p class="legal-text">{t.value?.sections.disclaimer.content}</p>
 					</section>
 
 					<section class="legal-section">
 						<h2 class="legal-section-title">
-							{computed(() => t.value?.sections.liability.title as string)}
+							{t.value?.sections.liability.title}
 						</h2>
-						<p class="legal-text">
-							{computed(() => t.value?.sections.liability.content as string)}
-						</p>
+						<p class="legal-text">{t.value?.sections.liability.content}</p>
 					</section>
 
 					<section class="legal-section">
 						<h2 class="legal-section-title">
-							{computed(() => t.value?.sections.changes.title as string)}
+							{t.value?.sections.changes.title}
 						</h2>
-						<p class="legal-text">
-							{computed(() => t.value?.sections.changes.content as string)}
-						</p>
+						<p class="legal-text">{t.value?.sections.changes.content}</p>
 					</section>
 
 					<section class="legal-section">
 						<h2 class="legal-section-title">
-							{computed(() => t.value?.sections.contact.title as string)}
+							{t.value?.sections.contact.title}
 						</h2>
 						<p class="legal-text">
-							{computed(() => t.value?.sections.contact.content as string)}{' '}
+							{t.value?.sections.contact.content}{' '}
 							<a href="/contact" class="legal-link">
-								{computed(
-									() =>
-										i18nStore.translations.value?.legal?.contact.title as string
-								)}
+								{i18nStore.translations.value?.legal?.contact.title}
 							</a>
 							.
 						</p>

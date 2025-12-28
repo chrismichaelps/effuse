@@ -23,9 +23,10 @@ interface NavSection {
 }
 
 interface SectionState {
-	title: string;
+	key: string;
+	title: ReadonlySignal<string>;
 	items: ReadonlySignal<NavItem[]>;
-	isOpen: Signal<boolean>;
+	isOpen: ReadonlySignal<boolean>;
 	toggle: () => void;
 }
 
@@ -34,7 +35,7 @@ interface SidebarProps {
 }
 
 interface SidebarExposed {
-	sectionStates: ReadonlySignal<SectionState[]>;
+	sectionStates: SectionState[];
 	docsStore: typeof docsStore;
 	isSidebarOpen: Signal<boolean>;
 	toggleSidebar: () => void;
@@ -96,7 +97,7 @@ const sectionsConfig: NavSection[] = [
 ];
 
 const ChevronIcon = define<
-	{ isOpen: Signal<boolean> },
+	{ isOpen: ReadonlySignal<boolean> },
 	{ getClass: () => string }
 >({
 	script: ({ props }) => ({
@@ -113,55 +114,58 @@ const ChevronIcon = define<
 	),
 });
 
-export const Sidebar = define<SidebarProps, SidebarExposed>({
-	script: () => {
-		const sectionStates = computed(() => {
-			const trans = i18nStore.translations.value;
-			const sidebar = trans?.sidebar;
-
-			return sectionsConfig.map((section) => {
-				const titleKeyMapping: Record<string, string | undefined> = {
-					gettingStarted: sidebar?.gettingStarted,
-					coreConcepts: sidebar?.coreConceptsTitle,
-					advanced: sidebar?.advancedTitle,
-					examples: sidebar?.examplesTitle,
-				};
-
-				const labelMapping: Record<string, string | undefined> = {
-					introduction: sidebar?.introduction,
-					installation: sidebar?.installation,
-					quickStart: sidebar?.quickStart,
-					components: sidebar?.components,
-					reactivity: sidebar?.reactivity,
-					lifecycle: sidebar?.lifecycle,
-					form: sidebar?.form,
-					routing: sidebar?.routing,
-					stateManagement: sidebar?.stateManagement,
-					seoHead: sidebar?.seoHead,
-					internationalization: sidebar?.internationalization,
-					todos: sidebar?.todos,
-					props: sidebar?.props,
-					i18n: sidebar?.i18n,
-					emit: sidebar?.emit,
-					events: sidebar?.events,
-				};
-
-				return {
-					title: titleKeyMapping[section.titleKey] ?? section.key,
-					items: computed(() =>
-						section.items.map((item) => ({
-							label: labelMapping[item.labelKey] ?? item.labelKey,
-							href: item.href,
-						}))
-					),
-					isOpen: computed(() => docsStore.isSectionOpen(section.key)),
-					toggle: () => docsStore.toggleSection(section.key),
-				};
-			});
+const createStableSectionStates = (): SectionState[] => {
+	return sectionsConfig.map((section) => {
+		const title = computed(() => {
+			const sidebar = i18nStore.translations.value?.sidebar;
+			const titleKeyMapping: Record<string, string | undefined> = {
+				gettingStarted: sidebar?.gettingStarted,
+				coreConcepts: sidebar?.coreConceptsTitle,
+				advanced: sidebar?.advancedTitle,
+				examples: sidebar?.examplesTitle,
+			};
+			return titleKeyMapping[section.titleKey] ?? section.key;
 		});
 
+		const items = computed(() => {
+			const sidebar = i18nStore.translations.value?.sidebar;
+			const labelMapping: Record<string, string | undefined> = {
+				introduction: sidebar?.introduction,
+				installation: sidebar?.installation,
+				quickStart: sidebar?.quickStart,
+				components: sidebar?.components,
+				reactivity: sidebar?.reactivity,
+				lifecycle: sidebar?.lifecycle,
+				form: sidebar?.form,
+				routing: sidebar?.routing,
+				stateManagement: sidebar?.stateManagement,
+				seoHead: sidebar?.seoHead,
+				internationalization: sidebar?.internationalization,
+				todos: sidebar?.todos,
+				props: sidebar?.props,
+				i18n: sidebar?.i18n,
+				emit: sidebar?.emit,
+				events: sidebar?.events,
+			};
+			return section.items.map((item) => ({
+				label: labelMapping[item.labelKey] ?? item.labelKey,
+				href: item.href,
+			}));
+		});
+
+		const isOpen = computed(() => docsStore.isSectionOpen(section.key));
+		const toggle = () => docsStore.toggleSection(section.key);
+
+		return { key: section.key, title, items, isOpen, toggle };
+	});
+};
+
+const stableSectionStates = createStableSectionStates();
+
+export const Sidebar = define<SidebarProps, SidebarExposed>({
+	script: () => {
 		return {
-			sectionStates,
+			sectionStates: stableSectionStates,
 			docsStore,
 			isSidebarOpen: docsStore.isSidebarOpen,
 			toggleSidebar: () => docsStore.toggleSidebar(),
@@ -181,41 +185,39 @@ export const Sidebar = define<SidebarProps, SidebarExposed>({
 				</div>
 			</div>
 			<nav class="sidebar-nav">
-				<For each={sectionStates} keyExtractor={(s: SectionState) => s.title}>
-					{(sectionSignal: ReadonlySignal<SectionState>) => (
-						<div class="sidebar-section">
-							<button
-								class="sidebar-section-header"
-								onClick={() => sectionSignal.value.toggle()}
-							>
-								<span class="sidebar-title">{sectionSignal.value.title}</span>
-								<ChevronIcon isOpen={sectionSignal.value.isOpen} />
-							</button>
+				{sectionStates.map((section) => (
+					<div class="sidebar-section">
+						<button
+							class="sidebar-section-header"
+							onClick={() => section.toggle()}
+						>
+							<span class="sidebar-title">{section.title.value}</span>
+							<ChevronIcon isOpen={section.isOpen} />
+						</button>
 
-							<div
-								class={() =>
-									`sidebar-items ${sectionSignal.value.isOpen.value ? 'open' : ''}`
-								}
+						<div
+							class={() =>
+								`sidebar-items ${section.isOpen.value ? 'open' : ''}`
+							}
+						>
+							<For
+								each={section.items}
+								keyExtractor={(item: NavItem) => item.href}
 							>
-								<For
-									each={sectionSignal.value.items}
-									keyExtractor={(item: NavItem) => item.href}
-								>
-									{(itemSignal: ReadonlySignal<NavItem>) => (
-										<Link
-											to={itemSignal.value.href}
-											class="sidebar-link"
-											activeClass="router-link-exact-active"
-											exactActiveClass="router-link-exact-active"
-										>
-											{itemSignal.value.label}
-										</Link>
-									)}
-								</For>
-							</div>
+								{(itemSignal: ReadonlySignal<NavItem>) => (
+									<Link
+										to={itemSignal.value.href}
+										class="sidebar-link"
+										activeClass="router-link-exact-active"
+										exactActiveClass="router-link-exact-active"
+									>
+										{itemSignal.value.label}
+									</Link>
+								)}
+							</For>
 						</div>
-					)}
-				</For>
+					</div>
+				))}
 			</nav>
 		</aside>
 	),

@@ -264,11 +264,9 @@ const lastMessage = useEventSignal(context, 'message');
 				<div class="max-w-3xl mx-auto">
 					<header class="text-center mb-10">
 						<h1 class="text-4xl font-bold text-slate-800 mb-3">
-							{computed(() => t.value?.title || '')}
+							{t.value?.title || ''}
 						</h1>
-						<p class="text-slate-600 text-lg">
-							{computed(() => t.value?.description || '')}
-						</p>
+						<p class="text-slate-600 text-lg">{t.value?.description || ''}</p>
 					</header>
 
 					<div class="flex flex-wrap justify-center gap-3 mb-10">
@@ -308,11 +306,11 @@ const lastMessage = useEventSignal(context, 'message');
 										: 'px-6 py-3 bg-blue-300 text-white rounded-lg font-semibold cursor-not-allowed transition-colors'
 								}
 							>
-								{computed(() => t.value?.send || '')}
+								{t.value?.send || ''}
 							</button>
 						</div>
 						<div class="mt-3 flex items-center gap-2 text-sm text-slate-500">
-							<span>{computed(() => t.value?.actingAs || '')}</span>
+							<span>{t.value?.actingAs || ''}</span>
 							<span
 								class={() => {
 									const style = userStyles[currentUser.value];
@@ -327,21 +325,20 @@ const lastMessage = useEventSignal(context, 'message');
 					<div class="bg-white rounded-xl shadow-lg border border-slate-200 p-4 mb-6">
 						<div class="flex justify-center gap-8">
 							<StatDisplay
-								label={computed(() => t.value?.stats?.messages || '')}
-								value={computed(() => messages.value.length)}
+								label={t.value?.stats?.messages || ''}
+								value={messages.value.length}
 								color="slate"
 							/>
 							<StatDisplay
-								label={computed(() => t.value?.stats?.emits || '')}
+								label={t.value?.stats?.emits || ''}
 								value={emitCount}
 								color="blue"
 							/>
 							<StatDisplay
-								label={computed(() => t.value?.stats?.online || '')}
-								value={computed(
-									() =>
-										presence.value.filter((p) => p.status === 'online').length
-								)}
+								label={t.value?.stats?.online || ''}
+								value={
+									presence.value.filter((p) => p.status === 'online').length
+								}
 								color="green"
 							/>
 						</div>
@@ -376,7 +373,7 @@ const lastMessage = useEventSignal(context, 'message');
 							onClick={() => resetSession()}
 							class="px-4 py-2 rounded-lg font-medium bg-red-100 text-red-600 hover:bg-red-200 ml-4"
 						>
-							{computed(() => t.value?.reset || '')}
+							{t.value?.reset || ''}
 						</button>
 					</div>
 
@@ -450,7 +447,7 @@ const lastMessage = useEventSignal(context, 'message');
 													onClick={() => handleMention(msg.value.author)}
 													class="opacity-0 group-hover:opacity-100 px-3 py-1 bg-blue-100 text-blue-700 rounded text-sm font-medium hover:bg-blue-200 transition"
 												>
-													{computed(() => t.value?.mention || '')}
+													{t.value?.mention || ''}
 												</button>
 											</>
 										)}
@@ -462,7 +459,7 @@ const lastMessage = useEventSignal(context, 'message');
 
 					<div class="mt-8 p-4 bg-slate-100 rounded-lg text-sm text-slate-600 overflow-x-auto">
 						<p class="mb-2 font-sans font-semibold text-slate-700">
-							{computed(() => t.value?.howItWorks || '')}
+							{t.value?.howItWorks || ''}
 						</p>
 						<Ink content={codeSnippet} />
 					</div>

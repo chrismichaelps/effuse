@@ -211,12 +211,12 @@ export const TodosPage = define({
 							<div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
 								<div class="bg-gradient-to-r from-slate-800 to-slate-700 px-6 py-4">
 									<h2 class="text-xl font-semibold text-white">
-										{computed(() => t.value?.editTodo as string)}
+										{t.value?.editTodo}
 									</h2>
 								</div>
 								<div class="p-6">
 									<label class="block mb-2 text-sm font-medium text-slate-700">
-										{computed(() => t.value?.todoTitle as string)}
+										{t.value?.todoTitle}
 									</label>
 									<input
 										type="text"
@@ -230,11 +230,8 @@ export const TodosPage = define({
 										}}
 										class="w-full px-4 py-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
 										placeholder={
-											computed(
-												() =>
-													t.value?.enterTodoTitlePlaceholder ??
-													'Enter todo title...'
-											) as unknown as string
+											t.value?.enterTodoTitlePlaceholder ??
+											'Enter todo title...'
 										}
 									/>
 								</div>
@@ -244,14 +241,14 @@ export const TodosPage = define({
 										onClick={() => closeEditModal()}
 										class="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg font-medium hover:bg-slate-300"
 									>
-										{computed(() => t.value?.cancel as string)}
+										{t.value?.cancel}
 									</button>
 									<button
 										type="button"
 										onClick={() => saveEdit()}
 										class="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700"
 									>
-										{computed(() => t.value?.saveChanges as string)}
+										{t.value?.saveChanges}
 									</button>
 								</div>
 							</div>
@@ -261,11 +258,9 @@ export const TodosPage = define({
 				<div class="max-w-3xl mx-auto">
 					<header class="text-center mb-10">
 						<h1 class="text-4xl font-bold text-slate-800 mb-3">
-							{computed(() => t.value?.title as string)}
+							{t.value?.title}
 						</h1>
-						<p class="text-slate-600 text-lg">
-							{computed(() => t.value?.description as string)}
-						</p>
+						<p class="text-slate-600 text-lg">{t.value?.description}</p>
 					</header>
 					<div class="flex flex-wrap justify-center gap-3 mb-10">
 						<span class="bg-blue-600 text-white px-4 py-1.5 rounded text-sm font-medium shadow-sm">
@@ -283,11 +278,7 @@ export const TodosPage = define({
 							<input
 								type="text"
 								id="todo-input"
-								placeholder={
-									computed(
-										() => t.value?.addPlaceholder as string
-									) as unknown as string
-								}
+								placeholder={t.value?.addPlaceholder ?? ''}
 								value={inputValue}
 								onInput={handleInputChange}
 								onKeyDown={handleKeyDown}
@@ -303,11 +294,7 @@ export const TodosPage = define({
 										: 'px-6 py-3 bg-blue-300 text-white rounded-lg font-semibold cursor-not-allowed transition-colors'
 								}
 							>
-								{computed(() =>
-									isAdding.value
-										? (t.value?.adding as string)
-										: (t.value?.add as string)
-								)}
+								{isAdding.value ? t.value?.adding : t.value?.add}
 							</button>
 						</div>
 					</div>
@@ -315,27 +302,21 @@ export const TodosPage = define({
 						<div class="flex justify-center gap-8">
 							<div class="text-center">
 								<div class="text-2xl font-bold text-slate-800">
-									{computed(() => totalCount.value)}
+									{totalCount.value}
 								</div>
-								<div class="text-sm text-slate-500">
-									{computed(() => t.value?.total as string)}
-								</div>
+								<div class="text-sm text-slate-500">{t.value?.total}</div>
 							</div>
 							<div class="text-center">
 								<div class="text-2xl font-bold text-green-600">
-									{computed(() => completedCount.value)}
+									{completedCount.value}
 								</div>
-								<div class="text-sm text-slate-500">
-									{computed(() => t.value?.completed as string)}
-								</div>
+								<div class="text-sm text-slate-500">{t.value?.completed}</div>
 							</div>
 							<div class="text-center">
 								<div class="text-2xl font-bold text-amber-600">
-									{computed(() => pendingCount.value)}
+									{pendingCount.value}
 								</div>
-								<div class="text-sm text-slate-500">
-									{computed(() => t.value?.pending as string)}
-								</div>
+								<div class="text-sm text-slate-500">{t.value?.pending}</div>
 							</div>
 						</div>
 					</div>
@@ -349,7 +330,7 @@ export const TodosPage = define({
 									: 'px-4 py-2 rounded-lg font-medium bg-slate-100 text-slate-600 hover:bg-slate-200'
 							}
 						>
-							{computed(() => t.value?.all as string)}
+							{t.value?.all}
 						</button>
 						<button
 							type="button"
@@ -360,7 +341,7 @@ export const TodosPage = define({
 									: 'px-4 py-2 rounded-lg font-medium bg-slate-100 text-slate-600 hover:bg-slate-200'
 							}
 						>
-							{computed(() => t.value?.completed as string)}
+							{t.value?.completed}
 						</button>
 						<button
 							type="button"
@@ -371,7 +352,7 @@ export const TodosPage = define({
 									: 'px-4 py-2 rounded-lg font-medium bg-slate-100 text-slate-600 hover:bg-slate-200'
 							}
 						>
-							{computed(() => t.value?.pending as string)}
+							{t.value?.pending}
 						</button>
 					</div>
 
@@ -383,7 +364,7 @@ export const TodosPage = define({
 							{computed(() =>
 								isLoading.value ? (
 									<div class="p-8 text-center text-slate-400">
-										{computed(() => t.value?.loadingTodos as string)}
+										{t.value?.loadingTodos}
 									</div>
 								) : null
 							)}
@@ -391,7 +372,7 @@ export const TodosPage = define({
 							{computed(() =>
 								!isLoading.value && totalCount.value === 0 ? (
 									<div class="p-8 text-center text-slate-400">
-										{computed(() => t.value?.noTodos as string)}
+										{t.value?.noTodos}
 									</div>
 								) : null
 							)}
@@ -407,11 +388,9 @@ export const TodosPage = define({
 													: 'w-6 h-6 rounded-full border-slate-300 hover:border-green-400 border-2 flex items-center justify-center flex-shrink-0'
 											}
 										>
-											{computed(() =>
-												todoSignal.value.completed ? (
-													<span class="text-xs font-bold">✓</span>
-												) : null
-											)}
+											{todoSignal.value.completed ? (
+												<span class="text-xs font-bold">✓</span>
+											) : null}
 										</button>
 										<div class="flex-1 min-w-0">
 											<p
@@ -421,7 +400,7 @@ export const TodosPage = define({
 														: 'text-slate-700'
 												}
 											>
-												{computed(() => todoSignal.value.title)}
+												{todoSignal.value.title}
 											</p>
 										</div>
 										<div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -430,18 +409,18 @@ export const TodosPage = define({
 												onClick={() => openEditModal(todoSignal.value)}
 												class="px-3 py-1 bg-blue-100 text-blue-700 rounded text-sm font-medium hover:bg-blue-200"
 											>
-												Edit
+												{t.value?.edit}
 											</button>
 											<button
 												type="button"
 												onClick={() => deleteTodo(todoSignal.value.id)}
 												class="px-3 py-1 bg-red-100 text-red-700 rounded text-sm font-medium hover:bg-red-200"
 											>
-												Delete
+												{t.value?.delete}
 											</button>
 										</div>
 										<span class="flex-shrink-0 bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-xs font-medium">
-											User {computed(() => todoSignal.value.userId)}
+											{t.value?.user} {todoSignal.value.userId}
 										</span>
 									</div>
 								)}
@@ -450,8 +429,8 @@ export const TodosPage = define({
 								todosQuery.isFetching.value && totalCount.value > 0 ? (
 									<div class="p-4 text-center text-slate-400 text-sm">
 										{todosQuery.isFetchingNextPage.value
-											? 'Loading more...'
-											: 'Refreshing...'}
+											? t.value?.loadingMore
+											: t.value?.refreshing}
 									</div>
 								) : null
 							)}
@@ -463,7 +442,9 @@ export const TodosPage = define({
 										onClick={() => loadMore()}
 										class="px-6 py-2 bg-slate-100 text-slate-700 rounded-lg font-medium hover:bg-slate-200 disabled:opacity-50"
 									>
-										{isFetchingNextPage.value ? 'Loading more...' : 'Load More'}
+										{isFetchingNextPage.value
+											? t.value?.loadingMore
+											: t.value?.loadMore}
 									</button>
 								</div>
 							) : null

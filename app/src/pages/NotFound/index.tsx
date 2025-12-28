@@ -25,15 +25,15 @@ export const NotFoundPage = define({
 			</div>
 
 			<div class="not-found-content">
-				<div class="error-code">{computed(() => t.value?.code as string)}</div>
-				<h1 class="error-title">{computed(() => t.value?.title as string)}</h1>
+				<div class="error-code">{t.value?.code}</div>
+				<h1 class="error-title">{t.value?.title}</h1>
 				<p class="error-message">
-					{computed(() => t.value?.description as string)}
+					{t.value?.description}
 					<br />
-					{computed(() => t.value?.track as string)}
+					{t.value?.track}
 				</p>
 				<Link to="/" class="cta-primary">
-					{computed(() => t.value?.goHome as string)}
+					{t.value?.goHome}
 					<img src="/icons/home.svg" alt="Home" class="w-5 h-5 text-zinc-950" />
 				</Link>
 			</div>

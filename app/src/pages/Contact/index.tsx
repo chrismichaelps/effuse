@@ -24,16 +24,12 @@ export const ContactPage = define({
 			</div>
 			<div class="legal-container">
 				<header class="legal-header">
-					<h1 class="legal-title">
-						{computed(() => t.value?.title as string)}
-					</h1>
+					<h1 class="legal-title">{t.value?.title}</h1>
 				</header>
 
 				<div class="legal-content">
 					<section class="legal-section" style={{ textAlign: 'center' }}>
-						<p class="legal-text">
-							{computed(() => t.value?.content as string)}
-						</p>
+						<p class="legal-text">{t.value?.content}</p>
 						<p class="legal-text" style={{ fontSize: '1.25rem' }}>
 							<a href="mailto:chrisperezsantiago1@gmail.com" class="legal-link">
 								chrisperezsantiago1@gmail.com

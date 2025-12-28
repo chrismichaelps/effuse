@@ -24,57 +24,45 @@ export const PrivacyPage = define({
 			</div>
 			<div class="legal-container">
 				<header class="legal-header">
-					<h1 class="legal-title">
-						{computed(() => t.value?.title as string)}
-					</h1>
-					<p class="legal-subtitle">
-						{computed(() => t.value?.lastUpdated as string)}
-					</p>
+					<h1 class="legal-title">{t.value?.title}</h1>
+					<p class="legal-subtitle">{t.value?.lastUpdated}</p>
 				</header>
 
 				<div class="legal-content">
 					<section class="legal-section">
 						<h2 class="legal-section-title">
-							{computed(() => t.value?.sections.overview.title as string)}
+							{t.value?.sections.overview.title}
 						</h2>
-						<p class="legal-text">
-							{computed(() => t.value?.sections.overview.content as string)}
-						</p>
+						<p class="legal-text">{t.value?.sections.overview.content}</p>
 					</section>
 
 					<section class="legal-section">
 						<h2 class="legal-section-title">
-							{computed(() => t.value?.sections.collection.title as string)}
+							{t.value?.sections.collection.title}
 						</h2>
-						<p class="legal-text">
-							{computed(() => t.value?.sections.collection.content as string)}
-						</p>
+						<p class="legal-text">{t.value?.sections.collection.content}</p>
 					</section>
 
 					<section class="legal-section">
 						<h2 class="legal-section-title">
-							{computed(() => t.value?.sections.cookies.title as string)}
+							{t.value?.sections.cookies.title}
 						</h2>
-						<p class="legal-text">
-							{computed(() => t.value?.sections.cookies.content as string)}
-						</p>
+						<p class="legal-text">{t.value?.sections.cookies.content}</p>
 					</section>
 
 					<section class="legal-section">
 						<h2 class="legal-section-title">
-							{computed(() => t.value?.sections.services.title as string)}
+							{t.value?.sections.services.title}
 						</h2>
-						<p class="legal-text">
-							{computed(() => t.value?.sections.services.content as string)}
-						</p>
+						<p class="legal-text">{t.value?.sections.services.content}</p>
 					</section>
 
 					<section class="legal-section">
 						<h2 class="legal-section-title">
-							{computed(() => t.value?.sections.contact.title as string)}
+							{t.value?.sections.contact.title}
 						</h2>
 						<p class="legal-text">
-							{computed(() => t.value?.sections.contact.content as string)}{' '}
+							{t.value?.sections.contact.content}{' '}
 							<a href="mailto:chrisperezsantiago1@gmail.com" class="legal-link">
 								chrisperezsantiago1@gmail.com
 							</a>

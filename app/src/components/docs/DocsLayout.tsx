@@ -157,7 +157,7 @@ export const DocsLayout = define<DocsLayoutProps, DocsLayoutExposed>({
 						<div class="toc-sidebar-container">
 							<div class="toc-sidebar-title flex items-center gap-2">
 								<img src="/icons/list.svg" width="14" height="14" alt="List" />
-								{computed(() => t.value?.onThisPage as string)}
+								{t.value?.onThisPage}
 							</div>
 							<nav class="toc-sidebar-nav">
 								<For

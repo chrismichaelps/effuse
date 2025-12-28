@@ -4,7 +4,12 @@
 		"skipLibCheck": true,
 		"module": "ESNext",
 		"moduleResolution": "bundler",
-		"allowSyntheticDefaultImports": true
+		"allowSyntheticDefaultImports": true,
+		"baseUrl": ".",
+		"paths": {
+			"@effuse/compiler": ["../packages/compiler/src/index.ts"],
+			"@effuse/compiler/*": ["../packages/compiler/src/*"]
+		}
 	},
-	"include": ["vite.config.ts"]
+	"include": ["vite.config.ts", "../packages/compiler/src/**/*.ts"]
 }

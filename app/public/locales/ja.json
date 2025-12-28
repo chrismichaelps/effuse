@@ -25,8 +25,8 @@
 		"todos": "Todoアプリ",
 		"props": "Props (プロパティ)",
 		"i18n": "国際化",
-		"emit": "Emit サンプル",
-		"events": "イベントエミッション"
+		"emit": "Emit",
+		"events": "Emit"
 	},
 	"toc": {
 		"onThisPage": "このページの内容"
@@ -48,7 +48,14 @@
 		"role": "作成者 @ Effuse",
 		"location": "New York, USA ⇄ Puerto Rico",
 		"languages": "英語, スペイン語",
-		"projects": ["core", "i18n", "ink", "query", "router", "store"],
+		"projects": [
+			"core",
+			"i18n",
+			"ink",
+			"query",
+			"router",
+			"store"
+		],
 		"focusTitle": "現在の注力分野",
 		"meta": {
 			"title": "私について - Effuse",
@@ -163,7 +170,7 @@
 			"footer": "Effuse と @effuse/i18n で構築"
 		},
 		"emit": {
-			"title": "イベントエミット",
+			"title": "Emit",
 			"description": "リアクティブ信号をサポートするイベントエミッター",
 			"placeholder": "メッセージを入力...",
 			"send": "送信",

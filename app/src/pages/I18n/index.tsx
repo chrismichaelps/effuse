@@ -95,11 +95,9 @@ export const I18nPage = define<object, I18nPageExposed>({
 				<div class="max-w-2xl mx-auto">
 					<header class="text-center mb-10">
 						<h1 class="text-4xl font-bold text-slate-800 mb-3">
-							{computed(() => t.value?.title as string)}
+							{t.value?.title}
 						</h1>
-						<p class="text-slate-600 text-lg">
-							{computed(() => t.value?.description as string)}
-						</p>
+						<p class="text-slate-600 text-lg">{t.value?.description}</p>
 					</header>
 
 					<div class="flex flex-wrap justify-center gap-3 mb-10">
@@ -117,7 +115,7 @@ export const I18nPage = define<object, I18nPageExposed>({
 					<div class="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden mb-8">
 						<div class="bg-gradient-to-r from-slate-800 to-slate-700 px-6 py-4">
 							<h2 class="text-xl font-semibold text-white">
-								{computed(() => t.value?.welcome as string)}
+								{t.value?.welcome}
 							</h2>
 						</div>
 
@@ -125,10 +123,10 @@ export const I18nPage = define<object, I18nPageExposed>({
 							<div class="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-200">
 								<div>
 									<span class="text-slate-500 text-sm">
-										{computed(() => t.value?.currentLocale as string)}:
+										{t.value?.currentLocale}:
 									</span>
 									<span class="ml-2 text-lg font-bold text-slate-800 uppercase">
-										{currentLocale}
+										{currentLocale.value}
 									</span>
 								</div>
 								<button
@@ -136,42 +134,44 @@ export const I18nPage = define<object, I18nPageExposed>({
 									onClick={() => toggleLocale()}
 									class="bg-green-600 text-white px-5 py-2.5 rounded-lg font-semibold hover:bg-green-700 transition-colors shadow-sm"
 								>
-									{computed(() => t.value?.changeLocale)}
+									{t.value?.changeLocale}
 								</button>
 							</div>
 
 							<div class="p-4 bg-slate-50 rounded-xl border border-slate-200">
-								<p class="text-lg text-slate-700 font-medium">{greetingText}</p>
-								<p class="text-sm text-slate-500 mt-2">{summaryText}</p>
+								<p class="text-lg text-slate-700 font-medium">
+									{greetingText.value}
+								</p>
+								<p class="text-sm text-slate-500 mt-2">{summaryText.value}</p>
 							</div>
 
 							<div class="p-4 bg-white rounded-xl border border-slate-200">
 								<h3 class="text-lg font-semibold text-slate-700 mb-4">
-									{computed(() => t.value?.featuresTitle as string)}
+									{t.value?.featuresTitle}
 								</h3>
 								<ul class="space-y-2">
 									<li class="flex items-start gap-2">
 										<span class="text-green-600 mt-1">✓</span>
 										<span class="text-slate-600">
-											{computed(() => t.value?.featuresTypeSafe ?? '')}
+											{t.value?.featuresTypeSafe ?? ''}
 										</span>
 									</li>
 									<li class="flex items-start gap-2">
 										<span class="text-green-600 mt-1">✓</span>
 										<span class="text-slate-600">
-											{computed(() => t.value?.featuresInterpolation ?? '')}
+											{t.value?.featuresInterpolation ?? ''}
 										</span>
 									</li>
 									<li class="flex items-start gap-2">
 										<span class="text-green-600 mt-1">✓</span>
 										<span class="text-slate-600">
-											{computed(() => t.value?.featuresReactive ?? '')}
+											{t.value?.featuresReactive ?? ''}
 										</span>
 									</li>
 									<li class="flex items-start gap-2">
 										<span class="text-green-600 mt-1">✓</span>
 										<span class="text-slate-600">
-											{computed(() => t.value?.featuresNested ?? '')}
+											{t.value?.featuresNested ?? ''}
 										</span>
 									</li>
 								</ul>
@@ -179,7 +179,7 @@ export const I18nPage = define<object, I18nPageExposed>({
 
 							<div class="p-4 bg-slate-50 rounded-xl border border-slate-200">
 								<div class="flex items-center justify-between">
-									<span class="text-slate-700">{itemsCountText}</span>
+									<span class="text-slate-700">{itemsCountText.value}</span>
 									<div class="flex gap-2">
 										<button
 											type="button"
@@ -205,7 +205,7 @@ export const I18nPage = define<object, I18nPageExposed>({
 
 							<div class="flex items-center gap-4 p-4 bg-slate-100 rounded-xl">
 								<label class="text-slate-600 text-sm font-medium">
-									{yourNameLabel}
+									{yourNameLabel.value}
 								</label>
 								<input
 									type="text"
@@ -220,7 +220,7 @@ export const I18nPage = define<object, I18nPageExposed>({
 
 						<div class="px-6 pb-6">
 							<p class="text-center text-slate-500 text-sm">
-								{computed(() => t.value?.footer as string)}
+								{t.value?.footer}
 							</p>
 						</div>
 					</div>

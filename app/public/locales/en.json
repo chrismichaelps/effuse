@@ -25,8 +25,8 @@
 		"todos": "Todos",
 		"props": "Props",
 		"i18n": "I18n",
-		"emit": "Emit Example",
-		"events": "Event Emission"
+		"emit": "Emit",
+		"events": "Emit"
 	},
 	"toc": {
 		"onThisPage": "On this page"
@@ -48,7 +48,14 @@
 		"role": "Creator @ Effuse",
 		"location": "New York, USA ⇄ Puerto Rico",
 		"languages": "English, Spanish",
-		"projects": ["core", "i18n", "ink", "query", "router", "store"],
+		"projects": [
+			"core",
+			"i18n",
+			"ink",
+			"query",
+			"router",
+			"store"
+		],
 		"focusTitle": "Active Focus",
 		"meta": {
 			"title": "About Me - Effuse",
@@ -163,7 +170,7 @@
 			"footer": "Built with Effuse and @effuse/i18n"
 		},
 		"emit": {
-			"title": "Event Emits",
+			"title": "Emit",
 			"description": "Event emitter with reactive signal support",
 			"placeholder": "Type a message...",
 			"send": "Send",

@@ -146,6 +146,13 @@ export const FormDemoPage = define({
 			});
 		});
 
+		const resetAll = useCallback(() => {
+			form.reset();
+			submittedPosts.value = [];
+			submissionStatus.value = '';
+			nextPostId = 1;
+		});
+
 		const titleError = computed(() => form.errors.value.title ?? '');
 		const emailError = computed(() => form.errors.value.email ?? '');
 		const bodyError = computed(() => form.errors.value.body ?? '');
@@ -202,6 +209,7 @@ export const FormDemoPage = define({
 			isDisabled,
 			postsCount,
 			handleSubmit,
+			resetAll,
 		};
 	},
 	template: ({
@@ -222,17 +230,16 @@ export const FormDemoPage = define({
 		isDisabled,
 		postsCount,
 		handleSubmit,
+		resetAll,
 	}) => (
 		<DocsLayout currentPath="/form">
 			<div class="min-h-screen py-12 px-4">
 				<div class="max-w-2xl mx-auto">
 					<header class="text-center mb-10">
 						<h1 class="text-4xl font-bold text-slate-800 mb-3">
-							{computed(() => t.value?.title as string)}
+							{t.value?.title}
 						</h1>
-						<p class="text-slate-600 text-lg">
-							{computed(() => t.value?.description as string)}
-						</p>
+						<p class="text-slate-600 text-lg">{t.value?.description}</p>
 					</header>
 
 					<div class="flex flex-wrap justify-center gap-3 mb-10">
@@ -255,10 +262,10 @@ export const FormDemoPage = define({
 							class="text-xl font-semibold text-white"
 							style={{ color: 'white' }}
 						>
-							{computed(() => t.value?.createPost as string)}
+							{t.value?.createPost}
 						</h2>
 						<p class="text-slate-300 text-sm mt-1" style={{ color: '#cbd5e1' }}>
-							{computed(() => t.value?.apiNote)}
+							{t.value?.apiNote}
 						</p>
 					</div>
 					<form
@@ -273,19 +280,15 @@ export const FormDemoPage = define({
 								for="title"
 								class="block text-sm font-semibold text-slate-700 mb-2"
 							>
-								{computed(() => t.value?.titleLabel as string)}
+								{t.value?.titleLabel}
 								<span class="text-red-500 ml-1">*</span>
 							</label>
 							<div class="relative">
 								<input
 									id="title"
 									type="text"
-									placeholder={
-										computed(
-											() => t.value?.enterTitlePlaceholder as string
-										) as unknown as string
-									}
-									value={form.fields.title}
+									placeholder={t.value?.enterTitlePlaceholder ?? ''}
+									value={form.fields.title.value}
 									onInput={(e: Event) => {
 										form.fields.title.value = (
 											e.target as HTMLInputElement
@@ -297,10 +300,12 @@ export const FormDemoPage = define({
 									class="w-full px-4 py-3 border-2 border-slate-200 rounded-lg focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none transition-all bg-slate-50 hover:bg-white"
 								/>
 								<span class="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 text-xs font-mono">
-									{titleCharCount}
+									{titleCharCount.value}
 								</span>
 							</div>
-							<p class="text-red-500 text-sm mt-1.5 min-h-5">{titleError}</p>
+							<p class="text-red-500 text-sm mt-1.5 min-h-5">
+								{titleError.value}
+							</p>
 						</div>
 
 						<div class="mb-5">
@@ -308,18 +313,14 @@ export const FormDemoPage = define({
 								for="email"
 								class="block text-sm font-semibold text-slate-700 mb-2"
 							>
-								{computed(() => t.value?.emailLabel as string)}
+								{t.value?.emailLabel}
 								<span class="text-red-500 ml-1">*</span>
 							</label>
 							<input
 								id="email"
 								type="text"
-								placeholder={
-									computed(
-										() => t.value?.emailPlaceholder as string
-									) as unknown as string
-								}
-								value={form.fields.email}
+								placeholder={t.value?.emailPlaceholder ?? ''}
+								value={form.fields.email.value}
 								onInput={(e: Event) => {
 									form.fields.email.value = (
 										e.target as HTMLInputElement
@@ -330,7 +331,9 @@ export const FormDemoPage = define({
 								}}
 								class="w-full px-4 py-3 border-2 border-slate-200 rounded-lg focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none transition-all bg-slate-50 hover:bg-white"
 							/>
-							<p class="text-red-500 text-sm mt-1.5 min-h-5">{emailError}</p>
+							<p class="text-red-500 text-sm mt-1.5 min-h-5">
+								{emailError.value}
+							</p>
 						</div>
 
 						<div class="mb-5">
@@ -338,18 +341,14 @@ export const FormDemoPage = define({
 								for="body"
 								class="block text-sm font-semibold text-slate-700 mb-2"
 							>
-								{computed(() => t.value?.bodyLabel as string)}
+								{t.value?.bodyLabel}
 								<span class="text-red-500 ml-1">*</span>
 							</label>
 							<div class="relative">
 								<textarea
 									id="body"
-									placeholder={
-										computed(
-											() => t.value?.bodyPlaceholder as string
-										) as unknown as string
-									}
-									value={form.fields.body}
+									placeholder={t.value?.bodyPlaceholder ?? ''}
+									value={form.fields.body.value}
 									onInput={(e: Event) => {
 										form.fields.body.value = (
 											e.target as HTMLTextAreaElement
@@ -361,10 +360,12 @@ export const FormDemoPage = define({
 									class="w-full px-4 py-3 border-2 border-slate-200 rounded-lg focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none transition-all bg-slate-50 hover:bg-white min-h-32 resize-y"
 								/>
 								<span class="absolute right-3 top-3 text-slate-400 text-xs font-mono">
-									{bodyCharCount}
+									{bodyCharCount.value}
 								</span>
 							</div>
-							<p class="text-red-500 text-sm mt-1.5 min-h-5">{bodyError}</p>
+							<p class="text-red-500 text-sm mt-1.5 min-h-5">
+								{bodyError.value}
+							</p>
 						</div>
 
 						<div class="mb-6">
@@ -372,7 +373,7 @@ export const FormDemoPage = define({
 								for="userId"
 								class="block text-sm font-semibold text-slate-700 mb-2"
 							>
-								{computed(() => t.value?.userIdLabel as string)}
+								{t.value?.userIdLabel}
 								<span class="text-red-500 ml-1">*</span>
 							</label>
 							<input
@@ -393,32 +394,30 @@ export const FormDemoPage = define({
 								}}
 								class="w-full px-4 py-3 border-2 border-slate-200 rounded-lg focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none transition-all bg-slate-50 hover:bg-white"
 							/>
-							<p class="text-red-500 text-sm mt-1.5 min-h-5">{userIdError}</p>
+							<p class="text-red-500 text-sm mt-1.5 min-h-5">
+								{userIdError.value}
+							</p>
 						</div>
 
 						<div class="flex flex-wrap gap-4 p-4 bg-slate-50 rounded-xl border border-slate-200 mb-6">
 							<div class="flex items-center gap-2">
-								<span class="text-slate-500 text-sm">
-									{computed(() => t.value?.valid as string)}:
-								</span>
+								<span class="text-slate-500 text-sm">{t.value?.valid}:</span>
 								<span class="text-sm font-semibold text-slate-700">
-									{isValidText}
+									{isValidText.value}
+								</span>
+							</div>
+							<div class="flex items-center gap-2">
+								<span class="text-slate-500 text-sm">{t.value?.state}:</span>
+								<span class="text-sm font-semibold text-slate-700">
+									{isDirtyText.value}
 								</span>
 							</div>
 							<div class="flex items-center gap-2">
 								<span class="text-slate-500 text-sm">
-									{computed(() => t.value?.state as string)}:
+									{t.value?.submitting}:
 								</span>
 								<span class="text-sm font-semibold text-slate-700">
-									{isDirtyText}
-								</span>
-							</div>
-							<div class="flex items-center gap-2">
-								<span class="text-slate-500 text-sm">
-									{computed(() => t.value?.submitting as string)}:
-								</span>
-								<span class="text-sm font-semibold text-slate-700">
-									{isSubmittingText}
+									{isSubmittingText.value}
 								</span>
 							</div>
 						</div>
@@ -426,27 +425,27 @@ export const FormDemoPage = define({
 						<div class="flex gap-3">
 							<button
 								type="button"
-								disabled={isDisabled}
+								disabled={isDisabled.value}
 								onClick={() => handleSubmit()}
 								class="flex-1 bg-green-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-green-700 disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed"
 							>
-								{submitButtonText}
+								{submitButtonText.value}
 							</button>
 							<button
 								type="button"
 								onClick={() => {
-									form.reset();
+									resetAll();
 								}}
 								class="bg-gray-100 text-gray-700 px-6 py-3 rounded-lg font-semibold hover:bg-gray-200 border border-gray-200"
 							>
-								{computed(() => t.value?.reset as string)}
+								{t.value?.reset}
 							</button>
 						</div>
 					</form>
 
 					<div class="px-6 pb-6">
 						<div class="p-4 bg-emerald-50 text-emerald-700 rounded-xl font-medium border border-emerald-200 empty:hidden">
-							{submissionStatus}
+							{submissionStatus.value}
 						</div>
 					</div>
 				</div>
@@ -462,11 +461,11 @@ export const FormDemoPage = define({
 									class="text-xl font-semibold text-white"
 									style={{ color: 'white' }}
 								>
-									{computed(() => t.value?.createdPosts as string)}
+									{t.value?.createdPosts}
 								</h2>
 							</div>
 							<div class="p-6 text-center text-slate-400">
-								{computed(() => t.value?.loadingPosts as string)}
+								{t.value?.loadingPosts}
 							</div>
 						</div>
 					}
@@ -480,10 +479,10 @@ export const FormDemoPage = define({
 								class="text-xl font-semibold text-white"
 								style={{ color: 'white' }}
 							>
-								{computed(() => t.value?.createdPosts as string)}
+								{t.value?.createdPosts}
 							</h2>
 							<span class="bg-slate-600 text-white text-sm px-3 py-1 rounded-full">
-								{postsCount}
+								{postsCount.value}
 							</span>
 						</div>
 						<div class="divide-y divide-slate-200">
@@ -492,7 +491,7 @@ export const FormDemoPage = define({
 								keyExtractor={(post) => post.id}
 								fallback={
 									<p class="text-slate-400 text-center py-8">
-										{computed(() => t.value?.noPosts as string)}
+										{t.value?.noPosts}
 									</p>
 								}
 							>
@@ -515,8 +514,7 @@ export const FormDemoPage = define({
 													</p>
 												</div>
 												<span class="flex-shrink-0 bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-xs font-medium">
-													{computed(() => t.value?.user as string)}{' '}
-													{String(post.userId)}
+													{t.value?.user} {String(post.userId)}
 												</span>
 											</div>
 										</div>

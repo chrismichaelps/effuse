@@ -48,8 +48,8 @@ export const AboutPage = define({
 		<main class="about-page">
 			<div class="about-container">
 				<header class="about-hero">
-					<h1>{title}</h1>
-					<p>{description}</p>
+					<h1>{title.value}</h1>
+					<p>{description.value}</p>
 				</header>
 
 				<For each={sections} keyExtractor={(s: any) => s.title}>
@@ -68,7 +68,7 @@ export const AboutPage = define({
 										class="sponsor-btn"
 									>
 										<span class="sponsor-icon"></span>
-										{sponsor}
+										{sponsor.value}
 									</a>
 
 									<div class="member-header">
@@ -79,8 +79,8 @@ export const AboutPage = define({
 											/>
 										</div>
 										<div class="member-info">
-											<h3 class="member-name">{name}</h3>
-											<p class="member-role">{role}</p>
+											<h3 class="member-name">{name.value}</h3>
+											<p class="member-role">{role.value}</p>
 										</div>
 									</div>
 
@@ -103,11 +103,11 @@ export const AboutPage = define({
 										<div class="member-meta">
 											<div class="meta-item">
 												<span class="meta-icon location"></span>
-												{location}
+												{location.value}
 											</div>
 											<div class="meta-item">
 												<span class="meta-icon languages"></span>
-												{languages}
+												{languages.value}
 											</div>
 										</div>
 

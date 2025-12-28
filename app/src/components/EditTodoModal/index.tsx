@@ -42,13 +42,13 @@ export const EditTodoModal = define<EditTodoModalProps, EditTodoModalExposed>({
 				<div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
 					<div class="bg-gradient-to-r from-slate-800 to-slate-700 px-6 py-4">
 						<h2 class="text-xl font-semibold text-white">
-							{computed(() => t.value?.editTodo as string)}
+							{t.value?.editTodo}
 						</h2>
 					</div>
 
 					<div class="p-6">
 						<label class="block mb-2 text-sm font-medium text-slate-700">
-							{computed(() => t.value?.todoTitle as string)}
+							{t.value?.todoTitle}
 						</label>
 						<input
 							type="text"
@@ -61,11 +61,7 @@ export const EditTodoModal = define<EditTodoModalProps, EditTodoModalExposed>({
 								if (e.key === 'Escape') onClose();
 							}}
 							class="w-full px-4 py-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-							placeholder={
-								computed(
-									() => t.value?.enterTodoTitlePlaceholder as string
-								) as unknown as string
-							}
+							placeholder={t.value?.enterTodoTitlePlaceholder ?? ''}
 						/>
 					</div>
 
@@ -75,14 +71,14 @@ export const EditTodoModal = define<EditTodoModalProps, EditTodoModalExposed>({
 							onClick={() => onClose()}
 							class="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg font-medium hover:bg-slate-300 transition-colors"
 						>
-							{computed(() => t.value?.cancel as string)}
+							{t.value?.cancel}
 						</button>
 						<button
 							type="button"
 							onClick={() => onSave()}
 							class="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
 						>
-							{computed(() => t.value?.saveChanges as string)}
+							{t.value?.saveChanges}
 						</button>
 					</div>
 				</div>

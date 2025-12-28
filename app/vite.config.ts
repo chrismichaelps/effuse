@@ -1,7 +1,13 @@
 import { defineConfig } from 'vite';
 import path from 'path';
+import { effuse } from '@effuse/compiler/vite';
 
 export default defineConfig({
+	plugins: [
+		effuse({
+			debug: false,
+		}),
+	],
 	resolve: {
 		alias: {
 			'@effuse/core/jsx-runtime': path.resolve(
@@ -27,6 +33,10 @@ export default defineConfig({
 			),
 			'@effuse/ink': path.resolve(__dirname, '../packages/ink/src/index.ts'),
 			'@effuse/i18n': path.resolve(__dirname, '../packages/i18n/src/index.ts'),
+			'@effuse/compiler': path.resolve(
+				__dirname,
+				'../packages/compiler/src/index.ts'
+			),
 		},
 		dedupe: [
 			'@effuse/core',
