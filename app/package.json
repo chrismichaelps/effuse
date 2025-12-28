@@ -18,7 +18,7 @@
 		"@effuse/query": "workspace:*",
 		"@effuse/router": "workspace:*",
 		"@effuse/store": "workspace:*",
-		"lenis": "^1.3.16"
+		"lenis": "^1.3.17"
 	},
 	"devDependencies": {
 		"@types/node": "^25.0.3",
