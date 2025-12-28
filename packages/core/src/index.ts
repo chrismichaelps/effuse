@@ -243,7 +243,6 @@ export {
 	type PluginCleanup,
 	type LayerRestriction,
 	type RouterConfig,
-	type StyleConfig,
 	type ProviderConfig,
 	type PluginConfig,
 } from './layers/index.js';
@@ -339,12 +338,6 @@ export {
 	type UseFormReturn,
 	type BindResult,
 } from './form/index.js';
-
-export {
-	useStyles,
-	type StyleOptions,
-	type StyleCleanup,
-} from './styles/index.js';
 
 export {
 	DEFAULT_DEBOUNCE_MS,

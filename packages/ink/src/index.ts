@@ -36,9 +36,7 @@ import { transformDocument } from './renderer/transformer.js';
 
 export { Ink } from './renderer/index.js';
 export { transformDocument, type ComponentMap } from './renderer/index.js';
-export { InkProseLayer } from './styles/index.js';
-
-export type { EffuseLayer } from '@effuse/core';
+export { injectInkStyles } from './styles/index.js';
 
 export type {
 	MarkdownNode,

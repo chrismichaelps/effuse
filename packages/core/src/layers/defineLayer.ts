@@ -32,12 +32,10 @@ import type {
 import {
 	RouterService,
 	StoreService,
-	StyleService,
 	ProviderService,
 	PluginService,
 	type RouterConfig,
 	type StoreServiceConfig,
-	type StyleConfig,
 	type ProviderConfig,
 	type PluginConfig,
 } from './services.js';
@@ -88,14 +86,12 @@ export const mergeLayerConfigs = (
 ): {
 	router: RouterConfig;
 	stores: StoreServiceConfig;
-	styles: StyleConfig;
 	providers: ProviderConfig;
 	plugins: PluginConfig;
 } => {
 	const allRoutes: RouteConfig[] = [];
 	const allGuards: Guard[] = [];
 	const allStores: StoreServiceConfig['stores'][number][] = [];
-	const allStyles: (string | (() => string))[] = [];
 	const allProviders: ProviderConfig['providers'][number][] = [];
 	const allPlugins: PluginConfig['plugins'][number][] = [];
 
@@ -115,10 +111,6 @@ export const mergeLayerConfigs = (
 			allStores.push(...layer.stores);
 		}
 
-		if (layer.styles) {
-			allStyles.push(...layer.styles);
-		}
-
 		if (layer.providers) {
 			allProviders.push(...layer.providers);
 		}
@@ -135,7 +127,6 @@ export const mergeLayerConfigs = (
 			guards: allGuards,
 		},
 		stores: { stores: allStores },
-		styles: { styles: allStyles },
 		providers: { providers: allProviders },
 		plugins: { plugins: allPlugins },
 	};
@@ -144,7 +135,7 @@ export const mergeLayerConfigs = (
 export const defineLayer = (
 	def: EffuseLayer
 ): Layer.Layer<
-	RouterService | StoreService | StyleService | ProviderService | PluginService
+	RouterService | StoreService | ProviderService | PluginService
 > => {
 	const resolved: ResolvedLayer = { ...def, _resolved: true };
 	const configs = mergeLayerConfigs([resolved]);
@@ -152,7 +143,6 @@ export const defineLayer = (
 	return Layer.mergeAll(
 		Layer.succeed(RouterService, configs.router),
 		Layer.succeed(StoreService, configs.stores),
-		Layer.succeed(StyleService, configs.styles),
 		Layer.succeed(ProviderService, configs.providers),
 		Layer.succeed(PluginService, configs.plugins)
 	);
@@ -161,7 +151,7 @@ export const defineLayer = (
 export const combineLayers = (
 	...layers: readonly EffuseLayer[]
 ): Layer.Layer<
-	RouterService | StoreService | StyleService | ProviderService | PluginService
+	RouterService | StoreService | ProviderService | PluginService
 > => {
 	const resolved = resolveLayerExtends(layers);
 	const configs = mergeLayerConfigs(resolved);
@@ -169,7 +159,6 @@ export const combineLayers = (
 	return Layer.mergeAll(
 		Layer.succeed(RouterService, configs.router),
 		Layer.succeed(StoreService, configs.stores),
-		Layer.succeed(StyleService, configs.styles),
 		Layer.succeed(ProviderService, configs.providers),
 		Layer.succeed(PluginService, configs.plugins)
 	);

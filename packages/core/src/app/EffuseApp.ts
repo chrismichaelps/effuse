@@ -29,7 +29,6 @@ import {
 	combineLayers,
 	RouterService,
 	StoreService,
-	StyleService,
 	ProviderService,
 	PluginService,
 	type PluginConfig,
@@ -43,7 +42,6 @@ export interface AppInstance {
 export class EffuseApp {
 	private layers: EffuseLayer[] = [];
 	private rootComponent: Component;
-	private styleElement: HTMLStyleElement | null = null;
 	private cleanups: (() => void)[] = [];
 
 	constructor(root: Component) {
@@ -66,18 +64,15 @@ export class EffuseApp {
 		const program = Effect.gen(function* () {
 			const router = yield* RouterService;
 			const stores = yield* StoreService;
-			const styles = yield* StyleService;
 			const providers = yield* ProviderService;
 			const plugins = yield* PluginService;
 
-			return { router, stores, styles, providers, plugins };
+			return { router, stores, providers, plugins };
 		});
 
 		const configs = await Effect.runPromise(
 			Effect.provide(program, combinedLayer)
 		);
-
-		this.installStyles(configs.styles.styles);
 
 		await this.runPlugins(configs.plugins);
 
@@ -88,19 +83,6 @@ export class EffuseApp {
 				this.cleanup();
 			},
 		};
-	}
-
-	private installStyles(styles: readonly (string | (() => string))[]): void {
-		if (styles.length === 0) return;
-
-		const css = styles
-			.map((s) => (typeof s === 'function' ? s() : s))
-			.join('\n\n');
-
-		this.styleElement = document.createElement('style');
-		this.styleElement.setAttribute('data-effuse-layers', 'true');
-		this.styleElement.textContent = css;
-		document.head.appendChild(this.styleElement);
 	}
 
 	private async runPlugins(config: PluginConfig): Promise<void> {
@@ -117,10 +99,5 @@ export class EffuseApp {
 			cleanup();
 		}
 		this.cleanups = [];
-
-		if (this.styleElement) {
-			this.styleElement.remove();
-			this.styleElement = null;
-		}
 	}
 }

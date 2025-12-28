@@ -22,4 +22,4 @@
  * SOFTWARE.
  */
 
-export { InkProseLayer } from './prose.js';
+export { injectInkStyles } from './prose.js';

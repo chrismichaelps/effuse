@@ -22,12 +22,7 @@
  * SOFTWARE.
  */
 
-import type { EffuseLayer } from '@effuse/core';
-
-export const InkProseLayer: EffuseLayer = {
-	name: 'ink-prose',
-	styles: [
-		`
+const inkProseStyles = `
 .prose {
 	max-width: 65ch;
 	line-height: 1.75;
@@ -299,6 +294,15 @@ export const InkProseLayer: EffuseLayer = {
 .prose .ink-tbody .ink-tr:hover {
 	background: rgba(255, 255, 255, 0.02);
 }
-`,
-	],
-};
+`;
+
+export function injectInkStyles(): () => void {
+	const style = document.createElement('style');
+	style.setAttribute('data-ink-prose', 'true');
+	style.textContent = inkProseStyles;
+	document.head.appendChild(style);
+
+	return () => {
+		style.remove();
+	};
+}

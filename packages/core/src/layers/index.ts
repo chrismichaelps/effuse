@@ -36,12 +36,10 @@ export type {
 export {
 	RouterService,
 	StoreService,
-	StyleService,
 	ProviderService,
 	PluginService,
 	type RouterConfig,
 	type StoreServiceConfig,
-	type StyleConfig,
 	type ProviderConfig,
 	type PluginConfig,
 	type LayerServices,

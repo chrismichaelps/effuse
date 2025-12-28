@@ -1,17 +1,19 @@
 import { createApp } from '@effuse/core';
-import { InkProseLayer } from '@effuse/ink';
+import { injectInkStyles } from '@effuse/ink';
 import { App } from './App';
 import { router, installRouter } from './router';
 import { i18nStore } from './store/appI18n';
 
 import './styles.css';
 
+injectInkStyles();
+
 installRouter(router);
 
 i18nStore.init();
 
 createApp(App)
-	.useLayers([InkProseLayer])
+	.useLayers([])
 	.then((app) => {
 		app
 			.mount('#app')

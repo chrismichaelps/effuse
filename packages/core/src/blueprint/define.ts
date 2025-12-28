@@ -32,8 +32,6 @@ import type { ScriptContext, ExposedValues } from './script-context.js';
 import { createScriptContext, runMountCallbacks } from './script-context.js';
 import type { ComponentLifecycle } from './lifecycle.js';
 import type { AnyPropSchemaBuilder } from './props.js';
-import { useStyles } from '../styles/useStyles.js';
-import type { StyleOptions, StyleCleanup } from '../styles/types.js';
 
 export interface PropsSchema<P> {
 	Type: P;
@@ -50,8 +48,7 @@ export type TemplateArgs<E extends ExposedValues> = E & {
 export interface DefineOptions<P, E extends ExposedValues> {
 	props?: PropsSchema<P>;
 	propsSchema?: AnyPropSchemaBuilder;
-	styles?: string | readonly string[];
-	styleOptions?: StyleOptions;
+
 	script: (ctx: ScriptContext<P>) => E | undefined;
 	template: (exposed: TemplateArgs<E>, props: Readonly<P>) => EffuseChild;
 }
@@ -60,7 +57,7 @@ interface DefineState<E extends ExposedValues> {
 	exposed: E;
 	lifecycle: ComponentLifecycle;
 	_template: (exposed: TemplateArgs<E>, props: unknown) => EffuseChild;
-	_styleCleanup?: StyleCleanup;
+
 	[key: string]: unknown;
 }
 
@@ -71,8 +68,7 @@ export const define = <
 >(options: {
 	props?: PropsSchema<P>;
 	propsSchema?: AnyPropSchemaBuilder;
-	styles?: string | readonly string[];
-	styleOptions?: StyleOptions;
+
 	script: (ctx: ScriptContext<P>) => E;
 	template: (exposed: TemplateArgs<E>, props: Readonly<P>) => EffuseChild;
 }): Component<P> => {
@@ -83,11 +79,6 @@ export const define = <
 			let validatedProps = props;
 			if (options.propsSchema) {
 				validatedProps = options.propsSchema.validateSync(props) as P;
-			}
-
-			let styleCleanup: StyleCleanup | undefined;
-			if (options.styles) {
-				styleCleanup = useStyles(options.styles, options.styleOptions);
 			}
 
 			const { context, state } = createScriptContext<P, E>(validatedProps);
@@ -103,7 +94,6 @@ export const define = <
 				exposed: state.exposed,
 				lifecycle: state.lifecycle,
 				_template: options.template,
-				_styleCleanup: styleCleanup,
 			} as DefineState<E> as unknown as Record<string, never>;
 		},
 

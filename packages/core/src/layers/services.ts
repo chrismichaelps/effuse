@@ -33,11 +33,6 @@ export interface RouterConfig {
 	readonly domain?: string;
 }
 
-export interface StyleConfig {
-	readonly styles: readonly (string | (() => string))[];
-	readonly domain?: string;
-}
-
 export interface ProviderConfig {
 	readonly providers: readonly Component[];
 }
@@ -60,11 +55,6 @@ export class StoreService extends Context.Tag('StoreService')<
 	StoreServiceConfig
 >() {}
 
-export class StyleService extends Context.Tag('StyleService')<
-	StyleService,
-	StyleConfig
->() {}
-
 export class ProviderService extends Context.Tag('ProviderService')<
 	ProviderService,
 	ProviderConfig
@@ -78,6 +68,5 @@ export class PluginService extends Context.Tag('PluginService')<
 export type LayerServices =
 	| RouterService
 	| StoreService
-	| StyleService
 	| ProviderService
 	| PluginService;

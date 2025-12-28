@@ -57,7 +57,6 @@ export type PluginFn = () =>
 export type LayerRestriction =
 	| 'components'
 	| 'routes'
-	| 'styles'
 	| 'stores'
 	| 'providers'
 	| 'plugins';
@@ -76,7 +75,6 @@ export interface EffuseLayer {
 		readonly guards?: readonly Guard[];
 	};
 	readonly stores?: readonly StoreConfig[];
-	readonly styles?: readonly (string | (() => string))[];
 	readonly providers?: readonly Component[];
 	readonly plugins?: readonly PluginFn[];
 }
