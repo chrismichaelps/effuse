@@ -48,14 +48,7 @@
 		"role": "作成者 @ Effuse",
 		"location": "New York, USA ⇄ Puerto Rico",
 		"languages": "英語, スペイン語",
-		"projects": [
-			"core",
-			"i18n",
-			"ink",
-			"query",
-			"router",
-			"store"
-		],
+		"projects": ["core", "i18n", "ink", "query", "router", "store", "compiler"],
 		"focusTitle": "現在の注力分野",
 		"meta": {
 			"title": "私について - Effuse",
