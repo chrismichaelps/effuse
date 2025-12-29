@@ -1,19 +1,26 @@
 import { createApp } from '@effuse/core';
-import { injectInkStyles } from '@effuse/ink';
+import { InkLayer } from '@effuse/ink';
 import { App } from './App';
-import { router, installRouter } from './router';
-import { i18nStore } from './store/appI18n';
-
+import {
+	RouterLayer,
+	I18nLayer,
+	SidebarLayer,
+	TodosLayer,
+	DocsLayer,
+	LayoutLayer,
+} from './layers';
 import './styles.css';
 
-injectInkStyles();
-
-installRouter(router);
-
-i18nStore.init();
-
 createApp(App)
-	.useLayers([])
+	.useLayers([
+		InkLayer,
+		LayoutLayer,
+		RouterLayer,
+		I18nLayer,
+		SidebarLayer,
+		DocsLayer,
+		TodosLayer,
+	])
 	.then((app) => {
 		app
 			.mount('#app')
