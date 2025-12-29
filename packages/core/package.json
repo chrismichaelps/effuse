@@ -50,13 +50,15 @@
 	},
 	"files": [
 		"dist",
-		"src"
+		"src",
+		"scripts"
 	],
 	"scripts": {
 		"build": "tsup",
 		"dev": "tsup --watch",
 		"lint": "eslint src",
-		"typecheck": "tsc --noEmit"
+		"typecheck": "tsc --noEmit",
+		"gen-layers": "tsx scripts/gen-layers/index.ts"
 	},
 	"keywords": [
 		"ui-library",
