@@ -4,7 +4,7 @@ import {
 	type Signal,
 	type ReadonlySignal,
 } from '@effuse/core';
-import { i18nStore } from '../../store/appI18n';
+import type { i18nStore as I18nStoreType } from '../../store/appI18n';
 
 interface EditTodoModalProps {
 	isOpen: Signal<boolean>;
@@ -19,7 +19,8 @@ interface EditTodoModalExposed extends EditTodoModalProps {
 }
 
 export const EditTodoModal = define<EditTodoModalProps, EditTodoModalExposed>({
-	script: ({ props }) => {
+	script: ({ props, useStore }) => {
+		const i18nStore = useStore('i18n') as typeof I18nStoreType;
 		const t = computed(() => i18nStore.translations.value?.examples?.todos);
 		return {
 			t,

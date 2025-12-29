@@ -1,14 +1,20 @@
 import { define, computed, For, useHead, signal, effect } from '@effuse/core';
 import { useInfiniteQuery, useMutation } from '@effuse/query';
-import { todosStore, type Todo } from '../../store/todosStore.js';
+import type {
+	todosStore as TodosStoreType,
+	Todo,
+} from '../../store/todosStore.js';
 import { DocsLayout } from '../../components/docs/DocsLayout';
-import { i18nStore } from '../../store/appI18n';
+import type { i18nStore as I18nStoreType } from '../../store/appI18n';
 
 const API_BASE = 'https://jsonplaceholder.typicode.com';
 const PAGE_SIZE = 10;
 
 export const TodosPage = define({
-	script: ({ useCallback }) => {
+	script: ({ useCallback, useStore }) => {
+		const i18nStore = useStore('i18n') as typeof I18nStoreType;
+		const todosStore = useStore('todosStore') as typeof TodosStoreType;
+
 		const t = computed(() => i18nStore.translations.value?.examples?.todos);
 
 		effect(() => {

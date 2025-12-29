@@ -10,7 +10,7 @@ import {
 } from '@effuse/core';
 import { Ink } from '@effuse/ink';
 import { DocsLayout } from '../../components/docs/DocsLayout';
-import { i18nStore } from '../../store/appI18n';
+import type { i18nStore as I18nStoreType } from '../../store/appI18n';
 
 interface DisplayProps {
 	label: string | ReadonlySignal<string>;
@@ -28,21 +28,35 @@ interface StatDisplayExposed {
 	value: ReadonlySignal<string | number>;
 	color: ReadonlySignal<string>;
 	onAction?: () => void;
+	triggerUpdateText: ReadonlySignal<string | undefined>;
 }
 
 const StatDisplay = define<DisplayProps, StatDisplayExposed>({
-	script: ({ props }) => {
+	script: ({ props, useStore }) => {
+		const i18nStore = useStore('i18n') as typeof I18nStoreType;
+
 		const colorSig = computed(() => unref(props.color) || 'blue');
 		const labelSig = computed(() => unref(props.label));
 		const valueSig = computed(() => unref(props.value) as string | number);
+		const triggerUpdateText = computed(
+			() => i18nStore.translations.value?.examples?.props?.triggerUpdate
+		);
+
 		return {
 			label: labelSig,
 			value: valueSig,
 			color: colorSig,
 			onAction: props.onAction,
+			triggerUpdateText,
 		};
 	},
-	template: ({ label, value, color, onAction }: StatDisplayExposed) => (
+	template: ({
+		label,
+		value,
+		color,
+		onAction,
+		triggerUpdateText,
+	}: StatDisplayExposed) => (
 		<div class="p-4 bg-white rounded-lg border border-slate-200 shadow-sm flex flex-col items-start">
 			<div class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
 				{label.value}
@@ -55,7 +69,7 @@ const StatDisplay = define<DisplayProps, StatDisplayExposed>({
 					onClick={() => onAction()}
 					class={`text-xs px-2 py-1 rounded bg-${color.value}-100 text-${color.value}-700 hover:bg-${color.value}-200 transition font-medium`}
 				>
-					{i18nStore.translations.value?.examples?.props?.triggerUpdate}
+					{triggerUpdateText.value}
 				</button>
 			)}
 		</div>
@@ -63,7 +77,9 @@ const StatDisplay = define<DisplayProps, StatDisplayExposed>({
 });
 
 export const PropsPage = define({
-	script: () => {
+	script: ({ useStore }) => {
+		const i18nStore = useStore('i18n') as typeof I18nStoreType;
+
 		const t = computed(() => i18nStore.translations.value?.examples?.props);
 
 		effect(() => {
@@ -72,10 +88,13 @@ export const PropsPage = define({
 				description: t.value?.description as string,
 			});
 		});
+
 		const count = signal(0);
 		const currentColor = signal('Default');
 		const isActive = signal(false);
+
 		const doubleCount = computed(() => count.value * 2);
+
 		const increment = () => {
 			count.value++;
 		};
@@ -87,16 +106,19 @@ export const PropsPage = define({
 			const currentIdx = colors.indexOf(currentColor.value);
 			currentColor.value = colors[(currentIdx + 1) % colors.length];
 		};
+
 		const reset = () => {
 			count.value = 0;
 			currentColor.value = 'Default';
 			isActive.value = false;
 		};
+
 		const codeSnippet = `
 \`\`\`tsx
 <StatDisplay value={count} onAction={increment} />
 \`\`\`
 `.trim();
+
 		return {
 			t,
 			count,

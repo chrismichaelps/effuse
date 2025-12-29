@@ -10,8 +10,8 @@ import {
 import { Sidebar } from './Sidebar.js';
 import { DocsHeader, type TocItem } from './DocsHeader.js';
 import { SidebarToggle } from './SidebarToggle.js';
-import { docsStore } from '../../store/docsUIStore.js';
-import { i18nStore } from '../../store/appI18n.js';
+import type { docsStore as DocsStoreType } from '../../store/docsUIStore.js';
+import type { i18nStore as I18nStoreType } from '../../store/appI18n.js';
 import './styles.css';
 
 interface DocsLayoutProps {
@@ -22,7 +22,7 @@ interface DocsLayoutProps {
 }
 
 interface DocsLayoutExposed {
-	docsStore: typeof docsStore;
+	docsStore: typeof DocsStoreType;
 	activeSectionId: Signal<string>;
 	normalizedTocItems: ReadonlySignal<TocItem[]>;
 	t: ReadonlySignal<any>;
@@ -37,7 +37,10 @@ const unwrapTocItems = (
 };
 
 export const DocsLayout = define<DocsLayoutProps, DocsLayoutExposed>({
-	script: ({ props, onMount }) => {
+	script: ({ props, onMount, useStore }) => {
+		const docsStore = useStore('docsUI') as typeof DocsStoreType;
+		const i18nStore = useStore('i18n') as typeof I18nStoreType;
+
 		const activeSectionId = signal('');
 
 		const normalizedTocItems = computed(() => unwrapTocItems(props.tocItems));

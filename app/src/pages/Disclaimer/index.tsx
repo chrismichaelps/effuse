@@ -1,9 +1,10 @@
 import { define, useHead, computed, effect } from '@effuse/core';
-import { i18nStore } from '../../store/appI18n.js';
+import type { i18nStore as I18nStoreType } from '../../store/appI18n.js';
 import '../Legal/styles.css';
 
 export const DisclaimerPage = define({
-	script: () => {
+	script: ({ useStore }) => {
+		const i18nStore = useStore('i18n') as typeof I18nStoreType;
 		const t = computed(() => i18nStore.translations.value?.legal?.disclaimer);
 
 		effect(() => {

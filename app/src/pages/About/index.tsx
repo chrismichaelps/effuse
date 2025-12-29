@@ -1,9 +1,10 @@
 import { define, computed, useHead, For, effect } from '@effuse/core';
-import { i18nStore } from '../../store/appI18n';
+import type { i18nStore as I18nStoreType } from '../../store/appI18n';
 import './styles.css';
 
 export const AboutPage = define({
-	script: () => {
+	script: ({ useStore }) => {
+		const i18nStore = useStore('i18n') as typeof I18nStoreType;
 		const trans = computed(() => i18nStore.translations.value?.about);
 
 		effect(() => {
@@ -12,6 +13,7 @@ export const AboutPage = define({
 				description: trans.value?.meta.description as string,
 			});
 		});
+
 		const title = computed(() => trans.value?.title ?? '');
 		const description = computed(() => trans.value?.description ?? '');
 		const sponsor = computed(() => trans.value?.sponsor ?? '');

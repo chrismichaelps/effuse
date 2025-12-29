@@ -8,7 +8,7 @@ import {
 	type Signal,
 } from '@effuse/core';
 import { DocsLayout } from '../../components/docs/DocsLayout';
-import { i18nStore } from '../../store/appI18n';
+import type { i18nStore as I18nStoreType } from '../../store/appI18n';
 
 interface I18nPageExposed {
 	t: ReadonlySignal<any>;
@@ -23,7 +23,8 @@ interface I18nPageExposed {
 }
 
 export const I18nPage = define<object, I18nPageExposed>({
-	script: ({ useCallback }) => {
+	script: ({ useCallback, useStore }) => {
+		const i18nStore = useStore('i18n') as typeof I18nStoreType;
 		const t = computed(() => i18nStore.translations.value?.examples?.i18n);
 
 		effect(() => {

@@ -1,10 +1,14 @@
 import { define, useHead, computed, effect } from '@effuse/core';
-import { i18nStore } from '../../store/appI18n.js';
+import type { i18nStore as I18nStoreType } from '../../store/appI18n.js';
 import '../Legal/styles.css';
 
 export const TermsPage = define({
-	script: () => {
+	script: ({ useStore }) => {
+		const i18nStore = useStore('i18n') as typeof I18nStoreType;
 		const t = computed(() => i18nStore.translations.value?.legal?.terms);
+		const contactTitle = computed(
+			() => i18nStore.translations.value?.legal?.contact.title
+		);
 
 		effect(() => {
 			useHead({
@@ -13,9 +17,9 @@ export const TermsPage = define({
 			});
 		});
 
-		return { t };
+		return { t, contactTitle };
 	},
-	template: ({ t }) => (
+	template: ({ t, contactTitle }) => (
 		<main class="legal-page">
 			<div class="vibrant-bg">
 				<div class="aurora-blob blob-1"></div>
@@ -81,7 +85,7 @@ export const TermsPage = define({
 						<p class="legal-text">
 							{t.value?.sections.contact.content}{' '}
 							<a href="/contact" class="legal-link">
-								{i18nStore.translations.value?.legal?.contact.title}
+								{contactTitle.value}
 							</a>
 							.
 						</p>

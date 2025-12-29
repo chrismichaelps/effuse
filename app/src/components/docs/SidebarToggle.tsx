@@ -1,5 +1,5 @@
 import { define } from '@effuse/core';
-import { docsStore } from '../../store/docsUIStore.js';
+import type { docsStore as DocsStoreType } from '../../store/docsUIStore.js';
 
 interface SidebarToggleProps {
 	class?: string | (() => string);
@@ -11,7 +11,9 @@ interface SidebarToggleExposed {
 }
 
 export const SidebarToggle = define<SidebarToggleProps, SidebarToggleExposed>({
-	script: ({ props, useCallback }) => {
+	script: ({ props, useCallback, useStore }) => {
+		const docsStore = useStore('docsUI') as typeof DocsStoreType;
+
 		const handleClick = useCallback((e: MouseEvent) => {
 			e.stopPropagation();
 			if (props.onToggle) {
@@ -30,6 +32,7 @@ export const SidebarToggle = define<SidebarToggleProps, SidebarToggleExposed>({
 		const getClass = () => {
 			const classValue =
 				typeof props.class === 'function' ? props.class() : props.class;
+
 			return `sidebar-toggle-btn ${classValue ?? ''}`;
 		};
 		return (

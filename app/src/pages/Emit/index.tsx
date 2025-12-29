@@ -11,7 +11,7 @@ import {
 } from '@effuse/core';
 import { Ink } from '@effuse/ink';
 import { DocsLayout } from '../../components/docs/DocsLayout';
-import { i18nStore } from '../../store/appI18n';
+import type { i18nStore as I18nStoreType } from '../../store/appI18n';
 
 interface ChatMessage {
 	id: string;
@@ -75,7 +75,8 @@ const generateId = () =>
 	`msg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
 export const EmitDemoPage = define({
-	script: ({ useCallback }) => {
+	script: ({ useCallback, useStore }) => {
+		const i18nStore = useStore('i18n') as typeof I18nStoreType;
 		const t = computed(() => i18nStore.translations.value?.examples?.emit);
 
 		effect(() => {

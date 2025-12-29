@@ -6,8 +6,8 @@ import {
 	type ReadonlySignal,
 	For,
 } from '@effuse/core';
-import { docsStore } from '../../store/docsUIStore.js';
-import { i18nStore } from '../../store/appI18n';
+import type { docsStore as DocsStoreType } from '../../store/docsUIStore.js';
+import type { i18nStore as I18nStoreType } from '../../store/appI18n';
 import { SidebarToggle } from './SidebarToggle.js';
 
 export interface TocItem {
@@ -29,7 +29,7 @@ interface DocsHeaderExposed {
 	toggleDropdown: () => void;
 	activeSectionId: Signal<string>;
 	activeSectionTitle: ReadonlySignal<string>;
-	docsStore: typeof docsStore;
+	docsStore: typeof DocsStoreType;
 	handleTocItemClick: (e: Event, id: string, title: string) => void;
 	onThisPageText: ReadonlySignal<string>;
 }
@@ -53,7 +53,11 @@ const TocChevron = define<
 });
 
 export const DocsHeader = define<DocsHeaderProps, DocsHeaderExposed>({
-	script: ({ props, useCallback }) => {
+	script: ({ props, useCallback, useStore }) => {
+		// Access stores via layer bridge
+		const docsStore = useStore('docsUI') as typeof DocsStoreType;
+		const i18nStore = useStore('i18n') as typeof I18nStoreType;
+
 		const pageTitle = computed(() => props.pageTitle as string);
 
 		const tocItems = computed<TocItem[]>(() => {

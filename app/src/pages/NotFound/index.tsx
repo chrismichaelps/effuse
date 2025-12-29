@@ -1,10 +1,11 @@
 import { define, useHead, computed, effect } from '@effuse/core';
 import { Link } from '@effuse/router';
-import { i18nStore } from '../../store/appI18n';
+import type { i18nStore as I18nStoreType } from '../../store/appI18n';
 import './styles.css';
 
 export const NotFoundPage = define({
-	script: () => {
+	script: ({ useStore }) => {
+		const i18nStore = useStore('i18n') as typeof I18nStoreType;
 		const t = computed(() => i18nStore.translations.value?.notFound);
 
 		effect(() => {

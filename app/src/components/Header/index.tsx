@@ -2,7 +2,7 @@ import { define, signal, computed, type ReadonlySignal } from '@effuse/core';
 import { Link, useRoute } from '@effuse/router';
 import { HamburgerButton } from '../HamburgerButton';
 import { LanguageSelector } from '../docs/LanguageSelector';
-import { i18nStore } from '../../store/appI18n';
+import type { i18nStore as I18nStoreType } from '../../store/appI18n';
 import './styles.css';
 
 interface HeaderExposed {
@@ -24,7 +24,9 @@ const LOCALIZED_SECTIONS = [
 ] as const;
 
 export const Header = define<Record<string, never>, HeaderExposed>({
-	script: () => {
+	script: ({ useStore }) => {
+		const i18nStore = useStore('i18n') as typeof I18nStoreType;
+
 		const mobileMenuOpen = signal(false);
 		const toggleMenu = () => {
 			mobileMenuOpen.value = !mobileMenuOpen.value;

@@ -6,7 +6,7 @@ import {
 	type ReadonlySignal,
 	For,
 } from '@effuse/core';
-import { i18nStore, type Locale } from '../../store/appI18n';
+import type { i18nStore as I18nStoreType, Locale } from '../../store/appI18n';
 
 interface LanguageSelectorProps {
 	isMobile?: boolean;
@@ -31,7 +31,10 @@ export const LanguageSelector = define<
 	LanguageSelectorProps,
 	LanguageSelectorExposed
 >({
-	script: ({ useCallback, props }) => {
+	script: ({ useCallback, props, useStore }) => {
+		// Access store via layer bridge
+		const i18nStore = useStore('i18n') as typeof I18nStoreType;
+
 		const isOpen = signal(false);
 		const currentLocale = i18nStore.locale;
 
