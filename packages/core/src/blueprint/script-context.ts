@@ -32,6 +32,18 @@ import {
 	type ComponentLifecycle,
 } from './lifecycle.js';
 import { useCallback, useMemo } from './hooks.js';
+import {
+	getLayerContext,
+	getLayerService,
+	isLayerRuntimeReady,
+	type LayerContext,
+	type TypedLayerContext,
+} from '../layers/context.js';
+import type { EffuseLayerRegistry } from '../layers/types.js';
+import {
+	LayerRuntimeNotReadyError,
+	RouterNotConfiguredError,
+} from '../layers/errors.js';
 
 export type ExposedValues = object;
 
@@ -67,6 +79,14 @@ export interface ScriptContext<P> {
 	useCallback: typeof useCallback;
 
 	useMemo: typeof useMemo;
+
+	useLayer: <K extends keyof EffuseLayerRegistry>(
+		name: K
+	) => TypedLayerContext<K>;
+
+	useStore: (key: string) => unknown;
+
+	useService: (key: string) => unknown;
 }
 
 export interface ScriptState<E extends ExposedValues> {
@@ -112,6 +132,12 @@ export const createScriptContext = <P, E extends ExposedValues>(
 		signal,
 
 		store: (name: string): unknown => {
+			if (isLayerRuntimeReady()) {
+				const layerService = getLayerService(name);
+				if (layerService !== undefined) {
+					return layerService;
+				}
+			}
 			if (!getStore) {
 				throw new Error(
 					'Store getter not configured. Call setGlobalStoreGetter() with getStore.'
@@ -124,7 +150,7 @@ export const createScriptContext = <P, E extends ExposedValues>(
 			if (!globalRouter) {
 				return new Proxy({} as object, {
 					get: () => {
-						throw new Error('Router not configured. Call setGlobalRouter().');
+						throw new RouterNotConfiguredError({});
 					},
 				}) as RouterType;
 			}
@@ -163,6 +189,32 @@ export const createScriptContext = <P, E extends ExposedValues>(
 		useCallback,
 
 		useMemo,
+
+		useLayer: (<K extends keyof EffuseLayerRegistry>(
+			name: K
+		): TypedLayerContext<K> => {
+			if (!isLayerRuntimeReady()) {
+				throw new LayerRuntimeNotReadyError({ layerName: name as string });
+			}
+			return getLayerContext(name as string) as TypedLayerContext<K>;
+		}) as ScriptContext<P>['useLayer'],
+
+		useStore: (key: string): unknown => {
+			if (!isLayerRuntimeReady()) {
+				if (getStore) {
+					return getStore(key);
+				}
+				return undefined;
+			}
+			return getLayerService(key);
+		},
+
+		useService: (key: string): unknown => {
+			if (!isLayerRuntimeReady()) {
+				return undefined;
+			}
+			return getLayerService(key);
+		},
 	};
 
 	return { context, state };
@@ -185,3 +237,5 @@ export const runCleanupEffect = <E extends ExposedValues>(
 ): Effect.Effect<void> => {
 	return state.lifecycle.runCleanup();
 };
+
+export type { LayerContext };

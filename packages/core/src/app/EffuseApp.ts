@@ -22,34 +22,30 @@
  * SOFTWARE.
  */
 
-import { Effect } from 'effect';
 import type { Component } from '../render/node.js';
-import type { EffuseLayer } from '../layers/types.js';
+import type { AnyLayer } from '../layers/types.js';
 import {
 	combineLayers,
-	RouterService,
-	StoreService,
-	ProviderService,
-	PluginService,
-	type PluginConfig,
+	createLayerRuntime,
+	type LayerRuntime,
 } from '../layers/index.js';
 import { mount as mountComponent } from '../canvas/canvas.js';
 
 export interface AppInstance {
-	unmount: () => void;
+	unmount: () => Promise<void>;
 }
 
 export class EffuseApp {
-	private layers: EffuseLayer[] = [];
+	private layers: AnyLayer[] = [];
 	private rootComponent: Component;
-	private cleanups: (() => void)[] = [];
+	private layerRuntime: LayerRuntime | null = null;
 
 	constructor(root: Component) {
 		this.rootComponent = root;
 	}
 
 	async useLayers(
-		layers: (EffuseLayer | (() => Promise<EffuseLayer>))[]
+		layers: (AnyLayer | (() => Promise<AnyLayer>))[]
 	): Promise<this> {
 		const resolved = await Promise.all(
 			layers.map((l) => (typeof l === 'function' ? l() : Promise.resolve(l)))
@@ -59,45 +55,23 @@ export class EffuseApp {
 	}
 
 	async mount(selector: string): Promise<AppInstance> {
-		const combinedLayer = combineLayers(...this.layers);
+		const combined = combineLayers(...this.layers);
 
-		const program = Effect.gen(function* () {
-			const router = yield* RouterService;
-			const stores = yield* StoreService;
-			const providers = yield* ProviderService;
-			const plugins = yield* PluginService;
-
-			return { router, stores, providers, plugins };
-		});
-
-		const configs = await Effect.runPromise(
-			Effect.provide(program, combinedLayer)
-		);
-
-		await this.runPlugins(configs.plugins);
+		this.layerRuntime = await createLayerRuntime(combined.layers);
 
 		mountComponent(this.rootComponent, selector);
 
 		return {
-			unmount: () => {
-				this.cleanup();
+			unmount: async () => {
+				await this.cleanup();
 			},
 		};
 	}
 
-	private async runPlugins(config: PluginConfig): Promise<void> {
-		for (const plugin of config.plugins) {
-			const result = await Promise.resolve(plugin());
-			if (typeof result === 'function') {
-				this.cleanups.push(result);
-			}
+	private async cleanup(): Promise<void> {
+		if (this.layerRuntime) {
+			await this.layerRuntime.dispose();
+			this.layerRuntime = null;
 		}
-	}
-
-	private cleanup(): void {
-		for (const cleanup of this.cleanups) {
-			cleanup();
-		}
-		this.cleanups = [];
 	}
 }

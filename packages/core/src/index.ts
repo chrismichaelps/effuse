@@ -232,8 +232,9 @@ export { jsx, jsxs, jsxDEV, Fragment } from './jsx/index.js';
 export {
 	defineLayer,
 	combineLayers,
-	resolveLayerExtends,
+	resolveLayerOrder,
 	mergeLayerConfigs,
+	createLayerRuntime,
 	type EffuseLayer,
 	type ResolvedLayer,
 	type RouteConfig,
@@ -241,10 +242,17 @@ export {
 	type Guard,
 	type PluginFn,
 	type PluginCleanup,
+	type MaybePromise,
 	type LayerRestriction,
-	type RouterConfig,
-	type ProviderConfig,
-	type PluginConfig,
+	type MergedConfig,
+	type CombinedLayerResult,
+	type LayerProvides,
+	type SetupContext,
+	type LayerSetupFn,
+	type LayerProps,
+	type AnyLayer,
+	type AnyResolvedLayer,
+	type LayerRuntime,
 } from './layers/index.js';
 
 export { createApp, EffuseApp, type AppInstance } from './app/index.js';
