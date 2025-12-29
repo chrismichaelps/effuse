@@ -22,84 +22,16 @@
  * SOFTWARE.
  */
 
-export type {
-	EffuseLayer,
-	ResolvedLayer,
-	RouteConfig,
-	StoreConfig,
-	Guard,
-	PluginFn,
-	PluginCleanup,
-	CleanupFn,
-	MaybePromise,
-	LayerRestriction,
-	MergedConfig,
-	LayerProvides,
-	LayerSetupFn,
-	LayerProps,
-	LayerDependency,
-	SetupContext,
-	LifecycleHook,
-	ErrorHook,
-	DepsRecord,
-	AnyLayer,
-	AnyResolvedLayer,
-	EffuseLayerRegistry,
-	LayerPropsOf,
-	LayerProvidesOf,
-} from './types.js';
-
-export {
-	PropsService,
-	RegistryService,
-	type PropsRegistry,
-	type LayerRegistry,
-	type LayerServices,
-} from './services/index.js';
-
-export {
-	resolveLayerOrder,
-	prefixRoutes,
-	mergeLayerConfigs,
-} from './utils/index.js';
-
-export {
-	defineLayer,
-	combineLayers,
-	type CombinedLayerResult,
-} from './api/index.js';
-
 export {
 	createSetupContext,
 	buildLayerEffect,
 	buildAllLayersEffect,
+	type LayerBuildResult,
+	type AllLayersBuildResult,
+} from './builder.js';
+export {
 	createLayerRuntime,
 	CoreServicesLive,
 	type LayerRuntime,
 	type LayerRuntimeServices,
-	type LayerBuildResult,
-	type AllLayersBuildResult,
-} from './internal/index.js';
-
-export {
-	getLayerContext,
-	getLayerService,
-	getLayerContextEffect,
-	getLayerServiceEffect,
-	isLayerRuntimeReady,
-	getLayerNames,
-	getAllLayers,
-	type LayerContext,
-	type TypedLayerContext,
-} from './context.js';
-
-export {
-	LayerNotFoundError,
-	LayerRuntimeNotReadyError,
-	LayerRuntimeNotInitializedError,
-	ServiceNotFoundError,
-	DependencyNotFoundError,
-	CircularDependencyError,
-	RouterNotConfiguredError,
-	type LayerError,
-} from './errors.js';
+} from './runtime.js';
