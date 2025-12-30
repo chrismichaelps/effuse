@@ -30,7 +30,8 @@ export type TracingCategory =
   | 'signals'
   | 'suspense'
   | 'emit'
-  | 'store';
+  | 'store'
+  | 'fibers';
 
 export interface TracingCategories {
   readonly layers: boolean;
@@ -41,6 +42,7 @@ export interface TracingCategories {
   readonly suspense: boolean;
   readonly emit: boolean;
   readonly store: boolean;
+  readonly fibers: boolean;
 }
 
 export const defaultCategories: TracingCategories = {
@@ -52,6 +54,7 @@ export const defaultCategories: TracingCategories = {
   suspense: true,
   emit: true,
   store: true,
+  fibers: true,
 };
 
 export const isCategoryEnabled = (

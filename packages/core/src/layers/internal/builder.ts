@@ -23,7 +23,7 @@
  */
 
 /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument */
-import { Effect } from 'effect';
+import { Effect, Fiber } from 'effect';
 import type {
 	AnyResolvedLayer,
 	SetupContext,
@@ -38,7 +38,12 @@ import {
 } from '../services/RegistryService.js';
 import type { Component } from '../../render/node.js';
 import { DependencyNotFoundError } from '../errors.js';
-import { withLayerSpan, type TracingService } from '../tracing/index.js';
+import {
+	withLayerSpan,
+	type TracingService,
+	traceFiberBuildPhase,
+} from '../tracing/index.js';
+import { buildTopologyLevels, getMaxParallelism } from './topology.js';
 
 export const createSetupContext = (
 	layer: AnyResolvedLayer,
@@ -194,6 +199,13 @@ export interface LayerBuildResult {
 export interface AllLayersBuildResult {
 	readonly results: readonly LayerBuildResult[];
 	readonly cleanup: CleanupFn | undefined;
+	readonly metrics: BuildMetrics;
+}
+
+export interface BuildMetrics {
+	readonly totalLayers: number;
+	readonly levels: number;
+	readonly maxParallelism: number;
 }
 
 export const buildAllLayersEffect = (
@@ -204,11 +216,31 @@ export const buildAllLayersEffect = (
 	PropsService | RegistryService | TracingService
 > =>
 	Effect.gen(function* () {
+		const topology = buildTopologyLevels(layers);
 		const results: LayerBuildResult[] = [];
 
-		for (const layer of layers) {
-			const result = yield* buildLayerEffect(layer, layers);
-			results.push(result);
+		for (const level of topology) {
+			traceFiberBuildPhase(
+				level.level,
+				level.layers.map((l) => l.name)
+			);
+
+			if (level.layers.length === 1) {
+				const singleLayer = level.layers[0];
+				if (singleLayer) {
+					const result = yield* buildLayerEffect(singleLayer, layers);
+					results.push(result);
+				}
+			} else if (level.layers.length > 1) {
+				const fibers = yield* Effect.all(
+					level.layers.map((layer) =>
+						Effect.fork(buildLayerEffect(layer, layers))
+					)
+				);
+
+				const levelResults = yield* Fiber.joinAll(fibers);
+				results.push(...levelResults);
+			}
 		}
 
 		const aggregatedCleanup: CleanupFn | undefined =
@@ -218,17 +250,23 @@ export const buildAllLayersEffect = (
 						if (cleanup) {
 							try {
 								cleanup();
-							} catch (error: unknown) {
-								// Silently handle cleanup errors to ensure all cleanups run
-								void error;
+							} catch {
+								void 0;
 							}
 						}
 					}
 				}
 				: undefined;
 
+		const metrics: BuildMetrics = {
+			totalLayers: layers.length,
+			levels: topology.length,
+			maxParallelism: getMaxParallelism(topology),
+		};
+
 		return {
 			results,
 			cleanup: aggregatedCleanup,
+			metrics,
 		};
 	});

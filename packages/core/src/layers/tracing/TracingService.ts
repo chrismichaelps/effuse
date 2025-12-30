@@ -173,8 +173,9 @@ export const createTracingService = (
       const time = new Date().toLocaleTimeString();
 
       console.groupCollapsed(
-        `%c${type} %c${name} %c@ ${time}`,
+        `%c${category} %c${type} %c${name} %c@ ${time}`,
         styles.label,
+        styles.action,
         styles.name,
         styles.time
       );
@@ -200,8 +201,9 @@ export const createTracingService = (
       const time = new Date().toLocaleTimeString();
 
       console.groupCollapsed(
-        `%c${type} %c${name} %c@ ${time} (${duration.toFixed(2)}ms)`,
+        `%c${category} %c${type} %c${name} %c@ ${time} (${duration.toFixed(2)}ms)`,
         styles.label,
+        styles.action,
         styles.name,
         styles.time
       );

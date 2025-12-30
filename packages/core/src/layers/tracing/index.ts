@@ -89,3 +89,11 @@ export {
   getGlobalTracing,
   clearGlobalTracing,
 } from './global.js';
+
+export {
+  traceFiberCreated,
+  traceFiberDone,
+  traceFiberInterrupted,
+  traceFiberCount,
+  traceFiberBuildPhase,
+} from './fibers.js';
