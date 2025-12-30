@@ -23,7 +23,24 @@ createApp(App)
 	])
 	.then((app) => {
 		app
-			.mount('#app')
+			.mount('#app', {
+				tracing: {
+					enabled: import.meta.env.DEV,
+					serviceName: 'effuse-app',
+					console: true,
+					verbose: true,
+					categories: {
+						layers: true,
+						router: true,
+						components: true,
+						effects: true,
+						signals: false,
+						suspense: true,
+						emit: true,
+						store: true
+					}
+				},
+			})
 			.then(() => console.log('[App] mounted'))
 			.catch((err) => console.error('[App] mount failed', err));
 	});

@@ -5,6 +5,7 @@ import {
 	installRouter,
 	type RouteRecord,
 } from '@effuse/router';
+import { Effect } from 'effect';
 import { HomePage } from '../pages/Home';
 import { FormDemoPage } from '../pages/Form';
 import { TodosPage } from '../pages/Todos';
@@ -56,10 +57,44 @@ export const RouterLayer = defineLayer({
 	onError: (err) => {
 		console.error('[RouterLayer] error:', err.message);
 	},
-	setup: () => {
+	setup: (ctx) => {
 		installRouter(router);
 
+		const tracing = ctx.getService('tracing');
+		let unsubscribeTracing: (() => void) | undefined;
+
+		if (tracing && typeof tracing === 'object' && 'isCategoryEnabled' in tracing) {
+			const tracingService = tracing as {
+				isCategoryEnabled: (cat: string) => boolean;
+				logWithDuration: (
+					cat: string,
+					type: string,
+					name: string,
+					duration: number,
+					data?: Record<string, unknown>
+				) => void;
+			};
+
+			if (tracingService.isCategoryEnabled('router')) {
+				let lastNavTime = performance.now();
+
+				unsubscribeTracing = router.afterEach((to, from) =>
+					Effect.sync(() => {
+						const duration = performance.now() - lastNavTime;
+						tracingService.logWithDuration('router', 'navigation', to.path, duration, {
+							from: from.path,
+							to: to.path,
+							params: to.params,
+							name: to.name,
+						});
+						lastNavTime = performance.now();
+					})
+				);
+			}
+		}
+
 		return () => {
+			unsubscribeTracing?.();
 			console.log('[RouterLayer] cleanup');
 		};
 	},
