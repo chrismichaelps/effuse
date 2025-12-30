@@ -28,12 +28,15 @@ import {
 	combineLayers,
 	createLayerRuntime,
 	type LayerRuntime,
+	type LayerRuntimeOptions,
 } from '../layers/index.js';
 import { mount as mountComponent } from '../canvas/canvas.js';
 
 export interface AppInstance {
 	unmount: () => Promise<void>;
 }
+
+export type MountOptions = LayerRuntimeOptions;
 
 export class EffuseApp {
 	private layers: AnyLayer[] = [];
@@ -54,10 +57,10 @@ export class EffuseApp {
 		return this;
 	}
 
-	async mount(selector: string): Promise<AppInstance> {
+	async mount(selector: string, options: MountOptions = {}): Promise<AppInstance> {
 		const combined = combineLayers(...this.layers);
 
-		this.layerRuntime = await createLayerRuntime(combined.layers);
+		this.layerRuntime = await createLayerRuntime(combined.layers, options);
 
 		mountComponent(this.rootComponent, selector);
 

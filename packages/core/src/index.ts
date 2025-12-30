@@ -253,9 +253,15 @@ export {
 	type AnyLayer,
 	type AnyResolvedLayer,
 	type LayerRuntime,
+	type LayerRuntimeOptions,
 } from './layers/index.js';
 
-export { createApp, EffuseApp, type AppInstance } from './app/index.js';
+export {
+	createApp,
+	EffuseApp,
+	type AppInstance,
+	type MountOptions,
+} from './app/index.js';
 
 export {
 	createServerApp,
