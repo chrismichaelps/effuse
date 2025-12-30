@@ -26,6 +26,11 @@ import { signal } from '../../reactivity/signal.js';
 import { batch } from '../../reactivity/dep.js';
 import type { Signal } from '../../types/index.js';
 import type { EmitHandler, EmitContextData, EventMap } from '../types/index.js';
+import {
+	traceEmit,
+	traceEmitSubscribe,
+	traceEmitUnsubscribe,
+} from '../../layers/tracing/emit.js';
 
 export interface EmitServiceApi {
 	createContext: <T extends EventMap>() => EmitContextData<T>;
@@ -63,7 +68,13 @@ const defaultService: EmitServiceApi = {
 		}
 		handlersSet.add(handler);
 		const storedHandlers = handlersSet;
-		return () => storedHandlers.delete(handler);
+
+		traceEmitSubscribe(event);
+
+		return () => {
+			storedHandlers.delete(handler);
+			traceEmitUnsubscribe(event);
+		};
 	},
 
 	emit: <T extends EventMap>(
@@ -86,6 +97,9 @@ const defaultService: EmitServiceApi = {
 			}
 			sig.value = payload;
 		});
+
+		const handlers = ctx.handlers.get(event);
+		traceEmit(event, payload, handlers?.size ?? 0);
 	},
 
 	getSignal: <T extends EventMap>(

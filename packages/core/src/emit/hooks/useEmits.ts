@@ -32,6 +32,11 @@ import type {
 	SubscribeFn,
 	EventMap,
 } from '../types/index.js';
+import {
+	traceEmit,
+	traceEmitSubscribe,
+	traceEmitUnsubscribe,
+} from '../../layers/tracing/emit.js';
 
 export function useEmits<T extends EventMap>(
 	initialHandlers?: Partial<{ [K in keyof T]: EmitHandler<T[K]> }>
@@ -59,6 +64,7 @@ export function useEmits<T extends EventMap>(
 					ctx.handlers.set(event, handlers);
 				}
 				handlers.add(handler as EmitHandler<unknown>);
+				traceEmitSubscribe(event);
 			}
 		}
 	}
@@ -79,6 +85,9 @@ export function useEmits<T extends EventMap>(
 			}
 			sig.value = payload;
 		});
+
+		const handlers = ctx.handlers.get(event);
+		traceEmit(event, payload, handlers?.size ?? 0);
 	};
 
 	const emitAsync = <K extends keyof T & string>(
@@ -105,9 +114,12 @@ export function useEmits<T extends EventMap>(
 		const typedHandler = handler as EmitHandler<unknown>;
 		handlersSet.add(typedHandler);
 
+		traceEmitSubscribe(event);
+
 		const storedHandlers = handlersSet;
 		return () => {
 			storedHandlers.delete(typedHandler);
+			traceEmitUnsubscribe(event);
 		};
 	};
 
@@ -118,6 +130,7 @@ export function useEmits<T extends EventMap>(
 		const handlers = ctx.handlers.get(event);
 		if (handlers) {
 			handlers.delete(handler as EmitHandler<unknown>);
+			traceEmitUnsubscribe(event);
 		}
 	};
 
