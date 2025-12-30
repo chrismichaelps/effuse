@@ -21,40 +21,41 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-import type { Store } from '../core/types.js';
-import { getStoreConfig } from '../config/index.js';
-import { StoreNotFoundError } from '../errors.js';
 
-const stores = new Map<string, Store<unknown>>();
+import { Data } from 'effect';
 
-// Register store instance
-export const registerStore = <T>(name: string, store: Store<T>): void => {
-	if (stores.has(name) && getStoreConfig().debug) {
-		// eslint-disable-next-line no-console
-		console.warn(`[store] Overwriting existing store: ${name}`);
-	}
-	stores.set(name, store as Store<unknown>);
-};
+export class UnknownJSXTypeError extends Data.TaggedError(
+	'UnknownJSXTypeError'
+)<{
+	readonly type: unknown;
+}> {}
 
-// Access registered store
-export const getStore = <T>(name: string): Store<T> => {
-	const store = stores.get(name);
-	if (!store) {
-		throw new StoreNotFoundError({ name });
-	}
-	return store as Store<T>;
-};
+export class DuplicateKeysError extends Data.TaggedError('DuplicateKeysError')<{
+	readonly component: string;
+}> {}
 
-// Detect registered store
-export const hasStore = (name: string): boolean => stores.has(name);
+export class ResourcePendingError extends Data.TaggedError(
+	'ResourcePendingError'
+)<{
+	readonly message: string;
+}> {}
 
-// Remove registered store
-export const removeStore = (name: string): boolean => stores.delete(name);
+export class PropValidationError extends Data.TaggedError(
+	'PropValidationError'
+)<{
+	readonly cause: unknown;
+}> {}
 
-// Reset store registry
-export const clearStores = (): void => {
-	stores.clear();
-};
+export class ScriptContextError extends Data.TaggedError('ScriptContextError')<{
+	readonly message: string;
+}> {}
 
-// Access store names
-export const getStoreNames = (): string[] => Array.from(stores.keys());
+export class StoreGetterNotConfiguredError extends Data.TaggedError(
+	'StoreGetterNotConfiguredError'
+)<Record<string, never>> {}
+
+export class CauseExtractionError extends Data.TaggedError(
+	'CauseExtractionError'
+)<{
+	readonly cause: unknown;
+}> {}

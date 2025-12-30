@@ -36,6 +36,7 @@ import type {
 	NormalizedRouteRecord,
 	RouteComponent,
 } from '../core/route.js';
+import { InvalidRouterStateError } from '../errors.js';
 
 const getMatchedComponent = (
 	route: Route,
@@ -117,16 +118,17 @@ export const RouterView = define({
 	script: ({ signal: createSignal }) => {
 		const router = getGlobalRouter();
 		if (!router) {
-			throw new Error(
-				'RouterView requires a router. Call installRouter() first.'
-			);
+			throw new InvalidRouterStateError({
+				message: 'RouterView requires a router. Call installRouter() first.',
+			});
 		}
 
 		const routeSignal = getRouteSignal();
 		if (!routeSignal) {
-			throw new Error(
-				'RouterView requires installRouter() to be called first. No route signal found.'
-			);
+			throw new InvalidRouterStateError({
+				message:
+					'RouterView requires installRouter() to be called first. No route signal found.',
+			});
 		}
 
 		const depth = injectDepth();

@@ -27,12 +27,13 @@ import { markRaw } from '@effuse/core';
 import { getGlobalRouter, type RouterInstance } from '../core/router.js';
 import type { Route, RouteLocation } from '../core/route.js';
 import type { NavigationFailure } from '../navigation/errors.js';
+import { RouterNotInstalledError } from '../errors.js';
 
 // Access global router instance
 export const useRouter = (): RouterInstance => {
 	const router = getGlobalRouter();
 	if (!router) {
-		throw new Error('Router not installed. Call installRouter() first.');
+		throw new RouterNotInstalledError({ operation: 'useRouter' });
 	}
 	return markRaw(router);
 };
@@ -41,7 +42,7 @@ export const useRouter = (): RouterInstance => {
 export const useRoute = (): Route => {
 	const routeSignal = getRouteSignal();
 	if (!routeSignal) {
-		throw new Error('Router not installed. Call installRouter() first.');
+		throw new RouterNotInstalledError({ operation: 'useRoute' });
 	}
 
 	return new Proxy(routeSignal.value, {

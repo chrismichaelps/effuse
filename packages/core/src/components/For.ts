@@ -26,6 +26,7 @@ import type { EffuseNode, EffuseChild, ListNode } from '../render/node.js';
 import { createListNode } from '../render/node.js';
 import type { Signal } from '../types/index.js';
 import { computed, untrack, signal } from '../reactivity/index.js';
+import { DuplicateKeysError } from '../errors.js';
 
 export interface ForProps<T> {
 	each: Signal<T[]> | (() => T[]);
@@ -110,7 +111,7 @@ export const For = <T>(props: ForProps<T>): EffuseNode => {
 
 				if (process.env.NODE_ENV !== 'production') {
 					if (seenKeys.has(key)) {
-						throw new Error('Duplicate keys detected in <For>');
+						throw new DuplicateKeysError({ component: 'For' });
 					}
 					seenKeys.add(key);
 				}

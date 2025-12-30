@@ -31,6 +31,7 @@ import {
 	DEFAULT_RETRY_MAX_DELAY_MS,
 	DEFAULT_RETRY_BACKOFF_FACTOR,
 } from '../config/constants.js';
+import { ActionNotFoundError } from '../errors.js';
 
 // Asynchronous operation outcome
 export interface ActionResult<T> {
@@ -349,7 +350,7 @@ export const dispatch = <T>(
 	const action = storeRecord[actionName as string];
 	if (typeof action !== 'function') {
 		return Promise.reject(
-			new Error(`Action "${String(actionName)}" not found`)
+			new ActionNotFoundError({ actionName: String(actionName) })
 		);
 	}
 	const actionFn = action as (...a: unknown[]) => unknown;
@@ -370,7 +371,7 @@ export const dispatchSync = <T>(
 	const storeRecord = store as unknown as Record<string, unknown>;
 	const action = storeRecord[actionName as string];
 	if (typeof action !== 'function') {
-		throw new Error(`Action "${String(actionName)}" not found`);
+		throw new ActionNotFoundError({ actionName: String(actionName) });
 	}
 	const actionFn = action as (...a: unknown[]) => unknown;
 	return actionFn(...args);

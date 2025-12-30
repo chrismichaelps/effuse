@@ -24,6 +24,7 @@
 
 import { Schema, Effect, Either, Exit, Cause, ParseResult } from 'effect';
 import { Data } from 'effect';
+import { CauseExtractionError } from '../errors.js';
 
 export class PropsValidationError extends Data.TaggedError(
 	'PropsValidationError'
@@ -197,7 +198,7 @@ const struct = <const D extends Record<string, PropDefinition<any>>>(
 			if (failure._tag === 'Some') {
 				throw failure.value;
 			}
-			throw new Error(String(cause));
+			throw new CauseExtractionError({ cause });
 		}
 		return exit.value;
 	};

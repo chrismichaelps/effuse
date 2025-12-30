@@ -35,6 +35,7 @@ import { el, fragment } from '../render/element.js';
 import { isBlueprint } from '../blueprint/blueprint.js';
 import type { Signal } from '../reactivity/signal.js';
 import type { ReadonlySignal } from '../types/index.js';
+import { UnknownJSXTypeError } from '../errors.js';
 
 export type JSXElement = EffuseNode;
 
@@ -82,7 +83,7 @@ export const jsx = (
 		return (type as Component)(componentProps);
 	}
 
-	throw new Error(`Unknown JSX type: ${String(type)}`);
+	throw new UnknownJSXTypeError({ type });
 };
 
 export const jsxs = jsx;

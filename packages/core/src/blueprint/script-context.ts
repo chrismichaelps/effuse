@@ -44,6 +44,7 @@ import {
 	LayerRuntimeNotReadyError,
 	RouterNotConfiguredError,
 } from '../layers/errors.js';
+import { StoreGetterNotConfiguredError } from '../errors.js';
 
 export type ExposedValues = object;
 
@@ -139,9 +140,7 @@ export const createScriptContext = <P, E extends ExposedValues>(
 				}
 			}
 			if (!getStore) {
-				throw new Error(
-					'Store getter not configured. Call setGlobalStoreGetter() with getStore.'
-				);
+				throw new StoreGetterNotConfiguredError({});
 			}
 			return getStore(name);
 		},
@@ -150,7 +149,9 @@ export const createScriptContext = <P, E extends ExposedValues>(
 			if (!globalRouter) {
 				return new Proxy({} as object, {
 					get: () => {
-						throw new RouterNotConfiguredError({});
+						throw new RouterNotConfiguredError({
+							_tag: 'RouterNotConfiguredError',
+						});
 					},
 				}) as RouterType;
 			}

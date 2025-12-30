@@ -23,6 +23,7 @@
  */
 
 import type { Effect } from 'effect';
+import { RouteNotFoundError } from '../errors.js';
 
 export type RouteComponent = (props?: Record<string, unknown>) => unknown;
 export type LazyRouteComponent = () => Promise<{ default: RouteComponent }>;
@@ -234,7 +235,7 @@ export const resolveRoute = (
 	} else {
 		const namedRoute = normalizedRoutes.find((r) => r.name === location.name);
 		if (!namedRoute) {
-			throw new Error(`Route not found: ${location.name}`);
+			throw new RouteNotFoundError({ name: location.name });
 		}
 		params = location.params ?? {};
 		query = location.query ?? {};

@@ -36,6 +36,7 @@ import { createSuspendToken, type SuspendToken } from './token.js';
 import { suspenseApi } from './service.js';
 import { RESOURCE_ID_PREFIX, ResourceErrorMessages } from './config.js';
 import { isEffect, generateResourceId } from './utils.js';
+import { ResourcePendingError } from '../errors.js';
 
 export interface Resource<T> {
 	readonly value: T;
@@ -159,7 +160,9 @@ export const createResource = <T>(
 
 			if (currentState.status === 'pending') {
 				if (!currentPromise) {
-					throw new Error(ResourceErrorMessages.PENDING_NO_PROMISE);
+					throw new ResourcePendingError({
+						message: ResourceErrorMessages.PENDING_NO_PROMISE,
+					});
 				}
 				const token: SuspendToken = createSuspendToken(
 					currentPromise,
