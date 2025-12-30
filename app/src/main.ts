@@ -37,7 +37,8 @@ createApp(App)
 						signals: false,
 						suspense: true,
 						emit: true,
-						store: true
+						store: true,
+						fibers: true,
 					}
 				},
 			})
