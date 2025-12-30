@@ -38,6 +38,7 @@ import {
 } from '../services/RegistryService.js';
 import type { Component } from '../../render/node.js';
 import { DependencyNotFoundError } from '../errors.js';
+import { withLayerSpan, type TracingService } from '../tracing/index.js';
 
 export const createSetupContext = (
 	layer: AnyResolvedLayer,
@@ -88,83 +89,85 @@ export const buildLayerEffect = (
 	layer: AnyResolvedLayer,
 	allLayers: readonly AnyResolvedLayer[]
 ) =>
-	Effect.gen(function* () {
-		const propsRegistry = yield* PropsService;
-		const registry = yield* RegistryService;
+	withLayerSpan(
+		layer,
+		Effect.gen(function* () {
+			const propsRegistry = yield* PropsService;
+			const registry = yield* RegistryService;
 
-		registry.registerLayer(layer);
+			registry.registerLayer(layer);
 
-		if (layer.props) {
-			propsRegistry.set(layer.name, layer.props);
-		}
-
-		if (layer.components) {
-			for (const [name, component] of Object.entries(layer.components)) {
-				registry.registerComponent(name, component as Component);
+			if (layer.props) {
+				propsRegistry.set(layer.name, layer.props);
 			}
-		}
 
-		if (layer.provides) {
-			for (const [key, factory] of Object.entries(layer.provides)) {
-				registry.registerService(key, factory());
-			}
-		}
-
-		const cleanups: CleanupFn[] = [];
-
-		if (layer.onMount) {
-			const onMountFn = layer.onMount;
-			yield* Effect.tryPromise({
-				try: () => Promise.resolve(onMountFn()),
-				catch: (error: unknown) => {
-					if (layer.onError && error instanceof Error) {
-						layer.onError(error);
-					}
-					return error;
-				},
-			});
-		}
-
-		if (layer.setup) {
-			const ctx = createSetupContext(layer, propsRegistry, registry, allLayers);
-			const setupFn = layer.setup;
-
-			const result = yield* Effect.tryPromise({
-				try: () => Promise.resolve(setupFn(ctx)),
-				catch: (error: unknown) => {
-					if (layer.onError && error instanceof Error) {
-						layer.onError(error);
-					}
-					return error;
-				},
-			});
-
-			if (typeof result === 'function') {
-				cleanups.push(result);
-			}
-		}
-
-		if (layer.onUnmount) {
-			const onUnmountFn = layer.onUnmount;
-			cleanups.push(() => {
-				try {
-					const maybePromise = onUnmountFn();
-					if (maybePromise instanceof Promise) {
-						void maybePromise.catch(() => {
-							// Silent catch - cleanup errors shouldn't propagate
-						});
-					}
-				} catch (error: unknown) {
-					if (layer.onError && error instanceof Error) {
-						layer.onError(error);
-					}
+			if (layer.components) {
+				for (const [name, component] of Object.entries(layer.components)) {
+					registry.registerComponent(name, component as Component);
 				}
-			});
-		}
+			}
 
-		const cleanup: CleanupFn | undefined =
-			cleanups.length > 0
-				? () => {
+			if (layer.provides) {
+				for (const [key, factory] of Object.entries(layer.provides)) {
+					registry.registerService(key, factory());
+				}
+			}
+
+			const cleanups: CleanupFn[] = [];
+
+			if (layer.onMount) {
+				const onMountFn = layer.onMount;
+				yield* Effect.tryPromise({
+					try: () => Promise.resolve(onMountFn()),
+					catch: (error: unknown) => {
+						if (layer.onError && error instanceof Error) {
+							layer.onError(error);
+						}
+						return error;
+					},
+				});
+			}
+
+			if (layer.setup) {
+				const ctx = createSetupContext(layer, propsRegistry, registry, allLayers);
+				const setupFn = layer.setup;
+
+				const result = yield* Effect.tryPromise({
+					try: () => Promise.resolve(setupFn(ctx)),
+					catch: (error: unknown) => {
+						if (layer.onError && error instanceof Error) {
+							layer.onError(error);
+						}
+						return error;
+					},
+				});
+
+				if (typeof result === 'function') {
+					cleanups.push(result);
+				}
+			}
+
+			if (layer.onUnmount) {
+				const onUnmountFn = layer.onUnmount;
+				cleanups.push(() => {
+					try {
+						const maybePromise = onUnmountFn();
+						if (maybePromise instanceof Promise) {
+							void maybePromise.catch(() => {
+								// Silent catch - cleanup errors shouldn't propagate
+							});
+						}
+					} catch (error: unknown) {
+						if (layer.onError && error instanceof Error) {
+							layer.onError(error);
+						}
+					}
+				});
+			}
+
+			const cleanup: CleanupFn | undefined =
+				cleanups.length > 0
+					? () => {
 						const reversed = cleanups.slice().reverse();
 
 						for (const cleanupFn of reversed) {
@@ -177,10 +180,11 @@ export const buildLayerEffect = (
 							}
 						}
 					}
-				: undefined;
+					: undefined;
 
-		return { layer, cleanup };
-	});
+			return { layer, cleanup };
+		})
+	);
 
 export interface LayerBuildResult {
 	readonly layer: AnyResolvedLayer;
@@ -197,7 +201,7 @@ export const buildAllLayersEffect = (
 ): Effect.Effect<
 	AllLayersBuildResult,
 	unknown,
-	PropsService | RegistryService
+	PropsService | RegistryService | TracingService
 > =>
 	Effect.gen(function* () {
 		const results: LayerBuildResult[] = [];
@@ -210,17 +214,17 @@ export const buildAllLayersEffect = (
 		const aggregatedCleanup: CleanupFn | undefined =
 			results.length > 0
 				? () => {
-						for (const { cleanup } of results.slice().reverse()) {
-							if (cleanup) {
-								try {
-									cleanup();
-								} catch (error: unknown) {
-									// Silently handle cleanup errors to ensure all cleanups run
-									void error;
-								}
+					for (const { cleanup } of results.slice().reverse()) {
+						if (cleanup) {
+							try {
+								cleanup();
+							} catch (error: unknown) {
+								// Silently handle cleanup errors to ensure all cleanups run
+								void error;
 							}
 						}
 					}
+				}
 				: undefined;
 
 		return {

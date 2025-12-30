@@ -79,6 +79,7 @@ export {
 	type LayerRuntimeServices,
 	type LayerBuildResult,
 	type AllLayersBuildResult,
+	type LayerRuntimeOptions,
 } from './internal/index.js';
 
 export {
@@ -103,3 +104,14 @@ export {
 	RouterNotConfiguredError,
 	type LayerError,
 } from './errors.js';
+
+export {
+	TracingService,
+	TracingServiceLive,
+	createTracingService,
+	withTracing,
+	withLayerSpan,
+	withRuntimeSpan,
+	logDependencyGraph,
+	type TracingConfig,
+} from './tracing/index.js';

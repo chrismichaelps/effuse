@@ -34,4 +34,5 @@ export {
 	CoreServicesLive,
 	type LayerRuntime,
 	type LayerRuntimeServices,
+	type LayerRuntimeOptions,
 } from './runtime.js';
