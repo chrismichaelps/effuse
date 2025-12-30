@@ -186,11 +186,3 @@ export const makeI18nServiceLayer = (
 			Effect.sync(() => translationsMap.get(locale)),
 	});
 };
-
-export const useI18nService = <A, E, R>(
-	fn: (service: I18nServiceApi) => Effect.Effect<A, E, R>
-) =>
-	Effect.gen(function* () {
-		const service = yield* I18nService;
-		return yield* fn(service);
-	});

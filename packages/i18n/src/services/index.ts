@@ -25,6 +25,5 @@
 export {
 	I18nService,
 	makeI18nServiceLayer,
-	useI18nService,
 	type I18nServiceApi,
 } from './I18nService.js';

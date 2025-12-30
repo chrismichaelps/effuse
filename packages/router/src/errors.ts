@@ -34,12 +34,6 @@ export class RouterNotInstalledError extends Data.TaggedError(
 	readonly operation: string;
 }> {}
 
-export class ComponentNotFoundError extends Data.TaggedError(
-	'ComponentNotFoundError'
-)<{
-	readonly route: string;
-}> {}
-
 export class InvalidRouterStateError extends Data.TaggedError(
 	'InvalidRouterStateError'
 )<{

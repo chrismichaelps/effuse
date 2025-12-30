@@ -219,11 +219,9 @@ export {
 	EffuseLive,
 	RouterService,
 	makeRouterLayer,
-	NoopRouterLayer,
 	type RouterApi,
 	StoreService,
 	makeStoreLayer,
-	NoopStoreLayer,
 	type StoreApi,
 } from './services/index.js';
 

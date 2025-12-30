@@ -41,9 +41,3 @@ export const makeStoreLayer = (
 		getStore: <T>(name: string) =>
 			Effect.sync(() => registry<T>(name)) as Effect.Effect<T, Error>,
 	});
-
-export const noopStore: StoreApi = {
-	getStore: () => Effect.fail(new Error('Store not configured')),
-};
-
-export const NoopStoreLayer = Layer.succeed(StoreService, noopStore);

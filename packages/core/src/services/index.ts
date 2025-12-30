@@ -39,18 +39,8 @@ export {
 	type SchedulerService,
 } from './scheduler/index.js';
 
-export {
-	RouterService,
-	makeRouterLayer,
-	NoopRouterLayer,
-	type RouterApi,
-} from './router.js';
-export {
-	StoreService,
-	makeStoreLayer,
-	NoopStoreLayer,
-	type StoreApi,
-} from './store.js';
+export { RouterService, makeRouterLayer, type RouterApi } from './router.js';
+export { StoreService, makeStoreLayer, type StoreApi } from './store.js';
 
 export {
 	DOMRendererLive,

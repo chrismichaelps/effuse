@@ -27,6 +27,5 @@ export {
 	localStorageAdapter,
 	sessionStorageAdapter,
 	createMemoryAdapter,
-	noopAdapter,
 	runAdapter,
 } from './adapters.js';

@@ -22,8 +22,6 @@
  * SOFTWARE.
  */
 
-import { getStore } from './registry/index.js';
-
 export {
 	createStore,
 	createAtomicState,
@@ -158,8 +156,3 @@ export {
 	CancellationError,
 	ValidationError,
 } from './errors.js';
-
-// Bootstrap store system
-export const installStore = (): ((name: string) => unknown) => {
-	return getStore;
-};
