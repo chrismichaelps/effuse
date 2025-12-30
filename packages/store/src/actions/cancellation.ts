@@ -24,15 +24,7 @@
 
 import type { Fiber } from 'effect';
 import { Effect, Deferred, Ref } from 'effect';
-
-// Operation cancellation error
-export class CancellationError extends Error {
-	readonly _tag = 'CancellationError';
-	constructor(message = 'Operation was cancelled') {
-		super(message);
-		this.name = 'CancellationError';
-	}
-}
+import { CancellationError } from '../errors.js';
 
 // Cancellation tracking token
 export interface CancellationToken {
@@ -59,7 +51,8 @@ export const createCancellationToken = (): CancellationToken => {
 			}
 		},
 		throwIfCancelled: () => {
-			if (cancelled) throw new CancellationError();
+			if (cancelled)
+				throw new CancellationError({ message: 'Operation was cancelled' });
 		},
 		onCancel: (callback: () => void) => {
 			if (cancelled) {
@@ -108,12 +101,20 @@ export const runWithAbortSignal = <A, E>(
 	signal: AbortSignal
 ): Effect.Effect<A, E | CancellationError> => {
 	if (signal.aborted) {
-		return Effect.fail(new CancellationError() as E | CancellationError);
+		return Effect.fail(
+			new CancellationError({ message: 'Operation was cancelled' }) as
+				| E
+				| CancellationError
+		);
 	}
 
 	return Effect.async<A, E | CancellationError>((resume) => {
 		const onAbort = () => {
-			resume(Effect.fail(new CancellationError()));
+			resume(
+				Effect.fail(
+					new CancellationError({ message: 'Operation was cancelled' })
+				)
+			);
 		};
 
 		signal.addEventListener('abort', onAbort, { once: true });

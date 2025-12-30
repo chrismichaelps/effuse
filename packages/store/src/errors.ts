@@ -26,10 +26,44 @@ import { Data } from 'effect';
 
 export class StoreNotFoundError extends Data.TaggedError('StoreNotFoundError')<{
 	readonly name: string;
-}> {}
+}> {
+	get message(): string {
+		return `Store "${this.name}" not found`;
+	}
+}
+
+export class StoreAlreadyExistsError extends Data.TaggedError(
+	'StoreAlreadyExistsError'
+)<{
+	readonly name: string;
+}> {
+	get message(): string {
+		return `Store "${this.name}" already exists`;
+	}
+}
 
 export class ActionNotFoundError extends Data.TaggedError(
 	'ActionNotFoundError'
 )<{
 	readonly actionName: string;
 }> {}
+
+export class TimeoutError extends Data.TaggedError('TimeoutError')<{
+	readonly ms: number;
+}> {
+	get message(): string {
+		return `Operation timed out after ${String(this.ms)}ms`;
+	}
+}
+
+export class CancellationError extends Data.TaggedError('CancellationError')<{
+	readonly message: string;
+}> {}
+
+export class ValidationError extends Data.TaggedError('ValidationError')<{
+	readonly errors: string[];
+}> {
+	get message(): string {
+		return `Validation failed: ${this.errors.join(', ')}`;
+	}
+}

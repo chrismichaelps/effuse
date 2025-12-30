@@ -104,7 +104,10 @@ export const makeI18nServiceLayer = (
 			}
 
 			return yield* Effect.fail(
-				new LocaleLoadError(locale, 'No loader or translations configured')
+				new LocaleLoadError({
+					locale,
+					cause: 'No loader or translations configured',
+				})
 			);
 		});
 
@@ -144,7 +147,7 @@ export const makeI18nServiceLayer = (
 						}
 					}
 					return yield* Effect.fail(
-						new MissingTranslationError(key, currentLocale)
+						new MissingTranslationError({ key, locale: currentLocale })
 					);
 				}
 

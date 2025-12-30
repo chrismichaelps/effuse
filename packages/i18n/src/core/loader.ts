@@ -34,21 +34,21 @@ export const loadFromPath = (
 	Effect.gen(function* () {
 		const response = yield* Effect.tryPromise({
 			try: () => fetch(path),
-			catch: (error) => new LocaleLoadError(locale, error),
+			catch: (error) => new LocaleLoadError({ locale, cause: error }),
 		});
 
 		if (!response.ok) {
 			return yield* Effect.fail(
-				new LocaleLoadError(
+				new LocaleLoadError({
 					locale,
-					`HTTP ${String(response.status)}: ${response.statusText}`
-				)
+					cause: `HTTP ${String(response.status)}: ${response.statusText}`,
+				})
 			);
 		}
 
 		const data = yield* Effect.tryPromise({
 			try: () => response.json() as Promise<Translations>,
-			catch: (error) => new LocaleLoadError(locale, error),
+			catch: (error) => new LocaleLoadError({ locale, cause: error }),
 		});
 
 		return data;
@@ -78,7 +78,7 @@ export const loadFromLoader = (
 					? await translations
 					: translations;
 			},
-			catch: (error) => new LocaleLoadError(locale, error),
+			catch: (error) => new LocaleLoadError({ locale, cause: error }),
 		});
 
 		return result;

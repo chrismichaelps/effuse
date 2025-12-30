@@ -22,54 +22,27 @@
  * SOFTWARE.
  */
 
-export class MissingTranslationError extends Error {
-	readonly _tag = 'MissingTranslationError';
+import { Data } from 'effect';
+
+export class MissingTranslationError extends Data.TaggedError(
+	'MissingTranslationError'
+)<{
 	readonly key: string;
 	readonly locale: string;
+}> {}
 
-	constructor(key: string, locale: string) {
-		super(`Missing translation for key "${key}" in locale "${locale}"`);
-		this.name = 'MissingTranslationError';
-		this.key = key;
-		this.locale = locale;
-	}
-}
-
-export class LocaleLoadError extends Error {
-	readonly _tag = 'LocaleLoadError';
+export class LocaleLoadError extends Data.TaggedError('LocaleLoadError')<{
 	readonly locale: string;
 	readonly cause?: unknown;
+}> {}
 
-	constructor(locale: string, cause?: unknown) {
-		const message = cause instanceof Error ? cause.message : String(cause);
-		super(`Failed to load translations for locale "${locale}": ${message}`);
-		this.name = 'LocaleLoadError';
-		this.locale = locale;
-		this.cause = cause;
-	}
-}
-
-export class InvalidLocaleError extends Error {
-	readonly _tag = 'InvalidLocaleError';
+export class InvalidLocaleError extends Data.TaggedError('InvalidLocaleError')<{
 	readonly locale: string;
+}> {}
 
-	constructor(locale: string) {
-		super(`Invalid locale format: "${locale}"`);
-		this.name = 'InvalidLocaleError';
-		this.locale = locale;
-	}
-}
-
-export class I18nNotInitializedError extends Error {
-	readonly _tag = 'I18nNotInitializedError';
-
-	constructor() {
-		super(
-			'I18n has not been initialized. Call createI18n() before using translations.'
-		);
-		this.name = 'I18nNotInitializedError';
-	}
-}
+export class I18nNotInitializedError extends Data.TaggedError(
+	'I18nNotInitializedError'
+)<Record<string, never>> {}
 
 export type I18nError =
 	| MissingTranslationError

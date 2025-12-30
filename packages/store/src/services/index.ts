@@ -33,8 +33,6 @@ export {
 	runWithStore,
 	runWithScope,
 	runWithAllServices,
-	StoreNotFoundError,
-	StoreAlreadyExistsError,
 	type StoreServiceApi,
 	type ScopeServiceApi,
 } from './store.js';
@@ -54,7 +52,6 @@ export {
 export {
 	ValidationService,
 	ValidationServiceLive,
-	ValidationError,
 	useValidation,
 	runWithValidation,
 	type ValidationServiceApi,

@@ -41,24 +41,8 @@ import {
 	runInScope,
 	type ScopeNode,
 } from '../context/scope.js';
-import { TimeoutError } from '../actions/async.js';
 import { DEFAULT_TIMEOUT_MS } from '../config/constants.js';
-
-// Store not found error
-export class StoreNotFoundError extends Error {
-	readonly _tag = 'StoreNotFoundError';
-	constructor(name: string) {
-		super(`Store "${name}" not found`);
-	}
-}
-
-// Store already exists error
-export class StoreAlreadyExistsError extends Error {
-	readonly _tag = 'StoreAlreadyExistsError';
-	constructor(name: string) {
-		super(`Store "${name}" already exists`);
-	}
-}
+import { StoreNotFoundError, TimeoutError } from '../errors.js';
 
 export interface StoreServiceApi {
 	create: <T extends object>(
@@ -100,17 +84,17 @@ export const StoreServiceLive: Layer.Layer<StoreService> = Layer.succeed(
 		get: <T>(name: string) =>
 			Effect.try({
 				try: () => getStore<T>(name),
-				catch: () => new StoreNotFoundError(name),
+				catch: () => new StoreNotFoundError({ name }),
 			}),
 
 		getWithTimeout: <T>(name: string, timeoutMs = DEFAULT_TIMEOUT_MS) =>
 			Effect.try({
 				try: () => getStore<T>(name),
-				catch: () => new StoreNotFoundError(name),
+				catch: () => new StoreNotFoundError({ name }),
 			}).pipe(
 				Effect.timeoutFail({
 					duration: Duration.millis(timeoutMs),
-					onTimeout: () => new TimeoutError(timeoutMs),
+					onTimeout: () => new TimeoutError({ ms: timeoutMs }),
 				})
 			),
 
@@ -129,7 +113,7 @@ export const StoreServiceLive: Layer.Layer<StoreService> = Layer.succeed(
 			Effect.gen(function* () {
 				const store = yield* Effect.try({
 					try: () => getStore(storeName),
-					catch: () => new StoreNotFoundError(storeName),
+					catch: () => new StoreNotFoundError({ name: storeName }),
 				});
 				return store.use(middleware);
 			}),
@@ -178,7 +162,7 @@ export const ScopeServiceLive: Layer.Layer<ScopeService> = Layer.succeed(
 			Effect.gen(function* () {
 				const store = getScopedStore<T>(name, scope);
 				if (!store) {
-					return yield* Effect.fail(new StoreNotFoundError(name));
+					return yield* Effect.fail(new StoreNotFoundError({ name }));
 				}
 				return store;
 			}),

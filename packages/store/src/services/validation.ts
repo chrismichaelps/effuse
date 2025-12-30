@@ -31,16 +31,7 @@ import {
 	type ValidationResult,
 } from '../validation/schema.js';
 import { createDeferred } from '../actions/cancellation.js';
-
-// Schema validation error
-export class ValidationError extends Error {
-	readonly _tag = 'ValidationError';
-	readonly errors: string[];
-	constructor(errors: string[]) {
-		super(`Validation failed: ${errors.join(', ')}`);
-		this.errors = errors;
-	}
-}
+import { ValidationError } from '../errors.js';
 
 // Validation service API
 export interface ValidationServiceApi {
@@ -76,7 +67,9 @@ export const ValidationServiceLive: Layer.Layer<ValidationService> =
 			Effect.gen(function* () {
 				const result = validateState(schema, state);
 				if (!result.success || !result.data) {
-					return yield* Effect.fail(new ValidationError(result.errors));
+					return yield* Effect.fail(
+						new ValidationError({ errors: result.errors })
+					);
 				}
 				return result.data;
 			}),
@@ -89,7 +82,7 @@ export const ValidationServiceLive: Layer.Layer<ValidationService> =
 			(value: unknown) =>
 				Effect.try({
 					try: () => createFieldValidator(schema)(value),
-					catch: (e) => new ValidationError([String(e)]),
+					catch: (e) => new ValidationError({ errors: [String(e)] }),
 				}),
 
 		validateWithDeferred: <T>(schema: StateSchema<T>, state: unknown) =>
@@ -104,7 +97,7 @@ export const ValidationServiceLive: Layer.Layer<ValidationService> =
 								return yield* deferred.succeed(validationResult.data);
 							}
 							return yield* deferred.fail(
-								new ValidationError(validationResult.errors)
+								new ValidationError({ errors: validationResult.errors })
 							);
 						}),
 				};

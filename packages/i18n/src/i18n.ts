@@ -217,7 +217,7 @@ export function getI18n<T extends Translations>(): TypedI18n<T>;
 export function getI18n(): I18n;
 export function getI18n<T extends Translations>(): I18n | TypedI18n<T> {
 	if (!globalI18nInstance) {
-		throw new I18nNotInitializedError();
+		throw new I18nNotInitializedError({});
 	}
 	return globalI18nInstance as I18n | TypedI18n<T>;
 }

@@ -81,8 +81,6 @@ export {
 	takeFirst,
 	debounceAction,
 	throttleAction,
-	TimeoutError,
-	CancellationError,
 	createCancellationToken,
 	createCancellationScope,
 	type ActionResult,
@@ -155,8 +153,11 @@ export {
 export {
 	StoreNotFoundError,
 	StoreAlreadyExistsError,
+	ActionNotFoundError,
+	TimeoutError,
+	CancellationError,
 	ValidationError,
-} from './services/index.js';
+} from './errors.js';
 
 // Bootstrap store system
 export const installStore = (): ((name: string) => unknown) => {

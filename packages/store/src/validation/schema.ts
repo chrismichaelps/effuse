@@ -23,7 +23,7 @@
  */
 
 import { Effect, Schema, Duration } from 'effect';
-import { TimeoutError } from '../actions/async.js';
+import { TimeoutError } from '../errors.js';
 import { DEFAULT_TIMEOUT_MS } from '../config/constants.js';
 
 // State validation schema type
@@ -75,7 +75,7 @@ export const validateStateAsync = <T>(
 			})),
 			Effect.timeoutFail({
 				duration: Duration.millis(timeoutMs),
-				onTimeout: () => new TimeoutError(timeoutMs),
+				onTimeout: () => new TimeoutError({ ms: timeoutMs }),
 			}),
 			Effect.catchAll((error) =>
 				Effect.succeed({
