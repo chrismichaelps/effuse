@@ -77,4 +77,4 @@ export class RegistryService extends Effect.Service<RegistryService>()(
 	{
 		effect: Effect.succeed(createLayerRegistry()),
 	}
-) { }
+) {}

@@ -26,64 +26,62 @@
 import type { AnyResolvedLayer } from '../types.js';
 
 export interface TopologyLevel {
-  readonly level: number;
-  readonly layers: readonly AnyResolvedLayer[];
+	readonly level: number;
+	readonly layers: readonly AnyResolvedLayer[];
 }
 
 export const buildTopologyLevels = (
-  layers: readonly AnyResolvedLayer[]
+	layers: readonly AnyResolvedLayer[]
 ): readonly TopologyLevel[] => {
-  const layerMap = new Map<string, AnyResolvedLayer>();
-  for (const layer of layers) {
-    layerMap.set(layer.name, layer);
-  }
+	const layerMap = new Map<string, AnyResolvedLayer>();
+	for (const layer of layers) {
+		layerMap.set(layer.name, layer);
+	}
 
-  const levels: TopologyLevel[] = [];
-  const built = new Set<string>();
-  const remaining = new Set(layers.map((l) => l.name));
+	const levels: TopologyLevel[] = [];
+	const built = new Set<string>();
+	const remaining = new Set(layers.map((l) => l.name));
 
-  while (remaining.size > 0) {
-    const readyLayers: AnyResolvedLayer[] = [];
+	while (remaining.size > 0) {
+		const readyLayers: AnyResolvedLayer[] = [];
 
-    for (const name of remaining) {
-      const layer = layerMap.get(name);
-      if (!layer) continue;
+		for (const name of remaining) {
+			const layer = layerMap.get(name);
+			if (!layer) continue;
 
-      const deps: string[] = layer.dependencies ?? [];
-      const allDepsBuilt = deps.every((dep: string) => built.has(dep));
+			const deps: string[] = layer.dependencies ?? [];
+			const allDepsBuilt = deps.every((dep: string) => built.has(dep));
 
-      if (allDepsBuilt) {
-        readyLayers.push(layer);
-      }
-    }
+			if (allDepsBuilt) {
+				readyLayers.push(layer);
+			}
+		}
 
-    if (readyLayers.length === 0 && remaining.size > 0) {
-      const remainingLayers = Array.from(remaining)
-        .map((name) => layerMap.get(name))
-        .filter((l): l is AnyResolvedLayer => l !== undefined);
-      levels.push({
-        level: levels.length,
-        layers: remainingLayers,
-      });
-      break;
-    }
+		if (readyLayers.length === 0 && remaining.size > 0) {
+			const remainingLayers = Array.from(remaining)
+				.map((name) => layerMap.get(name))
+				.filter((l): l is AnyResolvedLayer => l !== undefined);
+			levels.push({
+				level: levels.length,
+				layers: remainingLayers,
+			});
+			break;
+		}
 
-    for (const layer of readyLayers) {
-      built.add(layer.name);
-      remaining.delete(layer.name);
-    }
+		for (const layer of readyLayers) {
+			built.add(layer.name);
+			remaining.delete(layer.name);
+		}
 
-    levels.push({
-      level: levels.length,
-      layers: readyLayers,
-    });
-  }
+		levels.push({
+			level: levels.length,
+			layers: readyLayers,
+		});
+	}
 
-  return levels;
+	return levels;
 };
 
-export const getMaxParallelism = (
-  levels: readonly TopologyLevel[]
-): number => {
-  return levels.reduce((max, level) => Math.max(max, level.layers.length), 0);
+export const getMaxParallelism = (levels: readonly TopologyLevel[]): number => {
+	return levels.reduce((max, level) => Math.max(max, level.layers.length), 0);
 };

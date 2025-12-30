@@ -27,13 +27,13 @@ import type { TracingServiceApi } from './TracingService.js';
 let globalTracingService: TracingServiceApi | null = null;
 
 export const setGlobalTracing = (service: TracingServiceApi): void => {
-  globalTracingService = service;
+	globalTracingService = service;
 };
 
 export const getGlobalTracing = (): TracingServiceApi | null => {
-  return globalTracingService;
+	return globalTracingService;
 };
 
 export const clearGlobalTracing = (): void => {
-  globalTracingService = null;
+	globalTracingService = null;
 };

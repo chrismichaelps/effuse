@@ -39,7 +39,7 @@ createApp(App)
 						emit: true,
 						store: true,
 						fibers: true,
-					}
+					},
 				},
 			})
 			.then(() => console.log('[App] mounted'))

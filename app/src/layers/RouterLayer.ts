@@ -63,7 +63,11 @@ export const RouterLayer = defineLayer({
 		const tracing = ctx.getService('tracing');
 		let unsubscribeTracing: (() => void) | undefined;
 
-		if (tracing && typeof tracing === 'object' && 'isCategoryEnabled' in tracing) {
+		if (
+			tracing &&
+			typeof tracing === 'object' &&
+			'isCategoryEnabled' in tracing
+		) {
 			const tracingService = tracing as {
 				isCategoryEnabled: (cat: string) => boolean;
 				logWithDuration: (
@@ -81,12 +85,18 @@ export const RouterLayer = defineLayer({
 				unsubscribeTracing = router.afterEach((to, from) =>
 					Effect.sync(() => {
 						const duration = performance.now() - lastNavTime;
-						tracingService.logWithDuration('router', 'navigation', to.path, duration, {
-							from: from.path,
-							to: to.path,
-							params: to.params,
-							name: to.name,
-						});
+						tracingService.logWithDuration(
+							'router',
+							'navigation',
+							to.path,
+							duration,
+							{
+								from: from.path,
+								to: to.path,
+								params: to.params,
+								name: to.name,
+							}
+						);
 						lastNavTime = performance.now();
 					})
 				);

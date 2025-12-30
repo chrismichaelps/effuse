@@ -25,50 +25,53 @@
 import { getGlobalTracing } from './global.js';
 
 export const traceComponentMount = (
-  name: string,
-  props?: Record<string, unknown>,
-  duration?: number
+	name: string,
+	props?: Record<string, unknown>,
+	duration?: number
 ): void => {
-  const tracing = getGlobalTracing();
-  if (!tracing?.isCategoryEnabled('components')) return;
+	const tracing = getGlobalTracing();
+	if (!tracing?.isCategoryEnabled('components')) return;
 
-  const logData: Record<string, unknown> = {};
-  if (props && Object.keys(props).length > 0) {
-    logData['props'] = props;
-  }
+	const logData: Record<string, unknown> = {};
+	if (props && Object.keys(props).length > 0) {
+		logData['props'] = props;
+	}
 
-  if (duration !== undefined) {
-    tracing.logWithDuration('components', 'mount', name, duration, logData);
-  } else {
-    tracing.log('components', 'mount', name, logData);
-  }
+	if (duration !== undefined) {
+		tracing.logWithDuration('components', 'mount', name, duration, logData);
+	} else {
+		tracing.log('components', 'mount', name, logData);
+	}
 };
 
-export const traceComponentUnmount = (name: string, lifetime?: number): void => {
-  const tracing = getGlobalTracing();
-  if (!tracing?.isCategoryEnabled('components')) return;
+export const traceComponentUnmount = (
+	name: string,
+	lifetime?: number
+): void => {
+	const tracing = getGlobalTracing();
+	if (!tracing?.isCategoryEnabled('components')) return;
 
-  if (lifetime !== undefined) {
-    tracing.log('components', 'unmount', name, {
-      lifetime: `${lifetime.toFixed(0)}ms`,
-    });
-  } else {
-    tracing.log('components', 'unmount', name);
-  }
+	if (lifetime !== undefined) {
+		tracing.log('components', 'unmount', name, {
+			lifetime: `${lifetime.toFixed(0)}ms`,
+		});
+	} else {
+		tracing.log('components', 'unmount', name);
+	}
 };
 
 export const traceComponentRender = (
-  name: string,
-  duration: number,
-  reason?: string
+	name: string,
+	duration: number,
+	reason?: string
 ): void => {
-  const tracing = getGlobalTracing();
-  if (!tracing?.isCategoryEnabled('components')) return;
+	const tracing = getGlobalTracing();
+	if (!tracing?.isCategoryEnabled('components')) return;
 
-  const logData: Record<string, unknown> = {};
-  if (reason) {
-    logData['reason'] = reason;
-  }
+	const logData: Record<string, unknown> = {};
+	if (reason) {
+		logData['reason'] = reason;
+	}
 
-  tracing.logWithDuration('components', 'render', name, duration, logData);
+	tracing.logWithDuration('components', 'render', name, duration, logData);
 };

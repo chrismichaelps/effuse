@@ -57,7 +57,10 @@ export class EffuseApp {
 		return this;
 	}
 
-	async mount(selector: string, options: MountOptions = {}): Promise<AppInstance> {
+	async mount(
+		selector: string,
+		options: MountOptions = {}
+	): Promise<AppInstance> {
 		const combined = combineLayers(...this.layers);
 
 		this.layerRuntime = await createLayerRuntime(combined.layers, options);

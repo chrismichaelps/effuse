@@ -25,50 +25,50 @@
 import { getGlobalTracing } from './global.js';
 
 export const traceFiberCreated = (fiberId: string, parentId?: string): void => {
-  const tracing = getGlobalTracing();
-  if (!tracing?.isCategoryEnabled('fibers')) return;
+	const tracing = getGlobalTracing();
+	if (!tracing?.isCategoryEnabled('fibers')) return;
 
-  const data: Record<string, unknown> = {};
-  if (parentId) {
-    data['parent'] = parentId;
-  }
+	const data: Record<string, unknown> = {};
+	if (parentId) {
+		data['parent'] = parentId;
+	}
 
-  tracing.log('fibers', 'created', fiberId, data);
+	tracing.log('fibers', 'created', fiberId, data);
 };
 
 export const traceFiberDone = (fiberId: string, duration: number): void => {
-  const tracing = getGlobalTracing();
-  if (!tracing?.isCategoryEnabled('fibers')) return;
+	const tracing = getGlobalTracing();
+	if (!tracing?.isCategoryEnabled('fibers')) return;
 
-  tracing.logWithDuration('fibers', 'done', fiberId, duration);
+	tracing.logWithDuration('fibers', 'done', fiberId, duration);
 };
 
 export const traceFiberInterrupted = (fiberId: string): void => {
-  const tracing = getGlobalTracing();
-  if (!tracing?.isCategoryEnabled('fibers')) return;
+	const tracing = getGlobalTracing();
+	if (!tracing?.isCategoryEnabled('fibers')) return;
 
-  tracing.log('fibers', 'interrupted', fiberId);
+	tracing.log('fibers', 'interrupted', fiberId);
 };
 
 export const traceFiberCount = (count: number, peak: number): void => {
-  const tracing = getGlobalTracing();
-  if (!tracing?.isCategoryEnabled('fibers')) return;
+	const tracing = getGlobalTracing();
+	if (!tracing?.isCategoryEnabled('fibers')) return;
 
-  tracing.log('fibers', 'snapshot', `${String(count)} active`, {
-    current: count,
-    peak,
-  });
+	tracing.log('fibers', 'snapshot', `${String(count)} active`, {
+		current: count,
+		peak,
+	});
 };
 
 export const traceFiberBuildPhase = (
-  phase: number,
-  layerNames: string[]
+	phase: number,
+	layerNames: string[]
 ): void => {
-  const tracing = getGlobalTracing();
-  if (!tracing?.isCategoryEnabled('fibers')) return;
+	const tracing = getGlobalTracing();
+	if (!tracing?.isCategoryEnabled('fibers')) return;
 
-  tracing.log('fibers', 'build-phase', `level ${String(phase)}`, {
-    layers: layerNames,
-    parallel: layerNames.length,
-  });
+	tracing.log('fibers', 'build-phase', `level ${String(phase)}`, {
+		layers: layerNames,
+		parallel: layerNames.length,
+	});
 };

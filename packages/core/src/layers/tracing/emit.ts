@@ -25,29 +25,29 @@
 import { getGlobalTracing } from './global.js';
 
 export const traceEmit = (
-  event: string,
-  payload: unknown,
-  subscriberCount: number
+	event: string,
+	payload: unknown,
+	subscriberCount: number
 ): void => {
-  const tracing = getGlobalTracing();
-  if (!tracing?.isCategoryEnabled('emit')) return;
+	const tracing = getGlobalTracing();
+	if (!tracing?.isCategoryEnabled('emit')) return;
 
-  tracing.log('emit', 'event', event, {
-    payload,
-    subscribers: subscriberCount,
-  });
+	tracing.log('emit', 'event', event, {
+		payload,
+		subscribers: subscriberCount,
+	});
 };
 
 export const traceEmitSubscribe = (event: string): void => {
-  const tracing = getGlobalTracing();
-  if (!tracing?.isCategoryEnabled('emit')) return;
+	const tracing = getGlobalTracing();
+	if (!tracing?.isCategoryEnabled('emit')) return;
 
-  tracing.log('emit', 'subscribe', event);
+	tracing.log('emit', 'subscribe', event);
 };
 
 export const traceEmitUnsubscribe = (event: string): void => {
-  const tracing = getGlobalTracing();
-  if (!tracing?.isCategoryEnabled('emit')) return;
+	const tracing = getGlobalTracing();
+	if (!tracing?.isCategoryEnabled('emit')) return;
 
-  tracing.log('emit', 'unsubscribe', event);
+	tracing.log('emit', 'unsubscribe', event);
 };

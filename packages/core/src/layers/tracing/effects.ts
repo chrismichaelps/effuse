@@ -25,34 +25,34 @@
 import { getGlobalTracing } from './global.js';
 
 export const traceEffect = (
-  name: string,
-  deps: string[],
-  duration: number
+	name: string,
+	deps: string[],
+	duration: number
 ): void => {
-  const tracing = getGlobalTracing();
-  if (!tracing?.isCategoryEnabled('effects')) return;
+	const tracing = getGlobalTracing();
+	if (!tracing?.isCategoryEnabled('effects')) return;
 
-  tracing.logWithDuration('effects', 'effect', name, duration, {
-    deps,
-  });
+	tracing.logWithDuration('effects', 'effect', name, duration, {
+		deps,
+	});
 };
 
 export const traceEffectCleanup = (name: string): void => {
-  const tracing = getGlobalTracing();
-  if (!tracing?.isCategoryEnabled('effects')) return;
+	const tracing = getGlobalTracing();
+	if (!tracing?.isCategoryEnabled('effects')) return;
 
-  tracing.log('effects', 'cleanup', name);
+	tracing.log('effects', 'cleanup', name);
 };
 
 export const traceWatch = (
-  name: string,
-  source: string,
-  duration: number
+	name: string,
+	source: string,
+	duration: number
 ): void => {
-  const tracing = getGlobalTracing();
-  if (!tracing?.isCategoryEnabled('effects')) return;
+	const tracing = getGlobalTracing();
+	if (!tracing?.isCategoryEnabled('effects')) return;
 
-  tracing.logWithDuration('effects', 'watch', name, duration, {
-    source,
-  });
+	tracing.logWithDuration('effects', 'watch', name, duration, {
+		source,
+	});
 };

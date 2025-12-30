@@ -27,62 +27,62 @@ import { getGlobalTracing } from './global.js';
 export type ResourceStatus = 'loading' | 'success' | 'error' | 'stale';
 
 export interface ResourceTraceData {
-  readonly key: string;
-  readonly status: ResourceStatus;
-  readonly itemCount?: number;
-  readonly error?: string;
+	readonly key: string;
+	readonly status: ResourceStatus;
+	readonly itemCount?: number;
+	readonly error?: string;
 }
 
 export const traceResourceLoading = (key: string): void => {
-  const tracing = getGlobalTracing();
-  if (!tracing?.isCategoryEnabled('suspense')) return;
+	const tracing = getGlobalTracing();
+	if (!tracing?.isCategoryEnabled('suspense')) return;
 
-  tracing.log('suspense', 'resource', key, {
-    status: 'loading',
-  });
+	tracing.log('suspense', 'resource', key, {
+		status: 'loading',
+	});
 };
 
 export const traceResourceSuccess = (
-  key: string,
-  duration: number,
-  itemCount?: number
+	key: string,
+	duration: number,
+	itemCount?: number
 ): void => {
-  const tracing = getGlobalTracing();
-  if (!tracing?.isCategoryEnabled('suspense')) return;
+	const tracing = getGlobalTracing();
+	if (!tracing?.isCategoryEnabled('suspense')) return;
 
-  const data: Record<string, unknown> = {
-    status: 'success',
-  };
+	const data: Record<string, unknown> = {
+		status: 'success',
+	};
 
-  if (itemCount !== undefined) {
-    data['items'] = itemCount;
-  }
+	if (itemCount !== undefined) {
+		data['items'] = itemCount;
+	}
 
-  tracing.logWithDuration('suspense', 'resource', key, duration, data);
+	tracing.logWithDuration('suspense', 'resource', key, duration, data);
 };
 
 export const traceResourceError = (
-  key: string,
-  error: string,
-  duration: number
+	key: string,
+	error: string,
+	duration: number
 ): void => {
-  const tracing = getGlobalTracing();
-  if (!tracing?.isCategoryEnabled('suspense')) return;
+	const tracing = getGlobalTracing();
+	if (!tracing?.isCategoryEnabled('suspense')) return;
 
-  tracing.logWithDuration('suspense', 'resource', key, duration, {
-    status: 'error',
-    error,
-  });
+	tracing.logWithDuration('suspense', 'resource', key, duration, {
+		status: 'error',
+		error,
+	});
 };
 
 export const traceSuspenseBoundary = (
-  name: string,
-  action: 'suspend' | 'resolve'
+	name: string,
+	action: 'suspend' | 'resolve'
 ): void => {
-  const tracing = getGlobalTracing();
-  if (!tracing?.isCategoryEnabled('suspense')) return;
+	const tracing = getGlobalTracing();
+	if (!tracing?.isCategoryEnabled('suspense')) return;
 
-  tracing.log('suspense', 'boundary', name, {
-    action,
-  });
+	tracing.log('suspense', 'boundary', name, {
+		action,
+	});
 };

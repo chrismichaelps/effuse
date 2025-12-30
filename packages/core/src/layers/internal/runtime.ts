@@ -37,7 +37,10 @@ import {
 	type TracingConfig,
 } from '../tracing/index.js';
 
-export type LayerRuntimeServices = PropsService | RegistryService | TracingService;
+export type LayerRuntimeServices =
+	| PropsService
+	| RegistryService
+	| TracingService;
 
 export const CoreServicesLive = Layer.mergeAll(
 	PropsService.Default,

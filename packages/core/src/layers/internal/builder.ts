@@ -134,7 +134,12 @@ export const buildLayerEffect = (
 			}
 
 			if (layer.setup) {
-				const ctx = createSetupContext(layer, propsRegistry, registry, allLayers);
+				const ctx = createSetupContext(
+					layer,
+					propsRegistry,
+					registry,
+					allLayers
+				);
 				const setupFn = layer.setup;
 
 				const result = yield* Effect.tryPromise({
@@ -173,18 +178,18 @@ export const buildLayerEffect = (
 			const cleanup: CleanupFn | undefined =
 				cleanups.length > 0
 					? () => {
-						const reversed = cleanups.slice().reverse();
+							const reversed = cleanups.slice().reverse();
 
-						for (const cleanupFn of reversed) {
-							try {
-								cleanupFn();
-							} catch (error: unknown) {
-								if (layer.onError && error instanceof Error) {
-									layer.onError(error);
+							for (const cleanupFn of reversed) {
+								try {
+									cleanupFn();
+								} catch (error: unknown) {
+									if (layer.onError && error instanceof Error) {
+										layer.onError(error);
+									}
 								}
 							}
 						}
-					}
 					: undefined;
 
 			return { layer, cleanup };
@@ -246,16 +251,16 @@ export const buildAllLayersEffect = (
 		const aggregatedCleanup: CleanupFn | undefined =
 			results.length > 0
 				? () => {
-					for (const { cleanup } of results.slice().reverse()) {
-						if (cleanup) {
-							try {
-								cleanup();
-							} catch {
-								void 0;
+						for (const { cleanup } of results.slice().reverse()) {
+							if (cleanup) {
+								try {
+									cleanup();
+								} catch {
+									void 0;
+								}
 							}
 						}
 					}
-				}
 				: undefined;
 
 		const metrics: BuildMetrics = {

@@ -23,44 +23,44 @@
  */
 
 export type TracingCategory =
-  | 'layers'
-  | 'router'
-  | 'components'
-  | 'effects'
-  | 'signals'
-  | 'suspense'
-  | 'emit'
-  | 'store'
-  | 'fibers';
+	| 'layers'
+	| 'router'
+	| 'components'
+	| 'effects'
+	| 'signals'
+	| 'suspense'
+	| 'emit'
+	| 'store'
+	| 'fibers';
 
 export interface TracingCategories {
-  readonly layers: boolean;
-  readonly router: boolean;
-  readonly components: boolean;
-  readonly effects: boolean;
-  readonly signals: boolean;
-  readonly suspense: boolean;
-  readonly emit: boolean;
-  readonly store: boolean;
-  readonly fibers: boolean;
+	readonly layers: boolean;
+	readonly router: boolean;
+	readonly components: boolean;
+	readonly effects: boolean;
+	readonly signals: boolean;
+	readonly suspense: boolean;
+	readonly emit: boolean;
+	readonly store: boolean;
+	readonly fibers: boolean;
 }
 
 export const defaultCategories: TracingCategories = {
-  layers: true,
-  router: true,
-  components: true,
-  effects: true,
-  signals: false,
-  suspense: true,
-  emit: true,
-  store: true,
-  fibers: true,
+	layers: true,
+	router: true,
+	components: true,
+	effects: true,
+	signals: false,
+	suspense: true,
+	emit: true,
+	store: true,
+	fibers: true,
 };
 
 export const isCategoryEnabled = (
-  categories: Partial<TracingCategories> | undefined,
-  category: TracingCategory
+	categories: Partial<TracingCategories> | undefined,
+	category: TracingCategory
 ): boolean => {
-  if (!categories) return defaultCategories[category];
-  return categories[category] ?? defaultCategories[category];
+	if (!categories) return defaultCategories[category];
+	return categories[category] ?? defaultCategories[category];
 };

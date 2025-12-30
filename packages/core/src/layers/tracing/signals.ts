@@ -27,42 +27,42 @@ import { getGlobalTracing } from './global.js';
 let signalCounter = 0;
 
 export const traceSignalCreate = (
-  name: string | undefined,
-  initialValue: unknown
+	name: string | undefined,
+	initialValue: unknown
 ): string => {
-  const tracing = getGlobalTracing();
-  const signalId = name ?? `signal_${String(++signalCounter)}`;
+	const tracing = getGlobalTracing();
+	const signalId = name ?? `signal_${String(++signalCounter)}`;
 
-  if (tracing?.isCategoryEnabled('signals')) {
-    tracing.log('signals', 'create', signalId, {
-      initial: initialValue,
-    });
-  }
+	if (tracing?.isCategoryEnabled('signals')) {
+		tracing.log('signals', 'create', signalId, {
+			initial: initialValue,
+		});
+	}
 
-  return signalId;
+	return signalId;
 };
 
 export const traceSignalUpdate = (
-  signalId: string,
-  prevValue: unknown,
-  nextValue: unknown
+	signalId: string,
+	prevValue: unknown,
+	nextValue: unknown
 ): void => {
-  const tracing = getGlobalTracing();
-  if (!tracing?.isCategoryEnabled('signals')) return;
+	const tracing = getGlobalTracing();
+	if (!tracing?.isCategoryEnabled('signals')) return;
 
-  tracing.log('signals', 'update', signalId, {
-    prev: prevValue,
-    next: nextValue,
-  });
+	tracing.log('signals', 'update', signalId, {
+		prev: prevValue,
+		next: nextValue,
+	});
 };
 
 export const traceComputedCreate = (name: string | undefined): string => {
-  const tracing = getGlobalTracing();
-  const computedId = name ?? `computed_${String(++signalCounter)}`;
+	const tracing = getGlobalTracing();
+	const computedId = name ?? `computed_${String(++signalCounter)}`;
 
-  if (tracing?.isCategoryEnabled('signals')) {
-    tracing.log('signals', 'computed', computedId);
-  }
+	if (tracing?.isCategoryEnabled('signals')) {
+		tracing.log('signals', 'computed', computedId);
+	}
 
-  return computedId;
+	return computedId;
 };
