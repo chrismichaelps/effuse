@@ -12,6 +12,8 @@ import {
 import { Ink } from '@effuse/ink';
 import { DocsLayout } from '../../components/docs/DocsLayout';
 import type { i18nStore as I18nStoreType } from '../../store/appI18n';
+import { triggerHaptic } from '../../components/Haptics';
+import '../../styles/examples.css';
 
 interface ChatMessage {
 	id: string;
@@ -50,25 +52,21 @@ const StatDisplay = define<StatDisplayProps, StatDisplayExposed>({
 	script: ({ props }) => ({
 		label: props.label,
 		value: props.value,
-		color: props.color || 'blue',
+		color: props.color || 'mint',
 	}),
-	template: ({ label, value, color }: StatDisplayExposed) => {
-		const colorClass =
-			color === 'green'
-				? 'text-emerald-600'
-				: color === 'red'
-					? 'text-rose-600'
-					: color === 'slate'
-						? 'text-slate-600'
-						: 'text-blue-600';
-
-		return (
-			<div class="text-center">
-				<div class={`text-2xl font-bold ${colorClass}`}>{value}</div>
-				<div class="text-sm text-slate-500">{label}</div>
+	template: ({ label, value, color }: StatDisplayExposed) => (
+		<div class="text-center">
+			<div
+				class="text-2xl font-bold"
+				style={() => ({ color: `var(--accent-${color})` })}
+			>
+				{value}
 			</div>
-		);
-	},
+			<div class="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">
+				{label}
+			</div>
+		</div>
+	),
 });
 
 const generateId = () =>
@@ -101,15 +99,16 @@ export const EmitDemoPage = define({
 
 		const userStyles: Record<
 			string,
-			{ bg: string; text: string; border?: string }
+			{ bg: string; text: string; accent: string }
 		> = {
-			Red: { bg: 'bg-red-600', text: 'text-white' },
-			Blue: { bg: 'bg-blue-600', text: 'text-white' },
-			Orange: { bg: 'bg-orange-500', text: 'text-white' },
-			White: {
-				bg: 'bg-white',
-				text: 'text-slate-900',
-				border: 'border-slate-300',
+			Red: { bg: '#ff4b4b', text: '#fff', accent: 'var(--accent-cyan)' },
+			Blue: { bg: '#4b73ff', text: '#fff', accent: 'var(--accent-mint)' },
+			Orange: { bg: '#ff8c4b', text: '#fff', accent: 'var(--accent-lilac)' },
+			White: { bg: '#f8fafc', text: '#0f172a', accent: 'var(--accent-mint)' },
+			System: {
+				bg: 'rgba(255,255,255,0.05)',
+				text: '#94a3b8',
+				accent: 'var(--border-subtle)',
 			},
 		};
 
@@ -159,11 +158,6 @@ export const EmitDemoPage = define({
 			inputEl?.focus();
 		});
 
-		const handleMention = (user: string) => {
-			inputText.value = `@${user} `;
-			inputEl?.focus();
-		};
-
 		const handleSwitchUser = (user: string) => {
 			currentUser.value = user;
 			emit('message', {
@@ -185,27 +179,13 @@ export const EmitDemoPage = define({
 
 		const codeSnippet = `
 \`\`\`tsx
-// Define event types
-interface Events {
-  message: { text: string; author: string };
-  userJoined: { userId: string };
-}
-
-// Create typed emitter
 const { emit, on, context } = useEmits<Events>({
   message: (msg) => {
     messages.value = [...messages.value, msg];
   },
 });
 
-// Subscribe to events
-const unsub = on('message', (msg) => console.log(msg.text));
-
-// Emit events
 emit('message', { text: 'Hello!', author: 'Dev' });
-
-// Reactive signal for UI
-const lastMessage = useEventSignal(context, 'message');
 \`\`\``.trim();
 
 		effect(() => {
@@ -235,7 +215,6 @@ const lastMessage = useEventSignal(context, 'message');
 				inputEl = el as HTMLInputElement;
 			},
 			handleSendMessage,
-			handleMention,
 			handleSwitchUser,
 			resetSession,
 			codeSnippet,
@@ -253,7 +232,6 @@ const lastMessage = useEventSignal(context, 'message');
 		setChatContainer,
 		setInputEl,
 		handleSendMessage,
-		handleMention,
 		handleSwitchUser,
 		resetSession,
 		codeSnippet,
@@ -261,209 +239,199 @@ const lastMessage = useEventSignal(context, 'message');
 		t,
 	}) => (
 		<DocsLayout currentPath="/emit">
-			<div class="py-12 px-4">
-				<div class="max-w-3xl mx-auto">
-					<header class="text-center mb-10">
-						<h1 class="text-4xl font-bold text-slate-800 mb-3">
-							{t.value?.title || ''}
-						</h1>
-						<p class="text-slate-600 text-lg">{t.value?.description || ''}</p>
-					</header>
+			<div class="example-container animate-water-drop">
+				<header class="example-header">
+					<h1 class="example-title">{t.value?.title || ''}</h1>
+					<p class="example-description">{t.value?.description || ''}</p>
+				</header>
 
-					<div class="flex flex-wrap justify-center gap-3 mb-10">
-						<span class="bg-blue-600 text-white px-4 py-1.5 rounded text-sm font-medium shadow-sm">
-							useEmits
-						</span>
-						<span class="bg-green-600 text-white px-4 py-1.5 rounded text-sm font-medium shadow-sm">
-							useEventSignal
-						</span>
-					</div>
+				<div class="flex flex-wrap justify-center gap-3 mb-10">
+					<span
+						class="example-badge"
+						style="background: rgba(182, 157, 248, 0.1); color: var(--accent-lilac);"
+					>
+						useEmits
+					</span>
+					<span
+						class="example-badge"
+						style="background: rgba(141, 240, 204, 0.1); color: var(--accent-mint);"
+					>
+						useEventSignal
+					</span>
+				</div>
 
-					<div class="bg-white rounded-xl shadow-lg border border-slate-200 p-4 mb-6">
-						<div class="flex gap-3">
-							<input
-								ref={setInputEl}
-								type="text"
-								id="message-input"
-								placeholder={
-									computed(
-										() => t.value?.placeholder || ''
-									) as unknown as string
-								}
-								value={inputText}
-								onInput={(e) =>
-									(inputText.value = (e.target as HTMLInputElement).value)
-								}
-								onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-								class="flex-1 px-4 py-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-							/>
-							<button
-								type="button"
-								id="send-btn"
-								onClick={() => handleSendMessage()}
-								class={() =>
-									inputText.value.trim().length > 0
-										? 'px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors'
-										: 'px-6 py-3 bg-blue-300 text-white rounded-lg font-semibold cursor-not-allowed transition-colors'
-								}
-							>
-								{t.value?.send || ''}
-							</button>
-						</div>
-						<div class="mt-3 flex items-center gap-2 text-sm text-slate-500">
-							<span>{t.value?.actingAs || ''}</span>
-							<span
-								class={() => {
-									const style = userStyles[currentUser.value];
-									return `inline-block px-2 py-0.5 rounded font-bold shadow-sm transition-all border ${style?.bg || 'bg-slate-600'} ${style?.text || 'text-white'} ${style?.border || 'border-transparent'}`;
-								}}
-							>
-								{currentUser}
-							</span>
-						</div>
-					</div>
-
-					<div class="bg-white rounded-xl shadow-lg border border-slate-200 p-4 mb-6">
-						<div class="flex justify-center gap-8">
-							<StatDisplay
-								label={t.value?.stats?.messages || ''}
-								value={messages.value.length}
-								color="slate"
-							/>
-							<StatDisplay
-								label={t.value?.stats?.emits || ''}
-								value={emitCount}
-								color="blue"
-							/>
-							<StatDisplay
-								label={t.value?.stats?.online || ''}
-								value={
-									presence.value.filter((p) => p.status === 'online').length
-								}
-								color="green"
-							/>
-						</div>
-					</div>
-
-					<div class="flex justify-center gap-2 mb-6">
-						<For each={presence} keyExtractor={(p) => p.userId}>
-							{(p) => (
-								<button
-									type="button"
-									onClick={() => handleSwitchUser(p.value.userId)}
-									class={() => {
-										const selectedUser = currentUser.value;
-										const currentUserId = p.value.userId;
-										const active = selectedUser === currentUserId;
-										const style = userStyles[currentUserId];
-
-										return active
-											? `px-4 py-2 rounded-lg font-bold shadow-md transition-all border ${style?.bg || 'bg-slate-800'} ${style?.text || 'text-white'} ${style?.border || 'border-transparent'}`
-											: 'px-4 py-2 rounded-lg font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 transition-all border border-transparent';
-									}}
-								>
-									{p.value.userId}
-									{p.value.status === 'online' && (
-										<span class="ml-2 inline-block w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-									)}
-								</button>
-							)}
-						</For>
+				<div class="example-card">
+					<div class="flex gap-3">
+						<input
+							ref={setInputEl}
+							type="text"
+							placeholder={
+								computed(() => t.value?.placeholder || '') as unknown as string
+							}
+							value={inputText}
+							onInput={(e) =>
+								(inputText.value = (e.target as HTMLInputElement).value)
+							}
+							onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+							class="example-input"
+						/>
 						<button
 							type="button"
-							onClick={() => resetSession()}
-							class="px-4 py-2 rounded-lg font-medium bg-red-100 text-red-600 hover:bg-red-200 ml-4"
+							onClick={() => {
+								triggerHaptic('light');
+								handleSendMessage();
+							}}
+							class={() =>
+								inputText.value.trim().length > 0
+									? 'btn-premium'
+									: 'btn-premium opacity-50 cursor-not-allowed'
+							}
 						>
-							{t.value?.reset || ''}
+							{t.value?.send || ''}
 						</button>
 					</div>
-
-					<div class="bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden">
-						<div
-							ref={setChatContainer}
-							class="divide-y divide-slate-100 max-h-96 overflow-y-auto"
+					<div class="mt-4 flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-widest">
+						<span>{t.value?.actingAs || ''}</span>
+						<span
+							class="px-3 py-1 rounded-full text-white"
+							style={() => ({ background: userStyles[currentUser.value]?.bg })}
 						>
-							{computed(() =>
-								messages.value.length === 0 ? (
-									<div class="p-8 text-center text-slate-400">
-										{t.value?.noMessages}
-									</div>
-								) : null
-							)}
+							{currentUser.value}
+						</span>
+					</div>
+				</div>
 
-							<For each={messages} keyExtractor={(m) => m.id}>
-								{(msg) => (
-									<div class="px-6 py-4 flex items-start gap-4 hover:bg-slate-50 transition-colors group">
-										{msg.value.type === 'system' ? (
-											<div class="w-full text-center">
-												<span class="inline-block px-3 py-1 bg-slate-100 text-slate-500 rounded-full text-sm">
-													{computed(() => {
-														if (!msg.value.translationKey)
-															return msg.value.text;
+				<div class="stat-grid">
+					<StatDisplay
+						label={t.value?.stats?.messages || ''}
+						value={messages.value.length}
+						color="mint"
+					/>
+					<StatDisplay
+						label={t.value?.stats?.emits || ''}
+						value={emitCount}
+						color="lilac"
+					/>
+					<StatDisplay
+						label={t.value?.stats?.online || ''}
+						value={presence.value.filter((p) => p.status === 'online').length}
+						color="cyan"
+					/>
+				</div>
 
-														let template =
-															(t.value as any)?.[msg.value.translationKey] ||
-															msg.value.text;
+				<div class="flex flex-wrap justify-center gap-3 mb-8">
+					<For each={presence} keyExtractor={(p) => p.userId}>
+						{(p) => (
+							<button
+								type="button"
+								onClick={() => handleSwitchUser(p.value.userId)}
+								class={() =>
+									currentUser.value === p.value.userId
+										? 'btn-premium'
+										: 'btn-secondary'
+								}
+								style={() => ({
+									background:
+										currentUser.value === p.value.userId
+											? userStyles[p.value.userId]?.bg || ''
+											: '',
+									borderColor:
+										currentUser.value === p.value.userId
+											? userStyles[p.value.userId]?.bg || ''
+											: '',
+								})}
+							>
+								{p.value.userId}
+								{p.value.status === 'online' && (
+									<span class="ml-2 inline-block w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+								)}
+							</button>
+						)}
+					</For>
+					<button
+						type="button"
+						onClick={() => resetSession()}
+						class="btn-secondary"
+						style="border-color: rgba(255, 100, 100, 0.2); color: #ff6b6b;"
+					>
+						{t.value?.reset || ''}
+					</button>
+				</div>
 
-														if (msg.value.translationData) {
-															Object.entries(msg.value.translationData).forEach(
-																([key, val]) => {
-																	template = template.replace(
-																		`{{${key}}}`,
-																		val
-																	);
-																}
-															);
-														}
+				<div class="example-card" style="padding: 0; overflow: hidden;">
+					<div
+						ref={setChatContainer}
+						class="h-[400px] overflow-y-auto custom-scrollbar p-6 space-y-4"
+					>
+						{computed(() =>
+							messages.value.length === 0 ? (
+								<div class="h-full flex items-center justify-center text-slate-500 italic">
+									{t.value?.noMessages}
+								</div>
+							) : null
+						)}
 
-														return template;
-													})}
+						<For each={messages} keyExtractor={(m) => m.id}>
+							{(msg) => {
+								const isSystem = msg.value.type === 'system';
+								const style =
+									userStyles[isSystem ? 'System' : msg.value.author];
+
+								return (
+									<div
+										class={() =>
+											`flex flex-col ${isSystem ? 'items-center' : 'items-start'} gap-1 w-full`
+										}
+									>
+										{!isSystem && (
+											<div class="flex items-center gap-2 ml-1">
+												<span class="text-[10px] font-black uppercase tracking-widest text-slate-500">
+													{msg.value.author}
+												</span>
+												<span class="text-[10px] text-slate-600">
+													{new Date(msg.value.timestamp).toLocaleTimeString()}
 												</span>
 											</div>
-										) : (
-											<>
-												<div
-													class={() => {
-														const style = userStyles[msg.value.author];
-														return `w-10 h-10 rounded-full flex items-center justify-center font-bold flex-shrink-0 shadow-sm border ${style?.bg || 'bg-slate-400'} ${style?.text || 'text-white'} ${style?.border || 'border-transparent'}`;
-													}}
-												>
-													{msg.value.author.slice(0, 1).toUpperCase()}
-												</div>
-												<div class="flex-1 min-w-0">
-													<div class="flex items-center gap-2 mb-1">
-														<span class="font-semibold text-slate-800">
-															{msg.value.author}
-														</span>
-														<span class="text-xs text-slate-400">
-															{new Date(
-																msg.value.timestamp
-															).toLocaleTimeString()}
-														</span>
-													</div>
-													<p class="text-slate-700">{msg.value.text}</p>
-												</div>
-												<button
-													type="button"
-													onClick={() => handleMention(msg.value.author)}
-													class="opacity-0 group-hover:opacity-100 px-3 py-1 bg-blue-100 text-blue-700 rounded text-sm font-medium hover:bg-blue-200 transition"
-												>
-													{t.value?.mention || ''}
-												</button>
-											</>
 										)}
+										<div
+											class={() =>
+												isSystem
+													? 'px-4 py-1.5 rounded-full bg-white/5 text-xs text-slate-400'
+													: 'px-5 py-3 rounded-2xl bg-white/5 text-slate-200 max-w-[80%]'
+											}
+											style={() => ({
+												borderLeft: !isSystem
+													? `3px solid ${style?.bg || 'var(--accent-mint)'}`
+													: 'none',
+											})}
+										>
+											{computed(() => {
+												if (!msg.value.translationKey) return msg.value.text;
+												let template =
+													(t.value as any)?.[msg.value.translationKey] ||
+													msg.value.text;
+												if (msg.value.translationData) {
+													Object.entries(msg.value.translationData).forEach(
+														([key, val]) => {
+															template = template.replace(`{{${key}}}`, val);
+														}
+													);
+												}
+												return template;
+											})}
+										</div>
 									</div>
-								)}
-							</For>
-						</div>
+								);
+							}}
+						</For>
 					</div>
+				</div>
 
-					<div class="mt-8 p-4 bg-slate-100 rounded-lg text-sm text-slate-600 overflow-x-auto">
-						<p class="mb-2 font-sans font-semibold text-slate-700">
-							{t.value?.howItWorks || ''}
-						</p>
-						<Ink content={codeSnippet} />
-					</div>
+				<div class="example-card" style="padding: 1.5rem;">
+					<p class="stat-label" style="margin-bottom: 1rem;">
+						{t.value?.howItWorks || ''}
+					</p>
+					<Ink content={codeSnippet} />
 				</div>
 			</div>
 		</DocsLayout>

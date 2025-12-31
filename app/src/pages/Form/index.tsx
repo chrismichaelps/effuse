@@ -12,6 +12,8 @@ import {
 import { useMutation } from '@effuse/query';
 import { DocsLayout } from '../../components/docs/DocsLayout';
 import type { i18nStore as I18nStoreType } from '../../store/appI18n';
+import { triggerHaptic } from '../../components/Haptics';
+import '../../styles/examples.css';
 
 interface Post {
 	id: number;
@@ -235,40 +237,24 @@ export const FormDemoPage = define({
 		resetAll,
 	}) => (
 		<DocsLayout currentPath="/form">
-			<div class="min-h-screen py-12 px-4">
-				<div class="max-w-2xl mx-auto">
-					<header class="text-center mb-10">
-						<h1 class="text-4xl font-bold text-slate-800 mb-3">
-							{t.value?.title}
-						</h1>
-						<p class="text-slate-600 text-lg">{t.value?.description}</p>
-					</header>
+			<div class="example-container animate-water-drop">
+				<header class="example-header">
+					<h1 class="example-title">{t.value?.title}</h1>
+					<p class="example-description">{t.value?.description}</p>
+				</header>
 
-					<div class="flex flex-wrap justify-center gap-3 mb-10">
-						<span class="bg-green-600 text-white px-4 py-1.5 rounded text-sm font-medium shadow-sm">
-							Schema Validation
-						</span>
-						<span class="bg-blue-600 text-white px-4 py-1.5 rounded text-sm font-medium shadow-sm">
-							Reactive Signals
-						</span>
-						<span class="bg-purple-600 text-white px-4 py-1.5 rounded text-sm font-medium shadow-sm">
-							useMutation
-						</span>
-					</div>
+				<div class="flex flex-wrap justify-center gap-3 mb-10">
+					<span class="example-badge">Schema Validation</span>
+					<span class="example-badge">Reactive Signals</span>
+					<span class="example-badge">useMutation</span>
+				</div>
 
-					<div
-						class="bg-gradient-to-r from-slate-800 to-slate-700 px-6 py-4"
-						style={{ backgroundColor: '#1e293b' }}
-					>
-						<h2
-							class="text-xl font-semibold text-white"
-							style={{ color: 'white' }}
-						>
+				<div class="example-card" style="padding: 0; overflow: hidden;">
+					<div class="bg-white/5 px-6 py-4">
+						<h2 class="text-xl font-semibold text-white">
 							{t.value?.createPost}
 						</h2>
-						<p class="text-slate-300 text-sm mt-1" style={{ color: '#cbd5e1' }}>
-							{t.value?.apiNote}
-						</p>
+						<p class="text-slate-400 text-sm mt-1">{t.value?.apiNote}</p>
 					</div>
 					<form
 						class="p-6"
@@ -277,13 +263,15 @@ export const FormDemoPage = define({
 							handleSubmit();
 						}}
 					>
-						<div class="mb-5">
+						<div class="mb-6">
 							<label
 								for="title"
-								class="block text-sm font-semibold text-slate-700 mb-2"
+								class="block text-sm font-semibold text-slate-400 mb-2"
 							>
 								{t.value?.titleLabel}
-								<span class="text-red-500 ml-1">*</span>
+								<span class="text-mint ml-1" style="color: var(--accent-mint);">
+									*
+								</span>
 							</label>
 							<div class="relative">
 								<input
@@ -299,24 +287,26 @@ export const FormDemoPage = define({
 									onBlur={() => {
 										form.touched.title.value = true;
 									}}
-									class="w-full px-4 py-3 border-2 border-slate-200 rounded-lg focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none transition-all bg-slate-50 hover:bg-white"
+									class="example-input"
 								/>
-								<span class="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 text-xs font-mono">
+								<span class="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-500 text-[10px] font-mono">
 									{titleCharCount.value}
 								</span>
 							</div>
-							<p class="text-red-500 text-sm mt-1.5 min-h-5">
+							<p class="text-rose-400 text-xs mt-1.5 min-h-4">
 								{titleError.value}
 							</p>
 						</div>
 
-						<div class="mb-5">
+						<div class="mb-6">
 							<label
 								for="email"
-								class="block text-sm font-semibold text-slate-700 mb-2"
+								class="block text-sm font-semibold text-slate-400 mb-2"
 							>
 								{t.value?.emailLabel}
-								<span class="text-red-500 ml-1">*</span>
+								<span class="text-mint ml-1" style="color: var(--accent-mint);">
+									*
+								</span>
 							</label>
 							<input
 								id="email"
@@ -331,20 +321,22 @@ export const FormDemoPage = define({
 								onBlur={() => {
 									form.touched.email.value = true;
 								}}
-								class="w-full px-4 py-3 border-2 border-slate-200 rounded-lg focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none transition-all bg-slate-50 hover:bg-white"
+								class="example-input"
 							/>
-							<p class="text-red-500 text-sm mt-1.5 min-h-5">
+							<p class="text-rose-400 text-xs mt-1.5 min-h-4">
 								{emailError.value}
 							</p>
 						</div>
 
-						<div class="mb-5">
+						<div class="mb-6">
 							<label
 								for="body"
-								class="block text-sm font-semibold text-slate-700 mb-2"
+								class="block text-sm font-semibold text-slate-400 mb-2"
 							>
 								{t.value?.bodyLabel}
-								<span class="text-red-500 ml-1">*</span>
+								<span class="text-mint ml-1" style="color: var(--accent-mint);">
+									*
+								</span>
 							</label>
 							<div class="relative">
 								<textarea
@@ -359,24 +351,26 @@ export const FormDemoPage = define({
 									onBlur={() => {
 										form.touched.body.value = true;
 									}}
-									class="w-full px-4 py-3 border-2 border-slate-200 rounded-lg focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none transition-all bg-slate-50 hover:bg-white min-h-32 resize-y"
+									class="example-input min-h-[120px] resize-y"
 								/>
-								<span class="absolute right-3 top-3 text-slate-400 text-xs font-mono">
+								<span class="absolute right-3 top-3 text-slate-500 text-[10px] font-mono">
 									{bodyCharCount.value}
 								</span>
 							</div>
-							<p class="text-red-500 text-sm mt-1.5 min-h-5">
+							<p class="text-rose-400 text-xs mt-1.5 min-h-4">
 								{bodyError.value}
 							</p>
 						</div>
 
-						<div class="mb-6">
+						<div class="mb-8">
 							<label
 								for="userId"
-								class="block text-sm font-semibold text-slate-700 mb-2"
+								class="block text-sm font-semibold text-slate-400 mb-2"
 							>
 								{t.value?.userIdLabel}
-								<span class="text-red-500 ml-1">*</span>
+								<span class="text-mint ml-1" style="color: var(--accent-mint);">
+									*
+								</span>
 							</label>
 							<input
 								id="userId"
@@ -394,105 +388,112 @@ export const FormDemoPage = define({
 								onBlur={() => {
 									form.touched.userId.value = true;
 								}}
-								class="w-full px-4 py-3 border-2 border-slate-200 rounded-lg focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none transition-all bg-slate-50 hover:bg-white"
+								class="example-input"
+								style="max-width: 120px;"
 							/>
-							<p class="text-red-500 text-sm mt-1.5 min-h-5">
+							<p class="text-rose-400 text-xs mt-1.5 min-h-4">
 								{userIdError.value}
 							</p>
 						</div>
 
-						<div class="flex flex-wrap gap-4 p-4 bg-slate-50 rounded-xl border border-slate-200 mb-6">
+						<div class="flex flex-wrap gap-6 p-4 bg-white/5 rounded-xl mb-8">
 							<div class="flex items-center gap-2">
-								<span class="text-slate-500 text-sm">{t.value?.valid}:</span>
-								<span class="text-sm font-semibold text-slate-700">
+								<span class="text-slate-500 text-xs uppercase font-bold tracking-wider">
+									{t.value?.valid}:
+								</span>
+								<span
+									class="text-sm font-semibold"
+									style={() =>
+										form.isValid.value
+											? { color: 'var(--accent-mint)' }
+											: { color: '#ff6b6b' }
+									}
+								>
 									{isValidText.value}
 								</span>
 							</div>
 							<div class="flex items-center gap-2">
-								<span class="text-slate-500 text-sm">{t.value?.state}:</span>
-								<span class="text-sm font-semibold text-slate-700">
+								<span class="text-slate-500 text-xs uppercase font-bold tracking-wider">
+									{t.value?.state}:
+								</span>
+								<span class="text-sm font-semibold text-slate-300">
 									{isDirtyText.value}
 								</span>
 							</div>
 							<div class="flex items-center gap-2">
-								<span class="text-slate-500 text-sm">
+								<span class="text-slate-500 text-xs uppercase font-bold tracking-wider">
 									{t.value?.submitting}:
 								</span>
-								<span class="text-sm font-semibold text-slate-700">
+								<span class="text-sm font-semibold text-slate-300">
 									{isSubmittingText.value}
 								</span>
 							</div>
 						</div>
 
-						<div class="flex gap-3">
+						<div class="flex gap-4">
 							<button
-								type="button"
+								type="submit"
 								disabled={isDisabled.value}
-								onClick={() => handleSubmit()}
-								class="flex-1 bg-green-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-green-700 disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed"
+								onClick={() => triggerHaptic('medium')}
+								class={() =>
+									isDisabled.value
+										? 'btn-premium opacity-50 cursor-not-allowed flex-1'
+										: 'btn-premium flex-1'
+								}
 							>
 								{submitButtonText.value}
 							</button>
 							<button
 								type="button"
 								onClick={() => {
+									triggerHaptic('light');
 									resetAll();
 								}}
-								class="bg-gray-100 text-gray-700 px-6 py-3 rounded-lg font-semibold hover:bg-gray-200 border border-gray-200"
+								class="btn-secondary"
 							>
 								{t.value?.reset}
 							</button>
 						</div>
 					</form>
 
-					<div class="px-6 pb-6">
-						<div class="p-4 bg-emerald-50 text-emerald-700 rounded-xl font-medium border border-emerald-200 empty:hidden">
-							{submissionStatus.value}
-						</div>
-					</div>
+					{computed(() =>
+						submissionStatus.value ? (
+							<div class="px-6 pb-6">
+								<div
+									class="p-4 bg-mint/10 text-mint rounded-xl font-medium border border-mint/20 text-center animate-water-drop"
+									style="background: rgba(141, 240, 204, 0.1); color: var(--accent-mint); border-color: rgba(141, 240, 204, 0.1);"
+								>
+									{submissionStatus.value}
+								</div>
+							</div>
+						) : null
+					)}
 				</div>
 
 				<Suspense
 					fallback={
-						<div class="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
-							<div
-								class="bg-gradient-to-r from-slate-800 to-slate-700 px-6 py-4"
-								style={{ backgroundColor: '#1e293b' }}
-							>
-								<h2
-									class="text-xl font-semibold text-white"
-									style={{ color: 'white' }}
-								>
-									{t.value?.createdPosts}
-								</h2>
-							</div>
-							<div class="p-6 text-center text-slate-400">
-								{t.value?.loadingPosts}
+						<div class="example-card">
+							<div class="h-8 bg-white/5 rounded w-1/4 mb-4 animate-shimmer" />
+							<div class="space-y-3">
+								<div class="h-4 bg-white/5 rounded w-full animate-shimmer" />
+								<div class="h-4 bg-white/5 rounded w-5/6 animate-shimmer" />
 							</div>
 						</div>
 					}
 				>
-					<div class="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
-						<div
-							class="bg-gradient-to-r from-slate-800 to-slate-700 px-6 py-4 flex justify-between items-center"
-							style={{ backgroundColor: '#1e293b' }}
-						>
-							<h2
-								class="text-xl font-semibold text-white"
-								style={{ color: 'white' }}
-							>
+					<div class="example-card" style="padding: 0; overflow: hidden;">
+						<div class="bg-white/5 px-6 py-4 flex justify-between items-center">
+							<h2 class="text-xl font-semibold text-white">
 								{t.value?.createdPosts}
 							</h2>
-							<span class="bg-slate-600 text-white text-sm px-3 py-1 rounded-full">
-								{postsCount.value}
-							</span>
+							<span class="example-badge">{postsCount.value}</span>
 						</div>
-						<div class="divide-y divide-slate-200">
+						<div class="max-h-[400px] overflow-y-auto custom-scrollbar">
 							<For
 								each={submittedPosts}
 								keyExtractor={(post) => post.id}
 								fallback={
-									<p class="text-slate-400 text-center py-8">
+									<p class="text-slate-500 text-center py-12 italic">
 										{t.value?.noPosts}
 									</p>
 								}
@@ -500,23 +501,26 @@ export const FormDemoPage = define({
 								{(postSignal) => {
 									const post = postSignal.value;
 									return (
-										<div class="px-6 py-4 hover:bg-slate-50 transition-colors">
+										<div class="px-6 py-5 hover:bg-white/[0.02] transition-colors">
 											<div class="flex items-start justify-between gap-4">
 												<div class="flex-1 min-w-0">
-													<div class="flex items-center gap-2 mb-1">
-														<span class="text-slate-400 text-sm font-mono">
+													<div class="flex items-center gap-2 mb-2">
+														<span class="text-slate-500 text-xs font-mono">
 															#{String(post.id)}
 														</span>
-														<h3 class="font-semibold text-slate-800 truncate">
+														<h3 class="font-semibold text-slate-200 truncate">
 															{post.title}
 														</h3>
 													</div>
-													<p class="text-slate-600 text-sm line-clamp-2">
+													<p class="text-slate-400 text-sm line-clamp-2 leading-relaxed">
 														{post.body}
 													</p>
 												</div>
-												<span class="flex-shrink-0 bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-xs font-medium">
-													{t.value?.user} {String(post.userId)}
+												<span
+													class="flex-shrink-0 example-badge"
+													style="background: rgba(182, 157, 248, 0.1); color: var(--accent-lilac); border-color: rgba(182, 157, 248, 0.1);"
+												>
+													USER {String(post.userId)}
 												</span>
 											</div>
 										</div>
