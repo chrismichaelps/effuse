@@ -2,10 +2,16 @@ import {
 	define,
 	computed,
 	signal,
+	effect,
 	type Signal,
 	type ReadonlySignal,
 	For,
 } from '@effuse/core';
+import {
+	animateDropdownOpen,
+	animateDropdownClose,
+	animateStaggerChildren,
+} from '../../utils/motion';
 import type { docsStore as DocsStoreType } from '../../store/docsUIStore.js';
 import type { i18nStore as I18nStoreType } from '../../store/appI18n';
 import { SidebarToggle } from './SidebarToggle.js';
@@ -20,6 +26,7 @@ interface DocsHeaderProps {
 	pageTitle?: string;
 	tocItems?: TocItem[] | ReadonlySignal<TocItem[]>;
 	activeId?: Signal<string>;
+	class?: string;
 }
 
 interface DocsHeaderExposed {
@@ -32,6 +39,7 @@ interface DocsHeaderExposed {
 	docsStore: typeof DocsStoreType;
 	handleTocItemClick: (e: Event, id: string, title: string) => void;
 	onThisPageText: ReadonlySignal<string>;
+	dropdownRef: Signal<HTMLElement | null>;
 }
 
 const TocChevron = define<
@@ -54,11 +62,11 @@ const TocChevron = define<
 
 export const DocsHeader = define<DocsHeaderProps, DocsHeaderExposed>({
 	script: ({ props, useCallback, useStore }) => {
-		// Access stores via layer bridge
 		const docsStore = useStore('docsUI') as typeof DocsStoreType;
 		const i18nStore = useStore('i18n') as typeof I18nStoreType;
 
 		const pageTitle = computed(() => props.pageTitle as string);
+		const dropdownRef = signal<HTMLElement | null>(null);
 
 		const tocItems = computed<TocItem[]>(() => {
 			const items = props.tocItems;
@@ -80,6 +88,36 @@ export const DocsHeader = define<DocsHeaderProps, DocsHeaderExposed>({
 		const onThisPageText = computed(() => {
 			const trans = i18nStore.translations.value;
 			return trans?.toc?.onThisPage as string;
+		});
+
+		let previousDropdownState: boolean | null = null;
+
+		effect(() => {
+			const dropdown = dropdownRef.value;
+			if (!dropdown) return;
+
+			const currentOpen = dropdownOpen.value;
+
+			if (previousDropdownState === null) {
+				previousDropdownState = currentOpen;
+				if (!currentOpen) {
+					dropdown.style.display = 'none';
+					dropdown.style.opacity = '0';
+				}
+				return;
+			}
+
+			if (currentOpen !== previousDropdownState) {
+				previousDropdownState = currentOpen;
+				if (currentOpen) {
+					animateDropdownOpen(dropdown);
+					requestAnimationFrame(() => {
+						animateStaggerChildren(dropdown, '.toc-item', 0.03);
+					});
+				} else {
+					animateDropdownClose(dropdown);
+				}
+			}
 		});
 
 		const toggleDropdown = useCallback(() => {
@@ -110,7 +148,6 @@ export const DocsHeader = define<DocsHeaderProps, DocsHeaderExposed>({
 
 				if (!el) return;
 
-				// Scroll to element
 				const scrollContainer = document.querySelector('.docs-main');
 				const isContainerScrollable =
 					scrollContainer &&
@@ -126,7 +163,6 @@ export const DocsHeader = define<DocsHeaderProps, DocsHeaderExposed>({
 						behavior: 'smooth',
 					});
 				} else {
-					// Mobile fallback: use window scroll
 					const rect = el.getBoundingClientRect();
 					const scrollTop =
 						window.pageYOffset || document.documentElement.scrollTop;
@@ -148,20 +184,28 @@ export const DocsHeader = define<DocsHeaderProps, DocsHeaderExposed>({
 			docsStore,
 			handleTocItemClick,
 			onThisPageText,
+			dropdownRef,
 		};
 	},
-	template: ({
-		tocItems,
-		dropdownOpen,
-		toggleDropdown,
-		activeSectionId,
-		activeSectionTitle,
-		docsStore,
-		handleTocItemClick,
-		onThisPageText,
-	}) => (
-		<header class="toc-nav shadow-lg" id="nd-tocnav">
-			<div class="flex items-center w-full h-full relative px-4">
+	template: (
+		{
+			tocItems,
+			dropdownOpen,
+			toggleDropdown,
+			activeSectionId,
+			activeSectionTitle,
+			docsStore,
+			handleTocItemClick,
+			onThisPageText,
+			dropdownRef,
+		},
+		props
+	) => (
+		<header
+			class={() => `toc-nav shadow-lg ${props.class || ''}`}
+			id="nd-tocnav"
+		>
+			<div class="flex items-center w-full h-full relative px-2">
 				<div class="w-9 flex-shrink-0">
 					{!docsStore.isSidebarOpen.value && (
 						<SidebarToggle
@@ -183,7 +227,13 @@ export const DocsHeader = define<DocsHeaderProps, DocsHeaderExposed>({
 					</button>
 				</div>
 			</div>
-			<div class={() => `toc-dropdown ${dropdownOpen.value ? 'open' : ''}`}>
+			<div
+				class={() => `toc-dropdown ${dropdownOpen.value ? 'open' : ''}`}
+				ref={(el: unknown) => {
+					dropdownRef.value = el as HTMLElement;
+				}}
+				style="display: none;"
+			>
 				<nav class="toc-dropdown-nav">
 					<div class="toc-dropdown-header">
 						<img src="/icons/list.svg" width="14" height="14" alt="List" />

@@ -4,8 +4,13 @@ import {
 	type ReadonlySignal,
 	For,
 	type Signal,
+	signal,
 } from '@effuse/core';
 import { Link } from '@effuse/router';
+import {
+	animateStaggerChildren,
+	applyHoverTranslate,
+} from '../../utils/motion';
 import { SidebarToggle } from './SidebarToggle.js';
 import { docsStore } from '../../store/docsUIStore.js';
 import { i18nStore } from '../../store/appI18n';
@@ -28,6 +33,7 @@ interface SectionState {
 	items: ReadonlySignal<NavItem[]>;
 	isOpen: ReadonlySignal<boolean>;
 	toggle: () => void;
+	containerRef: Signal<HTMLElement | null>;
 }
 
 interface SidebarProps {
@@ -116,6 +122,8 @@ const ChevronIcon = define<
 
 const createStableSectionStates = (): SectionState[] => {
 	return sectionsConfig.map((section) => {
+		const containerRef = signal<HTMLElement | null>(null);
+
 		const title = computed(() => {
 			const sidebar = i18nStore.translations.value?.sidebar;
 			const titleKeyMapping: Record<string, string | undefined> = {
@@ -154,16 +162,39 @@ const createStableSectionStates = (): SectionState[] => {
 		});
 
 		const isOpen = computed(() => docsStore.isSectionOpen(section.key));
-		const toggle = () => docsStore.toggleSection(section.key);
 
-		return { key: section.key, title, items, isOpen, toggle };
+		const toggle = () => {
+			docsStore.toggleSection(section.key);
+
+			const container = containerRef.value;
+			if (!container) return;
+
+			const willBeOpen = docsStore.isSectionOpen(section.key);
+			if (willBeOpen) {
+				requestAnimationFrame(() => {
+					animateStaggerChildren(container, '.sidebar-link', 0.03);
+				});
+			}
+		};
+
+		return { key: section.key, title, items, isOpen, toggle, containerRef };
 	});
 };
 
 const stableSectionStates = createStableSectionStates();
 
 export const Sidebar = define<SidebarProps, SidebarExposed>({
-	script: () => {
+	script: ({ onMount }) => {
+		onMount(() => {
+			requestAnimationFrame(() => {
+				const links = document.querySelectorAll('.sidebar-link');
+				links.forEach((link) => {
+					applyHoverTranslate(link as HTMLElement, 4);
+				});
+			});
+			return undefined;
+		});
+
 		return {
 			sectionStates: stableSectionStates,
 			docsStore,
@@ -176,10 +207,8 @@ export const Sidebar = define<SidebarProps, SidebarExposed>({
 			<div class="sidebar-header">
 				<div class="sidebar-top-row">
 					<div class="flex items-center gap-2">
-						<img src="/logo/logo.svg" width="20" height="20" alt="Logo" />
-						<span class="font-bold text-slate-800 tracking-tight">
-							Documentation
-						</span>
+						<img src="/logo/logo-white.svg" width="20" height="20" alt="Logo" />
+						<span class="sidebar-brand-title">Documentation</span>
 					</div>
 					<SidebarToggle class="sidebar-brand-toggle" />
 				</div>
@@ -199,6 +228,9 @@ export const Sidebar = define<SidebarProps, SidebarExposed>({
 							class={() =>
 								`sidebar-items ${section.isOpen.value ? 'open' : ''}`
 							}
+							ref={(el: unknown) => {
+								section.containerRef.value = el as HTMLElement;
+							}}
 						>
 							<For
 								each={section.items}

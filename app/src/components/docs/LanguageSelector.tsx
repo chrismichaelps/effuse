@@ -25,18 +25,19 @@ interface LanguageSelectorExposed {
 	handleSelect: (e: MouseEvent, loc: Locale) => void;
 	availableLanguages: ReadonlySignal<LanguageOption[]>;
 	dropdownClass: () => string;
+	dropdownRef: Signal<HTMLElement | null>;
 }
 
 export const LanguageSelector = define<
 	LanguageSelectorProps,
 	LanguageSelectorExposed
 >({
-	script: ({ useCallback, props, useStore }) => {
-		// Access store via layer bridge
+	script: ({ useCallback, props, useStore, onMount }) => {
 		const i18nStore = useStore('i18n') as typeof I18nStoreType;
 
 		const isOpen = signal(false);
 		const currentLocale = i18nStore.locale;
+		const dropdownRef = signal<HTMLElement | null>(null);
 
 		const availableLanguages = computed<LanguageOption[]>(() => {
 			const trans = i18nStore.translations.value;
@@ -46,22 +47,22 @@ export const LanguageSelector = define<
 				{
 					locale: 'en',
 					label: trans.language.english as string,
-					flag: '🇺🇸',
+					flag: '',
 				},
 				{
 					locale: 'ja',
 					label: trans.language.japanese as string,
-					flag: '🇯🇵',
+					flag: '',
 				},
 				{
 					locale: 'zh',
 					label: trans.language.mandarin as string,
-					flag: '🇨🇳',
+					flag: '',
 				},
 				{
 					locale: 'es',
 					label: trans.language.spanish as string,
-					flag: '🇪🇸',
+					flag: '',
 				},
 			];
 		});
@@ -80,6 +81,17 @@ export const LanguageSelector = define<
 		const dropdownClass = () =>
 			`lang-dropdown ${isOpen.value ? 'open' : ''} ${props.isMobile ? 'is-mobile' : ''}`;
 
+		onMount(() => {
+			const handleOutsideClick = (e: Event) => {
+				const target = e.target as HTMLElement;
+				if (!target.closest('.lang-selector')) {
+					isOpen.value = false;
+				}
+			};
+			document.addEventListener('click', handleOutsideClick);
+			return () => document.removeEventListener('click', handleOutsideClick);
+		});
+
 		return {
 			isOpen,
 			currentLocale,
@@ -87,6 +99,7 @@ export const LanguageSelector = define<
 			handleSelect,
 			availableLanguages,
 			dropdownClass,
+			dropdownRef,
 		};
 	},
 	template: ({
@@ -95,12 +108,13 @@ export const LanguageSelector = define<
 		handleSelect,
 		availableLanguages,
 		dropdownClass,
+		dropdownRef,
 	}) => (
 		<div class="lang-selector relative">
 			<button
 				type="button"
 				onClick={handleToggle}
-				class="flex items-center justify-center w-9 h-9 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+				class="lang-trigger"
 				aria-label="Select language"
 			>
 				<img
@@ -108,10 +122,15 @@ export const LanguageSelector = define<
 					width="20"
 					height="20"
 					alt="Language"
-					class="opacity-70"
+					class="lang-icon"
 				/>
 			</button>
-			<div class={dropdownClass}>
+			<div
+				class={dropdownClass}
+				ref={(el: unknown) => {
+					dropdownRef.value = el as HTMLElement;
+				}}
+			>
 				<For
 					each={availableLanguages}
 					keyExtractor={(item: LanguageOption) =>

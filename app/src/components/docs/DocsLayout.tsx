@@ -91,7 +91,6 @@ export const DocsLayout = define<DocsLayoutProps, DocsLayoutExposed>({
 				passive: true,
 			});
 
-			// Use requestAnimationFrame to ensure DOM is ready
 			requestAnimationFrame(() => {
 				const items = normalizedTocItems.value;
 				if (items.length > 0) {
@@ -146,13 +145,12 @@ export const DocsLayout = define<DocsLayoutProps, DocsLayoutExposed>({
 					}
 				/>
 
-				<div class="md:hidden sticky top-0 z-20">
-					<DocsHeader
-						pageTitle={props.pageTitle}
-						tocItems={normalizedTocItems}
-						activeId={activeSectionId}
-					/>
-				</div>
+				<DocsHeader
+					class="md:hidden"
+					pageTitle={props.pageTitle}
+					tocItems={normalizedTocItems}
+					activeId={activeSectionId}
+				/>
 				<div class="docs-content-wrapper">
 					<div class="docs-content">{children}</div>
 
