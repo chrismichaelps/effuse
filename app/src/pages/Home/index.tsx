@@ -15,67 +15,38 @@ export const HomePage = define({
 		return {};
 	},
 	template: () => (
-		<div class="home-page relative overflow-hidden">
+		<div class="home-page">
 			<div class="vibrant-bg">
 				<div class="aurora-blob blob-1"></div>
 				<div class="aurora-blob blob-2"></div>
-				<div class="aurora-blob blob-3"></div>
 			</div>
 
-			<section class="hero-section relative z-10">
-				<div class="max-w-4xl mx-auto px-6 pt-32 pb-24 text-center reveal-on-scroll">
+			{/* Hero Section */}
+			<section class="hero-section">
+				<div class="hero-container reveal-on-scroll">
 					<h1 class="hero-heading">
 						A modern approach to
 						<br />
 						<span class="hero-gradient">Web Development</span>
 					</h1>
-					<ul class="hero-features">
-						<li>
-							<img
-								src="/icons/check.svg"
-								class="w-5 h-5 text-emerald-500"
-								alt="Check"
-							/>
-							Fine-grained signal reactivity
-						</li>
-						<li>
-							<svg
-								class="w-5 h-5 text-emerald-500"
-								fill="none"
-								stroke="currentColor"
-								viewBox="0 0 24 24"
-							>
-								<path
-									stroke-linecap="round"
-									stroke-linejoin="round"
-									stroke-width="2"
-									d="M5 13l4 4L19 7"
-								/>
-							</svg>
-							Type-safe components
-						</li>
-						<li>
-							<svg
-								class="w-5 h-5 text-emerald-500"
-								fill="none"
-								stroke="currentColor"
-								viewBox="0 0 24 24"
-							>
-								<path
-									stroke-linecap="round"
-									stroke-linejoin="round"
-									stroke-width="2"
-									d="M5 13l4 4L19 7"
-								/>
-							</svg>
-							Experimental Framework
-						</li>
-					</ul>
+					<p class="hero-subtext">
+						Build reactive applications with fine-grained signals, type-safe
+						components, and an Effect-powered architecture.
+					</p>
 
 					<div class="hero-ctas">
 						<Link to="/docs/getting-started" class="cta-primary">
 							Get Started
-							<img src="/icons/arrow-right.svg" class="w-4 h-4" alt="Arrow" />
+							<svg
+								width="16"
+								height="16"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+							>
+								<path d="M5 12h14M12 5l7 7-7 7" />
+							</svg>
 						</Link>
 						<a
 							href="https://github.com/chrismichaelps/effuse"
@@ -92,44 +63,16 @@ export const HomePage = define({
 				</div>
 			</section>
 
-			<div class="separator-line relative z-10"></div>
-
-			<section class="py-16 relative z-10">
-				<div class="max-w-4xl mx-auto px-6 text-center reveal-on-scroll">
-					<p class="text-zinc-500 text-sm uppercase tracking-widest mb-8">
-						Running on
-					</p>
-					<div class="flex flex-wrap justify-center items-center gap-8">
-						<div class="flex items-center gap-3">
-							<img src="/logo/logo-white.svg" alt="Effuse" class="h-10 w-10" />
-							<span class="text-2xl font-semibold text-white">Effuse</span>
-						</div>
-						<span class="text-zinc-600 text-2xl font-light">+</span>
-						<div class="flex items-center gap-3">
-							<img
-								src="https://vitejs.dev/logo.svg"
-								alt="Vite"
-								class="h-9 w-9"
-							/>
-							<span class="text-2xl font-semibold text-white">Vite</span>
-						</div>
-					</div>
-				</div>
-			</section>
-
-			<div class="separator-line relative z-10"></div>
-
-			<section class="py-24 relative z-10">
-				<div class="max-w-5xl mx-auto px-6 reveal-on-scroll">
-					<div class="text-center mb-16">
-						<h2 class="text-3xl md:text-4xl font-light text-white mb-4">
-							Everything you need
-						</h2>
-						<p class="text-zinc-400 text-lg">
+			{/* Features Section */}
+			<section class="features-section">
+				<div class="features-container reveal-on-scroll">
+					<div class="features-header">
+						<h2 class="features-title">Everything you need</h2>
+						<p class="features-subtitle">
 							Build modern, reactive applications with confidence.
 						</p>
 					</div>
-					<div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+					<div class="features-grid">
 						<FeatureCard
 							icon="/logo/signals.svg"
 							title="Signals"
@@ -149,18 +92,17 @@ export const HomePage = define({
 				</div>
 			</section>
 
-			<div class="separator-line relative z-10"></div>
-
-			<section class="py-24 relative z-10">
-				<div class="max-w-3xl mx-auto px-6 reveal-on-scroll">
+			{/* Code Example */}
+			<section class="code-section">
+				<div class="code-container reveal-on-scroll">
 					<div class="code-window">
 						<div class="code-header">
-							<div class="flex gap-2">
-								<span class="w-3 h-3 rounded-full bg-zinc-700"></span>
-								<span class="w-3 h-3 rounded-full bg-zinc-700"></span>
-								<span class="w-3 h-3 rounded-full bg-zinc-700"></span>
+							<div class="code-dots">
+								<span class="code-dot"></span>
+								<span class="code-dot"></span>
+								<span class="code-dot"></span>
 							</div>
-							<span class="text-zinc-500 text-sm font-mono">Counter.tsx</span>
+							<span class="code-filename">Counter.tsx</span>
 						</div>
 						<pre class="code-body">
 							<code>{`import { define, signal } from '@effuse/core';
@@ -181,17 +123,25 @@ const Counter = define({
 				</div>
 			</section>
 
-			<div class="separator-line relative z-10"></div>
-
-			<section class="py-24 text-center relative z-10">
-				<div class="max-w-2xl mx-auto px-6 reveal-on-scroll">
-					<h2 class="text-3xl font-light text-white mb-4">Ready to start?</h2>
-					<p class="text-zinc-400 mb-8">
+			{/* CTA Section */}
+			<section class="cta-section">
+				<div class="cta-container reveal-on-scroll">
+					<h2 class="cta-title">Ready to start?</h2>
+					<p class="cta-subtitle">
 						Read the documentation and build your first app.
 					</p>
 					<Link to="/docs/getting-started" class="cta-primary">
 						Read the Documentation
-						<img src="/icons/arrow-right.svg" class="w-4 h-4" alt="Arrow" />
+						<svg
+							width="16"
+							height="16"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+						>
+							<path d="M5 12h14M12 5l7 7-7 7" />
+						</svg>
 					</Link>
 				</div>
 			</section>
