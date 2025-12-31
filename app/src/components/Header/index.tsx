@@ -56,12 +56,14 @@ export const Header = define<Record<string, never>, HeaderExposed>({
 		aboutLabel,
 	}) => (
 		<header class="header-main">
-			<div class="header-container">
+			<div
+				class={() => `header-container ${isDocsPath.value ? 'docs-mode' : ''}`}
+			>
 				<div class="header-inner">
 					<div class="header-left">
 						<Link to="/" class="header-brand">
 							<img
-								src="/logo/logo.svg"
+								src="/logo/logo-white.svg"
 								alt="Effuse Logo"
 								class="header-brand-logo"
 							/>
