@@ -6,6 +6,8 @@ import type {
 } from '../../store/todosStore.js';
 import { DocsLayout } from '../../components/docs/DocsLayout';
 import type { i18nStore as I18nStoreType } from '../../store/appI18n';
+import { triggerHaptic } from '../../components/Haptics';
+import '../../styles/examples.css';
 
 const API_BASE = 'https://jsonplaceholder.typicode.com';
 const PAGE_SIZE = 10;
@@ -179,7 +181,6 @@ export const TodosPage = define({
 	},
 	template: ({
 		t,
-		todosQuery,
 		filteredTodos,
 		totalCount,
 		completedCount,
@@ -204,24 +205,22 @@ export const TodosPage = define({
 		handleScroll,
 		hasNextPage,
 		isFetchingNextPage,
+		todosQuery,
 	}) => (
 		<DocsLayout currentPath="/todos">
-			<div class="py-12 px-4">
+			<div class="example-container">
 				{computed(() =>
 					isEditModalOpen.value ? (
-						<div class="fixed inset-0 z-50 flex items-center justify-center">
-							<div
-								class="absolute inset-0 bg-black bg-opacity-50"
-								onClick={() => closeEditModal()}
-							/>
-							<div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
-								<div class="bg-gradient-to-r from-slate-800 to-slate-700 px-6 py-4">
-									<h2 class="text-xl font-semibold text-white">
+						<div class="modal-overlay">
+							<div class="modal-backdrop" onClick={() => closeEditModal()} />
+							<div class="modal-card">
+								<div class="px-6 py-4 bg-white/5">
+									<h3 class="text-xl font-bold text-white">
 										{t.value?.editTodo}
-									</h2>
+									</h3>
 								</div>
 								<div class="p-6">
-									<label class="block mb-2 text-sm font-medium text-slate-700">
+									<label class="block mb-2 text-sm font-medium text-slate-400">
 										{t.value?.todoTitle}
 									</label>
 									<input
@@ -234,25 +233,26 @@ export const TodosPage = define({
 											if (e.key === 'Enter') saveEdit();
 											if (e.key === 'Escape') closeEditModal();
 										}}
-										class="w-full px-4 py-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+										class="example-input"
 										placeholder={
 											t.value?.enterTodoTitlePlaceholder ??
 											'Enter todo title...'
 										}
+										autoFocus
 									/>
 								</div>
-								<div class="px-6 py-4 bg-slate-50 flex justify-end gap-3">
+								<div class="px-6 py-4 bg-white/5 flex justify-end gap-3">
 									<button
 										type="button"
 										onClick={() => closeEditModal()}
-										class="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg font-medium hover:bg-slate-300"
+										class="btn-secondary"
 									>
 										{t.value?.cancel}
 									</button>
 									<button
 										type="button"
 										onClick={() => saveEdit()}
-										class="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700"
+										class="btn-premium"
 									>
 										{t.value?.saveChanges}
 									</button>
@@ -261,208 +261,232 @@ export const TodosPage = define({
 						</div>
 					) : null
 				)}
-				<div class="max-w-3xl mx-auto">
-					<header class="text-center mb-10">
-						<h1 class="text-4xl font-bold text-slate-800 mb-3">
-							{t.value?.title}
-						</h1>
-						<p class="text-slate-600 text-lg">{t.value?.description}</p>
-					</header>
-					<div class="flex flex-wrap justify-center gap-3 mb-10">
-						<span class="bg-blue-600 text-white px-4 py-1.5 rounded text-sm font-medium shadow-sm">
-							useInfiniteQuery
-						</span>
-						<span class="bg-purple-600 text-white px-4 py-1.5 rounded text-sm font-medium shadow-sm">
-							Portal Modal
-						</span>
-						<span class="bg-green-600 text-white px-4 py-1.5 rounded text-sm font-medium shadow-sm">
-							@effuse/store
-						</span>
+
+				<header class="example-header">
+					<h1 class="example-title">{t.value?.title}</h1>
+					<p class="example-description">{t.value?.description}</p>
+				</header>
+
+				<div class="flex flex-wrap justify-center gap-3 mb-10">
+					<span class="example-badge">useInfiniteQuery</span>
+					<span class="example-badge">Portal Modal</span>
+					<span
+						class="example-badge"
+						style="background: rgba(141, 240, 204, 0.1); color: var(--accent-mint); border-color: rgba(141, 240, 204, 0.1);"
+					>
+						@effuse/store
+					</span>
+				</div>
+
+				<div class="example-card">
+					<div class="flex gap-3">
+						<input
+							type="text"
+							placeholder={t.value?.addPlaceholder ?? ''}
+							value={inputValue}
+							onInput={handleInputChange}
+							onKeyDown={handleKeyDown}
+							class="example-input"
+						/>
+						<button
+							type="button"
+							onClick={() => {
+								triggerHaptic('light');
+								handleAddTodo();
+							}}
+							class={() =>
+								inputValue.value.trim().length > 0 && !isAdding.value
+									? 'btn-premium'
+									: 'btn-premium opacity-50 cursor-not-allowed'
+							}
+						>
+							{isAdding.value ? t.value?.adding : t.value?.add}
+						</button>
 					</div>
-					<div class="bg-white rounded-xl shadow-lg border border-slate-200 p-4 mb-6">
-						<div class="flex gap-3">
-							<input
-								type="text"
-								id="todo-input"
-								placeholder={t.value?.addPlaceholder ?? ''}
-								value={inputValue}
-								onInput={handleInputChange}
-								onKeyDown={handleKeyDown}
-								class="flex-1 px-4 py-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-							/>
-							<button
-								type="button"
-								id="add-todo-btn"
-								onClick={() => handleAddTodo()}
-								class={() =>
-									inputValue.value.trim().length > 0 && !isAdding.value
-										? 'px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors'
-										: 'px-6 py-3 bg-blue-300 text-white rounded-lg font-semibold cursor-not-allowed transition-colors'
-								}
-							>
-								{isAdding.value ? t.value?.adding : t.value?.add}
-							</button>
+				</div>
+
+				<div class="stat-grid">
+					<div
+						class="stat-card"
+						style="background: rgba(255, 255, 255, 0.03); border-color: rgba(255, 255, 255, 0.05);"
+					>
+						<div class="stat-label">{t.value?.total}</div>
+						<div class="stat-value" style="color: var(--text-primary);">
+							{totalCount.value}
 						</div>
 					</div>
-					<div class="bg-white rounded-xl shadow-lg border border-slate-200 p-4 mb-6">
-						<div class="flex justify-center gap-8">
-							<div class="text-center">
-								<div class="text-2xl font-bold text-slate-800">
-									{totalCount.value}
-								</div>
-								<div class="text-sm text-slate-500">{t.value?.total}</div>
-							</div>
-							<div class="text-center">
-								<div class="text-2xl font-bold text-green-600">
-									{completedCount.value}
-								</div>
-								<div class="text-sm text-slate-500">{t.value?.completed}</div>
-							</div>
-							<div class="text-center">
-								<div class="text-2xl font-bold text-amber-600">
-									{pendingCount.value}
-								</div>
-								<div class="text-sm text-slate-500">{t.value?.pending}</div>
-							</div>
+					<div class="stat-card">
+						<div class="stat-label">{t.value?.completed}</div>
+						<div class="stat-value">{completedCount.value}</div>
+					</div>
+					<div
+						class="stat-card"
+						style="background: rgba(182, 157, 248, 0.03); border-color: rgba(182, 157, 248, 0.1);"
+					>
+						<div class="stat-label">{t.value?.pending}</div>
+						<div class="stat-value" style="color: var(--accent-lilac);">
+							{pendingCount.value}
 						</div>
 					</div>
-					<div class="flex justify-center gap-2 mb-6">
-						<button
-							type="button"
-							onClick={() => setFilter('all')}
-							class={() =>
-								filter.value === 'all'
-									? 'px-4 py-2 rounded-lg font-medium bg-slate-800 text-white'
-									: 'px-4 py-2 rounded-lg font-medium bg-slate-100 text-slate-600 hover:bg-slate-200'
-							}
-						>
-							{t.value?.all}
-						</button>
-						<button
-							type="button"
-							onClick={() => setFilter('completed')}
-							class={() =>
-								filter.value === 'completed'
-									? 'px-4 py-2 rounded-lg font-medium bg-green-600 text-white'
-									: 'px-4 py-2 rounded-lg font-medium bg-slate-100 text-slate-600 hover:bg-slate-200'
-							}
-						>
-							{t.value?.completed}
-						</button>
-						<button
-							type="button"
-							onClick={() => setFilter('pending')}
-							class={() =>
-								filter.value === 'pending'
-									? 'px-4 py-2 rounded-lg font-medium bg-amber-600 text-white'
-									: 'px-4 py-2 rounded-lg font-medium bg-slate-100 text-slate-600 hover:bg-slate-200'
-							}
-						>
-							{t.value?.pending}
-						</button>
-					</div>
+				</div>
 
-					<div class="bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden">
-						<div
-							class="divide-y divide-slate-100 max-h-96 overflow-y-auto"
-							onScroll={handleScroll}
-						>
-							{computed(() =>
-								isLoading.value ? (
-									<div class="p-8 text-center text-slate-400">
-										{t.value?.loadingTodos}
-									</div>
-								) : null
-							)}
+				<div class="flex justify-center gap-2 mb-6">
+					<button
+						type="button"
+						onClick={() => {
+							triggerHaptic('light');
+							setFilter('all');
+						}}
+						class={() =>
+							filter.value === 'all' ? 'btn-premium' : 'btn-secondary'
+						}
+						style="padding: 0.5rem 1rem;"
+					>
+						{t.value?.all}
+					</button>
+					<button
+						type="button"
+						onClick={() => {
+							triggerHaptic('light');
+							setFilter('completed');
+						}}
+						class={() =>
+							filter.value === 'completed' ? 'btn-premium' : 'btn-secondary'
+						}
+						style="padding: 0.5rem 1rem;"
+					>
+						{t.value?.completed}
+					</button>
+					<button
+						type="button"
+						onClick={() => {
+							triggerHaptic('light');
+							setFilter('pending');
+						}}
+						class={() =>
+							filter.value === 'pending' ? 'btn-premium' : 'btn-secondary'
+						}
+						style="padding: 0.5rem 1rem;"
+					>
+						{t.value?.pending}
+					</button>
+				</div>
 
-							{computed(() =>
-								!isLoading.value && totalCount.value === 0 ? (
-									<div class="p-8 text-center text-slate-400">
-										{t.value?.noTodos}
-									</div>
-								) : null
-							)}
-							<For each={filteredTodos} keyExtractor={(t) => t.id}>
-								{(todoSignal) => (
-									<div class="px-6 py-4 flex items-center gap-4 hover:bg-slate-50 transition-colors group">
-										<button
-											type="button"
-											onClick={() => toggleTodo(todoSignal.value.id)}
+				<div class="example-card" style="padding: 0; overflow: hidden;">
+					<div
+						class="max-h-[500px] overflow-y-auto custom-scrollbar"
+						onScroll={handleScroll}
+					>
+						{computed(() =>
+							isLoading.value ? (
+								<div class="p-12 text-center text-slate-500 italic">
+									{t.value?.loadingTodos}
+								</div>
+							) : null
+						)}
+
+						{computed(() =>
+							!isLoading.value && totalCount.value === 0 ? (
+								<div class="p-12 text-center text-slate-500 italic">
+									{t.value?.noTodos}
+								</div>
+							) : null
+						)}
+
+						<For each={filteredTodos} keyExtractor={(t) => t.id}>
+							{(todoSignal) => (
+								<div class="px-6 py-5 flex items-center gap-4 hover:bg-white/[0.02] transition-colors group">
+									<button
+										type="button"
+										onClick={() => {
+											triggerHaptic('light');
+											toggleTodo(todoSignal.value.id);
+										}}
+										class={() =>
+											todoSignal.value.completed
+												? 'w-6 h-6 rounded-full bg-mint text-slate-900 flex items-center justify-center flex-shrink-0 animate-water-drop'
+												: 'w-6 h-6 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center flex-shrink-0 transition-colors'
+										}
+										style={() => ({
+											background: todoSignal.value.completed
+												? 'var(--accent-mint)'
+												: 'rgba(255,255,255,0.05)',
+										})}
+									>
+										{todoSignal.value.completed ? (
+											<span class="text-[10px] font-black">✓</span>
+										) : null}
+									</button>
+									<div class="flex-1 min-w-0">
+										<p
 											class={() =>
 												todoSignal.value.completed
-													? 'w-6 h-6 rounded-full bg-green-500 border-green-500 text-white border-2 flex items-center justify-center flex-shrink-0'
-													: 'w-6 h-6 rounded-full border-slate-300 hover:border-green-400 border-2 flex items-center justify-center flex-shrink-0'
+													? 'text-slate-500 line-through'
+													: 'text-slate-200 font-medium'
 											}
 										>
-											{todoSignal.value.completed ? (
-												<span class="text-xs font-bold">✓</span>
-											) : null}
+											{todoSignal.value.title}
+										</p>
+									</div>
+									<div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0">
+										<button
+											type="button"
+											onClick={() => openEditModal(todoSignal.value)}
+											class="btn-secondary"
+											style="padding: 0.3rem 0.8rem; font-size: 0.75rem;"
+										>
+											{t.value?.edit}
 										</button>
-										<div class="flex-1 min-w-0">
-											<p
-												class={() =>
-													todoSignal.value.completed
-														? 'line-through text-slate-400'
-														: 'text-slate-700'
-												}
-											>
-												{todoSignal.value.title}
-											</p>
-										</div>
-										<div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-											<button
-												type="button"
-												onClick={() => openEditModal(todoSignal.value)}
-												class="px-3 py-1 bg-blue-100 text-blue-700 rounded text-sm font-medium hover:bg-blue-200"
-											>
-												{t.value?.edit}
-											</button>
-											<button
-												type="button"
-												onClick={() => deleteTodo(todoSignal.value.id)}
-												class="px-3 py-1 bg-red-100 text-red-700 rounded text-sm font-medium hover:bg-red-200"
-											>
-												{t.value?.delete}
-											</button>
-										</div>
-										<span class="flex-shrink-0 bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-xs font-medium">
-											{t.value?.user} {todoSignal.value.userId}
-										</span>
+										<button
+											type="button"
+											onClick={() => deleteTodo(todoSignal.value.id)}
+											class="btn-secondary"
+											style="padding: 0.3rem 0.8rem; font-size: 0.75rem; border-color: rgba(255, 100, 100, 0.2); color: #ff6b6b;"
+										>
+											{t.value?.delete}
+										</button>
 									</div>
-								)}
-							</For>
-							{computed(() =>
-								todosQuery.isFetching.value && totalCount.value > 0 ? (
-									<div class="p-4 text-center text-slate-400 text-sm">
-										{todosQuery.isFetchingNextPage.value
-											? t.value?.loadingMore
-											: t.value?.refreshing}
-									</div>
-								) : null
-							)}
-						</div>
-						{computed(() =>
-							hasNextPage.value ? (
-								<div class="p-4 border-t border-slate-100 text-center">
-									<button
-										onClick={() => loadMore()}
-										class="px-6 py-2 bg-slate-100 text-slate-700 rounded-lg font-medium hover:bg-slate-200 disabled:opacity-50"
-									>
-										{isFetchingNextPage.value
-											? t.value?.loadingMore
-											: t.value?.loadMore}
-									</button>
+									<span class="flex-shrink-0 example-badge">
+										ID: {todoSignal.value.userId}
+									</span>
 								</div>
-							) : null
-						)}
+							)}
+						</For>
+
 						{computed(() =>
-							todosQuery.isError.value ? (
-								<div class="p-4 bg-red-50 text-red-600 text-center">
-									{todosQuery.error.value?.message || 'Error loading todos'}
+							todosQuery.isFetching.value && totalCount.value > 0 ? (
+								<div class="p-4 text-center text-slate-500 text-sm bg-white/[0.01]">
+									{todosQuery.isFetchingNextPage.value
+										? t.value?.loadingMore
+										: t.value?.refreshing}
 								</div>
 							) : null
 						)}
 					</div>
+
+					{computed(() =>
+						hasNextPage.value ? (
+							<div class="p-4 text-center bg-white/5">
+								<button
+									onClick={() => loadMore()}
+									class="btn-secondary w-full max-w-xs mx-auto"
+									disabled={isFetchingNextPage.value}
+								>
+									{isFetchingNextPage.value
+										? t.value?.loadingMore
+										: t.value?.loadMore}
+								</button>
+							</div>
+						) : null
+					)}
+
+					{computed(() =>
+						todosQuery.isError.value ? (
+							<div class="p-4 bg-red-500/10 text-red-400 border-t border-red-500/20 text-center text-sm">
+								{todosQuery.error.value?.message || 'Error loading todos'}
+							</div>
+						) : null
+					)}
 				</div>
 			</div>
 		</DocsLayout>

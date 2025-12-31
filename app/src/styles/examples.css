@@ -1,0 +1,201 @@
+.example-container {
+	padding: 2rem 1.5rem 4rem;
+	max-width: 1000px;
+	margin: 0 auto;
+}
+
+.example-header {
+	text-align: center;
+	margin-bottom: 4rem;
+}
+
+.example-title {
+	font-size: 3.5rem;
+	font-weight: 700;
+	color: var(--text-primary);
+	margin-bottom: 1rem;
+	letter-spacing: -0.04em;
+}
+
+.example-description {
+	font-size: 1.25rem;
+	color: var(--text-secondary);
+	max-width: 600px;
+	margin: 0 auto;
+	line-height: 1.6;
+}
+
+.example-card {
+	background: rgba(255, 255, 255, 0.02);
+	backdrop-filter: blur(12px);
+	-webkit-backdrop-filter: blur(12px);
+	border-radius: 20px;
+	padding: 2rem;
+	margin-bottom: 2rem;
+}
+
+.example-card-title {
+	font-size: 1.25rem;
+	font-weight: 600;
+	color: var(--text-primary);
+	margin-bottom: 1.5rem;
+}
+
+.stat-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+	gap: 1.5rem;
+	margin-bottom: 3rem;
+}
+
+.stat-card {
+	background: rgba(141, 240, 204, 0.03);
+	border-radius: 16px;
+	padding: 1.5rem;
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+	transition: all 0.2s ease;
+}
+
+.stat-card:hover {
+	background: rgba(141, 240, 204, 0.05);
+	transform: translateY(-2px);
+}
+
+.stat-label {
+	font-size: 0.75rem;
+	font-weight: 600;
+	color: var(--text-secondary);
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+}
+
+.stat-value {
+	font-size: 2.5rem;
+	font-weight: 700;
+	color: var(--accent-mint);
+	line-height: 1;
+}
+
+.btn-premium {
+	background: var(--accent-mint);
+	color: #0b1012;
+	padding: 0.75rem 1.5rem;
+	border-radius: 10px;
+	font-weight: 600;
+	font-size: 0.9375rem;
+	border: none;
+	cursor: pointer;
+	transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-premium:hover {
+	transform: translateY(-1px);
+	filter: brightness(1.1);
+	box-shadow: 0 0 20px rgba(141, 240, 204, 0.3);
+}
+
+.btn-premium:active {
+	transform: scale(0.98);
+}
+
+.btn-secondary {
+	background: rgba(255, 255, 255, 0.05);
+	color: var(--text-primary);
+	padding: 0.75rem 1.5rem;
+	border-radius: 10px;
+	font-weight: 500;
+	cursor: pointer;
+	transition: all 0.2s ease;
+}
+
+.btn-secondary:hover {
+	background: rgba(255, 255, 255, 0.08);
+}
+
+.example-input {
+	background: rgba(255, 255, 255, 0.03);
+	border-radius: 10px;
+	padding: 0.875rem 1rem;
+	color: var(--text-primary);
+	font-size: 1rem;
+	width: 100%;
+	transition: all 0.2s ease;
+	border: none;
+}
+
+.example-input:focus {
+	outline: none;
+	border-color: var(--accent-mint);
+	background: rgba(141, 240, 204, 0.02);
+	box-shadow: 0 0 0 4px rgba(141, 240, 204, 0.1);
+}
+
+.example-badge {
+	padding: 0.25rem 0.75rem;
+	border-radius: 20px;
+	font-size: 0.75rem;
+	font-weight: 600;
+	background: rgba(182, 157, 248, 0.1);
+	color: var(--accent-lilac);
+}
+
+.modal-overlay {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	z-index: 9999;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 1rem;
+}
+
+.modal-backdrop {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background: rgba(0, 0, 0, 0.6);
+	backdrop-filter: blur(4px);
+}
+
+.modal-card {
+	position: relative;
+	z-index: 1;
+	background: var(--bg-elevated);
+	border-radius: 20px;
+	width: 100%;
+	max-width: 28rem;
+	overflow: hidden;
+	box-shadow: var(--shadow-elevated);
+	animation: modalBounce 0.4s var(--ease-spring) forwards;
+}
+
+@keyframes waterDrop {
+	0% {
+		opacity: 0;
+		transform: scale(0.95) translateY(-10px);
+	}
+	100% {
+		opacity: 1;
+		transform: scale(1) translateY(0);
+	}
+}
+
+.animate-water-drop {
+	animation: waterDrop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@media (max-width: 640px) {
+	.example-title {
+		font-size: 2.5rem;
+	}
+	.stat-value {
+		font-size: 2rem;
+	}
+}
