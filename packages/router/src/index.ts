@@ -22,7 +22,6 @@
  * SOFTWARE.
  */
 
-// Augment core ScriptContext with router types
 import './registry.js';
 
 export {
@@ -73,3 +72,15 @@ export {
 	type TransitionMode,
 	transitions,
 } from './utils/transitions.js';
+
+export {
+	type NavigationGuard,
+	type AfterEachHook,
+	type NavigationResult,
+	NavigationResult as NavigationResultUtils,
+	createAuthGuard,
+	createUnsavedChangesGuard,
+	combineGuards,
+	guardWhen,
+	guardMeta,
+} from './navigation/guards.js';

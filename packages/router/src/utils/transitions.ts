@@ -55,7 +55,6 @@ export interface TransitionHooks {
 	readonly onLeaveCancelled?: (el: Element) => void;
 }
 
-// Calculate CSS classes for transition phase
 export const getTransitionClasses = (
 	config: TransitionConfig,
 	phase: 'enter' | 'leave'
@@ -79,7 +78,6 @@ export const getTransitionClasses = (
 
 const DEFAULT_DURATION = 300;
 
-// Calculate duration for transition phase
 export const getTransitionDuration = (
 	config: TransitionConfig,
 	phase: 'enter' | 'leave'
@@ -93,7 +91,6 @@ export const getTransitionDuration = (
 	return DEFAULT_DURATION;
 };
 
-// Execute transition effect on element
 export const applyTransition = (
 	el: Element,
 	config: TransitionConfig,
@@ -117,7 +114,6 @@ export const applyTransition = (
 		});
 	});
 
-// Identify transition config for route change
 export const getRouteTransition = (
 	to: Route,
 	from: Route

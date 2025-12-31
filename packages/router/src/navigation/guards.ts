@@ -81,15 +81,17 @@ export const NavigationResult = {
 	},
 };
 
-export type NavigationGuardEffect = (
+export type NavigationGuard = (
 	to: ResolvedRoute,
 	from: Route
-) => Effect.Effect<NavigationResult>;
+) => NavigationResult | Promise<NavigationResult>;
+
+export type AfterEachHook = (to: Route, from: Route) => void;
 
 export interface GuardRegistry {
-	readonly beforeEach: NavigationGuardEffect[];
-	readonly beforeResolve: NavigationGuardEffect[];
-	readonly afterEach: Array<(to: Route, from: Route) => Effect.Effect<void>>;
+	readonly beforeEach: NavigationGuard[];
+	readonly beforeResolve: NavigationGuard[];
+	readonly afterEach: AfterEachHook[];
 }
 
 export const createGuardRegistry = (): GuardRegistry => ({
@@ -99,13 +101,16 @@ export const createGuardRegistry = (): GuardRegistry => ({
 });
 
 export const runGuards = (
-	guards: readonly NavigationGuardEffect[],
+	guards: readonly NavigationGuard[],
 	to: ResolvedRoute,
 	from: Route
 ): Effect.Effect<NavigationResult> =>
 	Effect.gen(function* () {
 		for (const guard of guards) {
-			const result = yield* guard(to, from);
+			const result = yield* Effect.promise(async () => {
+				const res = guard(to, from);
+				return res instanceof Promise ? res : res;
+			});
 			if (!NavigationResult.isAllowed(result)) {
 				return result;
 			}
@@ -114,30 +119,35 @@ export const runGuards = (
 	});
 
 export const runAfterHooks = (
-	hooks: ReadonlyArray<(to: Route, from: Route) => Effect.Effect<void>>,
+	hooks: ReadonlyArray<AfterEachHook>,
 	to: Route,
 	from: Route
 ): Effect.Effect<void> =>
-	Effect.gen(function* () {
+	Effect.sync(() => {
 		for (const hook of hooks) {
-			yield* hook(to, from);
+			hook(to, from);
 		}
 	});
 
 export const combineGuards =
-	(...guards: NavigationGuardEffect[]): NavigationGuardEffect =>
-	(to, from) =>
-		runGuards(guards, to, from);
+	(...guards: NavigationGuard[]): NavigationGuard =>
+	async (to, from) => {
+		for (const guard of guards) {
+			const result = await Promise.resolve(guard(to, from));
+			if (!NavigationResult.isAllowed(result)) {
+				return result;
+			}
+		}
+		return NavigationResult.allowed();
+	};
 
 export const guardWhen =
 	(
 		condition: (to: ResolvedRoute, from: Route) => boolean,
-		guard: NavigationGuardEffect
-	): NavigationGuardEffect =>
+		guard: NavigationGuard
+	): NavigationGuard =>
 	(to, from) =>
-		condition(to, from)
-			? guard(to, from)
-			: Effect.succeed(NavigationResult.allowed());
+		condition(to, from) ? guard(to, from) : NavigationResult.allowed();
 
 export const guardMeta =
 	(
@@ -146,43 +156,40 @@ export const guardMeta =
 			value: unknown,
 			to: ResolvedRoute,
 			from: Route
-		) => Effect.Effect<NavigationResult>
-	): NavigationGuardEffect =>
+		) => NavigationResult | Promise<NavigationResult>
+	): NavigationGuard =>
 	(to, from) => {
 		const value = to.meta[key];
 		if (value !== undefined) {
 			return handler(value, to, from);
 		}
-		return Effect.succeed(NavigationResult.allowed());
+		return NavigationResult.allowed();
 	};
 
 export const createAuthGuard = (
-	isAuthenticated: () => Effect.Effect<boolean>,
+	isAuthenticated: () => boolean | Promise<boolean>,
 	loginPath: string = '/login'
-): NavigationGuardEffect =>
-	guardMeta('requiresAuth', (value: unknown, _to, _from) =>
-		Effect.gen(function* () {
-			const requiresAuth = Boolean(value);
-			if (!requiresAuth) return NavigationResult.allowed();
-			const authed = yield* isAuthenticated();
-			return authed
-				? NavigationResult.allowed()
-				: NavigationResult.redirected(loginPath);
-		})
-	);
+): NavigationGuard =>
+	guardMeta('requiresAuth', async (value: unknown, _to, _from) => {
+		const requiresAuth = Boolean(value);
+		if (!requiresAuth) return NavigationResult.allowed();
+		const authed = await Promise.resolve(isAuthenticated());
+		return authed
+			? NavigationResult.allowed()
+			: NavigationResult.redirected(loginPath);
+	});
 
 export const createUnsavedChangesGuard =
 	(
 		hasUnsavedChanges: () => boolean,
 		confirmMessage: string = 'You have unsaved changes. Leave anyway?'
-	): NavigationGuardEffect =>
-	(_to, _from) =>
-		Effect.sync(() => {
-			if (hasUnsavedChanges()) {
-				const confirmed = window.confirm(confirmMessage);
-				return confirmed
-					? NavigationResult.allowed()
-					: NavigationResult.cancelled('User cancelled due to unsaved changes');
-			}
-			return NavigationResult.allowed();
-		});
+	): NavigationGuard =>
+	(_to, _from) => {
+		if (hasUnsavedChanges()) {
+			const confirmed = window.confirm(confirmMessage);
+			return confirmed
+				? NavigationResult.allowed()
+				: NavigationResult.cancelled('User cancelled due to unsaved changes');
+		}
+		return NavigationResult.allowed();
+	};

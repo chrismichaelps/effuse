@@ -55,7 +55,6 @@ interface LinkState {
 	handleClick: (event: MouseEvent) => void;
 }
 
-// Build reactive router link component
 export const Link = define<LinkProps, LinkState>({
 	script: ({ props, signal, onMount, onUnmount }): LinkState => {
 		const router = getGlobalRouter();

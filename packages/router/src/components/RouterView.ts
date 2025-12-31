@@ -113,7 +113,6 @@ export interface RouterViewProps {
 	) => EffuseChild;
 }
 
-// Build reactive router view component
 export const RouterView = define({
 	script: ({ signal: createSignal }) => {
 		const router = getGlobalRouter();
@@ -207,7 +206,6 @@ export const RouterView = define({
 	},
 });
 
-// Build custom router view slot
 export const createRouterViewSlot = (
 	render: (
 		component: RouteComponent,

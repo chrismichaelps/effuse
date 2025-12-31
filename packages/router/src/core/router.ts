@@ -38,7 +38,8 @@ import {
 	parseUrl,
 } from './route.js';
 import {
-	type NavigationGuardEffect,
+	type NavigationGuard,
+	type AfterEachHook,
 	createGuardRegistry,
 	runGuards,
 	runAfterHooks,
@@ -109,11 +110,9 @@ export interface RouterInstance {
 	readonly forward: () => void;
 	readonly go: (delta: number) => void;
 
-	readonly beforeEach: (guard: NavigationGuardEffect) => () => void;
-	readonly beforeResolve: (guard: NavigationGuardEffect) => () => void;
-	readonly afterEach: (
-		hook: (to: Route, from: Route) => Effect.Effect<void>
-	) => () => void;
+	readonly beforeEach: (guard: NavigationGuard) => () => void;
+	readonly beforeResolve: (guard: NavigationGuard) => () => void;
+	readonly afterEach: (hook: AfterEachHook) => () => void;
 
 	readonly resolve: (to: RouteLocation) => ResolvedRoute;
 	readonly hasRoute: (name: string) => boolean;
@@ -125,7 +124,6 @@ export interface RouterInstance {
 	readonly isReady: boolean;
 }
 
-// Build application router
 export const createRouter = (options: RouterOptions): RouterInstance => {
 	const config = getConfig();
 
@@ -342,7 +340,6 @@ export const setGlobalRouter = (router: RouterInstance): void => {
 
 export const getGlobalRouter = (): RouterInstance | null => globalRouter;
 
-// Initialize router within application
 export const installRouter = (router: RouterInstance): RouterInstance => {
 	setGlobalRouter(router);
 	setCoreGlobalRouter(router);
