@@ -5,7 +5,6 @@ import {
 	installRouter,
 	type RouteRecord,
 } from '@effuse/router';
-import { Effect } from 'effect';
 import { HomePage } from '../pages/Home';
 import { FormDemoPage } from '../pages/Form';
 import { TodosPage } from '../pages/Todos';
@@ -82,24 +81,22 @@ export const RouterLayer = defineLayer({
 			if (tracingService.isCategoryEnabled('router')) {
 				let lastNavTime = performance.now();
 
-				unsubscribeTracing = router.afterEach((to, from) =>
-					Effect.sync(() => {
-						const duration = performance.now() - lastNavTime;
-						tracingService.logWithDuration(
-							'router',
-							'navigation',
-							to.path,
-							duration,
-							{
-								from: from.path,
-								to: to.path,
-								params: to.params,
-								name: to.name,
-							}
-						);
-						lastNavTime = performance.now();
-					})
-				);
+				unsubscribeTracing = router.afterEach((to, from) => {
+					const duration = performance.now() - lastNavTime;
+					tracingService.logWithDuration(
+						'router',
+						'navigation',
+						to.path,
+						duration,
+						{
+							from: from.path,
+							to: to.path,
+							params: to.params,
+							name: to.name,
+						}
+					);
+					lastNavTime = performance.now();
+				});
 			}
 		}
 
