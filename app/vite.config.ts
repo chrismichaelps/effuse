@@ -1,8 +1,12 @@
 import { defineConfig } from 'vite';
 import path from 'path';
 import { effuse } from '@effuse/compiler/vite';
+import pkg from './package.json';
 
 export default defineConfig({
+	define: {
+		__APP_VERSION__: JSON.stringify(pkg.version),
+	},
 	plugins: [
 		effuse({
 			debug: false,
