@@ -8,7 +8,7 @@ import {
 import { Sidebar } from './Sidebar.js';
 import { DocsHeader, type TocItem } from './DocsHeader.js';
 import { SidebarToggle } from './SidebarToggle.js';
-import { useScrollSpy } from '../../hooks/index.js';
+import { useScrollSpy, useSmoothScroll } from '../../hooks/index.js';
 import type { docsStore as DocsStoreType } from '../../store/docsUIStore.js';
 import type { Translations } from '../../store/appI18n.js';
 import './styles.css';
@@ -52,9 +52,16 @@ export const DocsLayout = define<DocsLayoutProps, DocsLayoutExposed>({
 			threshold: 150,
 		});
 
+		const smoothScroll = useSmoothScroll({
+			wrapper: '.docs-main',
+			content: '.docs-content',
+			duration: 1.2,
+		});
+
 		onMount(() => {
 			scrollSpy.setItems(normalizedTocItems.value);
 			scrollSpy.init();
+			smoothScroll.init();
 			return undefined;
 		});
 
