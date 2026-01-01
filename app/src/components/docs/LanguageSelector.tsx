@@ -6,7 +6,7 @@ import {
 	type ReadonlySignal,
 	For,
 } from '@effuse/core';
-import type { i18nStore as I18nStoreType, Locale } from '../../store/appI18n';
+import type { Locale, Translations } from '../../store/appI18n';
 
 interface LanguageSelectorProps {
 	isMobile?: boolean;
@@ -32,15 +32,22 @@ export const LanguageSelector = define<
 	LanguageSelectorProps,
 	LanguageSelectorExposed
 >({
-	script: ({ useCallback, props, useStore, onMount }) => {
-		const i18nStore = useStore('i18n') as typeof I18nStoreType;
+	script: ({
+		useCallback,
+		props,
+		useLayerProps,
+		useLayerProvider,
+		onMount,
+	}) => {
+		const i18nProps = useLayerProps('i18n')!;
+		const i18nProvider = useLayerProvider('i18n')!;
 
 		const isOpen = signal(false);
-		const currentLocale = i18nStore.locale;
+		const currentLocale = i18nProps.locale as Signal<Locale>;
 		const dropdownRef = signal<HTMLElement | null>(null);
 
 		const availableLanguages = computed<LanguageOption[]>(() => {
-			const trans = i18nStore.translations.value;
+			const trans = i18nProps.translations.value as Translations | null;
 			if (!trans) return [];
 
 			return [
@@ -74,7 +81,7 @@ export const LanguageSelector = define<
 
 		const handleSelect = useCallback((e: MouseEvent, loc: Locale) => {
 			e.stopPropagation();
-			i18nStore.setLocale(loc);
+			(i18nProvider.i18n as { setLocale: (l: Locale) => void }).setLocale(loc);
 			isOpen.value = false;
 		});
 

@@ -1,5 +1,4 @@
 import { define } from '@effuse/core';
-import type { docsStore as DocsStoreType } from '../../store/docsUIStore.js';
 
 interface SidebarToggleProps {
 	class?: string | (() => string);
@@ -11,8 +10,8 @@ interface SidebarToggleExposed {
 }
 
 export const SidebarToggle = define<SidebarToggleProps, SidebarToggleExposed>({
-	script: ({ props, useCallback, useStore }) => {
-		const docsStore = useStore('docsUI') as typeof DocsStoreType;
+	script: ({ props, useCallback, useLayerProps }) => {
+		const sidebarProps = useLayerProps('sidebar')!;
 
 		const handleClick = useCallback((e: MouseEvent) => {
 			e.stopPropagation();
@@ -20,9 +19,9 @@ export const SidebarToggle = define<SidebarToggleProps, SidebarToggleExposed>({
 				props.onToggle();
 			} else {
 				if (window.innerWidth < 768) {
-					docsStore.toggleSidebar();
+					sidebarProps.isOpen.value = !sidebarProps.isOpen.value;
 				} else {
-					docsStore.toggleCollapse();
+					sidebarProps.isCollapsed.value = !sidebarProps.isCollapsed.value;
 				}
 			}
 		});

@@ -42,8 +42,7 @@ interface SidebarProps {
 
 interface SidebarExposed {
 	sectionStates: SectionState[];
-	docsStore: typeof docsStore;
-	isSidebarOpen: Signal<boolean>;
+	isSidebarOpen: Signal<unknown>;
 	toggleSidebar: () => void;
 }
 
@@ -184,7 +183,9 @@ const createStableSectionStates = (): SectionState[] => {
 const stableSectionStates = createStableSectionStates();
 
 export const Sidebar = define<SidebarProps, SidebarExposed>({
-	script: ({ onMount }) => {
+	script: ({ onMount, useLayerProps }) => {
+		const sidebarProps = useLayerProps('sidebar')!;
+
 		onMount(() => {
 			requestAnimationFrame(() => {
 				const links = document.querySelectorAll('.sidebar-link');
@@ -197,11 +198,13 @@ export const Sidebar = define<SidebarProps, SidebarExposed>({
 
 		return {
 			sectionStates: stableSectionStates,
-			docsStore,
-			isSidebarOpen: docsStore.isSidebarOpen,
-			toggleSidebar: () => docsStore.toggleSidebar(),
+			isSidebarOpen: sidebarProps.isOpen,
+			toggleSidebar: () => {
+				sidebarProps.isOpen.value = !sidebarProps.isOpen.value;
+			},
 		};
 	},
+
 	template: ({ sectionStates }) => (
 		<aside class="docs-sidebar" data-lenis-prevent>
 			<div class="sidebar-header">

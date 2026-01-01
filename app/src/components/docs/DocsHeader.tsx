@@ -13,7 +13,7 @@ import {
 	animateStaggerChildren,
 } from '../../utils/motion';
 import type { docsStore as DocsStoreType } from '../../store/docsUIStore.js';
-import type { i18nStore as I18nStoreType } from '../../store/appI18n';
+import type { Translations } from '../../store/appI18n';
 import { SidebarToggle } from './SidebarToggle.js';
 
 export interface TocItem {
@@ -40,6 +40,7 @@ interface DocsHeaderExposed {
 	handleTocItemClick: (e: Event, id: string, title: string) => void;
 	onThisPageText: ReadonlySignal<string>;
 	dropdownRef: Signal<HTMLElement | null>;
+	isSidebarOpen: Signal<unknown>;
 }
 
 const TocChevron = define<
@@ -61,9 +62,12 @@ const TocChevron = define<
 });
 
 export const DocsHeader = define<DocsHeaderProps, DocsHeaderExposed>({
-	script: ({ props, useCallback, useStore }) => {
-		const docsStore = useStore('docsUI') as typeof DocsStoreType;
-		const i18nStore = useStore('i18n') as typeof I18nStoreType;
+	script: ({ props, useCallback, useLayerProps, useLayerProvider }) => {
+		const sidebarProps = useLayerProps('sidebar')!;
+		const sidebarProvider = useLayerProvider('sidebar')!;
+		const i18nProps = useLayerProps('i18n')!;
+
+		const docsStore = sidebarProvider.docsUI as typeof DocsStoreType;
 
 		const pageTitle = computed(() => props.pageTitle as string);
 		const dropdownRef = signal<HTMLElement | null>(null);
@@ -86,7 +90,7 @@ export const DocsHeader = define<DocsHeaderProps, DocsHeaderExposed>({
 		});
 
 		const onThisPageText = computed(() => {
-			const trans = i18nStore.translations.value;
+			const trans = i18nProps.translations.value as Translations | null;
 			return trans?.toc?.onThisPage as string;
 		});
 
@@ -185,6 +189,7 @@ export const DocsHeader = define<DocsHeaderProps, DocsHeaderExposed>({
 			handleTocItemClick,
 			onThisPageText,
 			dropdownRef,
+			isSidebarOpen: sidebarProps.isOpen,
 		};
 	},
 	template: (
@@ -198,6 +203,7 @@ export const DocsHeader = define<DocsHeaderProps, DocsHeaderExposed>({
 			handleTocItemClick,
 			onThisPageText,
 			dropdownRef,
+			isSidebarOpen,
 		},
 		props
 	) => (
@@ -207,7 +213,7 @@ export const DocsHeader = define<DocsHeaderProps, DocsHeaderExposed>({
 		>
 			<div class="flex items-center w-full h-full relative px-2">
 				<div class="w-9 flex-shrink-0">
-					{!docsStore.isSidebarOpen.value && (
+					{!isSidebarOpen.value && (
 						<SidebarToggle
 							class="md:hidden"
 							onToggle={docsStore.toggleSidebar}

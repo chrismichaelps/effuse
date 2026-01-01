@@ -1,11 +1,13 @@
 import { define, computed, useHead, For, effect } from '@effuse/core';
-import type { i18nStore as I18nStoreType } from '../../store/appI18n';
+import type { Translations } from '../../store/appI18n';
 import './styles.css';
 
 export const AboutPage = define({
-	script: ({ useStore }) => {
-		const i18nStore = useStore('i18n') as typeof I18nStoreType;
-		const trans = computed(() => i18nStore.translations.value?.about);
+	script: ({ useLayerProps }) => {
+		const i18nProps = useLayerProps('i18n')!;
+		const trans = computed(
+			() => (i18nProps.translations.value as Translations | null)?.about
+		);
 
 		effect(() => {
 			useHead({

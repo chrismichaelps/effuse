@@ -11,7 +11,7 @@ import { Sidebar } from './Sidebar.js';
 import { DocsHeader, type TocItem } from './DocsHeader.js';
 import { SidebarToggle } from './SidebarToggle.js';
 import type { docsStore as DocsStoreType } from '../../store/docsUIStore.js';
-import type { i18nStore as I18nStoreType } from '../../store/appI18n.js';
+import type { Translations } from '../../store/appI18n.js';
 import './styles.css';
 
 interface DocsLayoutProps {
@@ -26,6 +26,8 @@ interface DocsLayoutExposed {
 	activeSectionId: Signal<string>;
 	normalizedTocItems: ReadonlySignal<TocItem[]>;
 	t: ReadonlySignal<any>;
+	isCollapsed: Signal<unknown>;
+	isOpen: Signal<unknown>;
 }
 
 const unwrapTocItems = (
@@ -37,9 +39,12 @@ const unwrapTocItems = (
 };
 
 export const DocsLayout = define<DocsLayoutProps, DocsLayoutExposed>({
-	script: ({ props, onMount, useStore }) => {
-		const docsStore = useStore('docsUI') as typeof DocsStoreType;
-		const i18nStore = useStore('i18n') as typeof I18nStoreType;
+	script: ({ props, onMount, useLayerProps, useLayerProvider }) => {
+		const sidebarProps = useLayerProps('sidebar')!;
+		const sidebarProvider = useLayerProvider('sidebar')!;
+		const i18nProps = useLayerProps('i18n')!;
+
+		const docsStore = sidebarProvider.docsUI as typeof DocsStoreType;
 
 		const activeSectionId = signal('');
 
@@ -52,7 +57,9 @@ export const DocsLayout = define<DocsLayoutProps, DocsLayoutExposed>({
 			}
 		});
 
-		const t = computed(() => i18nStore.translations.value?.toc);
+		const t = computed(
+			() => (i18nProps.translations.value as Translations | null)?.toc
+		);
 
 		onMount(() => {
 			const scrollContainer = document.querySelector('.docs-main');
@@ -110,18 +117,28 @@ export const DocsLayout = define<DocsLayoutProps, DocsLayoutExposed>({
 			activeSectionId,
 			normalizedTocItems,
 			t,
+			isCollapsed: sidebarProps.isCollapsed,
+			isOpen: sidebarProps.isOpen,
 		};
 	},
 	template: (
-		{ docsStore, activeSectionId, normalizedTocItems, t, children },
+		{
+			docsStore,
+			activeSectionId,
+			normalizedTocItems,
+			t,
+			children,
+			isCollapsed,
+			isOpen,
+		},
 		props
 	) => (
 		<div
 			class={() =>
-				`docs-layout ${docsStore.isSidebarCollapsed.value ? 'sidebar-collapsed' : ''}`
+				`docs-layout ${isCollapsed.value ? 'sidebar-collapsed' : ''}`
 			}
 		>
-			{docsStore.isSidebarOpen.value && (
+			{(isOpen.value as boolean) && (
 				<div
 					class="md:hidden fixed inset-0 bg-black/20 z-30 backdrop-blur-sm"
 					onClick={docsStore.toggleSidebar}
@@ -131,8 +148,8 @@ export const DocsLayout = define<DocsLayoutProps, DocsLayoutExposed>({
 			<div
 				class={() => `
 					sidebar-desktop-wrapper
-					${docsStore.isSidebarOpen.value ? 'sidebar-mobile-open' : 'sidebar-mobile-closed'}
-					${docsStore.isSidebarCollapsed.value ? 'collapsed' : ''}
+					${isOpen.value ? 'sidebar-mobile-open' : 'sidebar-mobile-closed'}
+					${isCollapsed.value ? 'collapsed' : ''}
 				`}
 			>
 				<Sidebar currentPath={props.currentPath} />
@@ -141,7 +158,7 @@ export const DocsLayout = define<DocsLayoutProps, DocsLayoutExposed>({
 			<main class="docs-main" data-lenis-prevent>
 				<SidebarToggle
 					class={() =>
-						`collapsed-sidebar-trigger ${docsStore.isSidebarCollapsed.value ? '' : 'trigger-hidden'}`
+						`collapsed-sidebar-trigger ${isCollapsed.value ? '' : 'trigger-hidden'}`
 					}
 				/>
 
