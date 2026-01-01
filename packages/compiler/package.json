@@ -43,7 +43,7 @@
 		"@babel/traverse": "^7.28.5",
 		"@babel/generator": "^7.28.5",
 		"@babel/types": "^7.28.5",
-		"effect": "^3.19.13"
+		"effect": "^3.19.14"
 	},
 	"devDependencies": {
 		"@types/babel__generator": "^7.27.0",
