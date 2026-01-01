@@ -1,12 +1,18 @@
-import { define, signal, computed, type ReadonlySignal } from '@effuse/core';
+import {
+	define,
+	computed,
+	type ReadonlySignal,
+	type Signal,
+} from '@effuse/core';
 import { Link, useRoute } from '@effuse/router';
 import { HamburgerButton } from '../HamburgerButton';
 import { LanguageSelector } from '../docs/LanguageSelector';
+import { useToggle } from '../../hooks/index.js';
 import type { i18nStore as I18nStoreType } from '../../store/appI18n';
 import './styles.css';
 
 interface HeaderExposed {
-	mobileMenuOpen: ReturnType<typeof signal<boolean>>;
+	mobileMenuOpen: Signal<boolean>;
 	toggleMenu: () => void;
 	isDocsPath: ReadonlySignal<boolean>;
 	docsLabel: ReadonlySignal<string>;
@@ -27,10 +33,7 @@ export const Header = define<Record<string, never>, HeaderExposed>({
 	script: ({ useStore }) => {
 		const i18nStore = useStore('i18n') as typeof I18nStoreType;
 
-		const mobileMenuOpen = signal(false);
-		const toggleMenu = () => {
-			mobileMenuOpen.value = !mobileMenuOpen.value;
-		};
+		const mobileMenu = useToggle({ initial: false });
 
 		const route = useRoute();
 
@@ -46,7 +49,13 @@ export const Header = define<Record<string, never>, HeaderExposed>({
 			return i18nStore.translations.value?.nav?.about as string;
 		});
 
-		return { mobileMenuOpen, toggleMenu, isDocsPath, docsLabel, aboutLabel };
+		return {
+			mobileMenuOpen: mobileMenu.isOpen,
+			toggleMenu: mobileMenu.toggle,
+			isDocsPath,
+			docsLabel,
+			aboutLabel,
+		};
 	},
 	template: ({
 		mobileMenuOpen,

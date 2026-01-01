@@ -2,7 +2,6 @@ import {
 	define,
 	computed,
 	signal,
-	effect,
 	type Signal,
 	type ReadonlySignal,
 	For,
@@ -12,6 +11,7 @@ import {
 	animateDropdownClose,
 	animateStaggerChildren,
 } from '../../utils/motion';
+import { useAnimatedDropdown } from '../../hooks/index.js';
 import type { docsStore as DocsStoreType } from '../../store/docsUIStore.js';
 import type { Translations } from '../../store/appI18n';
 import { SidebarToggle } from './SidebarToggle.js';
@@ -62,7 +62,13 @@ const TocChevron = define<
 });
 
 export const DocsHeader = define<DocsHeaderProps, DocsHeaderExposed>({
-	script: ({ props, useCallback, useLayerProps, useLayerProvider }) => {
+	script: ({
+		props,
+		useCallback,
+		onMount,
+		useLayerProps,
+		useLayerProvider,
+	}) => {
 		const sidebarProps = useLayerProps('sidebar')!;
 		const sidebarProvider = useLayerProvider('sidebar')!;
 		const i18nProps = useLayerProps('i18n')!;
@@ -70,7 +76,6 @@ export const DocsHeader = define<DocsHeaderProps, DocsHeaderExposed>({
 		const docsStore = sidebarProvider.docsUI as typeof DocsStoreType;
 
 		const pageTitle = computed(() => props.pageTitle as string);
-		const dropdownRef = signal<HTMLElement | null>(null);
 
 		const tocItems = computed<TocItem[]>(() => {
 			const items = props.tocItems;
@@ -79,7 +84,19 @@ export const DocsHeader = define<DocsHeaderProps, DocsHeaderExposed>({
 			return items.value;
 		});
 
-		const dropdownOpen = signal(false);
+		const dropdown = useAnimatedDropdown({
+			animateOpen: animateDropdownOpen,
+			animateClose: animateDropdownClose,
+			staggerChildren: animateStaggerChildren,
+			staggerSelector: '.toc-item',
+			staggerDelay: 0.03,
+		});
+
+		onMount(() => {
+			dropdown.init();
+			return undefined;
+		});
+
 		const activeSectionId = props.activeId ?? signal('');
 
 		const activeSectionTitle = computed(() => {
@@ -94,44 +111,10 @@ export const DocsHeader = define<DocsHeaderProps, DocsHeaderExposed>({
 			return trans?.toc?.onThisPage as string;
 		});
 
-		let previousDropdownState: boolean | null = null;
-
-		effect(() => {
-			const dropdown = dropdownRef.value;
-			if (!dropdown) return;
-
-			const currentOpen = dropdownOpen.value;
-
-			if (previousDropdownState === null) {
-				previousDropdownState = currentOpen;
-				if (!currentOpen) {
-					dropdown.style.display = 'none';
-					dropdown.style.opacity = '0';
-				}
-				return;
-			}
-
-			if (currentOpen !== previousDropdownState) {
-				previousDropdownState = currentOpen;
-				if (currentOpen) {
-					animateDropdownOpen(dropdown);
-					requestAnimationFrame(() => {
-						animateStaggerChildren(dropdown, '.toc-item', 0.03);
-					});
-				} else {
-					animateDropdownClose(dropdown);
-				}
-			}
-		});
-
-		const toggleDropdown = useCallback(() => {
-			dropdownOpen.value = !dropdownOpen.value;
-		});
-
 		const handleTocItemClick = useCallback(
 			(e: Event, id: string, title: string) => {
 				e.preventDefault();
-				dropdownOpen.value = false;
+				dropdown.close();
 
 				let el: HTMLElement | null = null;
 				try {
@@ -181,14 +164,14 @@ export const DocsHeader = define<DocsHeaderProps, DocsHeaderExposed>({
 		return {
 			pageTitle,
 			tocItems,
-			dropdownOpen,
-			toggleDropdown,
+			dropdownOpen: dropdown.isOpen,
+			toggleDropdown: dropdown.toggle,
 			activeSectionId,
 			activeSectionTitle,
 			docsStore,
 			handleTocItemClick,
 			onThisPageText,
-			dropdownRef,
+			dropdownRef: dropdown.ref,
 			isSidebarOpen: sidebarProps.isOpen,
 		};
 	},

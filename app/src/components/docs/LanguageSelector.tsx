@@ -1,11 +1,11 @@
 import {
 	define,
-	signal,
 	computed,
 	type Signal,
 	type ReadonlySignal,
 	For,
 } from '@effuse/core';
+import { useToggle, useClickOutside } from '../../hooks/index.js';
 import type { Locale, Translations } from '../../store/appI18n';
 
 interface LanguageSelectorProps {
@@ -25,7 +25,6 @@ interface LanguageSelectorExposed {
 	handleSelect: (e: MouseEvent, loc: Locale) => void;
 	availableLanguages: ReadonlySignal<LanguageOption[]>;
 	dropdownClass: () => string;
-	dropdownRef: Signal<HTMLElement | null>;
 }
 
 export const LanguageSelector = define<
@@ -42,9 +41,12 @@ export const LanguageSelector = define<
 		const i18nProps = useLayerProps('i18n')!;
 		const i18nProvider = useLayerProvider('i18n')!;
 
-		const isOpen = signal(false);
+		const toggle = useToggle({ initial: false });
+		const clickOutside = useClickOutside({
+			selector: '.lang-selector',
+		});
+
 		const currentLocale = i18nProps.locale as Signal<Locale>;
-		const dropdownRef = signal<HTMLElement | null>(null);
 
 		const availableLanguages = computed<LanguageOption[]>(() => {
 			const trans = i18nProps.translations.value as Translations | null;
@@ -76,37 +78,31 @@ export const LanguageSelector = define<
 
 		const handleToggle = useCallback((e: MouseEvent) => {
 			e.stopPropagation();
-			isOpen.value = !isOpen.value;
+			toggle.toggle();
 		});
 
 		const handleSelect = useCallback((e: MouseEvent, loc: Locale) => {
 			e.stopPropagation();
 			(i18nProvider.i18n as { setLocale: (l: Locale) => void }).setLocale(loc);
-			isOpen.value = false;
+			toggle.close();
 		});
 
 		const dropdownClass = () =>
-			`lang-dropdown ${isOpen.value ? 'open' : ''} ${props.isMobile ? 'is-mobile' : ''}`;
+			`lang-dropdown ${toggle.isOpen.value ? 'open' : ''} ${props.isMobile ? 'is-mobile' : ''}`;
 
 		onMount(() => {
-			const handleOutsideClick = (e: Event) => {
-				const target = e.target as HTMLElement;
-				if (!target.closest('.lang-selector')) {
-					isOpen.value = false;
-				}
-			};
-			document.addEventListener('click', handleOutsideClick);
-			return () => document.removeEventListener('click', handleOutsideClick);
+			clickOutside.onClickOutside(() => toggle.close());
+			clickOutside.init();
+			return undefined;
 		});
 
 		return {
-			isOpen,
+			isOpen: toggle.isOpen,
 			currentLocale,
 			handleToggle,
 			handleSelect,
 			availableLanguages,
 			dropdownClass,
-			dropdownRef,
 		};
 	},
 	template: ({
@@ -115,7 +111,6 @@ export const LanguageSelector = define<
 		handleSelect,
 		availableLanguages,
 		dropdownClass,
-		dropdownRef,
 	}) => (
 		<div class="lang-selector relative">
 			<button
@@ -132,12 +127,7 @@ export const LanguageSelector = define<
 					class="lang-icon"
 				/>
 			</button>
-			<div
-				class={dropdownClass}
-				ref={(el: unknown) => {
-					dropdownRef.value = el as HTMLElement;
-				}}
-			>
+			<div class={dropdownClass}>
 				<For
 					each={availableLanguages}
 					keyExtractor={(item: LanguageOption) =>

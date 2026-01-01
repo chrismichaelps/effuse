@@ -1,7 +1,5 @@
 import {
 	define,
-	signal,
-	effect,
 	type Signal,
 	For,
 	computed,
@@ -10,6 +8,7 @@ import {
 import { Sidebar } from './Sidebar.js';
 import { DocsHeader, type TocItem } from './DocsHeader.js';
 import { SidebarToggle } from './SidebarToggle.js';
+import { useScrollSpy } from '../../hooks/index.js';
 import type { docsStore as DocsStoreType } from '../../store/docsUIStore.js';
 import type { Translations } from '../../store/appI18n.js';
 import './styles.css';
@@ -46,75 +45,26 @@ export const DocsLayout = define<DocsLayoutProps, DocsLayoutExposed>({
 
 		const docsStore = sidebarProvider.docsUI as typeof DocsStoreType;
 
-		const activeSectionId = signal('');
-
 		const normalizedTocItems = computed(() => unwrapTocItems(props.tocItems));
 
-		effect(() => {
-			const items = normalizedTocItems.value;
-			if (items.length > 0) {
-				activeSectionId.value = items[0].id;
-			}
+		const scrollSpy = useScrollSpy({
+			containerSelector: '.docs-main',
+			threshold: 150,
+		});
+
+		onMount(() => {
+			scrollSpy.setItems(normalizedTocItems.value);
+			scrollSpy.init();
+			return undefined;
 		});
 
 		const t = computed(
 			() => (i18nProps.translations.value as Translations | null)?.toc
 		);
 
-		onMount(() => {
-			const scrollContainer = document.querySelector('.docs-main');
-			if (!scrollContainer) return;
-
-			const handleScroll = () => {
-				const items = normalizedTocItems.value;
-				if (items.length === 0) return;
-
-				let activeId = '';
-				for (const item of items) {
-					let el = document.getElementById(item.id);
-					if (!el) {
-						const headings = document.querySelectorAll('h1, h2, h3');
-						for (const h of headings) {
-							if (h.textContent?.trim() === item.title) {
-								el = h as HTMLElement;
-								break;
-							}
-						}
-					}
-					if (el) {
-						const rect = el.getBoundingClientRect();
-						if (rect.top < 150) {
-							activeId = item.id;
-						}
-					}
-				}
-				activeSectionId.value = activeId || items[0]?.id || '';
-			};
-
-			scrollContainer.addEventListener('scroll', handleScroll, {
-				passive: true,
-			});
-			window.addEventListener('scroll', handleScroll, {
-				passive: true,
-			});
-
-			requestAnimationFrame(() => {
-				const items = normalizedTocItems.value;
-				if (items.length > 0) {
-					activeSectionId.value = items[0].id;
-				}
-				handleScroll();
-			});
-
-			return () => {
-				scrollContainer.removeEventListener('scroll', handleScroll);
-				window.removeEventListener('scroll', handleScroll);
-			};
-		});
-
 		return {
 			docsStore,
-			activeSectionId,
+			activeSectionId: scrollSpy.activeId,
 			normalizedTocItems,
 			t,
 			isCollapsed: sidebarProps.isCollapsed,

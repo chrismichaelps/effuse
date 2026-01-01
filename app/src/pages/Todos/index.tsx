@@ -5,6 +5,7 @@ import type {
 	Todo,
 } from '../../store/todosStore.js';
 import { DocsLayout } from '../../components/docs/DocsLayout';
+import { useInfiniteScroll } from '../../hooks/index.js';
 import type { i18nStore as I18nStoreType } from '../../store/appI18n';
 import { triggerHaptic } from '../../components/Haptics';
 import '../../styles/examples.css';
@@ -140,15 +141,11 @@ export const TodosPage = define({
 			}
 		});
 
-		const handleScroll = useCallback((e: Event) => {
-			const target = e.target as HTMLElement;
-			const scrollTop = target.scrollTop;
-			const scrollHeight = target.scrollHeight;
-			const clientHeight = target.clientHeight;
-			if (scrollHeight - scrollTop - clientHeight < 100) {
-				loadMore();
-			}
+		const infiniteScroll = useInfiniteScroll({
+			threshold: 100,
 		});
+
+		infiniteScroll.onLoadMore(() => loadMore());
 
 		return {
 			t,
@@ -174,7 +171,7 @@ export const TodosPage = define({
 			setEditTitle,
 			saveEdit,
 			loadMore,
-			handleScroll,
+			handleScroll: infiniteScroll.handleScroll,
 			hasNextPage: todosQuery.hasNextPage,
 			isFetchingNextPage: todosQuery.isFetchingNextPage,
 		};
