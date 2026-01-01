@@ -209,6 +209,19 @@ export {
 } from './canvas/index.js';
 
 export {
+	defineHook,
+	createHookContext,
+	type HookContext,
+	type HookDefinition,
+	type HookSetupFn,
+	type HookCleanup,
+	type HookScope,
+	type HookFinalizer,
+	type InferHookReturn,
+	type InferHookConfig,
+} from './hooks/index.js';
+
+export {
 	Renderer,
 	CanvasService,
 	BlueprintService,
