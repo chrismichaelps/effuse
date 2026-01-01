@@ -25,6 +25,7 @@
 import type { Component } from '../render/node.js';
 import type { HeadProps } from '../ssr/types.js';
 import type { Signal } from '../reactivity/signal.js';
+import type { GeneratedLayerRegistry } from './registry.generated.js';
 
 export type MaybePromise<T> = T | Promise<T>;
 
@@ -83,8 +84,10 @@ export type DepsRecord<D extends readonly string[]> = {
 export interface SetupContext<
 	P extends LayerProps = LayerProps,
 	D extends readonly string[] = readonly string[],
+	S = unknown,
 > {
 	readonly props: P;
+	readonly store: S;
 	readonly deps: DepsRecord<D>;
 	get: (name: string) => LayerDependency;
 	getService: (key: string) => unknown;
@@ -95,8 +98,9 @@ export interface SetupContext<
 export type LayerSetupFn<
 	P extends LayerProps = LayerProps,
 	D extends readonly string[] = readonly string[],
+	S = unknown,
 	// eslint-disable-next-line @typescript-eslint/no-invalid-void-type -- void is valid for functions with no return
-> = (ctx: SetupContext<P, D>) => SetupResult | Promise<SetupResult> | void;
+> = (ctx: SetupContext<P, D, S>) => SetupResult | Promise<SetupResult> | void;
 
 export type LifecycleHook = () => void | Promise<void>;
 export type ErrorHook = (error: Error) => void;
@@ -104,10 +108,13 @@ export type ErrorHook = (error: Error) => void;
 export interface EffuseLayer<
 	P extends LayerProps = LayerProps,
 	D extends readonly string[] = readonly string[],
+	S = unknown,
 > {
 	readonly name: string;
 	readonly domain?: string;
 	readonly props?: P;
+	readonly store?: S;
+	readonly deriveProps?: (store: S) => P;
 	readonly extends?: readonly EffuseLayer[];
 	readonly dependencies?: D;
 	readonly restrict?: readonly LayerRestriction[];
@@ -116,7 +123,7 @@ export interface EffuseLayer<
 	readonly components?: Record<string, Component<any>>;
 	readonly provides?: LayerProvides;
 
-	readonly setup?: LayerSetupFn<P, D>;
+	readonly setup?: LayerSetupFn<P, D, S>;
 	readonly onMount?: LifecycleHook;
 	readonly onUnmount?: LifecycleHook;
 	readonly onError?: ErrorHook;
@@ -134,7 +141,8 @@ export interface EffuseLayer<
 export interface ResolvedLayer<
 	P extends LayerProps = LayerProps,
 	D extends readonly string[] = readonly string[],
-> extends EffuseLayer<P, D> {
+	S = unknown,
+> extends EffuseLayer<P, D, S> {
 	readonly _resolved: true;
 	readonly _order: number;
 }
@@ -150,12 +158,12 @@ export interface MergedConfig {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type AnyLayer = EffuseLayer<any, any>;
+export type AnyLayer = EffuseLayer<any, any, any>;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type AnyResolvedLayer = ResolvedLayer<any, any>;
+export type AnyResolvedLayer = ResolvedLayer<any, any, any>;
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
-export interface EffuseLayerRegistry {}
+export interface EffuseLayerRegistry extends GeneratedLayerRegistry {}
 
 export type LayerPropsOf<K extends keyof EffuseLayerRegistry> =
 	EffuseLayerRegistry[K] extends { props: infer P extends LayerProps }

@@ -51,7 +51,13 @@ export const createSetupContext = (
 	registry: LayerRegistry,
 	allLayers: readonly AnyResolvedLayer[]
 ): SetupContext => {
-	const layerProps = layer.props ?? ({} as LayerProps);
+	let layerProps: LayerProps;
+
+	if (layer.deriveProps && layer.store) {
+		layerProps = layer.deriveProps(layer.store);
+	} else {
+		layerProps = layer.props ?? ({} as LayerProps);
+	}
 
 	const getLayerDependency = (name: string): LayerDependency => {
 		const depLayer = registry.getLayer(name);
@@ -82,6 +88,7 @@ export const createSetupContext = (
 
 	return {
 		props: layerProps,
+		store: layer.store,
 		deps,
 		get: getLayerDependency,
 		getService: (key: string) => registry.getService(key),
@@ -102,9 +109,15 @@ export const buildLayerEffect = (
 
 			registry.registerLayer(layer);
 
-			if (layer.props) {
-				propsRegistry.set(layer.name, layer.props);
+			let derivedProps: LayerProps;
+
+			if (layer.deriveProps && layer.store) {
+				derivedProps = layer.deriveProps(layer.store);
+			} else {
+				derivedProps = layer.props ?? ({} as LayerProps);
 			}
+
+			propsRegistry.set(layer.name, derivedProps);
 
 			if (layer.components) {
 				for (const [name, component] of Object.entries(layer.components)) {

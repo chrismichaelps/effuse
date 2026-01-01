@@ -39,7 +39,11 @@ import {
 	type LayerContext,
 	type TypedLayerContext,
 } from '../layers/context.js';
-import type { EffuseLayerRegistry } from '../layers/types.js';
+import type {
+	EffuseLayerRegistry,
+	LayerPropsOf,
+	LayerProvidesOf,
+} from '../layers/types.js';
 import {
 	LayerRuntimeNotReadyError,
 	RouterNotConfiguredError,
@@ -88,6 +92,14 @@ export interface ScriptContext<P> {
 	useStore: (key: string) => unknown;
 
 	useService: (key: string) => unknown;
+
+	useLayerProps: <K extends keyof EffuseLayerRegistry>(
+		name: K
+	) => LayerPropsOf<K> | undefined;
+
+	useLayerProvider: <K extends keyof EffuseLayerRegistry>(
+		name: K
+	) => LayerProvidesOf<K> | undefined;
 }
 
 export interface ScriptState<E extends ExposedValues> {
@@ -216,6 +228,36 @@ export const createScriptContext = <P, E extends ExposedValues>(
 			}
 			return getLayerService(key);
 		},
+
+		useLayerProps: (<K extends keyof EffuseLayerRegistry>(
+			name: K
+		): LayerPropsOf<K> | undefined => {
+			if (!isLayerRuntimeReady()) {
+				return undefined;
+			}
+			const layerContext = getLayerContext(name as string);
+			return layerContext.props as LayerPropsOf<K> | undefined;
+		}) as ScriptContext<P>['useLayerProps'],
+
+		useLayerProvider: (<K extends keyof EffuseLayerRegistry>(
+			name: K
+		): LayerProvidesOf<K> | undefined => {
+			if (!isLayerRuntimeReady()) {
+				return undefined;
+			}
+			const layerContext = getLayerContext(name as string);
+			if (!layerContext.provides) {
+				return undefined;
+			}
+			const providers: Record<string, unknown> = {};
+			const providesEntries = Object.entries(layerContext.provides) as Array<
+				[string, () => unknown]
+			>;
+			for (const [key, factory] of providesEntries) {
+				providers[key] = factory();
+			}
+			return providers as LayerProvidesOf<K>;
+		}) as ScriptContext<P>['useLayerProvider'],
 	};
 
 	return { context, state };

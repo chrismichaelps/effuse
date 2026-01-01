@@ -39,6 +39,7 @@ import {
 export interface LayerContext<P extends LayerProps = LayerProps> {
 	readonly name: string;
 	readonly props: P;
+	readonly provides?: Record<string, () => unknown>;
 	readonly deps: Record<string, LayerContext>;
 	getService: (key: string) => unknown;
 	getComponent: (name: string) => unknown;
@@ -110,6 +111,9 @@ export function getLayerContext(name: string): LayerContext {
 	return {
 		name,
 		props,
+		...(layer.provides && {
+			provides: layer.provides as Record<string, () => unknown>,
+		}),
 		deps,
 		getService: (key: string) => globalState.layerRegistry?.getService(key),
 		getComponent: (componentName: string) =>

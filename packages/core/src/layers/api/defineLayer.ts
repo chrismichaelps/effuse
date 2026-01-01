@@ -27,6 +27,7 @@ import type { EffuseLayer, LayerProps } from '../types.js';
 export const defineLayer = <
 	const D extends readonly string[],
 	P extends LayerProps = LayerProps,
+	S = unknown,
 >(
-	definition: EffuseLayer<P, D>
-): EffuseLayer<P, D> => definition;
+	definition: EffuseLayer<P, D, S>
+): EffuseLayer<P, D, S> => definition;
