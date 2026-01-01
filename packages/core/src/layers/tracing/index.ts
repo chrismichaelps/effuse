@@ -85,3 +85,11 @@ export {
 	traceFiberCount,
 	traceFiberBuildPhase,
 } from './fibers.js';
+
+export {
+	traceHookSetup,
+	traceHookEffect,
+	traceHookCleanup,
+	traceHookDispose,
+	traceHookMount,
+} from './hooks.js';

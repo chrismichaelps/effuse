@@ -39,6 +39,7 @@ createApp(App)
 						emit: true,
 						store: true,
 						fibers: true,
+						hooks: true,
 					},
 				},
 			})
