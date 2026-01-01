@@ -13,12 +13,12 @@ interface LayerInfo {
 class LayerParseError extends Data.TaggedError('LayerParseError')<{
 	readonly file: string;
 	readonly message: string;
-}> { }
+}> {}
 
 class FileSystemError extends Data.TaggedError('FileSystemError')<{
 	readonly path: string;
 	readonly message: string;
-}> { }
+}> {}
 
 class FileScanner extends Context.Tag('FileScanner')<
 	FileScanner,
@@ -27,7 +27,7 @@ class FileScanner extends Context.Tag('FileScanner')<
 			dir: string
 		) => Effect.Effect<readonly string[], FileSystemError>;
 	}
->() { }
+>() {}
 
 const FileScannerLive = Layer.succeed(FileScanner, {
 	scanDirectory: (dir: string) =>
@@ -48,7 +48,7 @@ class LayerParser extends Context.Tag('LayerParser')<
 			filePath: string
 		) => Effect.Effect<LayerInfo | null, LayerParseError>;
 	}
->() { }
+>() {}
 
 const LayerParserLive = Layer.succeed(LayerParser, {
 	parseFile: (filePath: string) =>
@@ -71,7 +71,7 @@ class RegistryGenerator extends Context.Tag('RegistryGenerator')<
 			content: string
 		) => Effect.Effect<void, FileSystemError>;
 	}
->() { }
+>() {}
 
 const RegistryGeneratorLive = Layer.succeed(RegistryGenerator, {
 	generate: (layers: readonly LayerInfo[]) => generateRegistryContent(layers),

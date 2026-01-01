@@ -84,7 +84,6 @@ interface DefineState<E extends ExposedValues> {
 	[key: string]: unknown;
 }
 
-
 export function define<
 	P = Record<string, unknown>,
 	E extends ExposedValues = ExposedValues,
