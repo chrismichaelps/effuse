@@ -6,11 +6,12 @@ import { docsStore } from '../store/docsUIStore';
 export const SidebarLayer = defineLayer({
 	name: 'sidebar',
 	dependencies: ['layout', 'i18n'],
-	props: {
-		isOpen: signal(false),
+	store: docsStore,
+	deriveProps: (store) => ({
+		isOpen: store.isSidebarOpen,
 		width: signal(280),
-		isCollapsed: signal(false),
-	},
+		isCollapsed: store.isSidebarCollapsed,
+	}),
 	components: {
 		Sidebar,
 		SidebarToggle,
@@ -26,13 +27,5 @@ export const SidebarLayer = defineLayer({
 	},
 	onError: (err) => {
 		console.error('[SidebarLayer] error:', err.message);
-	},
-	setup: (ctx) => {
-		ctx.props.isOpen.value = docsStore.isSidebarOpen.value;
-		ctx.props.isCollapsed.value = docsStore.isSidebarCollapsed.value;
-
-		return () => {
-			console.log('[SidebarLayer] cleanup');
-		};
 	},
 });
