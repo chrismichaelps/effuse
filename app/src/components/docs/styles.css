@@ -10,10 +10,11 @@
 @media (min-width: 769px) {
 	.docs-layout {
 		grid-template-columns: 280px 1fr;
-		height: calc(100vh - 4rem);
+		height: 100vh;
 		overflow: hidden;
 		transition: grid-template-columns 0.3s ease;
 	}
+
 	.sidebar-desktop-wrapper {
 		height: 100%;
 		min-height: 0;

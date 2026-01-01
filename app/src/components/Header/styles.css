@@ -32,11 +32,12 @@
 	}
 
 	.header-container.docs-mode {
-		width: 100%;
-		max-width: 100%;
-		justify-content: space-between;
+		width: auto;
+		max-width: fit-content;
+		justify-content: center;
 	}
 }
+
 
 .header-inner {
 	display: flex;
