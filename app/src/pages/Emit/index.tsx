@@ -293,8 +293,11 @@ emit('message', { text: 'Hello!', author: 'Dev' });
 					<div class="mt-4 flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-widest">
 						<span>{t.value?.actingAs || ''}</span>
 						<span
-							class="px-3 py-1 rounded-full text-white"
-							style={() => ({ background: userStyles[currentUser.value]?.bg })}
+							class="px-3 py-1 rounded-full"
+							style={() => ({
+								background: userStyles[currentUser.value]?.bg,
+								color: userStyles[currentUser.value]?.text,
+							})}
 						>
 							{currentUser.value}
 						</span>
@@ -338,6 +341,10 @@ emit('message', { text: 'Hello!', author: 'Dev' });
 									borderColor:
 										currentUser.value === p.value.userId
 											? userStyles[p.value.userId]?.bg || ''
+											: '',
+									color:
+										currentUser.value === p.value.userId
+											? userStyles[p.value.userId]?.text || ''
 											: '',
 								})}
 							>
