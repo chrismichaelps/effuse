@@ -1,16 +1,15 @@
-import { define, useHead, computed, effect } from '@effuse/core';
-import type { i18nStore as I18nStoreType } from '../../store/appI18n.js';
+import { define, useHead, effect } from '@effuse/core';
+import { useTranslation } from '../../hooks';
 import '../Legal/styles.css';
 
 export const DisclaimerPage = define({
-	script: ({ useStore }) => {
-		const i18nStore = useStore('i18n') as typeof I18nStoreType;
-		const t = computed(() => i18nStore.translations.value?.legal?.disclaimer);
+	script: () => {
+		const { t } = useTranslation();
 
 		effect(() => {
 			useHead({
-				title: t.value?.meta.title as string,
-				description: t.value?.meta.description as string,
+				title: t('legal.disclaimer.meta.title', ''),
+				description: t('legal.disclaimer.meta.description', ''),
 			});
 		});
 
@@ -25,30 +24,54 @@ export const DisclaimerPage = define({
 			</div>
 			<div class="legal-container">
 				<header class="legal-header">
-					<h1 class="legal-title">{t.value?.title}</h1>
+					<h1 class="legal-title">
+						{t('legal.disclaimer.title', '')}
+					</h1>
 				</header>
 
 				<div class="legal-content">
 					<section class="legal-section">
 						<h2 class="legal-section-title">
-							{t.value?.sections.experimental.title}
+							{t(
+								'legal.disclaimer.sections.experimental.title',
+								'Experimental Software'
+							)}
 						</h2>
-						<p class="legal-text">{t.value?.sections.experimental.content}</p>
+						<p class="legal-text">
+							{t('legal.disclaimer.sections.experimental.content', '')}
+						</p>
 					</section>
 
 					<section class="legal-section">
 						<h2 class="legal-section-title">
-							{t.value?.sections.competitor.title}
+							{t(
+								'legal.disclaimer.sections.competitor.title',
+								'Not a Competitor'
+							)}
 						</h2>
 						<p class="legal-text">
-							<span innerHTML={t.value?.sections.competitor.content1} />
+							<span
+								innerHTML={t(
+									'legal.disclaimer.sections.competitor.content1',
+									''
+								)}
+							/>
 						</p>
-						<p class="legal-text">{t.value?.sections.competitor.content2}</p>
+						<p class="legal-text">
+							{t('legal.disclaimer.sections.competitor.content2', '')}
+						</p>
 					</section>
 
 					<section class="legal-section">
-						<h2 class="legal-section-title">{t.value?.sections.risk.title}</h2>
-						<p class="legal-text">{t.value?.sections.risk.content}</p>
+						<h2 class="legal-section-title">
+							{t(
+								'legal.disclaimer.sections.risk.title',
+								'Use at Your Own Risk'
+							)}
+						</h2>
+						<p class="legal-text">
+							{t('legal.disclaimer.sections.risk.content', '')}
+						</p>
 					</section>
 				</div>
 			</div>

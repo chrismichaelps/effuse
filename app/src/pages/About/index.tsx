@@ -1,28 +1,31 @@
 import { define, computed, useHead, For, effect } from '@effuse/core';
+import { useTranslation } from '../../hooks';
 import type { Translations } from '../../store/appI18n';
 import './styles.css';
 
 export const AboutPage = define({
 	script: ({ useLayerProps }) => {
 		const i18nProps = useLayerProps('i18n')!;
+		const { t } = useTranslation();
+
 		const trans = computed(
 			() => (i18nProps.translations.value as Translations | null)?.about
 		);
 
 		effect(() => {
 			useHead({
-				title: trans.value?.meta.title as string,
-				description: trans.value?.meta.description as string,
+				title: t('about.meta.title', ''),
+				description: t('about.meta.description', ''),
 			});
 		});
 
-		const title = computed(() => trans.value?.title ?? '');
-		const description = computed(() => trans.value?.description ?? '');
-		const sponsor = computed(() => trans.value?.sponsor ?? '');
-		const name = computed(() => trans.value?.name ?? '');
-		const role = computed(() => trans.value?.role ?? '');
-		const location = computed(() => trans.value?.location ?? '');
-		const languages = computed(() => trans.value?.languages ?? '');
+		const title = computed(() => t('about.title', ''));
+		const description = computed(() => t('about.description', ''));
+		const sponsor = computed(() => t('about.sponsor', ''));
+		const name = computed(() => t('about.name', ''));
+		const role = computed(() => t('about.role', ''));
+		const location = computed(() => t('about.location', ''));
+		const languages = computed(() => t('about.languages', ''));
 		const projects = computed(() => trans.value?.projects ?? []);
 		const sections = computed(() => trans.value?.sections ?? []);
 

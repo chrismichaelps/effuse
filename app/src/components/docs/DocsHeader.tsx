@@ -11,9 +11,8 @@ import {
 	animateDropdownClose,
 	animateStaggerChildren,
 } from '../../utils/motion';
-import { useAnimatedDropdown } from '../../hooks/index.js';
+import { useAnimatedDropdown, useTranslation } from '../../hooks/index.js';
 import type { docsStore as DocsStoreType } from '../../store/docsUIStore.js';
-import type { Translations } from '../../store/appI18n';
 import { SidebarToggle } from './SidebarToggle.js';
 
 export interface TocItem {
@@ -71,7 +70,7 @@ export const DocsHeader = define<DocsHeaderProps, DocsHeaderExposed>({
 	}) => {
 		const sidebarProps = useLayerProps('sidebar')!;
 		const sidebarProvider = useLayerProvider('sidebar')!;
-		const i18nProps = useLayerProps('i18n')!;
+		const { t } = useTranslation();
 
 		const docsStore = sidebarProvider.docsUI as typeof DocsStoreType;
 
@@ -106,10 +105,7 @@ export const DocsHeader = define<DocsHeaderProps, DocsHeaderExposed>({
 			return found?.title ?? pageTitle.value;
 		});
 
-		const onThisPageText = computed(() => {
-			const trans = i18nProps.translations.value as Translations | null;
-			return trans?.toc?.onThisPage as string;
-		});
+		const onThisPageText = computed(() => t('toc.onThisPage', ''));
 
 		const handleTocItemClick = useCallback(
 			(e: Event, id: string, title: string) => {

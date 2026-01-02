@@ -5,8 +5,12 @@ import {
 	type ReadonlySignal,
 	For,
 } from '@effuse/core';
-import { useToggle, useClickOutside } from '../../hooks/index.js';
-import type { Locale, Translations } from '../../store/appI18n';
+import {
+	useToggle,
+	useClickOutside,
+	useTranslation,
+} from '../../hooks/index.js';
+import type { Locale } from '../../store/appI18n';
 
 interface LanguageSelectorProps {
 	isMobile?: boolean;
@@ -40,6 +44,7 @@ export const LanguageSelector = define<
 	}) => {
 		const i18nProps = useLayerProps('i18n')!;
 		const i18nProvider = useLayerProvider('i18n')!;
+		const { t } = useTranslation();
 
 		const toggle = useToggle({ initial: false });
 		const clickOutside = useClickOutside({
@@ -48,33 +53,12 @@ export const LanguageSelector = define<
 
 		const currentLocale = i18nProps.locale as Signal<Locale>;
 
-		const availableLanguages = computed<LanguageOption[]>(() => {
-			const trans = i18nProps.translations.value as Translations | null;
-			if (!trans) return [];
-
-			return [
-				{
-					locale: 'en',
-					label: trans.language.english as string,
-					flag: '',
-				},
-				{
-					locale: 'ja',
-					label: trans.language.japanese as string,
-					flag: '',
-				},
-				{
-					locale: 'zh',
-					label: trans.language.mandarin as string,
-					flag: '',
-				},
-				{
-					locale: 'es',
-					label: trans.language.spanish as string,
-					flag: '',
-				},
-			];
-		});
+		const availableLanguages = computed<LanguageOption[]>(() => [
+			{ locale: 'en', label: t('language.english', ''), flag: '' },
+			{ locale: 'ja', label: t('language.japanese', ''), flag: '' },
+			{ locale: 'zh', label: t('language.mandarin', ''), flag: '' },
+			{ locale: 'es', label: t('language.spanish', ''), flag: '' },
+		]);
 
 		const handleToggle = useCallback((e: MouseEvent) => {
 			e.stopPropagation();

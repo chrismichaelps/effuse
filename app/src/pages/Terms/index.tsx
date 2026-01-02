@@ -1,25 +1,21 @@
-import { define, useHead, computed, effect } from '@effuse/core';
-import type { i18nStore as I18nStoreType } from '../../store/appI18n.js';
+import { define, useHead, effect } from '@effuse/core';
+import { useTranslation } from '../../hooks';
 import '../Legal/styles.css';
 
 export const TermsPage = define({
-	script: ({ useStore }) => {
-		const i18nStore = useStore('i18n') as typeof I18nStoreType;
-		const t = computed(() => i18nStore.translations.value?.legal?.terms);
-		const contactTitle = computed(
-			() => i18nStore.translations.value?.legal?.contact.title
-		);
+	script: () => {
+		const { t } = useTranslation();
 
 		effect(() => {
 			useHead({
-				title: t.value?.meta.title as string,
-				description: t.value?.meta.description as string,
+				title: t('legal.terms.meta.title', ''),
+				description: t('legal.terms.meta.description', ''),
 			});
 		});
 
-		return { t, contactTitle };
+		return { t };
 	},
-	template: ({ t, contactTitle }) => (
+	template: ({ t }) => (
 		<main class="legal-page">
 			<div class="vibrant-bg">
 				<div class="aurora-blob blob-1"></div>
@@ -28,64 +24,84 @@ export const TermsPage = define({
 			</div>
 			<div class="legal-container">
 				<header class="legal-header">
-					<h1 class="legal-title">{t.value?.title}</h1>
-					<p class="legal-subtitle">{t.value?.lastUpdated}</p>
+					<h1 class="legal-title">
+						{t('legal.terms.title', '')}
+					</h1>
+					<p class="legal-subtitle">{t('legal.terms.lastUpdated', '')}</p>
 				</header>
 
 				<div class="legal-content">
 					<section class="legal-section">
 						<h2 class="legal-section-title">
-							{t.value?.sections.acceptance.title}
-						</h2>
-						<p class="legal-text">{t.value?.sections.acceptance.content}</p>
-					</section>
-
-					<section class="legal-section">
-						<h2 class="legal-section-title">
-							{t.value?.sections.license.title}
-						</h2>
-						<p class="legal-text">{t.value?.sections.license.content}</p>
-					</section>
-
-					<section class="legal-section">
-						<h2 class="legal-section-title">{t.value?.sections.usage.title}</h2>
-						<p class="legal-text">{t.value?.sections.usage.content}</p>
-						<ul class="legal-list">
-							{t.value?.sections.usage.list.map((item: string) => (
-								<li>{item}</li>
-							))}
-						</ul>
-					</section>
-
-					<section class="legal-section">
-						<h2 class="legal-section-title">
-							{t.value?.sections.disclaimer.title}
-						</h2>
-						<p class="legal-text">{t.value?.sections.disclaimer.content}</p>
-					</section>
-
-					<section class="legal-section">
-						<h2 class="legal-section-title">
-							{t.value?.sections.liability.title}
-						</h2>
-						<p class="legal-text">{t.value?.sections.liability.content}</p>
-					</section>
-
-					<section class="legal-section">
-						<h2 class="legal-section-title">
-							{t.value?.sections.changes.title}
-						</h2>
-						<p class="legal-text">{t.value?.sections.changes.content}</p>
-					</section>
-
-					<section class="legal-section">
-						<h2 class="legal-section-title">
-							{t.value?.sections.contact.title}
+							{t(
+								'legal.terms.sections.acceptance.title',
+								'Acceptance of Terms'
+							)}
 						</h2>
 						<p class="legal-text">
-							{t.value?.sections.contact.content}{' '}
+							{t('legal.terms.sections.acceptance.content', '')}
+						</p>
+					</section>
+
+					<section class="legal-section">
+						<h2 class="legal-section-title">
+							{t('legal.terms.sections.license.title', '')}
+						</h2>
+						<p class="legal-text">
+							{t('legal.terms.sections.license.content', '')}
+						</p>
+					</section>
+
+					<section class="legal-section">
+						<h2 class="legal-section-title">
+							{t('legal.terms.sections.usage.title', '')}
+						</h2>
+						<p class="legal-text">
+							{t('legal.terms.sections.usage.content', '')}
+						</p>
+					</section>
+
+					<section class="legal-section">
+						<h2 class="legal-section-title">
+							{t('legal.terms.sections.disclaimer.title', '')}
+						</h2>
+						<p class="legal-text">
+							{t('legal.terms.sections.disclaimer.content', '')}
+						</p>
+					</section>
+
+					<section class="legal-section">
+						<h2 class="legal-section-title">
+							{t(
+								'legal.terms.sections.liability.title',
+								'Limitation of Liability'
+							)}
+						</h2>
+						<p class="legal-text">
+							{t('legal.terms.sections.liability.content', '')}
+						</p>
+					</section>
+
+					<section class="legal-section">
+						<h2 class="legal-section-title">
+							{t('legal.terms.sections.changes.title', '')}
+						</h2>
+						<p class="legal-text">
+							{t('legal.terms.sections.changes.content', '')}
+						</p>
+					</section>
+
+					<section class="legal-section">
+						<h2 class="legal-section-title">
+							{t('legal.terms.sections.contact.title', '')}
+						</h2>
+						<p class="legal-text">
+							{t(
+								'legal.terms.sections.contact.content',
+								'For questions, please visit our'
+							)}{' '}
 							<a href="/contact" class="legal-link">
-								{contactTitle.value}
+								{t('legal.contact.title', '')}
 							</a>
 							.
 						</p>

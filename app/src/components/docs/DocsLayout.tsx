@@ -8,9 +8,12 @@ import {
 import { Sidebar } from './Sidebar.js';
 import { DocsHeader, type TocItem } from './DocsHeader.js';
 import { SidebarToggle } from './SidebarToggle.js';
-import { useScrollSpy, useSmoothScroll } from '../../hooks/index.js';
+import {
+	useScrollSpy,
+	useSmoothScroll,
+	useTranslation,
+} from '../../hooks/index.js';
 import type { docsStore as DocsStoreType } from '../../store/docsUIStore.js';
-import type { Translations } from '../../store/appI18n.js';
 import './styles.css';
 
 interface DocsLayoutProps {
@@ -24,7 +27,7 @@ interface DocsLayoutExposed {
 	docsStore: typeof DocsStoreType;
 	activeSectionId: Signal<string>;
 	normalizedTocItems: ReadonlySignal<TocItem[]>;
-	t: ReadonlySignal<any>;
+	t: (key: string, fallback?: string) => string;
 	isCollapsed: Signal<unknown>;
 	isOpen: Signal<unknown>;
 }
@@ -41,7 +44,7 @@ export const DocsLayout = define<DocsLayoutProps, DocsLayoutExposed>({
 	script: ({ props, onMount, useLayerProps, useLayerProvider }) => {
 		const sidebarProps = useLayerProps('sidebar')!;
 		const sidebarProvider = useLayerProvider('sidebar')!;
-		const i18nProps = useLayerProps('i18n')!;
+		const { t } = useTranslation();
 
 		const docsStore = sidebarProvider.docsUI as typeof DocsStoreType;
 
@@ -64,10 +67,6 @@ export const DocsLayout = define<DocsLayoutProps, DocsLayoutExposed>({
 			smoothScroll.init();
 			return undefined;
 		});
-
-		const t = computed(
-			() => (i18nProps.translations.value as Translations | null)?.toc
-		);
 
 		return {
 			docsStore,
@@ -132,7 +131,7 @@ export const DocsLayout = define<DocsLayoutProps, DocsLayoutExposed>({
 						<div class="toc-sidebar-container">
 							<div class="toc-sidebar-title flex items-center gap-2">
 								<img src="/icons/list.svg" width="14" height="14" alt="List" />
-								{t.value?.onThisPage}
+								{t('toc.onThisPage', '')}
 							</div>
 							<nav class="toc-sidebar-nav">
 								<For

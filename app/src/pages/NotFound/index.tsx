@@ -1,17 +1,19 @@
-import { define, useHead, computed, effect } from '@effuse/core';
+import { define, useHead, effect } from '@effuse/core';
 import { Link } from '@effuse/router';
-import type { i18nStore as I18nStoreType } from '../../store/appI18n';
+import { useTranslation } from '../../hooks';
 import './styles.css';
 
 export const NotFoundPage = define({
-	script: ({ useStore }) => {
-		const i18nStore = useStore('i18n') as typeof I18nStoreType;
-		const t = computed(() => i18nStore.translations.value?.notFound);
+	script: () => {
+		const { t } = useTranslation();
 
 		effect(() => {
 			useHead({
-				title: t.value?.meta.title as string,
-				description: t.value?.meta.description as string,
+				title: t('notFound.meta.title', ''),
+				description: t(
+					'notFound.meta.description',
+					'The page you are looking for does not exist'
+				),
 			});
 		});
 
@@ -26,15 +28,18 @@ export const NotFoundPage = define({
 			</div>
 
 			<div class="not-found-content">
-				<div class="error-code">{t.value?.code}</div>
-				<h1 class="error-title">{t.value?.title}</h1>
+				<div class="error-code">{t('notFound.code', '')}</div>
+				<h1 class="error-title">{t('notFound.title', '')}</h1>
 				<p class="error-message">
-					{t.value?.description}
+					{t(
+						'notFound.description',
+						'The page you are looking for does not exist.'
+					)}
 					<br />
-					{t.value?.track}
+					{t('notFound.track', '')}
 				</p>
 				<Link to="/" class="cta-primary">
-					{t.value?.goHome}
+					{t('notFound.goHome', '')}
 					<img src="/icons/home.svg" alt="Home" class="w-5 h-5 text-zinc-950" />
 				</Link>
 			</div>
