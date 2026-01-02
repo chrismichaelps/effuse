@@ -24,7 +24,7 @@
 
 import { Effect, Context, Layer } from 'effect';
 import type { EffuseChild, BlueprintDef, Portals } from '../../render/node.js';
-import type { BlueprintError } from '../../errors/internal.js';
+import { BlueprintError } from '../../errors/internal.js';
 
 export interface BlueprintServiceInterface {
 	readonly instantiate: <P extends Record<string, unknown>>(

@@ -9,7 +9,7 @@ import { DocsLayout } from '../../components/docs/DocsLayout';
 import { useInfiniteScroll } from '../../hooks/index.js';
 import type { i18nStore as I18nStoreType } from '../../store/appI18n';
 import { triggerHaptic } from '../../components/Haptics';
-import { TodoError } from '../../errors.js';
+import { TodoError } from '../../errors/index.js';
 import '../../styles/examples.css';
 
 const API_BASE = 'https://jsonplaceholder.typicode.com';

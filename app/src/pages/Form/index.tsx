@@ -14,7 +14,7 @@ import { useMutation } from '@effuse/query';
 import { DocsLayout } from '../../components/docs/DocsLayout';
 import type { i18nStore as I18nStoreType } from '../../store/appI18n';
 import { triggerHaptic } from '../../components/Haptics';
-import { FormSubmissionError } from '../../errors.js';
+import { FormSubmissionError } from '../../errors/index.js';
 import '../../styles/examples.css';
 
 interface Post {
