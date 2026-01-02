@@ -14,35 +14,39 @@ title: レイヤー
 import { defineLayer, signal, computed } from '@effuse/core';
 
 export const ThemeLayer = defineLayer({
-  name: 'theme',
-  
-  // コンポーネントに公開されるprops
-  props: {
-    mode: signal<'light' | 'dark'>('dark'),
-    accentColor: signal('#8df0cc'),
-  },
+	name: 'theme',
 
-  // 派生props（自動的にcomputed）
-  derived: {
-    isDark: (props) => computed(() => props.mode.value === 'dark'),
-  },
+	// コンポーネントに公開されるprops
+	props: {
+		mode: signal<'light' | 'dark'>('dark'),
+		accentColor: signal('#8df0cc'),
+	},
 
-  // providerを通じて公開されるサービス
-  provides: {
-    theme: {
-      setMode: (mode: 'light' | 'dark') => { /* ... */ },
-      toggleMode: () => { /* ... */ },
-    },
-  },
+	// 派生props（自動的にcomputed）
+	derived: {
+		isDark: (props) => computed(() => props.mode.value === 'dark'),
+	},
 
-  // 初期化ロジック
-  setup: (ctx) => {
-    // ctx.storeはpropsへの型付きアクセスを含む
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme) {
-      ctx.store.mode.value = savedTheme as 'light' | 'dark';
-    }
-  },
+	// providerを通じて公開されるサービス
+	provides: {
+		theme: {
+			setMode: (mode: 'light' | 'dark') => {
+				/* ... */
+			},
+			toggleMode: () => {
+				/* ... */
+			},
+		},
+	},
+
+	// 初期化ロジック
+	setup: (ctx) => {
+		// ctx.storeはpropsへの型付きアクセスを含む
+		const savedTheme = localStorage.getItem('theme');
+		if (savedTheme) {
+			ctx.store.mode.value = savedTheme as 'light' | 'dark';
+		}
+	},
 });
 ```
 
@@ -54,34 +58,34 @@ export const ThemeLayer = defineLayer({
 import { define, computed } from '@effuse/core';
 
 const ThemeToggle = define({
-  script: ({ useLayerProps, useLayerProvider }) => {
-    // レイヤーからリアクティブなpropsを取得
-    const themeProps = useLayerProps('theme')!;
-    
-    // レイヤーからサービスを取得
-    const themeProvider = useLayerProvider('theme')!;
+	script: ({ useLayerProps, useLayerProvider }) => {
+		// レイヤーからリアクティブなpropsを取得
+		const themeProps = useLayerProps('theme')!;
 
-    const buttonText = computed(() => 
-      themeProps.mode.value === 'dark' ? 'ライト' : 'ダーク'
-    );
+		// レイヤーからサービスを取得
+		const themeProvider = useLayerProvider('theme')!;
 
-    const toggle = () => {
-      themeProvider.theme.toggleMode();
-    };
+		const buttonText = computed(() =>
+			themeProps.mode.value === 'dark' ? 'ライト' : 'ダーク'
+		);
 
-    return { buttonText, toggle };
-  },
-  template: ({ buttonText, toggle }) => (
-    <button onClick={toggle}>{buttonText}</button>
-  ),
+		const toggle = () => {
+			themeProvider.theme.toggleMode();
+		};
+
+		return { buttonText, toggle };
+	},
+	template: ({ buttonText, toggle }) => (
+		<button onClick={toggle}>{buttonText}</button>
+	),
 });
 ```
 
 ## レイヤーProps vs Provider
 
-| 概念 | 目的 | アクセス方法 |
-|------|------|-------------|
-| **Props** | リアクティブな状態値 | `useLayerProps('名前')` |
+| 概念         | 目的                 | アクセス方法               |
+| ------------ | -------------------- | -------------------------- |
+| **Props**    | リアクティブな状態値 | `useLayerProps('名前')`    |
 | **Provider** | サービスとアクション | `useLayerProvider('名前')` |
 
 **Props** は読み取りと購読を行うシグナルです。**Providers** はメソッドとサービスを公開します。
@@ -92,10 +96,10 @@ const ThemeToggle = define({
 
 ```typescript
 setup: (ctx) => {
-  // ctx.storeはprops定義に基づいて型付けされています
-  ctx.store.mode.value = 'dark';  // 完全な型安全性
-  ctx.store.init();  // メソッドがある場合
-}
+	// ctx.storeはprops定義に基づいて型付けされています
+	ctx.store.mode.value = 'dark'; // 完全な型安全性
+	ctx.store.init(); // メソッドがある場合
+};
 ```
 
 ## Propsの派生
@@ -105,10 +109,10 @@ setup: (ctx) => {
 ```typescript
 derived: {
   // modeが変更されると自動的に更新
-  backgroundColor: (props) => computed(() => 
+  backgroundColor: (props) => computed(() =>
     props.mode.value === 'dark' ? '#0a0f12' : '#ffffff'
   ),
-  
+
   // 複数のpropsに依存可能
   theme: (props) => computed(() => ({
     mode: props.mode.value,
@@ -123,7 +127,7 @@ derived: {
 
 ```typescript
 // これらはレイヤー定義に基づいて完全に型付けされています
-const i18nProps = useLayerProps('i18n');    // i18nレイヤーのpropsを認識
+const i18nProps = useLayerProps('i18n'); // i18nレイヤーのpropsを認識
 const themeProvider = useLayerProvider('theme'); // themeサービスを認識
 ```
 

@@ -14,28 +14,34 @@ Use `defineHook` to create typed, reusable hooks:
 import { defineHook, type Signal } from '@effuse/core';
 
 interface ToggleConfig {
-  initial?: boolean;
+	initial?: boolean;
 }
 
 interface ToggleReturn {
-  isOpen: Signal<boolean>;
-  toggle: () => void;
-  open: () => void;
-  close: () => void;
+	isOpen: Signal<boolean>;
+	toggle: () => void;
+	open: () => void;
+	close: () => void;
 }
 
 export const useToggle = defineHook<ToggleConfig, readonly [], ToggleReturn>({
-  name: 'useToggle',
-  setup: ({ config, signal }): ToggleReturn => {
-    const isOpen = signal(config.initial ?? false);
+	name: 'useToggle',
+	setup: ({ config, signal }): ToggleReturn => {
+		const isOpen = signal(config.initial ?? false);
 
-    return {
-      isOpen,
-      toggle: () => { isOpen.value = !isOpen.value; },
-      open: () => { isOpen.value = true; },
-      close: () => { isOpen.value = false; },
-    };
-  },
+		return {
+			isOpen,
+			toggle: () => {
+				isOpen.value = !isOpen.value;
+			},
+			open: () => {
+				isOpen.value = true;
+			},
+			close: () => {
+				isOpen.value = false;
+			},
+		};
+	},
 });
 ```
 
@@ -43,16 +49,16 @@ export const useToggle = defineHook<ToggleConfig, readonly [], ToggleReturn>({
 
 The `setup` function receives a context object with these utilities:
 
-| Property | Description |
-|----------|-------------|
-| `config` | Configuration passed when calling the hook |
-| `signal` | Create reactive signals |
-| `computed` | Create derived computed values |
-| `effect` | Run side effects that track dependencies |
-| `onMount` | Register callbacks for when the hook is mounted |
-| `layer` | Access layer props by name |
-| `layerProvider` | Access layer services |
-| `scope` | Manage cleanup and finalizers |
+| Property        | Description                                     |
+| --------------- | ----------------------------------------------- |
+| `config`        | Configuration passed when calling the hook      |
+| `signal`        | Create reactive signals                         |
+| `computed`      | Create derived computed values                  |
+| `effect`        | Run side effects that track dependencies        |
+| `onMount`       | Register callbacks for when the hook is mounted |
+| `layer`         | Access layer props by name                      |
+| `layerProvider` | Access layer services                           |
+| `scope`         | Manage cleanup and finalizers                   |
 
 ## Using Hooks in Components
 
@@ -63,22 +69,20 @@ import { define } from '@effuse/core';
 import { useToggle } from '../hooks';
 
 const Dropdown = define({
-  script: ({ onMount }) => {
-    const menu = useToggle({ initial: false });
+	script: ({ onMount }) => {
+		const menu = useToggle({ initial: false });
 
-    return {
-      isOpen: menu.isOpen,
-      toggle: menu.toggle,
-    };
-  },
-  template: ({ isOpen, toggle }) => (
-    <div>
-      <button onClick={toggle}>
-        {isOpen.value ? 'Close' : 'Open'}
-      </button>
-      {isOpen.value && <div class="menu">Menu Content</div>}
-    </div>
-  ),
+		return {
+			isOpen: menu.isOpen,
+			toggle: menu.toggle,
+		};
+	},
+	template: ({ isOpen, toggle }) => (
+		<div>
+			<button onClick={toggle}>{isOpen.value ? 'Close' : 'Open'}</button>
+			{isOpen.value && <div class="menu">Menu Content</div>}
+		</div>
+	),
 });
 ```
 
@@ -90,43 +94,47 @@ For hooks that need DOM access, use a lazy initialization pattern:
 import { defineHook, type Signal } from '@effuse/core';
 
 interface ClickOutsideConfig {
-  selector: string;
+	selector: string;
 }
 
 interface ClickOutsideReturn {
-  onClickOutside: (callback: () => void) => void;
-  init: () => void;
+	onClickOutside: (callback: () => void) => void;
+	init: () => void;
 }
 
 export const useClickOutside = defineHook<
-  ClickOutsideConfig,
-  readonly [],
-  ClickOutsideReturn
+	ClickOutsideConfig,
+	readonly [],
+	ClickOutsideReturn
 >({
-  name: 'useClickOutside',
-  setup: ({ config, signal, effect }): ClickOutsideReturn => {
-    const initialized = signal(false);
-    let callback: (() => void) | null = null;
+	name: 'useClickOutside',
+	setup: ({ config, signal, effect }): ClickOutsideReturn => {
+		const initialized = signal(false);
+		let callback: (() => void) | null = null;
 
-    effect(() => {
-      if (!initialized.value) return undefined;
+		effect(() => {
+			if (!initialized.value) return undefined;
 
-      const handleClick = (e: Event) => {
-        const target = e.target as HTMLElement;
-        if (!target.closest(config.selector)) {
-          callback?.();
-        }
-      };
+			const handleClick = (e: Event) => {
+				const target = e.target as HTMLElement;
+				if (!target.closest(config.selector)) {
+					callback?.();
+				}
+			};
 
-      document.addEventListener('click', handleClick);
-      return () => document.removeEventListener('click', handleClick);
-    });
+			document.addEventListener('click', handleClick);
+			return () => document.removeEventListener('click', handleClick);
+		});
 
-    return {
-      onClickOutside: (cb) => { callback = cb; },
-      init: () => { initialized.value = true; },
-    };
-  },
+		return {
+			onClickOutside: (cb) => {
+				callback = cb;
+			},
+			init: () => {
+				initialized.value = true;
+			},
+		};
+	},
 });
 ```
 
@@ -134,24 +142,24 @@ Use in a component:
 
 ```tsx
 const Dropdown = define({
-  script: ({ onMount }) => {
-    const toggle = useToggle({ initial: false });
-    const clickOutside = useClickOutside({ selector: '.dropdown' });
+	script: ({ onMount }) => {
+		const toggle = useToggle({ initial: false });
+		const clickOutside = useClickOutside({ selector: '.dropdown' });
 
-    onMount(() => {
-      clickOutside.onClickOutside(() => toggle.close());
-      clickOutside.init();
-      return undefined;
-    });
+		onMount(() => {
+			clickOutside.onClickOutside(() => toggle.close());
+			clickOutside.init();
+			return undefined;
+		});
 
-    return { isOpen: toggle.isOpen, toggle: toggle.toggle };
-  },
-  template: ({ isOpen, toggle }) => (
-    <div class="dropdown">
-      <button onClick={toggle}>Menu</button>
-      {isOpen.value && <div class="menu">Content</div>}
-    </div>
-  ),
+		return { isOpen: toggle.isOpen, toggle: toggle.toggle };
+	},
+	template: ({ isOpen, toggle }) => (
+		<div class="dropdown">
+			<button onClick={toggle}>Menu</button>
+			{isOpen.value && <div class="menu">Content</div>}
+		</div>
+	),
 });
 ```
 
@@ -163,34 +171,35 @@ Hooks can access layer state and services:
 import { defineHook } from '@effuse/core';
 
 export const useTranslation = defineHook<
-  undefined,
-  readonly ['i18n'],
-  { t: (key: string) => string }
+	undefined,
+	readonly ['i18n'],
+	{ t: (key: string) => string }
 >({
-  name: 'useTranslation',
-  deps: ['i18n'],
-  setup: ({ layer }) => {
-    const i18n = layer('i18n');
-    const translations = i18n.translations;
+	name: 'useTranslation',
+	deps: ['i18n'],
+	setup: ({ layer }) => {
+		const i18n = layer('i18n');
+		const translations = i18n.translations;
 
-    return {
-      t: (key: string) => translations.value?.[key] ?? key,
-    };
-  },
+		return {
+			t: (key: string) => translations.value?.[key] ?? key,
+		};
+	},
 });
 ```
 
 ## Cleanup
 
-
 Effects automatically clean up when the component unmounts. Return a cleanup function from `effect`:
 
 ```typescript
 effect(() => {
-  const handler = () => { /* ... */ };
-  window.addEventListener('resize', handler);
-  
-  // Cleanup runs when effect re-runs or component unmounts
-  return () => window.removeEventListener('resize', handler);
+	const handler = () => {
+		/* ... */
+	};
+	window.addEventListener('resize', handler);
+
+	// Cleanup runs when effect re-runs or component unmounts
+	return () => window.removeEventListener('resize', handler);
 });
 ```

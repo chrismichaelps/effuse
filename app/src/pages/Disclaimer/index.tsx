@@ -24,9 +24,7 @@ export const DisclaimerPage = define({
 			</div>
 			<div class="legal-container">
 				<header class="legal-header">
-					<h1 class="legal-title">
-						{t('legal.disclaimer.title', '')}
-					</h1>
+					<h1 class="legal-title">{t('legal.disclaimer.title', '')}</h1>
 				</header>
 
 				<div class="legal-content">

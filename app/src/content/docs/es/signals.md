@@ -151,8 +151,10 @@ Cuando usas expresiones en templates, el compilador automáticamente las envuelv
 ```tsx
 // El compilador maneja esto automáticamente
 template: ({ firstName, lastName }) => (
-  <p>Nombre Completo: {firstName} {lastName}</p>
-)
+	<p>
+		Nombre Completo: {firstName} {lastName}
+	</p>
+);
 
 // No se necesita computed() explícito en casos simples
 // El compilador optimizará el binding
@@ -168,17 +170,17 @@ Usa `computed()` explícito cuando:
 
 ```tsx
 script: () => {
-  const items = signal<Item[]>([]);
-  const filter = signal('all');
+	const items = signal<Item[]>([]);
+	const filter = signal('all');
 
-  // Computed explícito para lógica compleja retornada al template
-  const filteredItems = computed(() => {
-    const f = filter.value;
-    return items.value.filter(item =>
-      f === 'all' ? true : item.status === f
-    );
-  });
+	// Computed explícito para lógica compleja retornada al template
+	const filteredItems = computed(() => {
+		const f = filter.value;
+		return items.value.filter((item) =>
+			f === 'all' ? true : item.status === f
+		);
+	});
 
-  return { filteredItems, filter };
-}
+	return { filteredItems, filter };
+};
 ```

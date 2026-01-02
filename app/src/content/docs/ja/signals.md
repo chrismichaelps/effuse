@@ -151,8 +151,10 @@ Effuseコンパイラは多くのリアクティビティシナリオを自動�
 ```tsx
 // コンパイラがこれを自動的に処理
 template: ({ firstName, lastName }) => (
-  <p>フルネーム: {firstName} {lastName}</p>
-)
+	<p>
+		フルネーム: {firstName} {lastName}
+	</p>
+);
 
 // シンプルなケースでは明示的な computed() は不要
 // コンパイラがバインディングを最適化
@@ -168,17 +170,17 @@ template: ({ firstName, lastName }) => (
 
 ```tsx
 script: () => {
-  const items = signal<Item[]>([]);
-  const filter = signal('all');
+	const items = signal<Item[]>([]);
+	const filter = signal('all');
 
-  // テンプレートに返す複雑なロジック用の明示的なcomputed
-  const filteredItems = computed(() => {
-    const f = filter.value;
-    return items.value.filter(item =>
-      f === 'all' ? true : item.status === f
-    );
-  });
+	// テンプレートに返す複雑なロジック用の明示的なcomputed
+	const filteredItems = computed(() => {
+		const f = filter.value;
+		return items.value.filter((item) =>
+			f === 'all' ? true : item.status === f
+		);
+	});
 
-  return { filteredItems, filter };
-}
+	return { filteredItems, filter };
+};
 ```

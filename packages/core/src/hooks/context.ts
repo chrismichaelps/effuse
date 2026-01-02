@@ -90,7 +90,6 @@ export const createHookContext = <C, D extends readonly string[]>(
 		return layerCtx.props as LayerPropsOf<K>;
 	};
 
-
 	const layerProvider = <K extends D[number] & keyof EffuseLayerRegistry>(
 		name: K
 	): LayerProvidesOf<K> => {

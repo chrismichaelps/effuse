@@ -151,8 +151,10 @@ Effuse 编译器自动处理许多响应式场景：
 ```tsx
 // 编译器自动处理这个
 template: ({ firstName, lastName }) => (
-  <p>全名: {firstName} {lastName}</p>
-)
+	<p>
+		全名: {firstName} {lastName}
+	</p>
+);
 
 // 简单情况下不需要显式 computed()
 // 编译器将优化绑定
@@ -168,17 +170,17 @@ template: ({ firstName, lastName }) => (
 
 ```tsx
 script: () => {
-  const items = signal<Item[]>([]);
-  const filter = signal('all');
+	const items = signal<Item[]>([]);
+	const filter = signal('all');
 
-  // 返回给模板的复杂逻辑使用显式 computed
-  const filteredItems = computed(() => {
-    const f = filter.value;
-    return items.value.filter(item =>
-      f === 'all' ? true : item.status === f
-    );
-  });
+	// 返回给模板的复杂逻辑使用显式 computed
+	const filteredItems = computed(() => {
+		const f = filter.value;
+		return items.value.filter((item) =>
+			f === 'all' ? true : item.status === f
+		);
+	});
 
-  return { filteredItems, filter };
-}
+	return { filteredItems, filter };
+};
 ```

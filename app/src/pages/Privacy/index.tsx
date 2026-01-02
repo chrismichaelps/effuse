@@ -24,9 +24,7 @@ export const PrivacyPage = define({
 			</div>
 			<div class="legal-container">
 				<header class="legal-header">
-					<h1 class="legal-title">
-						{t('legal.privacy.title', '')}
-					</h1>
+					<h1 class="legal-title">{t('legal.privacy.title', '')}</h1>
 					<p class="legal-subtitle">{t('legal.privacy.lastUpdated', '')}</p>
 				</header>
 

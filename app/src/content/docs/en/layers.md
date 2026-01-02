@@ -14,35 +14,39 @@ Use `defineLayer` from `@effuse/core` to create a layer:
 import { defineLayer, signal, computed } from '@effuse/core';
 
 export const ThemeLayer = defineLayer({
-  name: 'theme',
-  
-  // Props exposed to components
-  props: {
-    mode: signal<'light' | 'dark'>('dark'),
-    accentColor: signal('#8df0cc'),
-  },
+	name: 'theme',
 
-  // Derived props (automatically computed)
-  derived: {
-    isDark: (props) => computed(() => props.mode.value === 'dark'),
-  },
+	// Props exposed to components
+	props: {
+		mode: signal<'light' | 'dark'>('dark'),
+		accentColor: signal('#8df0cc'),
+	},
 
-  // Services exposed via provider
-  provides: {
-    theme: {
-      setMode: (mode: 'light' | 'dark') => { /* ... */ },
-      toggleMode: () => { /* ... */ },
-    },
-  },
+	// Derived props (automatically computed)
+	derived: {
+		isDark: (props) => computed(() => props.mode.value === 'dark'),
+	},
 
-  // Initialization logic
-  setup: (ctx) => {
-    // ctx.store contains typed access to props
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme) {
-      ctx.store.mode.value = savedTheme as 'light' | 'dark';
-    }
-  },
+	// Services exposed via provider
+	provides: {
+		theme: {
+			setMode: (mode: 'light' | 'dark') => {
+				/* ... */
+			},
+			toggleMode: () => {
+				/* ... */
+			},
+		},
+	},
+
+	// Initialization logic
+	setup: (ctx) => {
+		// ctx.store contains typed access to props
+		const savedTheme = localStorage.getItem('theme');
+		if (savedTheme) {
+			ctx.store.mode.value = savedTheme as 'light' | 'dark';
+		}
+	},
 });
 ```
 
@@ -54,35 +58,35 @@ Access layer props and providers in your component's script:
 import { define, computed } from '@effuse/core';
 
 const ThemeToggle = define({
-  script: ({ useLayerProps, useLayerProvider }) => {
-    // Get reactive props from the layer
-    const themeProps = useLayerProps('theme')!;
-    
-    // Get services from the layer
-    const themeProvider = useLayerProvider('theme')!;
+	script: ({ useLayerProps, useLayerProvider }) => {
+		// Get reactive props from the layer
+		const themeProps = useLayerProps('theme')!;
 
-    const buttonText = computed(() => 
-      themeProps.mode.value === 'dark' ? 'Light' : 'Dark'
-    );
+		// Get services from the layer
+		const themeProvider = useLayerProvider('theme')!;
 
-    const toggle = () => {
-      themeProvider.theme.toggleMode();
-    };
+		const buttonText = computed(() =>
+			themeProps.mode.value === 'dark' ? 'Light' : 'Dark'
+		);
 
-    return { buttonText, toggle };
-  },
-  template: ({ buttonText, toggle }) => (
-    <button onClick={toggle}>{buttonText}</button>
-  ),
+		const toggle = () => {
+			themeProvider.theme.toggleMode();
+		};
+
+		return { buttonText, toggle };
+	},
+	template: ({ buttonText, toggle }) => (
+		<button onClick={toggle}>{buttonText}</button>
+	),
 });
 ```
 
 ## Layer Props vs Provider
 
-| Concept | Purpose | Access Method |
-|---------|---------|---------------|
-| **Props** | Reactive state values | `useLayerProps('name')` |
-| **Provider** | Services and actions | `useLayerProvider('name')` |
+| Concept      | Purpose               | Access Method              |
+| ------------ | --------------------- | -------------------------- |
+| **Props**    | Reactive state values | `useLayerProps('name')`    |
+| **Provider** | Services and actions  | `useLayerProvider('name')` |
 
 **Props** are signals you read and subscribe to. **Providers** expose methods and services.
 
@@ -92,10 +96,10 @@ Layers have typed access to their store in the setup function:
 
 ```typescript
 setup: (ctx) => {
-  // ctx.store is typed based on your props definition
-  ctx.store.mode.value = 'dark';  // Full type safety
-  ctx.store.init();  // If you have methods
-}
+	// ctx.store is typed based on your props definition
+	ctx.store.mode.value = 'dark'; // Full type safety
+	ctx.store.init(); // If you have methods
+};
 ```
 
 ## Deriving Props
@@ -105,10 +109,10 @@ Use `derived` to create computed values that depend on props:
 ```typescript
 derived: {
   // Automatically updates when mode changes
-  backgroundColor: (props) => computed(() => 
+  backgroundColor: (props) => computed(() =>
     props.mode.value === 'dark' ? '#0a0f12' : '#ffffff'
   ),
-  
+
   // Can depend on multiple props
   theme: (props) => computed(() => ({
     mode: props.mode.value,
@@ -123,7 +127,7 @@ Layers are automatically registered. The type system knows about all registered 
 
 ```typescript
 // These are fully typed based on your layer definitions
-const i18nProps = useLayerProps('i18n');    // knows i18n layer props
+const i18nProps = useLayerProps('i18n'); // knows i18n layer props
 const themeProvider = useLayerProvider('theme'); // knows theme services
 ```
 
@@ -143,29 +147,29 @@ import { defineLayer, signal, computed } from '@effuse/core';
 export type Locale = 'en' | 'es' | 'ja' | 'zh';
 
 export const I18nLayer = defineLayer({
-  name: 'i18n',
-  
-  props: {
-    locale: signal<Locale>('en'),
-    translations: signal<Record<string, string> | null>(null),
-  },
+	name: 'i18n',
 
-  provides: {
-    i18n: {
-      setLocale: async (locale: Locale) => {
-        const response = await fetch(`/locales/${locale}.json`);
-        const data = await response.json();
-        // Access store through closure
-        store.translations.value = data;
-        store.locale.value = locale;
-      },
-    },
-  },
+	props: {
+		locale: signal<Locale>('en'),
+		translations: signal<Record<string, string> | null>(null),
+	},
 
-  setup: async (ctx) => {
-    // Load default locale on init
-    const response = await fetch('/locales/en.json');
-    ctx.store.translations.value = await response.json();
-  },
+	provides: {
+		i18n: {
+			setLocale: async (locale: Locale) => {
+				const response = await fetch(`/locales/${locale}.json`);
+				const data = await response.json();
+				// Access store through closure
+				store.translations.value = data;
+				store.locale.value = locale;
+			},
+		},
+	},
+
+	setup: async (ctx) => {
+		// Load default locale on init
+		const response = await fetch('/locales/en.json');
+		ctx.store.translations.value = await response.json();
+	},
 });
 ```

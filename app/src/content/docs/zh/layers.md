@@ -14,35 +14,39 @@ title: 层
 import { defineLayer, signal, computed } from '@effuse/core';
 
 export const ThemeLayer = defineLayer({
-  name: 'theme',
-  
-  // 暴露给组件的 props
-  props: {
-    mode: signal<'light' | 'dark'>('dark'),
-    accentColor: signal('#8df0cc'),
-  },
+	name: 'theme',
 
-  // 派生 props（自动计算）
-  derived: {
-    isDark: (props) => computed(() => props.mode.value === 'dark'),
-  },
+	// 暴露给组件的 props
+	props: {
+		mode: signal<'light' | 'dark'>('dark'),
+		accentColor: signal('#8df0cc'),
+	},
 
-  // 通过 provider 暴露的服务
-  provides: {
-    theme: {
-      setMode: (mode: 'light' | 'dark') => { /* ... */ },
-      toggleMode: () => { /* ... */ },
-    },
-  },
+	// 派生 props（自动计算）
+	derived: {
+		isDark: (props) => computed(() => props.mode.value === 'dark'),
+	},
 
-  // 初始化逻辑
-  setup: (ctx) => {
-    // ctx.store 包含对 props 的类型化访问
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme) {
-      ctx.store.mode.value = savedTheme as 'light' | 'dark';
-    }
-  },
+	// 通过 provider 暴露的服务
+	provides: {
+		theme: {
+			setMode: (mode: 'light' | 'dark') => {
+				/* ... */
+			},
+			toggleMode: () => {
+				/* ... */
+			},
+		},
+	},
+
+	// 初始化逻辑
+	setup: (ctx) => {
+		// ctx.store 包含对 props 的类型化访问
+		const savedTheme = localStorage.getItem('theme');
+		if (savedTheme) {
+			ctx.store.mode.value = savedTheme as 'light' | 'dark';
+		}
+	},
 });
 ```
 
@@ -54,35 +58,35 @@ export const ThemeLayer = defineLayer({
 import { define, computed } from '@effuse/core';
 
 const ThemeToggle = define({
-  script: ({ useLayerProps, useLayerProvider }) => {
-    // 从层获取响应式 props
-    const themeProps = useLayerProps('theme')!;
-    
-    // 从层获取服务
-    const themeProvider = useLayerProvider('theme')!;
+	script: ({ useLayerProps, useLayerProvider }) => {
+		// 从层获取响应式 props
+		const themeProps = useLayerProps('theme')!;
 
-    const buttonText = computed(() => 
-      themeProps.mode.value === 'dark' ? '浅色' : '深色'
-    );
+		// 从层获取服务
+		const themeProvider = useLayerProvider('theme')!;
 
-    const toggle = () => {
-      themeProvider.theme.toggleMode();
-    };
+		const buttonText = computed(() =>
+			themeProps.mode.value === 'dark' ? '浅色' : '深色'
+		);
 
-    return { buttonText, toggle };
-  },
-  template: ({ buttonText, toggle }) => (
-    <button onClick={toggle}>{buttonText}</button>
-  ),
+		const toggle = () => {
+			themeProvider.theme.toggleMode();
+		};
+
+		return { buttonText, toggle };
+	},
+	template: ({ buttonText, toggle }) => (
+		<button onClick={toggle}>{buttonText}</button>
+	),
 });
 ```
 
 ## 层 Props vs Provider
 
-| 概念 | 用途 | 访问方法 |
-|------|------|----------|
-| **Props** | 响应式状态值 | `useLayerProps('名称')` |
-| **Provider** | 服务和操作 | `useLayerProvider('名称')` |
+| 概念         | 用途         | 访问方法                   |
+| ------------ | ------------ | -------------------------- |
+| **Props**    | 响应式状态值 | `useLayerProps('名称')`    |
+| **Provider** | 服务和操作   | `useLayerProvider('名称')` |
 
 **Props** 是你读取和订阅的信号。**Providers** 暴露方法和服务。
 
@@ -92,10 +96,10 @@ const ThemeToggle = define({
 
 ```typescript
 setup: (ctx) => {
-  // ctx.store 根据你的 props 定义进行类型化
-  ctx.store.mode.value = 'dark';  // 完全的类型安全
-  ctx.store.init();  // 如果你有方法
-}
+	// ctx.store 根据你的 props 定义进行类型化
+	ctx.store.mode.value = 'dark'; // 完全的类型安全
+	ctx.store.init(); // 如果你有方法
+};
 ```
 
 ## 派生 Props
@@ -105,10 +109,10 @@ setup: (ctx) => {
 ```typescript
 derived: {
   // 当 mode 改变时自动更新
-  backgroundColor: (props) => computed(() => 
+  backgroundColor: (props) => computed(() =>
     props.mode.value === 'dark' ? '#0a0f12' : '#ffffff'
   ),
-  
+
   // 可以依赖多个 props
   theme: (props) => computed(() => ({
     mode: props.mode.value,
@@ -123,7 +127,7 @@ derived: {
 
 ```typescript
 // 这些根据你的层定义完全类型化
-const i18nProps = useLayerProps('i18n');    // 知道 i18n 层的 props
+const i18nProps = useLayerProps('i18n'); // 知道 i18n 层的 props
 const themeProvider = useLayerProvider('theme'); // 知道 theme 服务
 ```
 

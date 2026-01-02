@@ -24,9 +24,7 @@ export const TermsPage = define({
 			</div>
 			<div class="legal-container">
 				<header class="legal-header">
-					<h1 class="legal-title">
-						{t('legal.terms.title', '')}
-					</h1>
+					<h1 class="legal-title">{t('legal.terms.title', '')}</h1>
 					<p class="legal-subtitle">{t('legal.terms.lastUpdated', '')}</p>
 				</header>
 
