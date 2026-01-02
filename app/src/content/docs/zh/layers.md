@@ -131,6 +131,63 @@ const i18nProps = useLayerProps('i18n'); // 知道 i18n 层的 props
 const themeProvider = useLayerProvider('theme'); // 知道 theme 服务
 ```
 
+## 类型注册表（Module Augmentation）
+
+要启用对层 props 和 provides 的类型安全访问，请使用 TypeScript 的 module augmentation 扩展 `EffuseLayerRegistry` 接口。
+
+> **为什么手动?** 代码生成增加构建复杂性，层变化时需要重新运行脚本。Module augmentation 在 IDE 中即时生效，是 TS 生态系统的标准模式。
+
+在你的项目中创建一个 `.d.ts` 文件（例如 `src/layers/effuse.d.ts`）：
+
+```typescript
+import type { Signal, ReadonlySignal } from '@effuse/core';
+
+// 定义你的 provider 类型
+interface ThemeProvider {
+	setMode: (mode: 'light' | 'dark') => void;
+	toggleMode: () => void;
+}
+
+interface I18nProvider {
+	setLocale: (locale: string) => Promise<void>;
+	t: (key: string) => string;
+}
+
+declare module '@effuse/core' {
+	interface EffuseLayerRegistry {
+		theme: {
+			props: {
+				mode: Signal<'light' | 'dark'>;
+				accentColor: Signal<string>;
+			};
+			provides: { theme: ThemeProvider };
+		};
+		i18n: {
+			props: {
+				locale: Signal<string>;
+				translations: Signal<Record<string, string> | null>;
+			};
+			provides: { i18n: I18nProvider };
+		};
+	}
+}
+
+export {};
+```
+
+这在使用 `useLayerProps` 和 `useLayerProvider` 时启用完整的类型推断：
+
+```typescript
+// TypeScript 自动知道这些类型！
+const themeProps = useLayerProps('theme');
+// ^? { mode: Signal<'light' | 'dark'>; accentColor: Signal<string> }
+
+const i18n = useLayerProvider('i18n');
+// ^? { i18n: I18nProvider }
+```
+
+> **注意**: 末尾的 `export {}` 确保文件被视为模块，这是 module augmentation 正常工作所必需的。
+
 ## 最佳实践
 
 1. **每个领域一个层**: 创建专注的层（auth、i18n、theme 等）

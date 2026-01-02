@@ -25,7 +25,6 @@
 import type { Component } from '../render/node.js';
 import type { HeadProps } from '../ssr/types.js';
 import type { Signal } from '../reactivity/signal.js';
-import type { GeneratedLayerRegistry } from './registry.generated.js';
 
 export type MaybePromise<T> = T | Promise<T>;
 
@@ -99,7 +98,7 @@ export type LayerSetupFn<
 	P extends LayerProps = LayerProps,
 	D extends readonly string[] = readonly string[],
 	S = unknown,
-	// eslint-disable-next-line @typescript-eslint/no-invalid-void-type -- void is valid for functions with no return
+// eslint-disable-next-line @typescript-eslint/no-invalid-void-type -- void is valid for functions with no return
 > = (ctx: SetupContext<P, D, S>) => SetupResult | Promise<SetupResult> | void;
 
 export type LifecycleHook = () => void | Promise<void>;
@@ -162,13 +161,26 @@ export type AnyLayer = EffuseLayer<any, any, any>;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type AnyResolvedLayer = ResolvedLayer<any, any, any>;
 
+/**
+ * Layer registry interface - extend via module augmentation in your app:
+ *
+ * @example
+ * ```typescript
+ * // In your app (e.g., app/src/layers/effuse.d.ts)
+ * declare module '@effuse/core' {
+ *   interface EffuseLayerRegistry {
+ *     myLayer: { props: { value: Signal<string> } };
+ *   }
+ * }
+ * ```
+ */
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
-export interface EffuseLayerRegistry extends GeneratedLayerRegistry {}
+export interface EffuseLayerRegistry { }
 
 export type LayerPropsOf<K extends keyof EffuseLayerRegistry> =
 	EffuseLayerRegistry[K] extends { props: infer P extends LayerProps }
-		? P
-		: LayerProps;
+	? P
+	: LayerProps;
 
 export type LayerProvidesOf<K extends keyof EffuseLayerRegistry> =
 	EffuseLayerRegistry[K] extends { provides: infer S } ? S : unknown;

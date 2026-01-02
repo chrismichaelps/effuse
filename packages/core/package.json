@@ -57,8 +57,7 @@
 		"build": "tsup",
 		"dev": "tsup --watch",
 		"lint": "eslint src",
-		"typecheck": "tsc --noEmit",
-		"gen-layers": "node --experimental-strip-types scripts/gen-layers.ts"
+		"typecheck": "tsc --noEmit"
 	},
 	"keywords": [
 		"ui-library",

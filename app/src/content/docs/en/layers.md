@@ -131,6 +131,63 @@ const i18nProps = useLayerProps('i18n'); // knows i18n layer props
 const themeProvider = useLayerProvider('theme'); // knows theme services
 ```
 
+## Type Registry (Module Augmentation)
+
+To enable type-safe access to layer props and provides, extend the `EffuseLayerRegistry` interface using TypeScript module augmentation.
+
+> **Why manual?** Code generation adds build complexity and requires re-running scripts when layers change. Module augmentation works instantly with your IDE and is a standard pattern in the TS ecosystem.
+
+Create a `.d.ts` file in your project (e.g., `src/layers/effuse.d.ts`):
+
+```typescript
+import type { Signal, ReadonlySignal } from '@effuse/core';
+
+// Define your provider types
+interface ThemeProvider {
+	setMode: (mode: 'light' | 'dark') => void;
+	toggleMode: () => void;
+}
+
+interface I18nProvider {
+	setLocale: (locale: string) => Promise<void>;
+	t: (key: string) => string;
+}
+
+declare module '@effuse/core' {
+	interface EffuseLayerRegistry {
+		theme: {
+			props: {
+				mode: Signal<'light' | 'dark'>;
+				accentColor: Signal<string>;
+			};
+			provides: { theme: ThemeProvider };
+		};
+		i18n: {
+			props: {
+				locale: Signal<string>;
+				translations: Signal<Record<string, string> | null>;
+			};
+			provides: { i18n: I18nProvider };
+		};
+	}
+}
+
+export {};
+```
+
+This enables full type inference when using `useLayerProps` and `useLayerProvider`:
+
+```typescript
+// TypeScript knows these types automatically!
+const themeProps = useLayerProps('theme');
+// ^? { mode: Signal<'light' | 'dark'>; accentColor: Signal<string> }
+
+const i18n = useLayerProvider('i18n');
+// ^? { i18n: I18nProvider }
+```
+
+> **Note**: The `export {}` at the end ensures the file is treated as a module, which is required for module augmentation to work.
+
 ## Best Practices
 
 1. **One Layer Per Domain**: Create focused layers (auth, i18n, theme, etc.)

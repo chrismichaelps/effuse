@@ -49,8 +49,6 @@ export type {
 	LayerProvidesOf,
 } from './types.js';
 
-export type { GeneratedLayerRegistry } from './registry.generated.js';
-
 export {
 	PropsService,
 	RegistryService,

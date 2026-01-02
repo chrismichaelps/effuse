@@ -131,6 +131,63 @@ const i18nProps = useLayerProps('i18n'); // conoce los props de la capa i18n
 const themeProvider = useLayerProvider('theme'); // conoce los servicios de theme
 ```
 
+## Registro de Tipos (Module Augmentation)
+
+Para habilitar el acceso tipado a los props y provides de las capas, extiende la interfaz `EffuseLayerRegistry` usando module augmentation de TypeScript.
+
+> **¿Por qué manual?** La generación de código añade complejidad al build y requiere re-ejecutar scripts cuando las capas cambian. Module augmentation funciona al instante con tu IDE y es un patrón estándar en el ecosistema TS.
+
+Crea un archivo `.d.ts` en tu proyecto (ej., `src/layers/effuse.d.ts`):
+
+```typescript
+import type { Signal, ReadonlySignal } from '@effuse/core';
+
+// Define tus tipos de provider
+interface ThemeProvider {
+	setMode: (mode: 'light' | 'dark') => void;
+	toggleMode: () => void;
+}
+
+interface I18nProvider {
+	setLocale: (locale: string) => Promise<void>;
+	t: (key: string) => string;
+}
+
+declare module '@effuse/core' {
+	interface EffuseLayerRegistry {
+		theme: {
+			props: {
+				mode: Signal<'light' | 'dark'>;
+				accentColor: Signal<string>;
+			};
+			provides: { theme: ThemeProvider };
+		};
+		i18n: {
+			props: {
+				locale: Signal<string>;
+				translations: Signal<Record<string, string> | null>;
+			};
+			provides: { i18n: I18nProvider };
+		};
+	}
+}
+
+export {};
+```
+
+Esto habilita la inferencia de tipos completa al usar `useLayerProps` y `useLayerProvider`:
+
+```typescript
+// ¡TypeScript conoce estos tipos automáticamente!
+const themeProps = useLayerProps('theme');
+// ^? { mode: Signal<'light' | 'dark'>; accentColor: Signal<string> }
+
+const i18n = useLayerProvider('i18n');
+// ^? { i18n: I18nProvider }
+```
+
+> **Nota**: El `export {}` al final asegura que el archivo sea tratado como un módulo, lo cual es requerido para que module augmentation funcione.
+
 ## Mejores Prácticas
 
 1. **Una Capa Por Dominio**: Crea capas enfocadas (auth, i18n, theme, etc.)

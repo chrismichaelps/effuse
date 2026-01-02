@@ -131,6 +131,63 @@ const i18nProps = useLayerProps('i18n'); // i18nレイヤーのpropsを認識
 const themeProvider = useLayerProvider('theme'); // themeサービスを認識
 ```
 
+## 型レジストリ（Module Augmentation）
+
+レイヤーのpropsとprovidesへの型安全なアクセスを有効にするには、TypeScriptのmodule augmentationを使用して `EffuseLayerRegistry` インターフェースを拡張します。
+
+> **なぜ手動?** コード生成はビルドを複雑にし、レイヤー変更時にスクリプト再実行が必要。Module augmentationはIDEで即座に動作し、TSエコシステムの標準パターンです。
+
+プロジェクトに `.d.ts` ファイルを作成します（例：`src/layers/effuse.d.ts`）：
+
+```typescript
+import type { Signal, ReadonlySignal } from '@effuse/core';
+
+// プロバイダーの型を定義
+interface ThemeProvider {
+	setMode: (mode: 'light' | 'dark') => void;
+	toggleMode: () => void;
+}
+
+interface I18nProvider {
+	setLocale: (locale: string) => Promise<void>;
+	t: (key: string) => string;
+}
+
+declare module '@effuse/core' {
+	interface EffuseLayerRegistry {
+		theme: {
+			props: {
+				mode: Signal<'light' | 'dark'>;
+				accentColor: Signal<string>;
+			};
+			provides: { theme: ThemeProvider };
+		};
+		i18n: {
+			props: {
+				locale: Signal<string>;
+				translations: Signal<Record<string, string> | null>;
+			};
+			provides: { i18n: I18nProvider };
+		};
+	}
+}
+
+export {};
+```
+
+これにより、`useLayerProps` と `useLayerProvider` を使用する際に完全な型推論が有効になります：
+
+```typescript
+// TypeScriptがこれらの型を自動的に認識します！
+const themeProps = useLayerProps('theme');
+// ^? { mode: Signal<'light' | 'dark'>; accentColor: Signal<string> }
+
+const i18n = useLayerProvider('i18n');
+// ^? { i18n: I18nProvider }
+```
+
+> **注意**: 最後の `export {}` はファイルがモジュールとして扱われることを保証し、これはmodule augmentationが機能するために必要です。
+
 ## ベストプラクティス
 
 1. **ドメインごとに1つのレイヤー**: 焦点を絞ったレイヤーを作成（auth、i18n、themeなど）
