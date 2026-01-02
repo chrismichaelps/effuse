@@ -22,16 +22,7 @@
  * SOFTWARE.
  */
 
-export {
-	EffuseError,
-	RenderError,
-	SignalError,
-	BlueprintError,
-	MountError,
-	EffectError,
-	CleanupError,
-	type EffuseErrors,
-} from './errors/index.js';
+export { TaggedError, isTaggedError, hasTag } from './errors/index.js';
 
 export type {
 	Signal,

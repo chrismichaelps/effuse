@@ -22,4 +22,17 @@
  * SOFTWARE.
  */
 
-export { TaggedError, isTaggedError, hasTag } from './tagged.js';
+import { Data } from 'effect';
+
+export const TaggedError = Data.TaggedError;
+
+export type TaggedErrorLike = Error & { readonly _tag: string };
+
+export const isTaggedError = (value: unknown): value is TaggedErrorLike =>
+	value instanceof Error && '_tag' in value && typeof value._tag === 'string';
+
+export const hasTag = <Tag extends string>(
+	value: unknown,
+	tag: Tag
+): value is Error & { readonly _tag: Tag } =>
+	isTaggedError(value) && value._tag === tag;
