@@ -1,4 +1,5 @@
 import { define, computed, For, useHead, signal, effect } from '@effuse/core';
+import { isTaggedError } from '@effuse/core';
 import { useInfiniteQuery, useMutation } from '@effuse/query';
 import type {
 	todosStore as TodosStoreType,
@@ -8,6 +9,7 @@ import { DocsLayout } from '../../components/docs/DocsLayout';
 import { useInfiniteScroll } from '../../hooks/index.js';
 import type { i18nStore as I18nStoreType } from '../../store/appI18n';
 import { triggerHaptic } from '../../components/Haptics';
+import { TodoError } from '../../errors.js';
 import '../../styles/examples.css';
 
 const API_BASE = 'https://jsonplaceholder.typicode.com';
@@ -30,10 +32,14 @@ export const TodosPage = define({
 		const todosQuery = useInfiniteQuery<Todo[], number>({
 			queryKey: ['todos'],
 			queryFn: async ({ pageParam }) => {
-				const response = await fetch(
-					`${API_BASE}/todos?userId=1&_page=${pageParam}&_limit=${PAGE_SIZE}`
-				);
-				if (!response.ok) throw new Error('Failed to fetch todos');
+				const url = `${API_BASE}/todos?userId=1&_page=${pageParam}&_limit=${PAGE_SIZE}`;
+				const response = await fetch(url);
+				if (!response.ok) {
+					throw new TodoError({
+						message: `Failed to fetch todos (HTTP ${response.status})`,
+						operation: 'fetch',
+					});
+				}
 				return response.json() as Promise<Todo[]>;
 			},
 			initialPageParam: 1,
@@ -49,7 +55,12 @@ export const TodosPage = define({
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({ title, completed: false, userId: 1 }),
 				});
-				if (!response.ok) throw new Error('Failed to add todo');
+				if (!response.ok) {
+					throw new TodoError({
+						message: `Failed to add todo (HTTP ${response.status})`,
+						operation: 'add',
+					});
+				}
 				return response.json() as Promise<Todo>;
 			},
 			onSuccess: (data) => {
@@ -480,7 +491,9 @@ export const TodosPage = define({
 					{computed(() =>
 						todosQuery.isError.value ? (
 							<div class="p-4 bg-red-500/10 text-red-400 border-t border-red-500/20 text-center text-sm">
-								{todosQuery.error.value?.message || 'Error loading todos'}
+								{isTaggedError(todosQuery.error.value)
+									? todosQuery.error.value.toString()
+									: todosQuery.error.value?.message || 'Error loading todos'}
 							</div>
 						) : null
 					)}

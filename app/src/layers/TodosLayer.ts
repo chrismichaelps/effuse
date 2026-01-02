@@ -1,4 +1,4 @@
-import { defineLayer, signal, computed } from '@effuse/core';
+import { defineLayer, signal, computed, isTaggedError } from '@effuse/core';
 import { todosStore } from '../store/todosStore';
 
 export const TodosLayer = defineLayer({
@@ -20,6 +20,7 @@ export const TodosLayer = defineLayer({
 		console.log('[TodosLayer] unmounted');
 	},
 	onError: (err) => {
-		console.error('[TodosLayer] error:', err.message);
+		const message = isTaggedError(err) ? err.toString() : err.message;
+		console.error('[TodosLayer] error:', message);
 	},
 });

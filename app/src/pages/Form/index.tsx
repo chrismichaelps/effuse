@@ -8,11 +8,13 @@ import {
 	For,
 	Suspense,
 	effect,
+	isTaggedError,
 } from '@effuse/core';
 import { useMutation } from '@effuse/query';
 import { DocsLayout } from '../../components/docs/DocsLayout';
 import type { i18nStore as I18nStoreType } from '../../store/appI18n';
 import { triggerHaptic } from '../../components/Haptics';
+import { FormSubmissionError } from '../../errors.js';
 import '../../styles/examples.css';
 
 interface Post {
@@ -67,7 +69,10 @@ export const FormDemoPage = define({
 					body: JSON.stringify(variables),
 				});
 				if (!response.ok) {
-					throw new Error('Failed to create post');
+					throw new FormSubmissionError({
+						message: `Failed to create post (HTTP ${response.status})`,
+						formId: 'create-post',
+					});
 				}
 				const result = (await response.json()) as Post;
 				return result;
@@ -83,8 +88,11 @@ export const FormDemoPage = define({
 			},
 			onError: (error: unknown) => {
 				console.log('[onError] Called with:', error);
-				const message =
-					error instanceof Error ? error.message : 'Unknown error';
+				const message = isTaggedError(error)
+					? error.toString()
+					: error instanceof Error
+						? error.message
+						: 'Unknown error';
 				submissionStatus.value = `Error: ${message}`;
 			},
 		});

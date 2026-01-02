@@ -1,4 +1,4 @@
-import { defineLayer } from '@effuse/core';
+import { defineLayer, isTaggedError } from '@effuse/core';
 import {
 	createRouter,
 	createWebHistory,
@@ -54,7 +54,8 @@ export const RouterLayer = defineLayer({
 		console.log('[RouterLayer] unmounted');
 	},
 	onError: (err) => {
-		console.error('[RouterLayer] error:', err.message);
+		const message = isTaggedError(err) ? err.toString() : err.message;
+		console.error('[RouterLayer] error:', message);
 	},
 	setup: (ctx) => {
 		installRouter(router);
