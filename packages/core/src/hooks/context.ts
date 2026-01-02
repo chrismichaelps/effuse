@@ -8,6 +8,7 @@ import {
 	traceHookCleanup,
 	traceHookDispose,
 } from '../layers/tracing/hooks.js';
+import { HookLayerNotReadyError } from './errors.js';
 import type {
 	HookContext,
 	HookCleanup,
@@ -80,17 +81,24 @@ export const createHookContext = <C, D extends readonly string[]>(
 		name: K
 	): LayerPropsOf<K> => {
 		if (!isLayerRuntimeReady()) {
-			return {} as LayerPropsOf<K>;
+			throw new HookLayerNotReadyError({
+				hookContext: 'layer',
+				layerName: name as string,
+			});
 		}
 		const layerCtx = getLayerContext(name as string);
 		return layerCtx.props as LayerPropsOf<K>;
 	};
 
+
 	const layerProvider = <K extends D[number] & keyof EffuseLayerRegistry>(
 		name: K
 	): LayerProvidesOf<K> => {
 		if (!isLayerRuntimeReady()) {
-			return {} as LayerProvidesOf<K>;
+			throw new HookLayerNotReadyError({
+				hookContext: 'layerProvider',
+				layerName: name as string,
+			});
 		}
 		const layerCtx = getLayerContext(name as string);
 		if (!layerCtx.provides) {
