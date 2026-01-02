@@ -98,7 +98,7 @@ export type LayerSetupFn<
 	P extends LayerProps = LayerProps,
 	D extends readonly string[] = readonly string[],
 	S = unknown,
-// eslint-disable-next-line @typescript-eslint/no-invalid-void-type -- void is valid for functions with no return
+	// eslint-disable-next-line @typescript-eslint/no-invalid-void-type -- void is valid for functions with no return
 > = (ctx: SetupContext<P, D, S>) => SetupResult | Promise<SetupResult> | void;
 
 export type LifecycleHook = () => void | Promise<void>;
@@ -175,12 +175,12 @@ export type AnyResolvedLayer = ResolvedLayer<any, any, any>;
  * ```
  */
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
-export interface EffuseLayerRegistry { }
+export interface EffuseLayerRegistry {}
 
 export type LayerPropsOf<K extends keyof EffuseLayerRegistry> =
 	EffuseLayerRegistry[K] extends { props: infer P extends LayerProps }
-	? P
-	: LayerProps;
+		? P
+		: LayerProps;
 
 export type LayerProvidesOf<K extends keyof EffuseLayerRegistry> =
 	EffuseLayerRegistry[K] extends { provides: infer S } ? S : unknown;
