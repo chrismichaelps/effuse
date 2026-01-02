@@ -61,7 +61,7 @@ export const App = define({
 
 ```typescript
 import { createApp } from '@effuse/core';
-import { InkProseLayer } from '@effuse/ink';
+import { InkLayer } from '@effuse/ink';
 import { App } from './App';
 import { router, installRouter } from './router';
 
@@ -72,7 +72,7 @@ installRouter(router);
 
 // 创建并挂载应用
 createApp(App)
-	.useLayers([InkProseLayer])
+	.useLayers([InkLayer])
 	.then((app) => app.mount('#app'));
 ```
 

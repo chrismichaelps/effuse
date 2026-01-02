@@ -4,11 +4,11 @@ title: Señales
 
 # Señales
 
-Las señales son la base del sistema de reactividad de Effuse. Se importan directamente de `@effuse/core`.
+Las señales son la base del sistema de reactividad de Effuse. Se importan directamente desde `@effuse/core`.
 
 ## Creando Señales
 
-Importa `signal` de `@effuse/core` para crear estado reactivo:
+Importa `signal` desde `@effuse/core` para crear estado reactivo:
 
 ```tsx
 import { define, signal, computed } from '@effuse/core';
@@ -18,7 +18,7 @@ export const Counter = define({
 		// Crear una señal con valor inicial
 		const count = signal(0);
 
-		// Crear estado derivado computado
+		// Crear estado derivado con computed
 		const doubleCount = computed(() => count.value * 2);
 
 		// Definir operaciones que mutan la señal
@@ -30,7 +30,7 @@ export const Counter = define({
 	},
 	template: ({ count, doubleCount, increment, decrement }) => (
 		<div>
-			<p>Contador: {count}</p>
+			<p>Cuenta: {count}</p>
 			<p>Doble: {doubleCount}</p>
 			<button onClick={decrement}>-</button>
 			<button onClick={increment}>+</button>
@@ -51,9 +51,9 @@ import { define, signal } from '@effuse/core';
 const ColorPicker = define({
 	script: () => {
 		// Primitivos
-		const color = signal('azul');
+		const color = signal('blue');
 		// Objetos/Arrays
-		const palette = signal(['rojo', 'azul', 'verde']);
+		const palette = signal(['red', 'blue', 'green']);
 
 		const updateColor = (newColor: string) => {
 			color.value = newColor; // Dispara actualizaciones
@@ -62,22 +62,22 @@ const ColorPicker = define({
 		return { color, palette, updateColor };
 	},
 	template: ({ color, updateColor }) => (
-		<button onClick={() => updateColor('rojo')}>Actual: {color}</button>
+		<button onClick={() => updateColor('red')}>Actual: {color}</button>
 	),
 });
 ```
 
-### 2. Señales Computadas
+### 2. Señales Computed
 
-Las señales computadas derivan su valor de otras señales. Se actualizan automáticamente cuando las dependencias cambian.
+Las señales computed derivan su valor de otras señales. Se actualizan automáticamente cuando las dependencias cambian.
 
 ```tsx
 import { define, signal, computed } from '@effuse/core';
 
 const GradientBox = define({
 	script: () => {
-		const startColor = signal('rojo');
-		const endColor = signal('azul');
+		const startColor = signal('red');
+		const endColor = signal('blue');
 
 		// Rastrea dependencias automáticamente
 		const gradient = computed(
@@ -87,7 +87,7 @@ const GradientBox = define({
 		return { gradient };
 	},
 	template: ({ gradient }) => (
-		<div style={`background: ${gradient.value}`}>Degradado</div>
+		<div style={`background: ${gradient.value}`}>Gradiente</div>
 	),
 });
 ```
@@ -103,9 +103,9 @@ const Logger = define({
 	script: ({ watch }) => {
 		const count = signal(0);
 
-		// Se ejecuta cada vez que count cambia
+		// Se ejecuta cuando count cambia
 		watch(count, (value) => {
-			console.log(`Contador cambió a: ${value}`);
+			console.log(`Count cambió a: ${value}`);
 		});
 
 		return { count, increment: () => count.value++ };
@@ -118,15 +118,15 @@ const Logger = define({
 
 ## Usando Señales en Templates
 
-Las señales se pueden usar directamente en JSX - actualizarán automáticamente el DOM:
+Las señales se pueden usar directamente en JSX - actualizarán el DOM automáticamente:
 
 ```tsx
 // Interpolación directa - se actualiza automáticamente
-<p>Contador: {count}</p>
+<p>Cuenta: {count}</p>
 
 // Clases dinámicas con funciones
 <button class={() => isActive.value ? 'active' : 'inactive'}>
-  Alternar
+  Toggle
 </button>
 
 // Renderizado condicional con computed
@@ -135,7 +135,50 @@ Las señales se pueden usar directamente en JSX - actualizarán automáticamente
 
 ## Mejores Prácticas
 
-1. **Importar Directamente**: Importa `signal` y `computed` directamente de `@effuse/core`
+1. **Importar Directamente**: Importa `signal` y `computed` directamente desde `@effuse/core`
 2. **Exponer Señales**: Retorna el objeto señal desde `script`, no solo el valor
-3. **Mutar en Manejadores**: Mantén la lógica de mutación de estado dentro de funciones manejadoras
-4. **Usar Computed**: Prefiere estado derivado sobre sincronización manual
+3. **Mutar en Handlers**: Mantén la lógica de mutación de estado dentro de handlers de funciones
+4. **Usar Computed Cuando Sea Necesario**: Prefiere estado derivado sobre sincronización manual
+
+## Optimizaciones del Compilador
+
+El compilador de Effuse maneja automáticamente muchos escenarios de reactividad:
+
+### Auto-Wrapping en Templates
+
+Cuando usas expresiones en templates, el compilador automáticamente las envuelve en señales computed. No necesitas envolver manualmente cada valor derivado:
+
+```tsx
+// El compilador maneja esto automáticamente
+template: ({ firstName, lastName }) => (
+  <p>Nombre Completo: {firstName} {lastName}</p>
+)
+
+// No se necesita computed() explícito en casos simples
+// El compilador optimizará el binding
+```
+
+### Cuándo Usar `computed()` Explícito
+
+Usa `computed()` explícito cuando:
+
+1. **Estado derivado complejo** - Múltiples señales combinadas con lógica
+2. **Retornado desde script** - Para valores expuestos a múltiples consumidores
+3. **Optimización de rendimiento** - Para cachear cálculos costosos
+
+```tsx
+script: () => {
+  const items = signal<Item[]>([]);
+  const filter = signal('all');
+
+  // Computed explícito para lógica compleja retornada al template
+  const filteredItems = computed(() => {
+    const f = filter.value;
+    return items.value.filter(item =>
+      f === 'all' ? true : item.status === f
+    );
+  });
+
+  return { filteredItems, filter };
+}
+```

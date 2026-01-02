@@ -14,6 +14,8 @@
 		"coreConceptsTitle": "Conceptos Básicos",
 		"components": "Componentes",
 		"reactivity": "Reactividad",
+		"hooks": "Hooks",
+		"layers": "Capas",
 		"lifecycle": "Ciclo de Vida",
 		"advancedTitle": "Avanzado",
 		"routing": "Enrutamiento",
@@ -48,7 +50,15 @@
 		"role": "Creador @ Effuse",
 		"location": "New York, USA ⇄ Puerto Rico",
 		"languages": "Inglés, Español",
-		"projects": ["core", "i18n", "ink", "query", "router", "store", "compiler"],
+		"projects": [
+			"core",
+			"i18n",
+			"ink",
+			"query",
+			"router",
+			"store",
+			"compiler"
+		],
 		"focusTitle": "Enfoque Activo",
 		"meta": {
 			"title": "Sobre Mí - Effuse",

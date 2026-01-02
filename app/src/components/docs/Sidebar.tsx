@@ -70,12 +70,15 @@ const sectionsConfig: NavSection[] = [
 		items: [
 			{ labelKey: 'components', href: '/docs/components' },
 			{ labelKey: 'reactivity', href: '/docs/signals' },
+			{ labelKey: 'hooks', href: '/docs/hooks' },
+			{ labelKey: 'layers', href: '/docs/layers' },
 			{ labelKey: 'lifecycle', href: '/docs/effects' },
 			{ labelKey: 'form', href: '/docs/use-form' },
 			{ labelKey: 'events', href: '/docs/emit' },
 		],
 		isOpen: true,
 	},
+
 	{
 		key: 'Advanced',
 		titleKey: 'advanced',
