@@ -22,23 +22,21 @@
  * SOFTWARE.
  */
 
-import { Data } from 'effect';
+import { TaggedError } from './tagged.js';
 
-export class RenderError extends Data.TaggedError('RenderError')<{
+export class RenderError extends TaggedError('RenderError')<{
 	readonly message: string;
 	readonly node?: unknown;
 	readonly element?: unknown;
-}> {
-	override toString(): string {
-		return `RenderError: ${this.message}`;
-	}
-}
+}> {}
 
-export class MountError extends Data.TaggedError('MountError')<{
+export class MountError extends TaggedError('MountError')<{
 	readonly message: string;
 	readonly target?: string | Element;
-}> {
-	override toString(): string {
-		return `MountError: ${this.message}`;
-	}
-}
+}> {}
+
+export class BlueprintError extends TaggedError('BlueprintError')<{
+	readonly message: string;
+	readonly blueprint?: unknown;
+	readonly props?: unknown;
+}> {}
