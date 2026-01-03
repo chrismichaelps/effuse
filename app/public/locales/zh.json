@@ -28,7 +28,8 @@
 		"props": "Props 传参",
 		"i18n": "国际化",
 		"emit": "Emit",
-		"events": "Emit"
+		"events": "Emit",
+		"errorHandling": "错误处理"
 	},
 	"toc": {
 		"onThisPage": "本页目录"

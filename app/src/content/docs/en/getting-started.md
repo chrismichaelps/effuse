@@ -4,7 +4,7 @@ title: Getting Started
 
 # Getting Started with Effuse
 
-Welcome to **Effuse**, a modern reactive UI framework built with TypeScript and [Effect](https://effect.website).
+Welcome to **Effuse**, a modern reactive UI framework built with TypeScript.
 
 ## What is Effuse?
 
@@ -12,7 +12,7 @@ Effuse is a signal-based UI framework that combines the best ideas from modern f
 
 - **Fine-grained reactivity** — Only the DOM nodes that depend on changed data are updated
 - **Type-safe components** — Full TypeScript support with inferred types
-- **Effect-powered** — Built on Effect for robust async and error handling
+- **Robustness** — Built for reliable async and error handling
 - **Composable architecture** — Layers and plugins for extensibility
 
 ## Quick Example

@@ -4,7 +4,7 @@ title: Primeros Pasos
 
 # Primeros Pasos con Effuse
 
-Bienvenido a **Effuse**, un framework de UI reactivo moderno construido con TypeScript y [Effect](https://effect.website).
+Bienvenido a **Effuse**, un moderno framework de UI reactivo construido con TypeScript.
 
 ## ¿Qué es Effuse?
 
@@ -12,7 +12,7 @@ Effuse es un framework de UI basado en señales que combina las mejores ideas de
 
 - **Reactividad de grano fino** — Solo los nodos del DOM que dependen de datos modificados se actualizan
 - **Componentes seguros con tipos** — Soporte completo de TypeScript con tipos inferidos
-- **Potenciado por Effect** — Construido sobre Effect para manejo robusto de operaciones asíncronas y errores
+- **Robustez** — Diseñado para una gestión fiable de tareas asíncronas y errores
 - **Arquitectura componible** — Capas y plugins para extensibilidad
 
 ## Ejemplo Rápido

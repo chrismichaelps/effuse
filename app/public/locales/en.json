@@ -28,7 +28,8 @@
 		"props": "Props",
 		"i18n": "I18n",
 		"emit": "Emit",
-		"events": "Emit"
+		"events": "Emit",
+		"errorHandling": "Error Handling"
 	},
 	"toc": {
 		"onThisPage": "On this page"

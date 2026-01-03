@@ -43,6 +43,7 @@ interface Translations {
 		i18n: string;
 		emit: string;
 		events: string;
+		errorHandling: string;
 	};
 	toc: {
 		onThisPage: string;

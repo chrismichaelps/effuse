@@ -28,7 +28,8 @@
 		"props": "Props (プロパティ)",
 		"i18n": "国際化",
 		"emit": "Emit",
-		"events": "Emit"
+		"events": "Emit",
+		"errorHandling": "エラーハンドリング"
 	},
 	"toc": {
 		"onThisPage": "このページの内容"

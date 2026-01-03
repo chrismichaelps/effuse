@@ -1,19 +1,19 @@
 ---
-title: Effuse 快速入门
+title: Effuse 入门
 ---
 
-# Effuse 快速入门
+# Effuse 入门
 
-欢迎使用 **Effuse**，这是一个基于 TypeScript 和 [Effect](https://effect.website) 构建的现代响应式 UI 框架。
+欢迎使用 **Effuse**，这是一个使用 TypeScript 构建的现代响应式 UI 框架。
 
 ## 什么是 Effuse？
 
-Effuse 是一个基于信号的 UI 框架，结合了现代前端开发的最佳实践：
+Effuse 是一个基于信号（signal-based）的 UI 框架，它结合了现代前端开发中的最佳理念：
 
-- **细粒度响应式** — 只有依赖于已更改数据的 DOM 节点才会更新
-- **类型安全组件** — 完整的 TypeScript 支持和类型推断
-- **Effect 驱动** — 构建于 Effect 之上，提供健壮的异步和错误处理
-- **可组合架构** — 通过层和插件实现可扩展性
+- **细粒度响应式** — 仅更新依赖于已更改数据的 DOM 节点
+- **类型安全的组件** — 具有推断类型的完整 TypeScript 支持
+- **健壮性** — 专为可靠的异步和错误处理而设计
+- **可组合架构** — 支持扩展性的层（Layers）和插件实现可扩展性
 
 ## 快速示例
 
