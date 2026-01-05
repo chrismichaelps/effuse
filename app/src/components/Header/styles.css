@@ -162,6 +162,12 @@
 	display: none;
 }
 
+.header-search-wrapper {
+	display: flex;
+	align-items: center;
+	margin: 0 0.5rem;
+}
+
 .header-desktop-actions {
 	display: none;
 	align-items: center;
