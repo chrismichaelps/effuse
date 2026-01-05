@@ -37,6 +37,22 @@
 	"footer": {
 		"builtWith": "Construido con Effuse"
 	},
+	"search": {
+		"placeholder": "Buscar documentación...",
+		"startTyping": "Empieza a escribir para buscar",
+		"searchAcross": "Buscar en toda la documentación",
+		"noResults": "Sin resultados",
+		"tryDifferent": "Intenta con un término diferente",
+		"toNavigate": "para navegar",
+		"toSelect": "para seleccionar",
+		"poweredBy": "Impulsado por Effuse Search",
+		"documentation": "Documentación",
+		"resultCode": "código",
+		"resultTitle": "título",
+		"resultSection": "sección",
+		"poweredByPrefix": "Impulsado por",
+		"poweredBySuffix": "Effuse Search"
+	},
 	"about": {
 		"title": "Conoce al Equipo",
 		"description": "Effuse está impulsado por una comunidad de desarrolladores dedicados a construir el futuro de las aplicaciones web reactivas. Conoce a algunos de los colaboradores que dan forma al ecosistema a continuación.",

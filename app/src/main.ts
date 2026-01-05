@@ -8,6 +8,7 @@ import {
 	TodosLayer,
 	DocsLayer,
 	LayoutLayer,
+	SearchLayer,
 } from './layers';
 import './styles.css';
 
@@ -20,7 +21,9 @@ createApp(App)
 		SidebarLayer,
 		DocsLayer,
 		TodosLayer,
+		SearchLayer,
 	])
+
 	.then((app) => {
 		app
 			.mount('#app', {

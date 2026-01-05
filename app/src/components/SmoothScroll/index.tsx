@@ -1,6 +1,12 @@
 import { define } from '@effuse/core';
 import Lenis from 'lenis';
 
+declare global {
+	interface Window {
+		__lenis?: Lenis;
+	}
+}
+
 export const SmoothScroll = define({
 	script: ({ onMount }) => {
 		onMount(() => {
@@ -12,6 +18,8 @@ export const SmoothScroll = define({
 				smoothWheel: true,
 			});
 
+			window.__lenis = lenis;
+
 			function raf(time: number) {
 				lenis.raf(time);
 				requestAnimationFrame(raf);
@@ -21,6 +29,7 @@ export const SmoothScroll = define({
 
 			return () => {
 				lenis.destroy();
+				window.__lenis = undefined;
 			};
 		});
 

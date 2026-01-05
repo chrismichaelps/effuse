@@ -51,6 +51,22 @@ interface Translations {
 	footer: {
 		builtWith: string;
 	};
+	search: {
+		placeholder: string;
+		startTyping: string;
+		searchAcross: string;
+		noResults: string;
+		tryDifferent: string;
+		toNavigate: string;
+		toSelect: string;
+		poweredBy: string;
+		documentation: string;
+		resultCode: string;
+		resultTitle: string;
+		resultSection: string;
+		poweredByPrefix: string;
+		poweredBySuffix: string;
+	};
 	about: {
 		title: string;
 		description: string;

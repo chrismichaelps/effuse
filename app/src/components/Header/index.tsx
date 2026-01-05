@@ -7,6 +7,8 @@ import {
 import { Link, useRoute } from '@effuse/router';
 import { HamburgerButton } from '../HamburgerButton';
 import { LanguageSelector } from '../docs/LanguageSelector';
+import { SearchTrigger } from '../SearchTrigger';
+import { SearchModal } from '../SearchModal';
 import { useToggle } from '../../hooks/index.js';
 import type { i18nStore as I18nStoreType } from '../../store/appI18n';
 import './styles.css';
@@ -64,94 +66,106 @@ export const Header = define<Record<string, never>, HeaderExposed>({
 		docsLabel,
 		aboutLabel,
 	}) => (
-		<header class="header-main">
-			<div
-				class={() => `header-container ${isDocsPath.value ? 'docs-mode' : ''}`}
-			>
-				<div class="header-inner">
-					<div class="header-left">
-						<Link to="/" class="header-brand">
-							<img
-								src="/logo/logo-white.svg"
-								alt="Effuse Logo"
-								class="header-brand-logo"
-							/>
-							<span class="header-brand-text">Effuse</span>
-						</Link>
+		<>
+			<header class="header-main">
+				<div
+					class={() =>
+						`header-container ${isDocsPath.value ? 'docs-mode' : ''}`
+					}
+				>
+					<div class="header-inner">
+						<div class="header-left">
+							<Link to="/" class="header-brand">
+								<img
+									src="/logo/logo-white.svg"
+									alt="Effuse Logo"
+									class="header-brand-logo"
+								/>
+								<span class="header-brand-text">Effuse</span>
+							</Link>
+						</div>
+
+						<div class="header-right">
+							<nav class="header-nav">
+								<Link
+									to="/docs"
+									class="header-nav-link"
+									activeClass="header-nav-link-active"
+									exactActiveClass="header-nav-link-active"
+								>
+									{docsLabel}
+								</Link>
+								<Link
+									to="/about"
+									class="header-nav-link"
+									activeClass="header-nav-link-active"
+									exactActiveClass="header-nav-link-active"
+								>
+									{aboutLabel}
+								</Link>
+							</nav>
+
+							<div class="header-search-wrapper">
+								<SearchTrigger />
+							</div>
+
+							<div
+								class={() =>
+									`header-desktop-actions ${isDocsPath.value ? 'visible' : 'hidden'}`
+								}
+							>
+								<div class="header-divider"></div>
+								<div class="header-lang-wrapper">
+									<LanguageSelector />
+								</div>
+								<div class="header-divider"></div>
+							</div>
+
+							<div class="md:hidden">
+								<HamburgerButton
+									isOpen={mobileMenuOpen}
+									onToggle={toggleMenu}
+								/>
+							</div>
+						</div>
 					</div>
 
-					<div class="header-right">
-						<nav class="header-nav">
+					<nav
+						class={() =>
+							`header-mobile-menu ${mobileMenuOpen.value ? 'open' : 'closed'}`
+						}
+					>
+						<div class="header-mobile-row">
 							<Link
 								to="/docs"
-								class="header-nav-link"
-								activeClass="header-nav-link-active"
-								exactActiveClass="header-nav-link-active"
+								class="header-mobile-link"
+								activeClass="header-mobile-link-active"
+								exactActiveClass="header-mobile-link-active"
+								onClick={toggleMenu}
 							>
 								{docsLabel}
 							</Link>
 							<Link
 								to="/about"
-								class="header-nav-link"
-								activeClass="header-nav-link-active"
-								exactActiveClass="header-nav-link-active"
+								class="header-mobile-link"
+								activeClass="header-mobile-link-active"
+								exactActiveClass="header-mobile-link-active"
+								onClick={toggleMenu}
 							>
 								{aboutLabel}
 							</Link>
-						</nav>
-
-						<div
-							class={() =>
-								`header-desktop-actions ${isDocsPath.value ? 'visible' : 'hidden'}`
-							}
-						>
-							<div class="header-divider"></div>
-							<div class="header-lang-wrapper">
-								<LanguageSelector />
+							<div
+								class={() =>
+									`header-lang-mobile ${isDocsPath.value ? 'visible' : 'hidden'}`
+								}
+							>
+								<LanguageSelector isMobile />
 							</div>
-							<div class="header-divider"></div>
 						</div>
-
-						<div class="md:hidden">
-							<HamburgerButton isOpen={mobileMenuOpen} onToggle={toggleMenu} />
-						</div>
-					</div>
+					</nav>
 				</div>
-
-				<nav
-					class={() =>
-						`header-mobile-menu ${mobileMenuOpen.value ? 'open' : 'closed'}`
-					}
-				>
-					<div class="header-mobile-row">
-						<Link
-							to="/docs"
-							class="header-mobile-link"
-							activeClass="header-mobile-link-active"
-							exactActiveClass="header-mobile-link-active"
-							onClick={toggleMenu}
-						>
-							{docsLabel}
-						</Link>
-						<Link
-							to="/about"
-							class="header-mobile-link"
-							activeClass="header-mobile-link-active"
-							exactActiveClass="header-mobile-link-active"
-							onClick={toggleMenu}
-						>
-							{aboutLabel}
-						</Link>
-						<div
-							class={() =>
-								`header-lang-mobile ${isDocsPath.value ? 'visible' : 'hidden'}`
-							}
-						>
-							<LanguageSelector isMobile />
-						</div>
-					</div>
-				</nav>
-			</div>
-		</header>
+			</header>
+			<SearchModal />
+		</>
 	),
 });

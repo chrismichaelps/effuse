@@ -37,6 +37,22 @@
 	"footer": {
 		"builtWith": "基于 Effuse 构建"
 	},
+	"search": {
+		"placeholder": "搜索文档...",
+		"startTyping": "开始输入以搜索",
+		"searchAcross": "搜索所有文档",
+		"noResults": "未找到结果",
+		"tryDifferent": "尝试不同的搜索词",
+		"toNavigate": "导航",
+		"toSelect": "选择",
+		"poweredBy": "由 Effuse Search 提供支持",
+		"documentation": "文档",
+		"resultCode": "代码",
+		"resultTitle": "标题",
+		"resultSection": "章节",
+		"poweredByPrefix": "由",
+		"poweredBySuffix": "Effuse Search 提供支持"
+	},
 	"about": {
 		"title": "遇见团队",
 		"description": "Effuse 由致力于构建下一代响应式 Web 应用的开发者社区驱动。以下是塑造该生态系统的核心贡献者。",
