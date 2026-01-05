@@ -150,8 +150,8 @@ export namespace JSX {
 		className?: string | (() => string | undefined | null);
 		style?:
 			| string
-			| Record<string, string | number>
-			| (() => Record<string, string | number>);
+			| Partial<CSSStyleDeclaration>
+			| (() => string | Partial<CSSStyleDeclaration>);
 		id?: string | (() => string);
 		title?: string | (() => string);
 		tabIndex?: number;
