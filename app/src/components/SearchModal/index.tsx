@@ -3,6 +3,7 @@ import {
 	computed,
 	effect,
 	For,
+	Portal,
 	type Signal,
 	type ReadonlySignal,
 } from '@effuse/core';
@@ -178,123 +179,130 @@ export const SearchModal = define<Record<string, never>, SearchModalExposed>({
 		showResults,
 		t,
 	}) => (
-		<div
-			class={() => `search-modal-backdrop ${isOpen?.value ? '' : 'hidden'}`}
-			onClick={handleBackdropClick}
-		>
-			<div class="search-modal">
-				<div class="search-input-wrapper">
-					<img src="/icons/search.svg" alt="" class="search-icon" />
-					<input
-						type="text"
-						class="search-input"
-						placeholder={t.value?.placeholder}
-						value={query}
-						onInput={handleInput}
-						autofocus
-					/>
-					<kbd class="search-kbd">ESC</kbd>
-				</div>
-
-				<div class="search-results" data-lenis-prevent>
-					<div class={() => (showLoading.value ? '' : 'hidden')}>
-						<div class="search-loading">
-							<div class="search-loading-spinner"></div>
-						</div>
-					</div>
-
-					<div class={() => (showNoResults.value ? '' : 'hidden')}>
-						<div class="search-empty">
-							<img
-								src="/icons/search-empty.svg"
-								alt=""
-								class="search-empty-icon"
-							/>
-							<div class="search-empty-title"> {t.value?.noResults}</div>
-							<div class="search-empty-subtitle"> {t.value?.tryDifferent}</div>
-						</div>
-					</div>
-
-					<div class={() => (showEmptyState.value ? '' : 'hidden')}>
-						<div class="search-empty">
-							<img src="/icons/plus.svg" alt="" class="search-empty-icon" />
-							<div class="search-empty-title"> {t.value?.startTyping}</div>
-							<div class="search-empty-subtitle"> {t.value?.searchAcross}</div>
-						</div>
-					</div>
-
-					<div
-						class={() => (showResults.value ? 'search-results-list' : 'hidden')}
-					>
-						<For
-							each={results as Signal<SearchResultItem[]>}
-							keyExtractor={(item) => item.id}
-						>
-							{(result, index) => (
-								<div
-									class={() =>
-										`search-result-item ${selectedIndex?.value === index.value ? 'selected' : ''}`
-									}
-									onClick={() => handleResultClick(result.value)}
-								>
-									<div class="search-result-heading">
-										{computed(
-											() => result.value.heading ?? t.value?.documentation
-										)}
-										<span class="search-result-badges">
-											{result.value.matchedIn === 'code' ? (
-												<span class="search-result-badge code">
-													{t.value?.resultCode}
-												</span>
-											) : null}
-											{result.value.matchedIn === 'title' ? (
-												<span class="search-result-badge title">
-													{t.value?.resultTitle}
-												</span>
-											) : null}
-											{result.value.matchedIn === 'heading' ? (
-												<span class="search-result-badge heading">
-													{t.value?.resultSection}
-												</span>
-											) : null}
-										</span>
-									</div>
-									{result.value.matchedIn === 'code' ? (
-										<pre class="search-result-text code-match">
-											{result.value.text}
-										</pre>
-									) : (
-										<div class="search-result-text">{result.value.text}</div>
-									)}
-								</div>
-							)}
-						</For>
-					</div>
-				</div>
-
-				<div class="search-footer">
-					<div class="search-footer-actions">
-						<span class="search-footer-action">
-							<kbd>↑</kbd>
-							<kbd>↓</kbd>
-							{t.value?.toNavigate}
-						</span>
-						<span class="search-footer-action">
-							<kbd>↵</kbd>
-							{t.value?.toSelect}
-						</span>
-					</div>
-					<div class="search-footer-powered">
-						<span>{t.value?.poweredByPrefix}</span>
-						<img
-							src="/logo/logo-white.svg"
-							alt="Effuse"
-							class="search-footer-logo"
+		<Portal target="body" priority="overlay" key="search-modal">
+			<div
+				class={() => `search-modal-backdrop ${isOpen?.value ? '' : 'hidden'}`}
+				onClick={handleBackdropClick}
+			>
+				<div class="search-modal">
+					<div class="search-input-wrapper">
+						<img src="/icons/search.svg" alt="" class="search-icon" />
+						<input
+							type="text"
+							class="search-input"
+							placeholder={t.value?.placeholder}
+							value={query}
+							onInput={handleInput}
+							autofocus
 						/>
-						<span>{t.value?.poweredBySuffix}</span>
+						<kbd class="search-kbd">ESC</kbd>
+					</div>
+
+					<div class="search-results" data-lenis-prevent>
+						<div class={() => (showLoading.value ? '' : 'hidden')}>
+							<div class="search-loading">
+								<div class="search-loading-spinner"></div>
+							</div>
+						</div>
+
+						<div class={() => (showNoResults.value ? '' : 'hidden')}>
+							<div class="search-empty">
+								<img
+									src="/icons/search-empty.svg"
+									alt=""
+									class="search-empty-icon"
+								/>
+								<div class="search-empty-title"> {t.value?.noResults}</div>
+								<div class="search-empty-subtitle">{t.value?.tryDifferent}</div>
+							</div>
+						</div>
+
+						<div class={() => (showEmptyState.value ? '' : 'hidden')}>
+							<div class="search-empty">
+								<img src="/icons/plus.svg" alt="" class="search-empty-icon" />
+								<div class="search-empty-title"> {t.value?.startTyping}</div>
+								<div class="search-empty-subtitle">
+									{' '}
+									{t.value?.searchAcross}
+								</div>
+							</div>
+						</div>
+
+						<div
+							class={() =>
+								showResults.value ? 'search-results-list' : 'hidden'
+							}
+						>
+							<For
+								each={results as Signal<SearchResultItem[]>}
+								keyExtractor={(item) => item.id}
+							>
+								{(result, index) => (
+									<div
+										class={() =>
+											`search-result-item ${selectedIndex?.value === index.value ? 'selected' : ''}`
+										}
+										onClick={() => handleResultClick(result.value)}
+									>
+										<div class="search-result-heading">
+											{computed(
+												() => result.value.heading ?? t.value?.documentation
+											)}
+											<span class="search-result-badges">
+												{result.value.matchedIn === 'code' ? (
+													<span class="search-result-badge code">
+														{t.value?.resultCode}
+													</span>
+												) : null}
+												{result.value.matchedIn === 'title' ? (
+													<span class="search-result-badge title">
+														{t.value?.resultTitle}
+													</span>
+												) : null}
+												{result.value.matchedIn === 'heading' ? (
+													<span class="search-result-badge heading">
+														{t.value?.resultSection}
+													</span>
+												) : null}
+											</span>
+										</div>
+										{result.value.matchedIn === 'code' ? (
+											<pre class="search-result-text code-match">
+												{result.value.text}
+											</pre>
+										) : (
+											<div class="search-result-text">{result.value.text}</div>
+										)}
+									</div>
+								)}
+							</For>
+						</div>
+					</div>
+
+					<div class="search-footer">
+						<div class="search-footer-actions">
+							<span class="search-footer-action">
+								<kbd>↑</kbd>
+								<kbd>↓</kbd>
+								{t.value?.toNavigate}
+							</span>
+							<span class="search-footer-action">
+								<kbd>↵</kbd>
+								{t.value?.toSelect}
+							</span>
+						</div>
+						<div class="search-footer-powered">
+							<span>{t.value?.poweredByPrefix}</span>
+							<img
+								src="/logo/logo-white.svg"
+								alt="Effuse"
+								class="search-footer-logo"
+							/>
+							<span>{t.value?.poweredBySuffix}</span>
+						</div>
 					</div>
 				</div>
 			</div>
-		</div>
+		</Portal>
 	),
 });
