@@ -35,6 +35,17 @@ declare module '../../../packages/core/src/layers/types.js' {
 			};
 			provides: { todosStore: unknown };
 		};
+		search: {
+			props: {
+				isOpen: Signal<boolean>;
+				query: Signal<string>;
+				results: Signal<readonly unknown[]>;
+				isLoading: Signal<boolean>;
+				selectedIndex: Signal<number>;
+				error: Signal<string | null>;
+			};
+			provides: { search: unknown };
+		};
 	}
 }
 
