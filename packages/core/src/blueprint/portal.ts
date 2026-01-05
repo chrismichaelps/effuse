@@ -25,6 +25,7 @@
 import { Context, Effect, Layer, Ref } from 'effect';
 import type { EffuseChild } from '../render/node.js';
 import { render } from '../render/index.js';
+import { define } from './define.js';
 
 export interface PortalContainer {
 	readonly id: string;
@@ -145,19 +146,16 @@ export const PortalServiceLive = Layer.effect(
 
 let globalPortalService: PortalServiceInterface | null = null;
 
-// Update global portal service
 export const setGlobalPortalService = (
 	service: PortalServiceInterface
 ): void => {
 	globalPortalService = service;
 };
 
-// Access global portal service
 export const getGlobalPortalService = (): PortalServiceInterface | null => {
 	return globalPortalService;
 };
 
-// Build application portal
 export const createPortal = (
 	content: EffuseChild,
 	target: string | Element
@@ -176,22 +174,18 @@ export const createPortal = (
 
 const namedOutlets = new Map<string, Element>();
 
-// Initialize portal outlet
 export const registerPortalOutlet = (name: string, element: Element): void => {
 	namedOutlets.set(name, element);
 };
 
-// Remove portal outlet
 export const unregisterPortalOutlet = (name: string): void => {
 	namedOutlets.delete(name);
 };
 
-// Access portal outlet
 export const getPortalOutlet = (name: string): Element | undefined => {
 	return namedOutlets.get(name);
 };
 
-// Initialize named portal rendering
 export const renderToNamedPortal = (
 	name: string,
 	content: EffuseChild
@@ -203,25 +197,162 @@ export const renderToNamedPortal = (
 	return createPortal(content, outlet);
 };
 
-// Build portal component
-export const Portal = (props: {
-	target: string | Element;
-	children: EffuseChild;
-}): null => {
-	const result = createPortal(props.children, props.target);
+const portalCleanups = new Map<string, () => void>();
+let portalIdCounter = 0;
 
-	if (typeof window !== 'undefined') {
-		queueMicrotask(() => {
-			const cleanup = result.cleanup;
-			window.addEventListener(
-				'beforeunload',
-				() => {
-					cleanup();
-				},
-				{ once: true }
-			);
-		});
-	}
+export type PortalInsertMode = 'append' | 'prepend' | 'replace';
 
-	return null;
+export type PortalPriority = 'low' | 'normal' | 'high' | 'overlay' | number;
+
+export const PORTAL_PRIORITY = {
+	LOW: 100,
+	NORMAL: 1000,
+	HIGH: 10000,
+	OVERLAY: 100000,
+	DEFAULT: 1000,
+} as const;
+
+const PRIORITY_VALUES: Record<string, number> = {
+	low: PORTAL_PRIORITY.LOW,
+	normal: PORTAL_PRIORITY.NORMAL,
+	high: PORTAL_PRIORITY.HIGH,
+	overlay: PORTAL_PRIORITY.OVERLAY,
 };
+
+export interface PortalProps {
+	target: string | Element | (() => string | Element | null);
+	children: EffuseChild;
+	disabled?: boolean | (() => boolean);
+	insertMode?: PortalInsertMode;
+	priority?: PortalPriority;
+	onMount?: (element: Element) => void;
+	onUnmount?: () => void;
+	useShadow?: boolean;
+	key?: string;
+}
+
+export const Portal = define<PortalProps>({
+	script: ({ props, onMount, signal }) => {
+		const isMounted = signal(false);
+
+		onMount(() => {
+			if (typeof window === 'undefined') return () => {};
+
+			const isDisabled =
+				typeof props.disabled === 'function'
+					? props.disabled()
+					: (props.disabled ?? false);
+
+			if (isDisabled) {
+				isMounted.value = true;
+				return () => {
+					isMounted.value = false;
+				};
+			}
+
+			const resolveTarget = (): Element | null => {
+				const target =
+					typeof props.target === 'function' ? props.target() : props.target;
+				if (!target) return null;
+				return typeof target === 'string'
+					? document.querySelector(target)
+					: target;
+			};
+
+			const targetElement = resolveTarget();
+
+			if (!targetElement) {
+				console.warn(`[Effuse Portal] Target not found:`, props.target);
+				return () => {};
+			}
+
+			const portalId = props.key ?? `portal-${++portalIdCounter}`;
+
+			const existingCleanup = portalCleanups.get(portalId);
+			if (existingCleanup) {
+				existingCleanup();
+			}
+
+			let renderTarget: Element | ShadowRoot = targetElement;
+			if (props.useShadow && targetElement.attachShadow) {
+				try {
+					renderTarget =
+						targetElement.shadowRoot ??
+						targetElement.attachShadow({ mode: 'open' });
+				} catch {
+					renderTarget = targetElement;
+				}
+			}
+
+			const container = document.createElement('div');
+			container.setAttribute('data-portal', portalId);
+
+			if (props.priority !== undefined) {
+				const zIndex =
+					typeof props.priority === 'number'
+						? props.priority
+						: (PRIORITY_VALUES[props.priority] ?? PORTAL_PRIORITY.DEFAULT);
+				container.style.position = 'relative';
+				container.style.zIndex = String(zIndex);
+			}
+
+			const insertMode = props.insertMode ?? 'append';
+			if (insertMode === 'prepend') {
+				renderTarget.insertBefore(container, renderTarget.firstChild);
+			} else if (insertMode === 'replace') {
+				(renderTarget as Element).innerHTML = '';
+				renderTarget.appendChild(container);
+			} else {
+				renderTarget.appendChild(container);
+			}
+
+			const cleanup = render(props.children, container);
+			portalCleanups.set(portalId, cleanup);
+
+			isMounted.value = true;
+			props.onMount?.(targetElement);
+
+			return () => {
+				cleanup();
+				container.remove();
+				portalCleanups.delete(portalId);
+				isMounted.value = false;
+				props.onUnmount?.();
+			};
+		});
+
+		return { isMounted };
+	},
+	template: () => {
+		return null;
+	},
+});
+
+export const PortalOutlet = define<{ name: string; class?: string }>({
+	script: ({ props, onMount }) => {
+		onMount(() => {
+			const outletId = `portal-outlet-${props.name}`;
+			let outletElement = document.getElementById(outletId);
+
+			if (!outletElement) {
+				outletElement = document.createElement('div');
+				outletElement.id = outletId;
+				outletElement.setAttribute('data-portal-outlet', props.name);
+				if (props.class) {
+					outletElement.className = props.class;
+				}
+				document.body.appendChild(outletElement);
+			}
+
+			registerPortalOutlet(props.name, outletElement);
+
+			return () => {
+				unregisterPortalOutlet(props.name);
+				outletElement?.remove();
+			};
+		});
+
+		return {};
+	},
+	template: () => null,
+});

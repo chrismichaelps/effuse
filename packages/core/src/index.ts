@@ -174,6 +174,7 @@ export {
 	PortalService,
 	PortalServiceLive,
 	Portal,
+	PortalOutlet,
 	createPortal,
 	registerPortalOutlet,
 	unregisterPortalOutlet,
@@ -183,6 +184,10 @@ export {
 	getGlobalPortalService,
 	type PortalServiceInterface,
 	type PortalContainer,
+	type PortalProps,
+	type PortalInsertMode,
+	type PortalPriority,
+	PORTAL_PRIORITY,
 } from './blueprint/index.js';
 
 export {
