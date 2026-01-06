@@ -18,6 +18,7 @@ import { NotFoundPage } from '../pages/NotFound';
 import { I18nPage } from '../pages/I18n';
 import { AboutPage } from '../pages/About';
 import { EmitDemoPage } from '../pages/Emit';
+import { ContextPage } from '../pages/Context';
 
 const routes: RouteRecord[] = [
 	{ path: '/', name: 'home', component: HomePage },
@@ -33,6 +34,7 @@ const routes: RouteRecord[] = [
 	{ path: '/props', name: 'props', component: PropsPage },
 	{ path: '/i18n', name: 'i18n', component: I18nPage },
 	{ path: '/emit', name: 'emit-demo', component: EmitDemoPage },
+	{ path: '/context', name: 'context-demo', component: ContextPage },
 	{ path: '*', name: 'not-found', component: NotFoundPage },
 ];
 
