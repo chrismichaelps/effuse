@@ -22,18 +22,91 @@
  * SOFTWARE.
  */
 
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+import { Effect, Either, Option } from 'effect';
 import type { AnyResolvedLayer } from '../types.js';
+import { CircularDependencyError } from '../errors.js';
 
 export interface TopologyLevel {
 	readonly level: number;
 	readonly layers: readonly AnyResolvedLayer[];
 }
 
-export const buildTopologyLevels = (
+type LayerMap = Map<string, AnyResolvedLayer>;
+
+const enum NodeState {
+	Unvisited = 0,
+	Visiting = 1,
+	Visited = 2,
+}
+
+const detectCycle = (
+	node: string,
+	layerMap: LayerMap,
+	state: Map<string, NodeState>,
+	path: string[]
+): Option.Option<readonly string[]> => {
+	state.set(node, NodeState.Visiting);
+	path.push(node);
+
+	const layer = layerMap.get(node);
+	const deps = (layer?.dependencies as string[] | undefined) ?? [];
+
+	for (const dep of deps) {
+		const depState = state.get(dep) ?? NodeState.Unvisited;
+
+		if (depState === NodeState.Visiting) {
+			const cycleStart = path.indexOf(dep);
+			return Option.some(path.slice(cycleStart));
+		}
+
+		if (depState === NodeState.Unvisited && layerMap.has(dep)) {
+			const cycle = detectCycle(dep, layerMap, state, path);
+			if (Option.isSome(cycle)) {
+				return cycle;
+			}
+		}
+	}
+
+	path.pop();
+	state.set(node, NodeState.Visited);
+	return Option.none();
+};
+
+const detectCircularDependencies = (
+	layers: readonly AnyResolvedLayer[]
+): Effect.Effect<void, CircularDependencyError> =>
+	Effect.gen(function* () {
+		const layerMap: LayerMap = new Map();
+		for (const layer of layers) {
+			layerMap.set(layer.name, layer);
+		}
+
+		const state = new Map<string, NodeState>();
+
+		for (const layer of layers) {
+			if (
+				(state.get(layer.name) ?? NodeState.Unvisited) === NodeState.Unvisited
+			) {
+				const cycle = detectCycle(layer.name, layerMap, state, []);
+
+				if (Option.isSome(cycle)) {
+					const cyclePath = cycle.value;
+					const lastNode = cyclePath[cyclePath.length - 1] ?? layer.name;
+					yield* Effect.fail(
+						new CircularDependencyError({
+							layerName: lastNode,
+							dependencyChain: cyclePath.slice(0, -1),
+						})
+					);
+				}
+			}
+		}
+	});
+
+const buildLevelsFromLayers = (
 	layers: readonly AnyResolvedLayer[]
 ): readonly TopologyLevel[] => {
-	const layerMap = new Map<string, AnyResolvedLayer>();
+	const layerMap: LayerMap = new Map();
 	for (const layer of layers) {
 		layerMap.set(layer.name, layer);
 	}
@@ -49,23 +122,12 @@ export const buildTopologyLevels = (
 			const layer = layerMap.get(name);
 			if (!layer) continue;
 
-			const deps: string[] = layer.dependencies ?? [];
-			const allDepsBuilt = deps.every((dep: string) => built.has(dep));
+			const deps = (layer.dependencies as string[] | undefined) ?? [];
+			const allDepsBuilt = deps.every((dep) => built.has(dep));
 
 			if (allDepsBuilt) {
 				readyLayers.push(layer);
 			}
-		}
-
-		if (readyLayers.length === 0 && remaining.size > 0) {
-			const remainingLayers = Array.from(remaining)
-				.map((name) => layerMap.get(name))
-				.filter((l): l is AnyResolvedLayer => l !== undefined);
-			levels.push({
-				level: levels.length,
-				layers: remainingLayers,
-			});
-			break;
 		}
 
 		for (const layer of readyLayers) {
@@ -73,15 +135,38 @@ export const buildTopologyLevels = (
 			remaining.delete(layer.name);
 		}
 
-		levels.push({
-			level: levels.length,
-			layers: readyLayers,
-		});
+		if (readyLayers.length > 0) {
+			levels.push({
+				level: levels.length,
+				layers: readyLayers,
+			});
+		}
 	}
 
 	return levels;
 };
 
-export const getMaxParallelism = (levels: readonly TopologyLevel[]): number => {
-	return levels.reduce((max, level) => Math.max(max, level.layers.length), 0);
+const buildTopologyLevelsEffect = (
+	layers: readonly AnyResolvedLayer[]
+): Effect.Effect<readonly TopologyLevel[], CircularDependencyError> =>
+	Effect.gen(function* () {
+		yield* detectCircularDependencies(layers);
+		return buildLevelsFromLayers(layers);
+	});
+
+export const buildTopologyLevels = (
+	layers: readonly AnyResolvedLayer[]
+): readonly TopologyLevel[] => {
+	const result = Effect.runSync(
+		Effect.either(buildTopologyLevelsEffect(layers))
+	);
+
+	if (Either.isLeft(result)) {
+		throw result.left;
+	}
+
+	return result.right;
 };
+
+export const getMaxParallelism = (levels: readonly TopologyLevel[]): number =>
+	levels.reduce((max, level) => Math.max(max, level.layers.length), 0);
