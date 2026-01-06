@@ -330,8 +330,12 @@ export const I18nLayer = defineLayer({
 		ctx.store.setLocale('en'); // fallback
 	},
 
-	onReady: (ctx) => {
-		ctx.store.init(); // Safe: all layers ready
+	onReady: (ctx, allLayers) => {
+		console.log(`[I18nLayer] Ready with ${allLayers.length} layers`);
+	},
+
+	setup: (ctx) => {
+		ctx.store.init(); // Load initial translations ASAP
 	},
 });
 ```

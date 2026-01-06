@@ -27,7 +27,7 @@ export const I18nLayer = defineLayer({
 	onError: (_, ctx) => {
 		ctx.store.setLocale('en');
 	},
-	onReady: (ctx) => {
+	setup: (ctx) => {
 		ctx.store.init();
 	},
 });

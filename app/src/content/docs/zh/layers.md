@@ -330,8 +330,12 @@ export const I18nLayer = defineLayer({
 		ctx.store.setLocale('en'); // 回退
 	},
 
-	onReady: (ctx) => {
-		ctx.store.init(); // 安全：所有层已就绪
+	onReady: (ctx, allLayers) => {
+		console.log(`[I18nLayer] 准备就绪，包含 ${allLayers.length} 个层`);
+	},
+
+	setup: (ctx) => {
+		ctx.store.init(); // 尽快加载初始翻译
 	},
 });
 ```
