@@ -101,8 +101,26 @@ export type LayerSetupFn<
 	// eslint-disable-next-line @typescript-eslint/no-invalid-void-type -- void is valid for functions with no return
 > = (ctx: SetupContext<P, D, S>) => SetupResult | Promise<SetupResult> | void;
 
-export type LifecycleHook = () => void | Promise<void>;
-export type ErrorHook = (error: Error) => void;
+export type LifecycleHook<
+	P extends LayerProps = LayerProps,
+	D extends readonly string[] = readonly string[],
+	S = unknown,
+> = (ctx: SetupContext<P, D, S>) => void | Promise<void>;
+
+export type ErrorHook<
+	P extends LayerProps = LayerProps,
+	D extends readonly string[] = readonly string[],
+	S = unknown,
+> = (error: Error, ctx: SetupContext<P, D, S>) => void;
+
+export type OnReadyHook<
+	P extends LayerProps = LayerProps,
+	D extends readonly string[] = readonly string[],
+	S = unknown,
+> = (
+	ctx: SetupContext<P, D, S>,
+	allLayers: readonly ResolvedLayer[]
+) => void | Promise<void>;
 
 export interface EffuseLayer<
 	P extends LayerProps = LayerProps,
@@ -123,9 +141,10 @@ export interface EffuseLayer<
 	readonly provides?: LayerProvides;
 
 	readonly setup?: LayerSetupFn<P, D, S>;
-	readonly onMount?: LifecycleHook;
-	readonly onUnmount?: LifecycleHook;
-	readonly onError?: ErrorHook;
+	readonly onMount?: LifecycleHook<P, D, S>;
+	readonly onUnmount?: LifecycleHook<P, D, S>;
+	readonly onError?: ErrorHook<P, D, S>;
+	readonly onReady?: OnReadyHook<P, D, S>;
 
 	readonly routes?: readonly RouteConfig[];
 	readonly routeOptions?: {

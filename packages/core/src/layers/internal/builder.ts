@@ -131,36 +131,33 @@ export const buildLayerEffect = (
 				}
 			}
 
+			const ctx = createSetupContext(layer, propsRegistry, registry, allLayers);
 			const cleanups: CleanupFn[] = [];
+
+			const handleError = (error: unknown) => {
+				if (layer.onError && error instanceof Error) {
+					layer.onError(error, ctx);
+				}
+			};
 
 			if (layer.onMount) {
 				const onMountFn = layer.onMount;
 				yield* Effect.tryPromise({
-					try: () => Promise.resolve(onMountFn()),
+					try: () => Promise.resolve(onMountFn(ctx)),
 					catch: (error: unknown) => {
-						if (layer.onError && error instanceof Error) {
-							layer.onError(error);
-						}
+						handleError(error);
 						return error;
 					},
 				});
 			}
 
 			if (layer.setup) {
-				const ctx = createSetupContext(
-					layer,
-					propsRegistry,
-					registry,
-					allLayers
-				);
 				const setupFn = layer.setup;
 
 				const result = yield* Effect.tryPromise({
 					try: () => Promise.resolve(setupFn(ctx)),
 					catch: (error: unknown) => {
-						if (layer.onError && error instanceof Error) {
-							layer.onError(error);
-						}
+						handleError(error);
 						return error;
 					},
 				});
@@ -174,16 +171,12 @@ export const buildLayerEffect = (
 				const onUnmountFn = layer.onUnmount;
 				cleanups.push(() => {
 					try {
-						const maybePromise = onUnmountFn();
+						const maybePromise = onUnmountFn(ctx);
 						if (maybePromise instanceof Promise) {
-							void maybePromise.catch(() => {
-								// Silent catch - cleanup errors shouldn't propagate
-							});
+							void maybePromise.catch(() => {});
 						}
 					} catch (error: unknown) {
-						if (layer.onError && error instanceof Error) {
-							layer.onError(error);
-						}
+						handleError(error);
 					}
 				});
 			}
@@ -192,26 +185,28 @@ export const buildLayerEffect = (
 				cleanups.length > 0
 					? () => {
 							const reversed = cleanups.slice().reverse();
-
 							for (const cleanupFn of reversed) {
 								try {
 									cleanupFn();
 								} catch (error: unknown) {
-									if (layer.onError && error instanceof Error) {
-										layer.onError(error);
-									}
+									handleError(error);
 								}
 							}
 						}
 					: undefined;
 
-			return { layer, cleanup };
+			const onReady = layer.onReady
+				? () => layer.onReady?.(ctx, allLayers)
+				: undefined;
+
+			return { layer, cleanup, onReady };
 		})
 	);
 
 export interface LayerBuildResult {
 	readonly layer: AnyResolvedLayer;
 	readonly cleanup: CleanupFn | undefined;
+	readonly onReady: (() => void | Promise<void>) | undefined;
 }
 
 export interface AllLayersBuildResult {
@@ -259,6 +254,22 @@ export const buildAllLayersEffect = (
 				const levelResults = yield* Fiber.joinAll(fibers);
 				results.push(...levelResults);
 			}
+		}
+
+		const onReadyCallbacks = results.flatMap((r) =>
+			r.onReady ? [r.onReady] : []
+		);
+
+		if (onReadyCallbacks.length > 0) {
+			yield* Effect.all(
+				onReadyCallbacks.map((cb) =>
+					Effect.tryPromise({
+						try: () => Promise.resolve(cb()),
+						catch: () => undefined,
+					})
+				),
+				{ concurrency: 'unbounded' }
+			);
 		}
 
 		const aggregatedCleanup: CleanupFn | undefined =
