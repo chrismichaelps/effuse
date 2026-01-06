@@ -53,6 +53,7 @@ export type EffuseChild =
 	| null
 	| undefined
 	| Signal<EffuseChild>
+	| (() => EffuseChild)
 	| EffuseChild[];
 
 export interface BlueprintContext<P = Record<string, unknown>> {
