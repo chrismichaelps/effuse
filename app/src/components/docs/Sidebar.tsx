@@ -75,6 +75,7 @@ const sectionsConfig: NavSection[] = [
 			{ labelKey: 'lifecycle', href: '/docs/effects' },
 			{ labelKey: 'form', href: '/docs/use-form' },
 			{ labelKey: 'events', href: '/docs/emit' },
+			{ labelKey: 'context', href: '/docs/context' },
 			{ labelKey: 'errorHandling', href: '/docs/tagged-errors' },
 		],
 		isOpen: true,
@@ -95,6 +96,7 @@ const sectionsConfig: NavSection[] = [
 		key: 'Examples',
 		titleKey: 'examples',
 		items: [
+			{ labelKey: 'context', href: '/context' },
 			{ labelKey: 'form', href: '/form' },
 			{ labelKey: 'todos', href: '/todos' },
 			{ labelKey: 'props', href: '/props' },
@@ -158,6 +160,9 @@ const createStableSectionStates = (): SectionState[] => {
 				emit: sidebar?.emit,
 				events: sidebar?.events,
 				errorHandling: sidebar?.errorHandling,
+				context: sidebar?.context,
+				hooks: sidebar?.hooks,
+				layers: sidebar?.layers,
 			};
 			return section.items.map((item) => ({
 				label: labelMapping[item.labelKey] ?? item.labelKey,
