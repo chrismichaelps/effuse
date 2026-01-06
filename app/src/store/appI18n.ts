@@ -44,6 +44,9 @@ interface Translations {
 		emit: string;
 		events: string;
 		errorHandling: string;
+		context: string;
+		hooks: string;
+		layers: string;
 	};
 	toc: {
 		onThisPage: string;
@@ -210,6 +213,24 @@ interface Translations {
 			mention: string;
 			sessionStarted: string;
 			switchedTo: string;
+		};
+		context: {
+			title: string;
+			description: string;
+			themeSwitcher: string;
+			themeSwitcherDesc: string;
+			changeTheme: string;
+			nestedOverride: string;
+			nestedProviderTitle: string;
+			nestedProviderDesc: string;
+			root: string;
+			nested: string;
+			howItWorks: string;
+			card1: string;
+			card2: string;
+			card3: string;
+			card4: string;
+			codeSnippet: string;
 		};
 	};
 	legal: {
