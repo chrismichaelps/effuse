@@ -23,6 +23,7 @@
 		"seoHead": "SEO & Head",
 		"internationalization": "Internationalization",
 		"examplesTitle": "Examples",
+		"context": "Context",
 		"form": "Form",
 		"todos": "Todos",
 		"props": "Props",
@@ -198,6 +199,24 @@
 			"mention": "Mention",
 			"sessionStarted": "Session started. Event emitter ready!",
 			"switchedTo": "Switched to {{user}}"
+		},
+		"context": {
+			"title": "Context API",
+			"description": "Powerful dependency injection for sharing state across components without prop drilling.",
+			"themeSwitcher": "Theme Switcher",
+			"themeSwitcherDesc": "Click buttons to cycle through themes. All cards receive the theme via props (reactive signal).",
+			"changeTheme": "Change Theme",
+			"nestedOverride": "Nested Override",
+			"nestedProviderTitle": "Nested Provider Override",
+			"nestedProviderDesc": "Inner providers override outer ones. Each level can have its own theme.",
+			"root": "Root",
+			"nested": "Nested",
+			"howItWorks": "How it works",
+			"card1": "Card 1",
+			"card2": "Card 2",
+			"card3": "Card 3",
+			"card4": "Card 4",
+			"codeSnippet": "```tsx\n// Create a context with default value\nconst ThemeContext = createContext<ThemeConfig>({\n  id: 'app-theme',\n  defaultValue: { mode: 'dark', primary: '#818cf8' },\n});\n\n// Consume in any component\nconst MyComponent = define({\n  script: () => {\n    const theme = useContext(ThemeContext);\n    return { theme };\n  },\n  template: ({ theme }) => (\n    <div style={{ color: theme.primary }}>\n      Current theme: {theme.mode}\n    </div>\n  ),\n});\n\n// Provider wraps children\n<ThemeContext.Provider value={customTheme}>\n  <MyComponent />\n</ThemeContext.Provider>\n```"
 		}
 	},
 	"legal": {

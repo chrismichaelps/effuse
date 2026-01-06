@@ -23,6 +23,7 @@
 		"seoHead": "SEO y Cabeceras",
 		"internationalization": "Internacionalización",
 		"examplesTitle": "Ejemplos",
+		"context": "Contexto",
 		"form": "Formulario",
 		"todos": "Tareas",
 		"props": "Propiedades",
@@ -198,6 +199,24 @@
 			"mention": "Mencionar",
 			"sessionStarted": "Sesión iniciada. ¡Emisor de eventos listo!",
 			"switchedTo": "Cambiado a {{user}}"
+		},
+		"context": {
+			"title": "API de Contexto",
+			"description": "Inyección de dependencias para compartir estado entre componentes sin perforación de props.",
+			"themeSwitcher": "Selector de Tema",
+			"themeSwitcherDesc": "Haz clic en los botones para cambiar entre temas. Todas las tarjetas reciben el tema vía props (señal reactiva).",
+			"changeTheme": "Cambiar Tema",
+			"nestedOverride": "Anulación Anidada",
+			"nestedProviderTitle": "Anulación de Proveedor Anidado",
+			"nestedProviderDesc": "Los proveedores internos anulan a los externos. Cada nivel puede tener su propio tema.",
+			"root": "Raíz",
+			"nested": "Anidado",
+			"howItWorks": "Cómo funciona",
+			"card1": "Tarjeta 1",
+			"card2": "Tarjeta 2",
+			"card3": "Tarjeta 3",
+			"card4": "Tarjeta 4",
+			"codeSnippet": "```tsx\n// Crear un contexto con un valor predeterminado\nconst ThemeContext = createContext<ThemeConfig>({\n  id: 'app-theme',\n  defaultValue: { mode: 'dark', primary: '#818cf8' },\n});\n\n// Consumir en cualquier componente\nconst MyComponent = define({\n  script: () => {\n    const theme = useContext(ThemeContext);\n    return { theme };\n  },\n  template: ({ theme }) => (\n    <div style={{ color: theme.primary }}>\n      Tema actual: {theme.mode}\n    </div>\n  ),\n});\n\n// El proveedor envuelve a los hijos\n<ThemeContext.Provider value={customTheme}>\n  <MyComponent />\n</ThemeContext.Provider>\n```"
 		}
 	},
 	"legal": {

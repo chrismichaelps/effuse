@@ -23,6 +23,7 @@
 		"seoHead": "SEO 与 Head",
 		"internationalization": "国际化 (i18n)",
 		"examplesTitle": "示例项目",
+		"context": "上下文",
 		"form": "表单处理",
 		"todos": "待办事项",
 		"props": "Props 传参",
@@ -198,6 +199,24 @@
 			"mention": "提及",
 			"sessionStarted": "会话已开始。事件发射器就绪！",
 			"switchedTo": "已切换至 {{user}}"
+		},
+		"context": {
+			"title": "上下文 API",
+			"description": "无需属性传递即可在组件之间共享状态的依赖注入。",
+			"themeSwitcher": "主题切换器",
+			"themeSwitcherDesc": "点击按钮切换主题。所有卡片通过 props 接收主题（响应式信号）。",
+			"changeTheme": "更改主题",
+			"nestedOverride": "嵌套覆盖",
+			"nestedProviderTitle": "嵌套提供者覆盖",
+			"nestedProviderDesc": "内部提供者覆盖外部提供者。每个层级可以有自己的主题。",
+			"root": "根",
+			"nested": "嵌套",
+			"howItWorks": "工作原理",
+			"card1": "卡片 1",
+			"card2": "卡片 2",
+			"card3": "卡片 3",
+			"card4": "卡片 4",
+			"codeSnippet": "```tsx\n// 使用默认值创建上下文\nconst ThemeContext = createContext<ThemeConfig>({\n  id: 'app-theme',\n  defaultValue: { mode: 'dark', primary: '#818cf8' },\n});\n\n// 在任何组件中消费\nconst MyComponent = define({\n  script: () => {\n    const theme = useContext(ThemeContext);\n    return { theme };\n  },\n  template: ({ theme }) => (\n    <div style={{ color: theme.primary }}>\n      当前主题: {theme.mode}\n    </div>\n  ),\n});\n\n// 提供者包裹子组件\n<ThemeContext.Provider value={customTheme}>\n  <MyComponent />\n</ThemeContext.Provider>\n```"
 		}
 	},
 	"legal": {

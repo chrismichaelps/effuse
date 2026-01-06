@@ -23,6 +23,7 @@
 		"seoHead": "SEOとメタデータ",
 		"internationalization": "国際化 (i18n)",
 		"examplesTitle": "サンプル",
+		"context": "コンテキスト",
 		"form": "フォーム",
 		"todos": "Todoアプリ",
 		"props": "Props (プロパティ)",
@@ -198,6 +199,24 @@
 			"mention": "メンション",
 			"sessionStarted": "セッションを開始しました。イベントエミッターの準備が整いました！",
 			"switchedTo": "{{user}} に切り替えました"
+		},
+		"context": {
+			"title": "コンテキスト API",
+			"description": "プロップドリリングなしでコンポーネント間で状態を共有するための依存性注入。",
+			"themeSwitcher": "テーマ切り替え",
+			"themeSwitcherDesc": "ボタンをクリックしてテーマを切り替えます。すべてのカードはprops経由でテーマを受け取ります（リアクティブシグナル）。",
+			"changeTheme": "テーマを変更",
+			"nestedOverride": "ネストされた上書き",
+			"nestedProviderTitle": "ネストされたプロバイダーの上書き",
+			"nestedProviderDesc": "内側のプロバイダーは外側を上書きします。各レベルで独自のテーマを持つことができます。",
+			"root": "ルート",
+			"nested": "ネスト",
+			"howItWorks": "仕組み",
+			"card1": "カード 1",
+			"card2": "カード 2",
+			"card3": "カード 3",
+			"card4": "カード 4",
+			"codeSnippet": "```tsx\n// デフォルト値を使用してコンテキストを作成\nconst ThemeContext = createContext<ThemeConfig>({\n  id: 'app-theme',\n  defaultValue: { mode: 'dark', primary: '#818cf8' },\n});\n\n// 任意のコンポーネントで消費\nconst MyComponent = define({\n  script: () => {\n    const theme = useContext(ThemeContext);\n    return { theme };\n  },\n  template: ({ theme }) => (\n    <div style={{ color: theme.primary }}>\n      現在のテーマ: {theme.mode}\n    </div>\n  ),\n});\n\n// プロバイダーが子要素をラップ\n<ThemeContext.Provider value={customTheme}>\n  <MyComponent />\n</ThemeContext.Provider>\n```"
 		}
 	},
 	"legal": {
