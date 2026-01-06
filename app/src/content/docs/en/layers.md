@@ -4,73 +4,203 @@ title: Layers
 
 # Layers
 
-Layers provide dependency injection and shared state across your application. They enable components to access global services and reactive props without prop drilling.
+Layers provide dependency injection, shared state, and lifecycle management across your application. They enable components and hooks to access global services without prop drilling.
+
+## Overview
+
+The layer system consists of three key concepts:
+
+| Concept         | Purpose                                     | Access In Components                     |
+| --------------- | ------------------------------------------- | ---------------------------------------- |
+| **store**       | Reactive state container (signals)          | Via `deriveProps` → `useLayerProps`      |
+| **deriveProps** | Extract signals from store for components   | `useLayerProps('name')`                  |
+| **provides**    | Services/factories for dependency injection | `useStore('key')` or `useService('key')` |
 
 ## Creating a Layer
 
-Use `defineLayer` from `@effuse/core` to create a layer:
+Use `defineLayer` from `@effuse/core`:
 
 ```typescript
-import { defineLayer, signal, computed } from '@effuse/core';
+import { defineLayer, signal } from '@effuse/core';
+import { createStore } from '@effuse/store';
+
+// Create a store with reactive state
+const themeStore = createStore('theme', {
+	mode: 'dark' as 'light' | 'dark',
+	accentColor: '#8df0cc',
+
+	setMode(mode: 'light' | 'dark') {
+		this.mode.value = mode;
+	},
+
+	toggleMode() {
+		this.mode.value = this.mode.value === 'dark' ? 'light' : 'dark';
+	},
+});
 
 export const ThemeLayer = defineLayer({
 	name: 'theme',
 
-	// Props exposed to components
-	props: {
-		mode: signal<'light' | 'dark'>('dark'),
-		accentColor: signal('#8df0cc'),
-	},
+	// Dependencies on other layers (loaded first)
+	dependencies: ['layout'],
 
-	// Derived props (automatically computed)
-	derived: {
-		isDark: (props) => computed(() => props.mode.value === 'dark'),
-	},
+	// The store instance for this layer
+	store: themeStore,
 
-	// Services exposed via provider
+	// Extract reactive props from store for components
+	deriveProps: (store) => ({
+		mode: store.mode,
+		accentColor: store.accentColor,
+	}),
+
+	// Services exposed via dependency injection
 	provides: {
-		theme: {
-			setMode: (mode: 'light' | 'dark') => {
-				/* ... */
-			},
-			toggleMode: () => {
-				/* ... */
-			},
-		},
+		theme: () => themeStore,
 	},
 
-	// Initialization logic
-	setup: (ctx) => {
-		// ctx.store contains typed access to props
+	// Lifecycle hooks
+	onMount: (ctx) => {
+		// ctx.store, ctx.deps, ctx.getService available
 		const savedTheme = localStorage.getItem('theme');
-		if (savedTheme) {
-			ctx.store.mode.value = savedTheme as 'light' | 'dark';
+		if (savedTheme) ctx.store.mode.value = savedTheme as 'light' | 'dark';
+	},
+
+	onUnmount: (ctx) => {
+		// Persist state before unmount
+		localStorage.setItem('theme', ctx.store.mode.value);
+	},
+
+	onError: (error, ctx) => {
+		// Intelligent recovery with context access
+		console.error('[ThemeLayer] error:', error.message);
+		ctx.store.mode.value = 'dark'; // fallback
+	},
+
+	onReady: (ctx, allLayers) => {
+		// Called after ALL layers are initialized
+		console.log(`[ThemeLayer] ready with ${allLayers.length} layers`);
+	},
+
+	// Setup function with access to store and dependencies
+	setup: (ctx) => {
+		// ctx.store is the themeStore with full type safety
+		const savedTheme = localStorage.getItem('theme');
+		if (savedTheme === 'light' || savedTheme === 'dark') {
+			ctx.store.mode.value = savedTheme;
 		}
+
+		// Return cleanup function (optional)
+		return () => {
+			console.log('[ThemeLayer] cleanup');
+		};
 	},
 });
 ```
 
+## Layer Schema
+
+The complete `defineLayer` options:
+
+```typescript
+interface EffuseLayer<P, D, S> {
+	// Required
+	name: string; // Unique identifier
+
+	// State management
+	store?: S; // Store instance (createStore)
+	deriveProps?: (store: S) => P; // Extract props from store
+
+	// Dependency injection
+	dependencies?: D; // Array of layer names to load first
+	provides?: Record<string, () => unknown>; // Service factories
+
+	// Lifecycle
+	setup?: (ctx: SetupContext<P, D, S>) => CleanupFn | void;
+	onMount?: (ctx: SetupContext<P, D, S>) => void;
+	onUnmount?: (ctx: SetupContext<P, D, S>) => void;
+	onError?: (error: Error, ctx: SetupContext<P, D, S>) => void;
+	onReady?: (ctx: SetupContext<P, D, S>, allLayers: ResolvedLayer[]) => void;
+
+	// Advanced
+	components?: Record<string, Component>; // Scoped components
+	routes?: RouteConfig[]; // Layer-specific routes
+	plugins?: PluginFn[]; // Layer plugins
+}
+```
+
+## store vs provides
+
+| Aspect            | `store`                      | `provides`                               |
+| ----------------- | ---------------------------- | ---------------------------------------- |
+| **Purpose**       | Layer's reactive state       | Dependency injection services            |
+| **What it holds** | `createStore()` instance     | Factory functions `{ key: () => value }` |
+| **Used in**       | `deriveProps(store)` → props | Components via `useStore('key')`         |
+| **Reactivity**    | Built-in signals             | Whatever you return                      |
+
+### store
+
+The **store** is the layer's internal reactive state, created via `@effuse/store`:
+
+```typescript
+const i18nStore = createStore('i18n', {
+	locale: 'en',
+	translations: null as Record<string, string> | null,
+
+	setLocale(loc: string) {
+		this.locale.value = loc;
+		// Load translations...
+	},
+});
+
+defineLayer({
+	name: 'i18n',
+	store: i18nStore,
+	deriveProps: (store) => ({
+		locale: store.locale,
+		translations: store.translations,
+	}),
+});
+```
+
+### provides
+
+**provides** exposes services for dependency injection:
+
+```typescript
+defineLayer({
+	name: 'router',
+	provides: {
+		router: () => routerInstance, // Factory function
+	},
+});
+
+// In a component:
+script: ({ useStore }) => {
+	const router = useStore('router'); // Gets the router
+};
+```
+
 ## Using Layers in Components
 
-Access layer props and providers in your component's script:
+Access layer data and services in component scripts:
 
 ```tsx
 import { define, computed } from '@effuse/core';
 
 const ThemeToggle = define({
-	script: ({ useLayerProps, useLayerProvider }) => {
-		// Get reactive props from the layer
-		const themeProps = useLayerProps('theme')!;
+	script: ({ useLayerProps, useStore }) => {
+		// Get reactive props from deriveProps
+		const themeProps = useLayerProps('theme');
 
-		// Get services from the layer
-		const themeProvider = useLayerProvider('theme')!;
+		// Get service from provides
+		const themeStore = useStore('theme');
 
 		const buttonText = computed(() =>
-			themeProps.mode.value === 'dark' ? 'Light' : 'Dark'
+			themeProps?.mode.value === 'dark' ? 'Light' : 'Dark'
 		);
 
 		const toggle = () => {
-			themeProvider.theme.toggleMode();
+			themeStore?.toggleMode();
 		};
 
 		return { buttonText, toggle };
@@ -81,77 +211,60 @@ const ThemeToggle = define({
 });
 ```
 
-## Layer Props vs Provider
+## Using Layers in Hooks
 
-| Concept      | Purpose               | Access Method              |
-| ------------ | --------------------- | -------------------------- |
-| **Props**    | Reactive state values | `useLayerProps('name')`    |
-| **Provider** | Services and actions  | `useLayerProvider('name')` |
-
-**Props** are signals you read and subscribe to. **Providers** expose methods and services.
-
-## Typed Store Access
-
-Layers have typed access to their store in the setup function:
+Use `defineHook` to create reusable hooks with layer access:
 
 ```typescript
-setup: (ctx) => {
-	// ctx.store is typed based on your props definition
-	ctx.store.mode.value = 'dark'; // Full type safety
-	ctx.store.init(); // If you have methods
-};
+import { defineHook, signal } from '@effuse/core';
+
+export const useTheme = defineHook<
+	undefined, // No config
+	readonly ['theme'], // Depends on 'theme' layer
+	{ mode: Signal<string>; toggle: () => void }
+>({
+	name: 'useTheme',
+	deps: ['theme'] as const,
+	setup: ({ layer }) => {
+		// layer() returns deriveProps result
+		const themeProps = layer('theme');
+
+		return {
+			mode: themeProps.mode,
+			toggle: () => {
+				themeProps.mode.value =
+					themeProps.mode.value === 'dark' ? 'light' : 'dark';
+			},
+		};
+	},
+});
 ```
 
-## Deriving Props
+## Layer Dependencies
 
-Use `derived` to create computed values that depend on props:
+Layers declare their dependencies explicitly:
 
 ```typescript
-derived: {
-  // Automatically updates when mode changes
-  backgroundColor: (props) => computed(() =>
-    props.mode.value === 'dark' ? '#0a0f12' : '#ffffff'
-  ),
-
-  // Can depend on multiple props
-  theme: (props) => computed(() => ({
-    mode: props.mode.value,
-    accent: props.accentColor.value,
-  })),
-}
+defineLayer({
+	name: 'todos',
+	dependencies: ['i18n', 'router'], // ← Must be loaded first
+	setup: (ctx) => {
+		// Access dependency layers
+		const i18n = ctx.deps.i18n;
+		const router = ctx.deps.router;
+	},
+});
 ```
 
-## Layer Registry
+The layer runtime ensures dependencies are initialized in the correct order.
 
-Layers are automatically registered. The type system knows about all registered layers:
+## Type Registry
 
-```typescript
-// These are fully typed based on your layer definitions
-const i18nProps = useLayerProps('i18n'); // knows i18n layer props
-const themeProvider = useLayerProvider('theme'); // knows theme services
-```
-
-## Type Registry (Module Augmentation)
-
-To enable type-safe access to layer props and provides, extend the `EffuseLayerRegistry` interface using TypeScript module augmentation.
-
-> **Why manual?** Code generation adds build complexity and requires re-running scripts when layers change. Module augmentation works instantly with your IDE and is a standard pattern in the TS ecosystem.
-
-Create a `.d.ts` file in your project (e.g., `src/layers/effuse.d.ts`):
+For full type safety, extend `EffuseLayerRegistry` via module augmentation:
 
 ```typescript
-import type { Signal, ReadonlySignal } from '@effuse/core';
-
-// Define your provider types
-interface ThemeProvider {
-	setMode: (mode: 'light' | 'dark') => void;
-	toggleMode: () => void;
-}
-
-interface I18nProvider {
-	setLocale: (locale: string) => Promise<void>;
-	t: (key: string) => string;
-}
+// src/layers/effuse.d.ts
+import type { Signal } from '@effuse/core';
 
 declare module '@effuse/core' {
 	interface EffuseLayerRegistry {
@@ -160,14 +273,14 @@ declare module '@effuse/core' {
 				mode: Signal<'light' | 'dark'>;
 				accentColor: Signal<string>;
 			};
-			provides: { theme: ThemeProvider };
+			provides: { theme: typeof themeStore };
 		};
 		i18n: {
 			props: {
 				locale: Signal<string>;
 				translations: Signal<Record<string, string> | null>;
 			};
-			provides: { i18n: I18nProvider };
+			provides: { i18n: typeof i18nStore };
 		};
 	}
 }
@@ -175,58 +288,60 @@ declare module '@effuse/core' {
 export {};
 ```
 
-This enables full type inference when using `useLayerProps` and `useLayerProvider`:
+This enables type inference:
 
 ```typescript
-// TypeScript knows these types automatically!
-const themeProps = useLayerProps('theme');
-// ^? { mode: Signal<'light' | 'dark'>; accentColor: Signal<string> }
-
-const i18n = useLayerProvider('i18n');
-// ^? { i18n: I18nProvider }
+const { mode } = useLayerProps('theme')!;
+//      ^? Signal<'light' | 'dark'>
 ```
 
-> **Note**: The `export {}` at the end ensures the file is treated as a module, which is required for module augmentation to work.
-
-## Best Practices
-
-1. **One Layer Per Domain**: Create focused layers (auth, i18n, theme, etc.)
-2. **Props for State**: Use `props` for reactive values components subscribe to
-3. **Provider for Actions**: Use `provides` for methods and services
-4. **Derived for Computations**: Use `derived` instead of computing in components
-5. **Setup for Init**: Use `setup` for initialization logic (localStorage, API calls)
-
-## Example: i18n Layer
+## Real-World Example: I18n Layer
 
 ```typescript
-import { defineLayer, signal, computed } from '@effuse/core';
-
-export type Locale = 'en' | 'es' | 'ja' | 'zh';
+import { defineLayer } from '@effuse/core';
+import { i18nStore } from '../store/appI18n';
 
 export const I18nLayer = defineLayer({
 	name: 'i18n',
+	dependencies: ['router'],
 
-	props: {
-		locale: signal<Locale>('en'),
-		translations: signal<Record<string, string> | null>(null),
-	},
+	store: i18nStore,
+
+	deriveProps: (store) => ({
+		locale: store.locale,
+		isLoading: store.isLoading,
+		translations: store.translations,
+	}),
 
 	provides: {
-		i18n: {
-			setLocale: async (locale: Locale) => {
-				const response = await fetch(`/locales/${locale}.json`);
-				const data = await response.json();
-				// Access store through closure
-				store.translations.value = data;
-				store.locale.value = locale;
-			},
-		},
+		i18n: () => i18nStore,
 	},
 
-	setup: async (ctx) => {
-		// Load default locale on init
-		const response = await fetch('/locales/en.json');
-		ctx.store.translations.value = await response.json();
+	onMount: (ctx) => {
+		const saved = localStorage.getItem('effuse:locale');
+		if (saved) ctx.store.setLocale(saved);
+	},
+
+	onUnmount: (ctx) => {
+		localStorage.setItem('effuse:locale', ctx.store.locale.value);
+	},
+
+	onError: (_, ctx) => {
+		ctx.store.setLocale('en'); // fallback
+	},
+
+	onReady: (ctx) => {
+		ctx.store.init(); // Safe: all layers ready
 	},
 });
 ```
+
+## Best Practices
+
+1. **One Layer Per Domain** - Create focused layers (auth, i18n, theme, todos)
+2. **Store for State** - Use `store` + `deriveProps` for reactive values
+3. **Provides for Services** - Use `provides` for methods, stores, and services
+4. **Declare Dependencies** - List all required layers in `dependencies`
+5. **Setup for Init** - Use `setup` for initialization (localStorage, API calls)
+6. **Cleanup in Setup** - Return cleanup function from `setup` when needed
+7. **Type Registry** - Use module augmentation for type-safe layer access

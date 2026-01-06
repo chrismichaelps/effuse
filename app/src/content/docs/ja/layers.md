@@ -4,73 +4,203 @@ title: レイヤー
 
 # レイヤー
 
-レイヤーは、アプリケーション全体で依存性注入と共有状態を提供します。コンポーネントがpropsのバケツリレーなしにグローバルサービスとリアクティブなpropsにアクセスできるようにします。
+レイヤーは、アプリケーション全体で依存性注入、共有状態、およびライフサイクル管理を提供します。コンポーネントとフックがpropsのバケツリレーなしにグローバルサービスにアクセスできるようにします。
+
+## 概要
+
+レイヤーシステムは3つの主要な概念で構成されています:
+
+| 概念            | 目的                                     | コンポーネントでのアクセス                     |
+| --------------- | ---------------------------------------- | ---------------------------------------------- |
+| **store**       | リアクティブな状態コンテナ（signals）    | `deriveProps` 経由 → `useLayerProps`           |
+| **deriveProps** | storeからコンポーネント用のsignalsを抽出 | `useLayerProps('名前')`                        |
+| **provides**    | 依存性注入用のサービス/ファクトリー      | `useStore('キー')` または `useService('キー')` |
 
 ## レイヤーの作成
 
-`@effuse/core` の `defineLayer` を使用してレイヤーを作成します：
+`@effuse/core` の `defineLayer` を使用:
 
 ```typescript
-import { defineLayer, signal, computed } from '@effuse/core';
+import { defineLayer, signal } from '@effuse/core';
+import { createStore } from '@effuse/store';
+
+// リアクティブな状態を持つstoreを作成
+const themeStore = createStore('theme', {
+	mode: 'dark' as 'light' | 'dark',
+	accentColor: '#8df0cc',
+
+	setMode(mode: 'light' | 'dark') {
+		this.mode.value = mode;
+	},
+
+	toggleMode() {
+		this.mode.value = this.mode.value === 'dark' ? 'light' : 'dark';
+	},
+});
 
 export const ThemeLayer = defineLayer({
 	name: 'theme',
 
-	// コンポーネントに公開されるprops
-	props: {
-		mode: signal<'light' | 'dark'>('dark'),
-		accentColor: signal('#8df0cc'),
-	},
+	// 他のレイヤーへの依存関係（先に読み込まれる）
+	dependencies: ['layout'],
 
-	// 派生props（自動的にcomputed）
-	derived: {
-		isDark: (props) => computed(() => props.mode.value === 'dark'),
-	},
+	// このレイヤーのstoreインスタンス
+	store: themeStore,
 
-	// providerを通じて公開されるサービス
+	// コンポーネント用にstoreからリアクティブなpropsを抽出
+	deriveProps: (store) => ({
+		mode: store.mode,
+		accentColor: store.accentColor,
+	}),
+
+	// 依存性注入を通じて公開されるサービス
 	provides: {
-		theme: {
-			setMode: (mode: 'light' | 'dark') => {
-				/* ... */
-			},
-			toggleMode: () => {
-				/* ... */
-			},
-		},
+		theme: () => themeStore,
 	},
 
-	// 初期化ロジック
-	setup: (ctx) => {
-		// ctx.storeはpropsへの型付きアクセスを含む
+	// ライフサイクルフック
+	onMount: (ctx) => {
+		// ctx.store, ctx.deps, ctx.getService が利用可能
 		const savedTheme = localStorage.getItem('theme');
-		if (savedTheme) {
-			ctx.store.mode.value = savedTheme as 'light' | 'dark';
+		if (savedTheme) ctx.store.mode.value = savedTheme as 'light' | 'dark';
+	},
+
+	onUnmount: (ctx) => {
+		// アンマウント前に状態を保存
+		localStorage.setItem('theme', ctx.store.mode.value);
+	},
+
+	onError: (error, ctx) => {
+		// コンテキストアクセスによる高度なリカバリ
+		console.error('[ThemeLayer] エラー:', error.message);
+		ctx.store.mode.value = 'dark'; // フォールバック
+	},
+
+	onReady: (ctx, allLayers) => {
+		// すべてのレイヤーが初期化された後に呼び出されます
+		console.log(`[ThemeLayer] ${allLayers.length}個のレイヤーで準備完了`);
+	},
+
+	// storeと依存関係にアクセスできるsetup関数
+	setup: (ctx) => {
+		// ctx.storeは完全な型安全性を持つthemeStore
+		const savedTheme = localStorage.getItem('theme');
+		if (savedTheme === 'light' || savedTheme === 'dark') {
+			ctx.store.mode.value = savedTheme;
 		}
+
+		// クリーンアップ関数を返す（オプション）
+		return () => {
+			console.log('[ThemeLayer] クリーンアップ');
+		};
 	},
 });
 ```
 
+## レイヤースキーマ
+
+`defineLayer` の完全なオプション:
+
+```typescript
+interface EffuseLayer<P, D, S> {
+	// 必須
+	name: string; // 一意の識別子
+
+	// 状態管理
+	store?: S; // Storeインスタンス（createStore）
+	deriveProps?: (store: S) => P; // storeからpropsを抽出
+
+	// 依存性注入
+	dependencies?: D; // 先に読み込むレイヤー名の配列
+	provides?: Record<string, () => unknown>; // サービスファクトリー
+
+	// ライフサイクル
+	setup?: (ctx: SetupContext<P, D, S>) => CleanupFn | void;
+	onMount?: (ctx: SetupContext<P, D, S>) => void;
+	onUnmount?: (ctx: SetupContext<P, D, S>) => void;
+	onError?: (error: Error, ctx: SetupContext<P, D, S>) => void;
+	onReady?: (ctx: SetupContext<P, D, S>, allLayers: ResolvedLayer[]) => void;
+
+	// 上級
+	components?: Record<string, Component>; // スコープ付きコンポーネント
+	routes?: RouteConfig[]; // レイヤー固有のルート
+	plugins?: PluginFn[]; // レイヤープラグイン
+}
+```
+
+## store vs provides
+
+| 側面                 | `store`                      | `provides`                            |
+| -------------------- | ---------------------------- | ------------------------------------- |
+| **目的**             | レイヤーのリアクティブ状態   | 依存性注入サービス                    |
+| **保持するもの**     | `createStore()` インスタンス | ファクトリー関数 `{ キー: () => 値 }` |
+| **使用場所**         | `deriveProps(store)` → props | コンポーネントで `useStore('キー')`   |
+| **リアクティビティ** | 組み込みのsignals            | 返すもの次第                          |
+
+### store
+
+**store** は `@effuse/store` で作成されるレイヤーの内部リアクティブ状態です:
+
+```typescript
+const i18nStore = createStore('i18n', {
+	locale: 'en',
+	translations: null as Record<string, string> | null,
+
+	setLocale(loc: string) {
+		this.locale.value = loc;
+		// 翻訳を読み込む...
+	},
+});
+
+defineLayer({
+	name: 'i18n',
+	store: i18nStore,
+	deriveProps: (store) => ({
+		locale: store.locale,
+		translations: store.translations,
+	}),
+});
+```
+
+### provides
+
+**provides** は依存性注入用のサービスを公開します:
+
+```typescript
+defineLayer({
+	name: 'router',
+	provides: {
+		router: () => routerInstance, // ファクトリー関数
+	},
+});
+
+// コンポーネント内:
+script: ({ useStore }) => {
+	const router = useStore('router'); // routerを取得
+};
+```
+
 ## コンポーネントでのレイヤーの使用
 
-コンポーネントのscriptでレイヤーのpropsとproviderにアクセスします：
+コンポーネントスクリプトでレイヤーのデータとサービスにアクセス:
 
 ```tsx
 import { define, computed } from '@effuse/core';
 
 const ThemeToggle = define({
-	script: ({ useLayerProps, useLayerProvider }) => {
-		// レイヤーからリアクティブなpropsを取得
-		const themeProps = useLayerProps('theme')!;
+	script: ({ useLayerProps, useStore }) => {
+		// derivePropからリアクティブなpropsを取得
+		const themeProps = useLayerProps('theme');
 
-		// レイヤーからサービスを取得
-		const themeProvider = useLayerProvider('theme')!;
+		// providesからサービスを取得
+		const themeStore = useStore('theme');
 
 		const buttonText = computed(() =>
-			themeProps.mode.value === 'dark' ? 'ライト' : 'ダーク'
+			themeProps?.mode.value === 'dark' ? 'ライト' : 'ダーク'
 		);
 
 		const toggle = () => {
-			themeProvider.theme.toggleMode();
+			themeStore?.toggleMode();
 		};
 
 		return { buttonText, toggle };
@@ -81,77 +211,60 @@ const ThemeToggle = define({
 });
 ```
 
-## レイヤーProps vs Provider
+## フックでのレイヤーの使用
 
-| 概念         | 目的                 | アクセス方法               |
-| ------------ | -------------------- | -------------------------- |
-| **Props**    | リアクティブな状態値 | `useLayerProps('名前')`    |
-| **Provider** | サービスとアクション | `useLayerProvider('名前')` |
-
-**Props** は読み取りと購読を行うシグナルです。**Providers** はメソッドとサービスを公開します。
-
-## 型付きストアアクセス
-
-レイヤーはsetup関数でストアへの型付きアクセスを持ちます：
+`defineHook` を使用してレイヤーアクセスを持つ再利用可能なフックを作成:
 
 ```typescript
-setup: (ctx) => {
-	// ctx.storeはprops定義に基づいて型付けされています
-	ctx.store.mode.value = 'dark'; // 完全な型安全性
-	ctx.store.init(); // メソッドがある場合
-};
+import { defineHook, signal } from '@effuse/core';
+
+export const useTheme = defineHook<
+	undefined, // 設定なし
+	readonly ['theme'], // 'theme' レイヤーに依存
+	{ mode: Signal<string>; toggle: () => void }
+>({
+	name: 'useTheme',
+	deps: ['theme'] as const,
+	setup: ({ layer }) => {
+		// layer() は deriveProps の結果を返す
+		const themeProps = layer('theme');
+
+		return {
+			mode: themeProps.mode,
+			toggle: () => {
+				themeProps.mode.value =
+					themeProps.mode.value === 'dark' ? 'light' : 'dark';
+			},
+		};
+	},
+});
 ```
 
-## Propsの派生
+## レイヤー依存関係
 
-`derived` を使用してpropsに依存する計算値を作成します：
+レイヤーは依存関係を明示的に宣言します:
 
 ```typescript
-derived: {
-  // modeが変更されると自動的に更新
-  backgroundColor: (props) => computed(() =>
-    props.mode.value === 'dark' ? '#0a0f12' : '#ffffff'
-  ),
-
-  // 複数のpropsに依存可能
-  theme: (props) => computed(() => ({
-    mode: props.mode.value,
-    accent: props.accentColor.value,
-  })),
-}
+defineLayer({
+	name: 'todos',
+	dependencies: ['i18n', 'router'], // ← 先に読み込む必要がある
+	setup: (ctx) => {
+		// 依存レイヤーにアクセス
+		const i18n = ctx.deps.i18n;
+		const router = ctx.deps.router;
+	},
+});
 ```
 
-## レイヤーレジストリ
+レイヤーランタイムは依存関係が正しい順序で初期化されることを保証します。
 
-レイヤーは自動的に登録されます。型システムは登録されたすべてのレイヤーを認識します：
+## 型レジストリ
 
-```typescript
-// これらはレイヤー定義に基づいて完全に型付けされています
-const i18nProps = useLayerProps('i18n'); // i18nレイヤーのpropsを認識
-const themeProvider = useLayerProvider('theme'); // themeサービスを認識
-```
-
-## 型レジストリ（Module Augmentation）
-
-レイヤーのpropsとprovidesへの型安全なアクセスを有効にするには、TypeScriptのmodule augmentationを使用して `EffuseLayerRegistry` インターフェースを拡張します。
-
-> **なぜ手動?** コード生成はビルドを複雑にし、レイヤー変更時にスクリプト再実行が必要。Module augmentationはIDEで即座に動作し、TSエコシステムの標準パターンです。
-
-プロジェクトに `.d.ts` ファイルを作成します（例：`src/layers/effuse.d.ts`）：
+完全な型安全性のため、module augmentationで `EffuseLayerRegistry` を拡張:
 
 ```typescript
-import type { Signal, ReadonlySignal } from '@effuse/core';
-
-// プロバイダーの型を定義
-interface ThemeProvider {
-	setMode: (mode: 'light' | 'dark') => void;
-	toggleMode: () => void;
-}
-
-interface I18nProvider {
-	setLocale: (locale: string) => Promise<void>;
-	t: (key: string) => string;
-}
+// src/layers/effuse.d.ts
+import type { Signal } from '@effuse/core';
 
 declare module '@effuse/core' {
 	interface EffuseLayerRegistry {
@@ -160,14 +273,14 @@ declare module '@effuse/core' {
 				mode: Signal<'light' | 'dark'>;
 				accentColor: Signal<string>;
 			};
-			provides: { theme: ThemeProvider };
+			provides: { theme: typeof themeStore };
 		};
 		i18n: {
 			props: {
 				locale: Signal<string>;
 				translations: Signal<Record<string, string> | null>;
 			};
-			provides: { i18n: I18nProvider };
+			provides: { i18n: typeof i18nStore };
 		};
 	}
 }
@@ -175,23 +288,60 @@ declare module '@effuse/core' {
 export {};
 ```
 
-これにより、`useLayerProps` と `useLayerProvider` を使用する際に完全な型推論が有効になります：
+これにより型推論が有効になります:
 
 ```typescript
-// TypeScriptがこれらの型を自動的に認識します！
-const themeProps = useLayerProps('theme');
-// ^? { mode: Signal<'light' | 'dark'>; accentColor: Signal<string> }
-
-const i18n = useLayerProvider('i18n');
-// ^? { i18n: I18nProvider }
+const { mode } = useLayerProps('theme')!;
+//      ^? Signal<'light' | 'dark'>
 ```
 
-> **注意**: 最後の `export {}` はファイルがモジュールとして扱われることを保証し、これはmodule augmentationが機能するために必要です。
+## 実践例: I18nレイヤー
+
+```typescript
+import { defineLayer } from '@effuse/core';
+import { i18nStore } from '../store/appI18n';
+
+export const I18nLayer = defineLayer({
+	name: 'i18n',
+	dependencies: ['router'],
+
+	store: i18nStore,
+
+	deriveProps: (store) => ({
+		locale: store.locale,
+		isLoading: store.isLoading,
+		translations: store.translations,
+	}),
+
+	provides: {
+		i18n: () => i18nStore,
+	},
+
+	onMount: (ctx) => {
+		const saved = localStorage.getItem('effuse:locale');
+		if (saved) ctx.store.setLocale(saved);
+	},
+
+	onUnmount: (ctx) => {
+		localStorage.setItem('effuse:locale', ctx.store.locale.value);
+	},
+
+	onError: (_, ctx) => {
+		ctx.store.setLocale('en'); // フォールバック
+	},
+
+	onReady: (ctx) => {
+		ctx.store.init(); // 安全: すべてのレイヤー準備完了
+	},
+});
+```
 
 ## ベストプラクティス
 
-1. **ドメインごとに1つのレイヤー**: 焦点を絞ったレイヤーを作成（auth、i18n、themeなど）
-2. **状態にはProps**: コンポーネントが購読するリアクティブな値には `props` を使用
-3. **アクションにはProvider**: メソッドとサービスには `provides` を使用
-4. **計算にはDerived**: コンポーネントで計算する代わりに `derived` を使用
-5. **初期化にはSetup**: 初期化ロジック（localStorage、API呼び出し）には `setup` を使用
+1. **ドメインごとに1つのレイヤー** - 焦点を絞ったレイヤーを作成（auth、i18n、theme、todos）
+2. **状態にはStore** - リアクティブな値には `store` + `deriveProps` を使用
+3. **サービスにはProvides** - メソッド、store、サービスには `provides` を使用
+4. **依存関係を宣言** - 必要なすべてのレイヤーを `dependencies` にリスト
+5. **初期化にはSetup** - 初期化には `setup` を使用（localStorage、API呼び出し）
+6. **Setupでクリーンアップ** - 必要に応じて `setup` からクリーンアップ関数を返す
+7. **型レジストリ** - 型安全なレイヤーアクセスにはmodule augmentationを使用
