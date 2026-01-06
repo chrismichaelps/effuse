@@ -24,51 +24,41 @@ export const DisclaimerPage = define({
 			</div>
 			<div class="legal-container">
 				<header class="legal-header">
-					<h1 class="legal-title">{t('legal.disclaimer.title', '')}</h1>
+					<h1 class="legal-title">{() => t('legal.disclaimer.title', '')}</h1>
 				</header>
 
 				<div class="legal-content">
 					<section class="legal-section">
 						<h2 class="legal-section-title">
-							{t(
-								'legal.disclaimer.sections.experimental.title',
-								'Experimental Software'
-							)}
+							{() => t('legal.disclaimer.sections.experimental.title', '')}
 						</h2>
 						<p class="legal-text">
-							{t('legal.disclaimer.sections.experimental.content', '')}
+							{() => t('legal.disclaimer.sections.experimental.content', '')}
 						</p>
 					</section>
 
 					<section class="legal-section">
 						<h2 class="legal-section-title">
-							{t(
-								'legal.disclaimer.sections.competitor.title',
-								'Not a Competitor'
-							)}
+							{() => t('legal.disclaimer.sections.competitor.title', '')}
 						</h2>
 						<p class="legal-text">
 							<span
-								innerHTML={t(
-									'legal.disclaimer.sections.competitor.content1',
-									''
-								)}
+								innerHTML={() =>
+									t('legal.disclaimer.sections.competitor.content1', '')
+								}
 							/>
 						</p>
 						<p class="legal-text">
-							{t('legal.disclaimer.sections.competitor.content2', '')}
+							{() => t('legal.disclaimer.sections.competitor.content2', '')}
 						</p>
 					</section>
 
 					<section class="legal-section">
 						<h2 class="legal-section-title">
-							{t(
-								'legal.disclaimer.sections.risk.title',
-								'Use at Your Own Risk'
-							)}
+							{() => t('legal.disclaimer.sections.risk.title', '')}
 						</h2>
 						<p class="legal-text">
-							{t('legal.disclaimer.sections.risk.content', '')}
+							{() => t('legal.disclaimer.sections.risk.content', '')}
 						</p>
 					</section>
 				</div>
