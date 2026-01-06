@@ -1,5 +1,7 @@
 import { defineLayer } from '@effuse/core';
-import { i18nStore } from '../store/appI18n';
+import { i18nStore, Locale } from '../store/appI18n';
+
+const LOCALE_STORAGE_KEY = 'effuse:locale';
 
 export const I18nLayer = defineLayer({
 	name: 'i18n',
@@ -13,19 +15,19 @@ export const I18nLayer = defineLayer({
 	provides: {
 		i18n: () => i18nStore,
 	},
-	onMount: () => {
-		console.log('[I18nLayer] mounted');
+	onMount: (ctx) => {
+		const savedLocale = localStorage.getItem(LOCALE_STORAGE_KEY);
+		if (savedLocale && savedLocale !== ctx.store.locale.value) {
+			ctx.store.setLocale(savedLocale as Locale);
+		}
 	},
-	onUnmount: () => {
-		console.log('[I18nLayer] unmounted');
+	onUnmount: (ctx) => {
+		localStorage.setItem(LOCALE_STORAGE_KEY, ctx.store.locale.value);
 	},
-	onError: (err) => {
-		console.error('[I18nLayer] error:', err.message);
+	onError: (_, ctx) => {
+		ctx.store.setLocale('en');
 	},
-	setup: (ctx) => {
+	onReady: (ctx) => {
 		ctx.store.init();
-		return () => {
-			console.log('[I18nLayer] cleanup');
-		};
 	},
 });
