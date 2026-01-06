@@ -388,3 +388,14 @@ export {
 	createFilter,
 	type FilterPredicate,
 } from './emit/index.js';
+
+export {
+	createContext,
+	useContext,
+	hasContextValue,
+	isEffuseContext,
+	ContextNotFoundError,
+	type ContextOptions,
+	type ProviderProps,
+	type EffuseContext,
+} from './context/index.js';
