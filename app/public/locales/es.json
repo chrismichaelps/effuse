@@ -30,7 +30,8 @@
 		"i18n": "I18n",
 		"emit": "Emit",
 		"events": "Emit",
-		"errorHandling": "Manejo de Errores"
+		"errorHandling": "Manejo de Errores",
+		"controlFlow": "Flujo de Control"
 	},
 	"toc": {
 		"onThisPage": "En esta página"

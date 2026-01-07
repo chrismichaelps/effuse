@@ -30,7 +30,8 @@
 		"i18n": "国際化",
 		"emit": "Emit",
 		"events": "Emit",
-		"errorHandling": "エラーハンドリング"
+		"errorHandling": "エラーハンドリング",
+		"controlFlow": "コントロールフロー"
 	},
 	"toc": {
 		"onThisPage": "このページの内容"

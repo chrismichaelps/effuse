@@ -30,7 +30,8 @@
 		"i18n": "国际化",
 		"emit": "Emit",
 		"events": "Emit",
-		"errorHandling": "错误处理"
+		"errorHandling": "错误处理",
+		"controlFlow": "控制流"
 	},
 	"toc": {
 		"onThisPage": "本页目录"
