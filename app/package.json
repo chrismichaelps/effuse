@@ -1,7 +1,7 @@
 {
 	"name": "@effuse/app",
 	"private": true,
-	"version": "0.1.0",
+	"version": "1.0.0",
 	"type": "module",
 	"description": "Effuse documentation website",
 	"author": "Chris M. Pérez",
@@ -12,17 +12,17 @@
 		"preview": "vite preview"
 	},
 	"dependencies": {
-		"@effuse/core": "workspace:*",
-		"@effuse/i18n": "workspace:*",
-		"@effuse/ink": "workspace:*",
-		"@effuse/query": "workspace:*",
-		"@effuse/router": "workspace:*",
-		"@effuse/store": "workspace:*",
+		"@effuse/core": "1.0.0",
+		"@effuse/i18n": "1.0.0",
+		"@effuse/ink": "1.0.0",
+		"@effuse/query": "1.0.0",
+		"@effuse/router": "1.0.0",
+		"@effuse/store": "1.0.0",
 		"lenis": "^1.3.17",
 		"motion": "^12.24.7"
 	},
 	"devDependencies": {
-		"@effuse/compiler": "workspace:*",
+		"@effuse/compiler": "1.0.0",
 		"@types/node": "^25.0.3",
 		"typescript": "^5.9.3",
 		"vite": "^7.3.0"
