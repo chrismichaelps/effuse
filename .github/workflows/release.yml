@@ -37,7 +37,7 @@ jobs:
         run: pnpm build
 
       - name: Type check
-        run: pnpm exec tsc -b
+        run: pnpm typecheck
 
       - name: Release
         env:
