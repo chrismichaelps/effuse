@@ -153,3 +153,150 @@ const TodoList = define({
 	),
 });
 ```
+
+### For の Props
+
+| Prop           | 型                                             | 説明                                     |
+| -------------- | ---------------------------------------------- | ---------------------------------------- |
+| `each`         | `Signal<T[]>`                                  | イテレートする配列を含むシグナル         |
+| `keyExtractor` | `(item: T, index: number) => string or number` | ユニークなキーを抽出する関数             |
+| `fallback`     | `JSX.Element`                                  | 配列が空の時に表示する要素（オプション） |
+
+## Show による条件付きレンダリング
+
+シグナル値に基づく条件付きレンダリングには `Show` コンポーネントを使用します：
+
+```tsx
+import { define, signal, Show } from '@effuse/core';
+
+const UserProfile = define({
+	script: () => {
+		const user = signal<{ name: string } | null>(null);
+		const login = () => {
+			user.value = { name: '太郎' };
+		};
+		const logout = () => {
+			user.value = null;
+		};
+
+		return { user, login, logout };
+	},
+	template: ({ user, login, logout }) => (
+		<div>
+			<Show when={user} fallback={<button onClick={login}>ログイン</button>}>
+				{(u) => (
+					<div>
+						<p>ようこそ、{u.name}さん！</p>
+						<button onClick={logout}>ログアウト</button>
+					</div>
+				)}
+			</Show>
+		</div>
+	),
+});
+```
+
+### Show の Props
+
+| Prop       | 型                           | 説明                         |
+| ---------- | ---------------------------- | ---------------------------- |
+| `when`     | `Signal<T>` または `() => T` | 評価する条件                 |
+| `fallback` | `JSX.Element`                | 条件が偽の時に表示する要素   |
+| `children` | `(value: T) => JSX.Element`  | 真の値を受け取るレンダー関数 |
+
+## Dynamic コンポーネント
+
+`Dynamic` コンポーネントを使用すると、シグナルに基づいて異なるコンポーネントを動的にレンダリングできます：
+
+```tsx
+import { define, signal, Dynamic } from '@effuse/core';
+
+const TabPanel = define({
+	script: () => {
+		const tabs = { home: HomeTab, settings: SettingsTab, profile: ProfileTab };
+		const activeTab = signal<keyof typeof tabs>('home');
+
+		const currentComponent = computed(() => tabs[activeTab.value]);
+
+		return { activeTab, currentComponent };
+	},
+	template: ({ activeTab, currentComponent }) => (
+		<div>
+			<nav>
+				<button
+					onClick={() => {
+						activeTab.value = 'home';
+					}}
+				>
+					ホーム
+				</button>
+				<button
+					onClick={() => {
+						activeTab.value = 'settings';
+					}}
+				>
+					設定
+				</button>
+				<button
+					onClick={() => {
+						activeTab.value = 'profile';
+					}}
+				>
+					プロフィール
+				</button>
+			</nav>
+			<Dynamic component={currentComponent} fallback={<p>読み込み中...</p>} />
+		</div>
+	),
+});
+```
+
+### Dynamic の Props
+
+| Prop        | 型                                           | 説明                                           |
+| ----------- | -------------------------------------------- | ---------------------------------------------- |
+| `component` | `Signal<Component>` または `() => Component` | 動的にレンダリングするコンポーネント           |
+| `props`     | `P`                                          | レンダリングされるコンポーネントに渡す Props   |
+| `fallback`  | `JSX.Element`                                | コンポーネントが null の時に表示する要素       |
+| `portals`   | `Portals`                                    | レンダリングされるコンポーネントのポータル設定 |
+
+## 動的スタイリング
+
+動的なスタイルとクラスにはリアクティブ関数を使用します：
+
+```tsx
+import { define, signal, computed } from '@effuse/core';
+
+const ColorBox = define({
+	script: () => {
+		const colors = ['mint', 'purple', 'cyan'];
+		const index = signal(0);
+		const currentColor = computed(() => colors[index.value]);
+		const nextColor = () => {
+			index.value = (index.value + 1) % colors.length;
+		};
+
+		return { currentColor, nextColor };
+	},
+	template: ({ currentColor, nextColor }) => (
+		<div>
+			<button onClick={nextColor}>色を変更</button>
+			<div
+				style={() => ({
+					backgroundColor: `var(--accent-${currentColor.value})`,
+					padding: '2rem',
+					transition: 'background-color 0.3s ease',
+				})}
+			>
+				現在: {currentColor.value}
+			</div>
+		</div>
+	),
+});
+```
+
+### 動的クラス
+
+```tsx
+<div class={() => `card ${isActive.value ? 'active' : ''}`}>コンテンツ</div>
+```

@@ -153,3 +153,150 @@ const TodoList = define({
 	),
 });
 ```
+
+### For Props
+
+| Prop           | Type                                           | Description                                    |
+| -------------- | ---------------------------------------------- | ---------------------------------------------- |
+| `each`         | `Signal<T[]>`                                  | The signal containing the array to iterate     |
+| `keyExtractor` | `(item: T, index: number) => string or number` | Function to extract unique keys                |
+| `fallback`     | `JSX.Element`                                  | Optional element to render when array is empty |
+
+## Conditional Rendering with Show
+
+Use the `Show` component for conditional rendering based on signal values:
+
+```tsx
+import { define, signal, Show } from '@effuse/core';
+
+const UserProfile = define({
+	script: () => {
+		const user = signal<{ name: string } | null>(null);
+		const login = () => {
+			user.value = { name: 'John' };
+		};
+		const logout = () => {
+			user.value = null;
+		};
+
+		return { user, login, logout };
+	},
+	template: ({ user, login, logout }) => (
+		<div>
+			<Show when={user} fallback={<button onClick={login}>Log in</button>}>
+				{(u) => (
+					<div>
+						<p>Welcome, {u.name}!</p>
+						<button onClick={logout}>Log out</button>
+					</div>
+				)}
+			</Show>
+		</div>
+	),
+});
+```
+
+### Show Props
+
+| Prop       | Type                        | Description                                |
+| ---------- | --------------------------- | ------------------------------------------ |
+| `when`     | `Signal<T>` or `() => T`    | Condition to evaluate for truthiness       |
+| `fallback` | `JSX.Element`               | Element to render when condition is falsy  |
+| `children` | `(value: T) => JSX.Element` | Render function receiving the truthy value |
+
+## Dynamic Component
+
+The `Dynamic` component allows you to render different components dynamically based on a signal:
+
+```tsx
+import { define, signal, Dynamic } from '@effuse/core';
+
+const TabPanel = define({
+	script: () => {
+		const tabs = { home: HomeTab, settings: SettingsTab, profile: ProfileTab };
+		const activeTab = signal<keyof typeof tabs>('home');
+
+		const currentComponent = computed(() => tabs[activeTab.value]);
+
+		return { activeTab, currentComponent };
+	},
+	template: ({ activeTab, currentComponent }) => (
+		<div>
+			<nav>
+				<button
+					onClick={() => {
+						activeTab.value = 'home';
+					}}
+				>
+					Home
+				</button>
+				<button
+					onClick={() => {
+						activeTab.value = 'settings';
+					}}
+				>
+					Settings
+				</button>
+				<button
+					onClick={() => {
+						activeTab.value = 'profile';
+					}}
+				>
+					Profile
+				</button>
+			</nav>
+			<Dynamic component={currentComponent} fallback={<p>Loading...</p>} />
+		</div>
+	),
+});
+```
+
+### Dynamic Props
+
+| Prop        | Type                                     | Description                                     |
+| ----------- | ---------------------------------------- | ----------------------------------------------- |
+| `component` | `Signal<Component>` or `() => Component` | The component to render dynamically             |
+| `props`     | `P`                                      | Props to pass to the rendered component         |
+| `fallback`  | `JSX.Element`                            | Element to render when component is null        |
+| `portals`   | `Portals`                                | Portal configuration for the rendered component |
+
+## Dynamic Styling
+
+Use reactive functions for dynamic styles and classes:
+
+```tsx
+import { define, signal, computed } from '@effuse/core';
+
+const ColorBox = define({
+	script: () => {
+		const colors = ['mint', 'purple', 'cyan'];
+		const index = signal(0);
+		const currentColor = computed(() => colors[index.value]);
+		const nextColor = () => {
+			index.value = (index.value + 1) % colors.length;
+		};
+
+		return { currentColor, nextColor };
+	},
+	template: ({ currentColor, nextColor }) => (
+		<div>
+			<button onClick={nextColor}>Change Color</button>
+			<div
+				style={() => ({
+					backgroundColor: `var(--accent-${currentColor.value})`,
+					padding: '2rem',
+					transition: 'background-color 0.3s ease',
+				})}
+			>
+				Current: {currentColor.value}
+			</div>
+		</div>
+	),
+});
+```
+
+### Dynamic Classes
+
+```tsx
+<div class={() => `card ${isActive.value ? 'active' : ''}`}>Content</div>
+```
