@@ -22,6 +22,7 @@
  * SOFTWARE.
  */
 
+import { Predicate } from 'effect';
 import {
 	define,
 	effect,
@@ -59,10 +60,18 @@ const getComponentProps = (
 	route: Route,
 	matched: NormalizedRouteRecord | undefined
 ): Record<string, unknown> => {
-	if (!matched?.props) return {};
+	if (
+		!Predicate.isNotNullable(matched) ||
+		!Predicate.isNotNullable(matched.props)
+	)
+		return {};
 
 	if (matched.props === true) {
 		return { ...route.params };
+	}
+
+	if (matched.props === false) {
+		return {};
 	}
 
 	if (typeof matched.props === 'function') {

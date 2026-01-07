@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-import { Effect, SubscriptionRef } from 'effect';
+import { Effect, SubscriptionRef, Predicate } from 'effect';
 import { setGlobalRouter as setCoreGlobalRouter } from '@effuse/core';
 import type { RouterHistory } from './history.js';
 import { createWebHistory, createHashHistory } from './history.js';
@@ -182,7 +182,10 @@ export const createRouter = (options: RouterOptions): RouterInstance => {
 			}
 
 			const lastMatched = resolved.matched[resolved.matched.length - 1];
-			if (lastMatched?.redirect) {
+			if (
+				Predicate.isNotNullable(lastMatched) &&
+				Predicate.isNotNullable(lastMatched.redirect)
+			) {
 				return yield* navigate(lastMatched.redirect, opts);
 			}
 

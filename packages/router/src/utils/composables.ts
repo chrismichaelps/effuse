@@ -22,6 +22,7 @@
  * SOFTWARE.
  */
 
+import { Predicate } from 'effect';
 import { markRaw, effect } from '@effuse/core';
 import { getGlobalRouter, type RouterInstance } from '../core/router.js';
 import type { Route, RouteLocation } from '../core/route.js';
@@ -89,7 +90,9 @@ export const navigateTo = (
 	options?: { replace?: boolean }
 ): Route | NavigationFailure => {
 	const router = useRouter();
-	return options?.replace ? router.replace(to) : router.push(to);
+	const shouldReplace =
+		Predicate.isNotNullable(options) && options.replace === true;
+	return shouldReplace ? router.replace(to) : router.push(to);
 };
 
 export const goBack = (): void => {
@@ -127,11 +130,23 @@ export const getLinkClasses = (
 
 	const classes: string[] = [];
 
-	if (isExactActive && options?.exactActiveClass) {
+	if (
+		isExactActive &&
+		Predicate.isNotNullable(options) &&
+		Predicate.isNotNullable(options.exactActiveClass)
+	) {
 		classes.push(options.exactActiveClass);
-	} else if (isActive && options?.activeClass) {
+	} else if (
+		isActive &&
+		Predicate.isNotNullable(options) &&
+		Predicate.isNotNullable(options.activeClass)
+	) {
 		classes.push(options.activeClass);
-	} else if (!isActive && options?.inactiveClass) {
+	} else if (
+		!isActive &&
+		Predicate.isNotNullable(options) &&
+		Predicate.isNotNullable(options.inactiveClass)
+	) {
 		classes.push(options.inactiveClass);
 	}
 

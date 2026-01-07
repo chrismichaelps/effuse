@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-import { Effect, SubscriptionRef } from 'effect';
+import { Effect, SubscriptionRef, Predicate } from 'effect';
 import {
 	define,
 	EFFUSE_NODE,
@@ -95,7 +95,9 @@ export const Link = define<LinkProps, LinkState>({
 		});
 
 		onUnmount(() => {
-			stopWatch?.();
+			if (Predicate.isNotNullable(stopWatch)) {
+				stopWatch();
+			}
 			stopWatch = null;
 		});
 

@@ -22,6 +22,7 @@
  * SOFTWARE.
  */
 
+import { Array as Arr, Option, pipe } from 'effect';
 import type { Effect } from 'effect';
 import { RouteNotFoundError } from '../errors.js';
 
@@ -268,7 +269,11 @@ export const resolveRoute = (
 		query,
 		hash,
 		matched,
-		name: matched[matched.length - 1]?.name,
+		name: pipe(
+			Arr.last(matched),
+			Option.flatMap((m) => Option.fromNullable(m.name)),
+			Option.getOrUndefined
+		),
 		meta,
 	};
 };
