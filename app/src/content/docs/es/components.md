@@ -303,3 +303,108 @@ const ColorBox = define({
 ```tsx
 <div class={() => `card ${isActive.value ? 'active' : ''}`}>Contenido</div>
 ```
+
+## Componente Repeat
+
+El componente `Repeat` renderiza contenido un número específico de veces, con acceso al índice actual:
+
+```tsx
+import { define, signal, Repeat } from '@effuse/core';
+
+const SkeletonLoader = define({
+	script: () => {
+		const count = signal(3);
+		return { count };
+	},
+	template: ({ count }) => (
+		<div class="skeleton-list">
+			<Repeat times={count} fallback={<p>Sin elementos</p>}>
+				{(index) => (
+					<div class="skeleton-item">
+						<div class="skeleton-avatar" />
+						<div class="skeleton-content">
+							<div class="skeleton-title" />
+							<div class="skeleton-text" />
+						</div>
+						<span>Elemento {index + 1}</span>
+					</div>
+				)}
+			</Repeat>
+		</div>
+	),
+});
+```
+
+### Props de Repeat
+
+| Prop       | Tipo                         | Descripción                                 |
+| ---------- | ---------------------------- | ------------------------------------------- |
+| `times`    | `number` o `Signal<number>`  | Número de veces para repetir el contenido   |
+| `children` | `(index: number) => Element` | Función de renderizado que recibe el índice |
+| `fallback` | `JSX.Element`                | Elemento opcional cuando el conteo es 0     |
+
+## Componente Await
+
+El componente `Await` maneja la obtención de datos asíncronos con estados integrados de pendiente, éxito y error:
+
+```tsx
+import { define, signal, Await } from '@effuse/core';
+
+interface User {
+	id: number;
+	name: string;
+	email: string;
+}
+
+const UserProfile = define({
+	script: () => {
+		const fetchUser = (id: number): Promise<User> =>
+			fetch(`https://api.ejemplo.com/users/${id}`).then((res) => res.json());
+
+		const userPromise = signal(fetchUser(1));
+
+		const refetch = () => {
+			userPromise.value = fetchUser(Math.floor(Math.random() * 10) + 1);
+		};
+
+		return { userPromise, refetch };
+	},
+	template: ({ userPromise, refetch }) => (
+		<div>
+			<button onClick={refetch}>Obtener Nuevo Usuario</button>
+			<Await
+				promise={userPromise}
+				pending={
+					<div class="loading">
+						<span class="spinner" />
+						Cargando datos del usuario...
+					</div>
+				}
+				error={(err) => (
+					<div class="error">
+						<p>Error al cargar usuario</p>
+						<p class="error-detail">{String(err)}</p>
+					</div>
+				)}
+			>
+				{(user) => (
+					<div class="user-card">
+						<h3>{user.name}</h3>
+						<p>{user.email}</p>
+						<span>ID: {user.id}</span>
+					</div>
+				)}
+			</Await>
+		</div>
+	),
+});
+```
+
+### Props de Await
+
+| Prop       | Tipo                                                     | Descripción                                              |
+| ---------- | -------------------------------------------------------- | -------------------------------------------------------- |
+| `promise`  | `Promise<T>` o `() => Promise<T>` o `Signal<Promise<T>>` | La promesa a esperar                                     |
+| `pending`  | `JSX.Element` o `() => JSX.Element`                      | Elemento a renderizar mientras la promesa está pendiente |
+| `error`    | `JSX.Element` o `(err: unknown) => JSX.Element`          | Elemento a renderizar si la promesa es rechazada         |
+| `children` | `(data: T) => JSX.Element`                               | Función de renderizado para resolución exitosa           |

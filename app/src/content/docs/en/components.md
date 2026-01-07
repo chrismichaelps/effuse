@@ -300,3 +300,120 @@ const ColorBox = define({
 ```tsx
 <div class={() => `card ${isActive.value ? 'active' : ''}`}>Content</div>
 ```
+
+## Repeat Component
+
+The `Repeat` component renders content a specified number of times, with access to the current index:
+
+```tsx
+import { define, signal, Repeat } from '@effuse/core';
+
+const SkeletonLoader = define({
+	script: () => {
+		const count = signal(3);
+		return { count };
+	},
+	template: ({ count }) => (
+		<div class="skeleton-list">
+			<Repeat times={count} fallback={<p>No items</p>}>
+				{(index) => (
+					<div class="skeleton-item">
+						<div class="skeleton-avatar" />
+						<div class="skeleton-content">
+							<div class="skeleton-title" />
+							<div class="skeleton-text" />
+						</div>
+						<span>Item {index + 1}</span>
+					</div>
+				)}
+			</Repeat>
+		</div>
+	),
+});
+```
+
+### Repeat Props
+
+| Prop       | Type                         | Description                                 |
+| ---------- | ---------------------------- | ------------------------------------------- |
+| `times`    | `number` or `Signal<number>` | Number of times to repeat the content       |
+| `children` | `(index: number) => Element` | Render function receiving the current index |
+| `fallback` | `JSX.Element`                | Optional element to render when count is 0  |
+
+## Await Component
+
+The `Await` component handles asynchronous data fetching with built-in pending, success, and error states:
+
+```tsx
+import { define, signal, Await } from '@effuse/core';
+
+interface User {
+	id: number;
+	name: string;
+	email: string;
+}
+
+const UserProfile = define({
+	script: () => {
+		const fetchUser = (id: number): Promise<User> =>
+			fetch(`https://api.example.com/users/${id}`).then((res) => res.json());
+
+		const userPromise = signal(fetchUser(1));
+
+		const refetch = () => {
+			userPromise.value = fetchUser(Math.floor(Math.random() * 10) + 1);
+		};
+
+		return { userPromise, refetch };
+	},
+	template: ({ userPromise, refetch }) => (
+		<div>
+			<button onClick={refetch}>Fetch New User</button>
+			<Await
+				promise={userPromise}
+				pending={
+					<div class="loading">
+						<span class="spinner" />
+						Loading user data...
+					</div>
+				}
+				error={(err) => (
+					<div class="error">
+						<p>Failed to load user</p>
+						<p class="error-detail">{String(err)}</p>
+					</div>
+				)}
+			>
+				{(user) => (
+					<div class="user-card">
+						<h3>{user.name}</h3>
+						<p>{user.email}</p>
+						<span>ID: {user.id}</span>
+					</div>
+				)}
+			</Await>
+		</div>
+	),
+});
+```
+
+### Await Props
+
+| Prop       | Type                                                       | Description                                       |
+| ---------- | ---------------------------------------------------------- | ------------------------------------------------- |
+| `promise`  | `Promise<T>` or `() => Promise<T>` or `Signal<Promise<T>>` | The promise to await                              |
+| `pending`  | `JSX.Element` or `() => JSX.Element`                       | Element to render while promise is pending        |
+| `error`    | `JSX.Element` or `(err: unknown) => JSX.Element`           | Element to render if promise rejects              |
+| `children` | `(data: T) => JSX.Element`                                 | Render function for successful promise resolution |
+
+### Reactive Promise Changes
+
+When using a `Signal<Promise<T>>`, the `Await` component automatically re-fetches when the signal's promise value changes:
+
+```tsx
+const searchPromise = signal(fetchSearch('react'));
+
+// Later, when you want to search for something else:
+searchPromise.value = fetchSearch('effect');
+// Await will automatically start loading the new promise
+```

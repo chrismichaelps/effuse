@@ -300,3 +300,108 @@ const ColorBox = define({
 ```tsx
 <div class={() => `card ${isActive.value ? 'active' : ''}`}>コンテンツ</div>
 ```
+
+## Repeat コンポーネント
+
+`Repeat` コンポーネントは、現在のインデックスにアクセスしながら、指定された回数コンテンツをレンダリングします：
+
+```tsx
+import { define, signal, Repeat } from '@effuse/core';
+
+const SkeletonLoader = define({
+	script: () => {
+		const count = signal(3);
+		return { count };
+	},
+	template: ({ count }) => (
+		<div class="skeleton-list">
+			<Repeat times={count} fallback={<p>アイテムがありません</p>}>
+				{(index) => (
+					<div class="skeleton-item">
+						<div class="skeleton-avatar" />
+						<div class="skeleton-content">
+							<div class="skeleton-title" />
+							<div class="skeleton-text" />
+						</div>
+						<span>アイテム {index + 1}</span>
+					</div>
+				)}
+			</Repeat>
+		</div>
+	),
+});
+```
+
+### Repeat Props
+
+| Prop       | 型                               | 説明                                              |
+| ---------- | -------------------------------- | ------------------------------------------------- |
+| `times`    | `number` または `Signal<number>` | コンテンツを繰り返す回数                          |
+| `children` | `(index: number) => Element`     | 現在のインデックスを受け取るレンダリング関数      |
+| `fallback` | `JSX.Element`                    | カウントが0の場合にレンダリングするオプション要素 |
+
+## Await コンポーネント
+
+`Await` コンポーネントは、保留中、成功、エラーの状態を組み込みで処理する非同期データ取得を処理します：
+
+```tsx
+import { define, signal, Await } from '@effuse/core';
+
+interface User {
+	id: number;
+	name: string;
+	email: string;
+}
+
+const UserProfile = define({
+	script: () => {
+		const fetchUser = (id: number): Promise<User> =>
+			fetch(`https://api.example.com/users/${id}`).then((res) => res.json());
+
+		const userPromise = signal(fetchUser(1));
+
+		const refetch = () => {
+			userPromise.value = fetchUser(Math.floor(Math.random() * 10) + 1);
+		};
+
+		return { userPromise, refetch };
+	},
+	template: ({ userPromise, refetch }) => (
+		<div>
+			<button onClick={refetch}>新しいユーザーを取得</button>
+			<Await
+				promise={userPromise}
+				pending={
+					<div class="loading">
+						<span class="spinner" />
+						ユーザーデータを読み込み中...
+					</div>
+				}
+				error={(err) => (
+					<div class="error">
+						<p>ユーザーの読み込みに失敗しました</p>
+						<p class="error-detail">{String(err)}</p>
+					</div>
+				)}
+			>
+				{(user) => (
+					<div class="user-card">
+						<h3>{user.name}</h3>
+						<p>{user.email}</p>
+						<span>ID: {user.id}</span>
+					</div>
+				)}
+			</Await>
+		</div>
+	),
+});
+```
+
+### Await Props
+
+| Prop       | 型                                                                 | 説明                                          |
+| ---------- | ------------------------------------------------------------------ | --------------------------------------------- |
+| `promise`  | `Promise<T>` または `() => Promise<T>` または `Signal<Promise<T>>` | 待機するPromise                               |
+| `pending`  | `JSX.Element` または `() => JSX.Element`                           | Promiseが保留中の間にレンダリングする要素     |
+| `error`    | `JSX.Element` または `(err: unknown) => JSX.Element`               | Promiseが拒否された場合にレンダリングする要素 |
+| `children` | `(data: T) => JSX.Element`                                         | 成功時のレンダリング関数                      |

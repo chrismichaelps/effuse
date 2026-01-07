@@ -300,3 +300,108 @@ const ColorBox = define({
 ```tsx
 <div class={() => `card ${isActive.value ? 'active' : ''}`}>内容</div>
 ```
+
+## Repeat 组件
+
+`Repeat` 组件根据指定次数渲染内容，并提供对当前索引的访问：
+
+```tsx
+import { define, signal, Repeat } from '@effuse/core';
+
+const SkeletonLoader = define({
+	script: () => {
+		const count = signal(3);
+		return { count };
+	},
+	template: ({ count }) => (
+		<div class="skeleton-list">
+			<Repeat times={count} fallback={<p>没有项目</p>}>
+				{(index) => (
+					<div class="skeleton-item">
+						<div class="skeleton-avatar" />
+						<div class="skeleton-content">
+							<div class="skeleton-title" />
+							<div class="skeleton-text" />
+						</div>
+						<span>项目 {index + 1}</span>
+					</div>
+				)}
+			</Repeat>
+		</div>
+	),
+});
+```
+
+### Repeat Props
+
+| Prop       | 类型                         | 描述                      |
+| ---------- | ---------------------------- | ------------------------- |
+| `times`    | `number` 或 `Signal<number>` | 重复内容的次数            |
+| `children` | `(index: number) => Element` | 接收当前索引的渲染函数    |
+| `fallback` | `JSX.Element`                | 当计数为0时渲染的可选元素 |
+
+## Await 组件
+
+`Await` 组件处理异步数据获取，内置待处理、成功和错误状态：
+
+```tsx
+import { define, signal, Await } from '@effuse/core';
+
+interface User {
+	id: number;
+	name: string;
+	email: string;
+}
+
+const UserProfile = define({
+	script: () => {
+		const fetchUser = (id: number): Promise<User> =>
+			fetch(`https://api.example.com/users/${id}`).then((res) => res.json());
+
+		const userPromise = signal(fetchUser(1));
+
+		const refetch = () => {
+			userPromise.value = fetchUser(Math.floor(Math.random() * 10) + 1);
+		};
+
+		return { userPromise, refetch };
+	},
+	template: ({ userPromise, refetch }) => (
+		<div>
+			<button onClick={refetch}>获取新用户</button>
+			<Await
+				promise={userPromise}
+				pending={
+					<div class="loading">
+						<span class="spinner" />
+						正在加载用户数据...
+					</div>
+				}
+				error={(err) => (
+					<div class="error">
+						<p>加载用户失败</p>
+						<p class="error-detail">{String(err)}</p>
+					</div>
+				)}
+			>
+				{(user) => (
+					<div class="user-card">
+						<h3>{user.name}</h3>
+						<p>{user.email}</p>
+						<span>ID: {user.id}</span>
+					</div>
+				)}
+			</Await>
+		</div>
+	),
+});
+```
+
+### Await Props
+
+| Prop       | 类型                                                       | 描述                       |
+| ---------- | ---------------------------------------------------------- | -------------------------- |
+| `promise`  | `Promise<T>` 或 `() => Promise<T>` 或 `Signal<Promise<T>>` | 要等待的 Promise           |
+| `pending`  | `JSX.Element` 或 `() => JSX.Element`                       | Promise 待处理时渲染的元素 |
+| `error`    | `JSX.Element` 或 `(err: unknown) => JSX.Element`           | Promise 被拒绝时渲染的元素 |
+| `children` | `(data: T) => JSX.Element`                                 | 成功解析时的渲染函数       |
