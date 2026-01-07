@@ -33,6 +33,7 @@ import {
 import { buildRetrySchedule, type RetryConfig } from '../execution/index.js';
 import { executeMutation } from '../request/index.js';
 import { DEFAULT_TIMEOUT_MS } from '../config/index.js';
+import { TimeoutError } from '../errors/index.js';
 
 // Mutation result status
 export type MutationStatus = 'idle' | 'pending' | 'success' | 'error';
@@ -168,7 +169,7 @@ export const useMutation = <TData, TVariables = void, TContext = unknown>(
 		effect = effect.pipe(
 			Effect.timeoutFail({
 				duration: Duration.millis(timeout),
-				onTimeout: () => new Error(`Mutation timed out after ${timeout}ms`),
+				onTimeout: () => new TimeoutError({ durationMs: timeout }),
 			})
 		);
 

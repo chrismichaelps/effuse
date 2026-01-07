@@ -25,6 +25,7 @@
 import { Context, Effect, Layer, Ref, Predicate, Option, pipe } from 'effect';
 import type { QueryKey, CacheEntry, QueryStatus } from './types.js';
 import { DEFAULT_GC_TIME_MS, DEFAULT_STALE_TIME_MS } from '../config/index.js';
+import { QueryFetchError } from '../errors/index.js';
 
 const serializeKey = (key: QueryKey): string => JSON.stringify(key);
 
@@ -221,7 +222,10 @@ const createQueryClientImpl = (): QueryClientApi => {
 				const data = yield* Effect.tryPromise({
 					try: () => queryFn(),
 					catch: (error) =>
-						new Error(error instanceof Error ? error.message : String(error)),
+						new QueryFetchError({
+							message: error instanceof Error ? error.message : String(error),
+							cause: error,
+						}),
 				});
 
 				const entry: CacheEntry<T> = {

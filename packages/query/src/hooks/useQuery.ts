@@ -36,6 +36,7 @@ import {
 } from '../execution/index.js';
 import { executeQuery } from '../request/index.js';
 import { DEFAULT_STALE_TIME_MS, DEFAULT_TIMEOUT_MS } from '../config/index.js';
+import { TimeoutError } from '../errors/index.js';
 
 // Network request status
 export type FetchStatus = 'idle' | 'fetching' | 'paused';
@@ -156,7 +157,7 @@ export const useQuery = <TData>(
 		effect = effect.pipe(
 			Effect.timeoutFail({
 				duration: Duration.millis(timeout),
-				onTimeout: () => new Error(`Query timed out after ${timeout}ms`),
+				onTimeout: () => new TimeoutError({ durationMs: timeout }),
 			})
 		);
 
