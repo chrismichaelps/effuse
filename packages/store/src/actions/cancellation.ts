@@ -24,7 +24,7 @@
 
 import type { Fiber } from 'effect';
 import { Effect, Deferred, Ref } from 'effect';
-import { CancellationError } from '../errors.js';
+import { CancellationError, RaceEmptyError } from '../errors.js';
 
 // Cancellation tracking token
 export interface CancellationToken {
@@ -143,12 +143,12 @@ export const raceAll = <A, E>(
 	effects: Effect.Effect<A, E>[]
 ): Effect.Effect<A, E> => {
 	if (effects.length === 0) {
-		return Effect.die(new Error('raceAll requires at least one effect'));
+		return Effect.die(new RaceEmptyError({}));
 	}
 	if (effects.length === 1) {
 		const first = effects[0];
 		if (first === undefined) {
-			return Effect.die(new Error('Unexpected empty effects array'));
+			return Effect.die(new RaceEmptyError({}));
 		}
 		return first;
 	}

@@ -67,3 +67,15 @@ export class ValidationError extends Data.TaggedError('ValidationError')<{
 		return `Validation failed: ${this.errors.join(', ')}`;
 	}
 }
+
+export class RaceEmptyError extends Data.TaggedError('RaceEmptyError')<object> {
+	get message(): string {
+		return 'raceAll requires at least one effect';
+	}
+}
+
+export class HydrationError extends Data.TaggedError('HydrationError')<object> {
+	get message(): string {
+		return 'Failed to hydrate stores';
+	}
+}
