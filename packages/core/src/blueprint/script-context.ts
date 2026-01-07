@@ -275,10 +275,4 @@ export const runUnmountCallbacks = <E extends ExposedValues>(
 	Effect.runSync(state.lifecycle.runCleanup());
 };
 
-export const runCleanupEffect = <E extends ExposedValues>(
-	state: ScriptState<E>
-): Effect.Effect<void> => {
-	return state.lifecycle.runCleanup();
-};
-
 export type { LayerContext };

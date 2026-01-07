@@ -22,9 +22,8 @@
  * SOFTWARE.
  */
 
-import type { Fiber } from 'effect';
-import { Effect, Deferred, Ref } from 'effect';
-import { CancellationError, RaceEmptyError } from '../errors.js';
+import { Effect } from 'effect';
+import { CancellationError } from '../errors.js';
 
 // Cancellation tracking token
 export interface CancellationToken {
@@ -128,65 +127,5 @@ export const runWithAbortSignal = <A, E>(
 				signal.removeEventListener('abort', onAbort);
 				resume(Effect.fail(error as E));
 			});
-	});
-};
-
-// Fork interruptible Effect
-export const forkInterruptible = <A, E, R>(
-	effect: Effect.Effect<A, E, R>
-): Effect.Effect<Fiber.RuntimeFiber<A, E>, never, R> => {
-	return Effect.fork(effect);
-};
-
-// Race multiple Effects
-export const raceAll = <A, E>(
-	effects: Effect.Effect<A, E>[]
-): Effect.Effect<A, E> => {
-	if (effects.length === 0) {
-		return Effect.die(new RaceEmptyError({}));
-	}
-	if (effects.length === 1) {
-		const first = effects[0];
-		if (first === undefined) {
-			return Effect.die(new RaceEmptyError({}));
-		}
-		return first;
-	}
-	return Effect.raceAll(effects);
-};
-
-// Build deferred value
-export const createDeferred = <A, E = never>(): Effect.Effect<{
-	await: Effect.Effect<A, E>;
-	succeed: (value: A) => Effect.Effect<boolean>;
-	fail: (error: E) => Effect.Effect<boolean>;
-}> => {
-	return Effect.gen(function* () {
-		const deferred = yield* Deferred.make<A, E>();
-		return {
-			await: Deferred.await(deferred),
-			succeed: (value: A) => Deferred.succeed(deferred, value),
-			fail: (error: E) => Deferred.fail(deferred, error),
-		};
-	});
-};
-
-// Build atomic reference
-export const createAtomicRef = <A>(
-	initial: A
-): Effect.Effect<{
-	get: Effect.Effect<A>;
-	set: (value: A) => Effect.Effect<void>;
-	update: (fn: (current: A) => A) => Effect.Effect<A>;
-	getAndSet: (value: A) => Effect.Effect<A>;
-}> => {
-	return Effect.gen(function* () {
-		const ref = yield* Ref.make(initial);
-		return {
-			get: Ref.get(ref),
-			set: (value: A) => Ref.set(ref, value),
-			update: (fn: (current: A) => A) => Ref.updateAndGet(ref, fn),
-			getAndSet: (value: A) => Ref.getAndSet(ref, value),
-		};
 	});
 };

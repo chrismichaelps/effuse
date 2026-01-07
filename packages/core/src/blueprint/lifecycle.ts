@@ -118,17 +118,6 @@ const createState = (): LifecycleState => ({
 	mounted: false,
 });
 
-export const createComponentLifecycle = (): Effect.Effect<
-	ComponentLifecycle,
-	never,
-	Scope.Scope
-> =>
-	Effect.gen(function* () {
-		const scope = yield* Scope.make();
-		const state = createState();
-		return { scope, ...createLifecycleFns(scope, state) };
-	});
-
 export const createComponentLifecycleSync = (): ComponentLifecycle => {
 	const scope = Effect.runSync(Scope.make());
 	const state = createState();
