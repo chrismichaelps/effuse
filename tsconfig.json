@@ -1,0 +1,13 @@
+{
+	"files": [],
+	"references": [
+		{ "path": "./packages/core" },
+		{ "path": "./packages/router" },
+		{ "path": "./packages/store" },
+		{ "path": "./packages/i18n" },
+		{ "path": "./packages/ink" },
+		{ "path": "./packages/query" },
+		{ "path": "./packages/compiler" },
+		{ "path": "./app" }
+	]
+}
