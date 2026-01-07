@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-import { Context, Effect, Layer, pipe } from 'effect';
+import { Context, Effect, Layer, pipe, Predicate } from 'effect';
 import type { Signal } from '../../reactivity/signal.js';
 import { untrack, isSignal } from '../../reactivity/index.js';
 import { effect } from '../../effects/effect.js';
@@ -98,7 +98,9 @@ const mountChild = (
 				const value = fn();
 
 				for (const node of currentNodes) {
-					node.parentNode?.removeChild(node);
+					if (Predicate.isNotNullable(node.parentNode)) {
+						node.parentNode.removeChild(node);
+					}
 				}
 
 				for (const cleanup of fnCleanups) {
@@ -113,7 +115,9 @@ const mountChild = (
 
 				if (typeof value === 'string' || typeof value === 'number') {
 					const textNode = document.createTextNode(String(value));
-					anchor.parentNode?.insertBefore(textNode, anchor.nextSibling);
+					if (Predicate.isNotNullable(anchor.parentNode)) {
+						anchor.parentNode.insertBefore(textNode, anchor.nextSibling);
+					}
 					currentNodes = [textNode];
 					return;
 				}
@@ -169,7 +173,9 @@ const mountChild = (
 		queueMicrotask(runEffect);
 
 		cleanups.push(() => {
-			effectHandle?.stop();
+			if (Predicate.isNotNullable(effectHandle)) {
+				effectHandle.stop();
+			}
 			for (const cleanup of fnCleanups) {
 				cleanup();
 			}
@@ -189,7 +195,9 @@ const mountChild = (
 				const value = sig.value;
 
 				for (const node of currentNodes) {
-					node.parentNode?.removeChild(node);
+					if (Predicate.isNotNullable(node.parentNode)) {
+						node.parentNode.removeChild(node);
+					}
 				}
 
 				for (const cleanup of signalCleanups) {
@@ -204,7 +212,9 @@ const mountChild = (
 
 				if (typeof value === 'string' || typeof value === 'number') {
 					const textNode = document.createTextNode(String(value));
-					anchor.parentNode?.insertBefore(textNode, anchor.nextSibling);
+					if (Predicate.isNotNullable(anchor.parentNode)) {
+						anchor.parentNode.insertBefore(textNode, anchor.nextSibling);
+					}
 					currentNodes = [textNode];
 					return;
 				}
@@ -260,7 +270,9 @@ const mountChild = (
 		queueMicrotask(runEffect);
 
 		cleanups.push(() => {
-			effectHandle?.stop();
+			if (Predicate.isNotNullable(effectHandle)) {
+				effectHandle.stop();
+			}
 			for (const cleanup of signalCleanups) {
 				cleanup();
 			}
@@ -434,7 +446,9 @@ const mountNode = (
 					const children = getNodeChildren(node);
 
 					for (const n of currentNodes) {
-						n.parentNode?.removeChild(n);
+						if (Predicate.isNotNullable(n.parentNode)) {
+							n.parentNode.removeChild(n);
+						}
 					}
 					for (const cleanup of listCleanups) {
 						cleanup();
@@ -479,7 +493,9 @@ const mountNode = (
 			queueMicrotask(runEffect);
 
 			cleanups.push(() => {
-				effectHandle?.stop();
+				if (Predicate.isNotNullable(effectHandle)) {
+					effectHandle.stop();
+				}
 				for (const cleanup of listCleanups) {
 					cleanup();
 				}
@@ -547,7 +563,9 @@ export const MountServiceLive = Layer.succeed(MountService, {
 									fn();
 								}
 								for (const nodeItem of nodes) {
-									nodeItem.parentNode?.removeChild(nodeItem);
+									if (Predicate.isNotNullable(nodeItem.parentNode)) {
+										nodeItem.parentNode.removeChild(nodeItem);
+									}
 								}
 							},
 						};
