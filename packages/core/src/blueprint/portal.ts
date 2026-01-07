@@ -22,7 +22,16 @@
  * SOFTWARE.
  */
 
-import { Context, Effect, Layer, Ref } from 'effect';
+import {
+	Context,
+	Effect,
+	Layer,
+	Match,
+	Option,
+	Predicate,
+	Ref,
+	pipe,
+} from 'effect';
 import type { EffuseChild } from '../render/node.js';
 import { render } from '../render/index.js';
 import { define } from './define.js';
@@ -78,11 +87,13 @@ export const PortalServiceLive = Layer.effect(
 		const unregisterOutlet = (id: string): Effect.Effect<void> =>
 			Ref.update(registryRef, (registry) => {
 				registry.outlets.delete(id);
-				const portal = registry.portals.get(id);
-				if (portal) {
-					portal.cleanup();
-					registry.portals.delete(id);
-				}
+				pipe(
+					Option.fromNullable(registry.portals.get(id)),
+					Option.map((portal) => {
+						portal.cleanup();
+						registry.portals.delete(id);
+					})
+				);
 				return registry;
 			});
 
@@ -238,10 +249,11 @@ export const Portal = define<PortalProps>({
 		onMount(() => {
 			if (typeof window === 'undefined') return () => {};
 
-			const isDisabled =
-				typeof props.disabled === 'function'
-					? props.disabled()
-					: (props.disabled ?? false);
+			const isDisabled = pipe(
+				Match.value(props.disabled),
+				Match.when(Predicate.isFunction, (fn) => fn()),
+				Match.orElse((val) => val === true)
+			);
 
 			if (isDisabled) {
 				isMounted.value = true;
@@ -262,41 +274,63 @@ export const Portal = define<PortalProps>({
 			const targetElement = resolveTarget();
 
 			if (!targetElement) {
-				console.warn(`[Effuse Portal] Target not found:`, props.target);
 				return () => {};
 			}
 
-			const portalId = props.key ?? `portal-${++portalIdCounter}`;
+			const portalId = pipe(
+				Option.fromNullable(props.key),
+				Option.getOrElse(() => {
+					portalIdCounter++;
+					return `portal-${String(portalIdCounter)}`;
+				})
+			);
 
-			const existingCleanup = portalCleanups.get(portalId);
-			if (existingCleanup) {
-				existingCleanup();
-			}
+			pipe(
+				Option.fromNullable(portalCleanups.get(portalId)),
+				Option.map((cleanup) => {
+					cleanup();
+				})
+			);
 
 			let renderTarget: Element | ShadowRoot = targetElement;
-			if (props.useShadow && targetElement.attachShadow) {
-				try {
-					renderTarget =
-						targetElement.shadowRoot ??
-						targetElement.attachShadow({ mode: 'open' });
-				} catch {
-					renderTarget = targetElement;
+			if (props.useShadow) {
+				const shadowRoot = targetElement.shadowRoot;
+				if (shadowRoot) {
+					renderTarget = shadowRoot;
+				} else {
+					try {
+						renderTarget = targetElement.attachShadow({ mode: 'open' });
+					} catch {
+						renderTarget = targetElement;
+					}
 				}
 			}
 
 			const container = document.createElement('div');
 			container.setAttribute('data-portal', portalId);
 
-			if (props.priority !== undefined) {
-				const zIndex =
-					typeof props.priority === 'number'
-						? props.priority
-						: (PRIORITY_VALUES[props.priority] ?? PORTAL_PRIORITY.DEFAULT);
-				container.style.position = 'relative';
-				container.style.zIndex = String(zIndex);
-			}
+			pipe(
+				Option.fromNullable(props.priority),
+				Option.map((priority) => {
+					const zIndex = pipe(
+						Match.value(priority),
+						Match.when(Predicate.isNumber, (n) => n),
+						Match.orElse((str) =>
+							pipe(
+								Option.fromNullable(PRIORITY_VALUES[str]),
+								Option.getOrElse(() => PORTAL_PRIORITY.DEFAULT)
+							)
+						)
+					);
+					container.style.position = 'relative';
+					container.style.zIndex = String(zIndex);
+				})
+			);
 
-			const insertMode = props.insertMode ?? 'append';
+			const insertMode = pipe(
+				Option.fromNullable(props.insertMode),
+				Option.getOrElse((): PortalInsertMode => 'append')
+			);
 			if (insertMode === 'prepend') {
 				renderTarget.insertBefore(container, renderTarget.firstChild);
 			} else if (insertMode === 'replace') {
@@ -310,14 +344,24 @@ export const Portal = define<PortalProps>({
 			portalCleanups.set(portalId, cleanup);
 
 			isMounted.value = true;
-			props.onMount?.(targetElement);
+			pipe(
+				Option.fromNullable(props.onMount),
+				Option.map((fn) => {
+					fn(targetElement);
+				})
+			);
 
 			return () => {
 				cleanup();
 				container.remove();
 				portalCleanups.delete(portalId);
 				isMounted.value = false;
-				props.onUnmount?.();
+				pipe(
+					Option.fromNullable(props.onUnmount),
+					Option.map((fn) => {
+						fn();
+					})
+				);
 			};
 		});
 
@@ -348,7 +392,12 @@ export const PortalOutlet = define<{ name: string; class?: string }>({
 
 			return () => {
 				unregisterPortalOutlet(props.name);
-				outletElement?.remove();
+				pipe(
+					Option.fromNullable(outletElement),
+					Option.map((el) => {
+						el.remove();
+					})
+				);
 			};
 		});
 

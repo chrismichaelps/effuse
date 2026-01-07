@@ -22,11 +22,20 @@
  * SOFTWARE.
  */
 
+import { Array as Arr, Predicate } from 'effect';
 import { computed } from '../reactivity/computed.js';
 import { isSignal } from '../reactivity/signal.js';
 import type { ReadonlySignal } from '../types/index.js';
 
-// Memoized callback with stable identity and automatic dependency tracking via closure
+const trackDependencies = (deps: unknown[] | undefined): void => {
+	if (!Predicate.isNotNullable(deps)) return;
+	Arr.forEach(deps, (d) => {
+		if (isSignal(d)) {
+			void (d as ReadonlySignal<unknown>).value;
+		}
+	});
+};
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function useCallback<T extends (...args: any[]) => any>(
 	fn: T,
@@ -34,15 +43,14 @@ export function useCallback<T extends (...args: any[]) => any>(
 ): T {
 	// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
 	return computed(() => {
-		deps?.forEach((d) => isSignal(d) && (d as ReadonlySignal<unknown>).value);
+		trackDependencies(deps);
 		return fn;
 	}).value as T;
 }
 
-// Memoizes a value with automatic dependency tracking; explicit deps optional
 export function useMemo<T>(fn: () => T, deps?: unknown[]): () => T {
 	const memoized = computed(() => {
-		deps?.forEach((d) => isSignal(d) && (d as ReadonlySignal<unknown>).value);
+		trackDependencies(deps);
 		return fn();
 	});
 	return () => memoized.value;

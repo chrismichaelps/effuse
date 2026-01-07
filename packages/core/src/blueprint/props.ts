@@ -22,7 +22,17 @@
  * SOFTWARE.
  */
 
-import { Schema, Effect, Either, Exit, Cause, ParseResult } from 'effect';
+import {
+	Schema,
+	Effect,
+	Either,
+	Exit,
+	Cause,
+	ParseResult,
+	Array as Arr,
+	Option,
+	pipe,
+} from 'effect';
 import { Data } from 'effect';
 import { CauseExtractionError } from '../errors.js';
 
@@ -175,13 +185,26 @@ const struct = <const D extends Record<string, PropDefinition<any>>>(
 			if (Either.isLeft(parseResult)) {
 				const error = parseResult.left;
 				const issues = ParseResult.ArrayFormatter.formatErrorSync(error);
-				const firstIssue = issues[0];
+
+				const { propName, message } = pipe(
+					Arr.head(issues),
+					Option.match({
+						onNone: () => ({
+							propName: 'unknown',
+							message: 'Invalid prop value',
+						}),
+						onSome: (issue) => ({
+							propName: issue.path.join('.'),
+							message: issue.message,
+						}),
+					})
+				);
 
 				return yield* Effect.fail(
 					new PropsValidationError({
-						propName: firstIssue?.path.join('.') ?? 'unknown',
+						propName,
 						componentName,
-						message: firstIssue?.message ?? 'Invalid prop value',
+						message,
 						cause: error,
 					})
 				);

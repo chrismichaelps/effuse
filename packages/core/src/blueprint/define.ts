@@ -115,7 +115,7 @@ export function define<
 
 			let scriptResult: E | undefined;
 
-			if (options.layer !== undefined) {
+			if ('layer' in options) {
 				if (isLayerRuntimeReady()) {
 					const layerContext = getLayerContext(
 						options.layer as string
@@ -138,7 +138,7 @@ export function define<
 					});
 				}
 			} else {
-				scriptResult = (options as DefineOptions<P, E>).script(context);
+				scriptResult = options.script(context);
 			}
 
 			if (scriptResult) {
