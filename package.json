@@ -19,7 +19,7 @@
 		"dev": "pnpm -r dev",
 		"test": "pnpm -r test",
 		"lint": "pnpm -r lint",
-		"typecheck": "tsc --noEmit",
+		"typecheck": "pnpm -r typecheck",
 		"prepublishOnly": "pnpm build && pnpm typecheck",
 		"release": "semantic-release",
 		"clean": "pnpm -r exec rm -rf dist node_modules",
