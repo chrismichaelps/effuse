@@ -6,6 +6,8 @@ import {
 	effect,
 	Show,
 	For,
+	Repeat,
+	Await,
 } from '@effuse/core';
 import { Ink } from '@effuse/ink';
 import { DocsLayout } from '../../components/docs/DocsLayout';
@@ -307,6 +309,195 @@ const DynamicStyleDemo = define({
 	),
 });
 
+const RepeatDemo = define({
+	script: ({ useStore }) => {
+		const i18nStore = useStore('i18n') as typeof I18nStoreType;
+		const t = computed(
+			() => i18nStore.translations.value?.examples.controlFlow
+		);
+		const skeletonCount = signal(3);
+
+		const increment = () => {
+			skeletonCount.value = Math.min(skeletonCount.value + 1, 6);
+		};
+
+		const decrement = () => {
+			skeletonCount.value = Math.max(skeletonCount.value - 1, 0);
+		};
+
+		return { skeletonCount, increment, decrement, t };
+	},
+	template: ({ skeletonCount, increment, decrement, t }) => (
+		<div class="demo-section" id="repeat">
+			<h3 class="demo-title">{() => t.value?.repeat?.title}</h3>
+			<p class="demo-description">{() => t.value?.repeat?.description}</p>
+
+			<div class="demo-controls">
+				<button
+					class="btn-secondary"
+					onClick={() => {
+						triggerHaptic('light');
+						decrement();
+					}}
+				>
+					-
+				</button>
+				<span class="demo-count">
+					{() => t.value?.repeat?.currentCount}: {skeletonCount.value}
+				</span>
+				<button
+					class="btn-secondary"
+					onClick={() => {
+						triggerHaptic('light');
+						increment();
+					}}
+				>
+					+
+				</button>
+			</div>
+
+			<div class="demo-result">
+				<div class="skeleton-list">
+					<Repeat
+						times={skeletonCount}
+						fallback={
+							<div class="demo-fallback">{() => t.value?.repeat?.noItems}</div>
+						}
+					>
+						{(index) => (
+							<div class="skeleton-item">
+								<div class="skeleton-avatar" />
+								<div class="skeleton-content">
+									<div class="skeleton-title" />
+									<div class="skeleton-text" />
+								</div>
+								<span class="skeleton-index">
+									{() => t.value?.repeat?.item} {index + 1}
+								</span>
+							</div>
+						)}
+					</Repeat>
+				</div>
+			</div>
+
+			<Ink
+				content={`
+\`\`\`tsx
+<Repeat 
+  times={count} 
+  fallback={<EmptyState />}
+>
+  {(index) => <SkeletonCard index={index} />}
+</Repeat>
+\`\`\`
+`.trim()}
+			/>
+		</div>
+	),
+});
+
+interface User {
+	id: number;
+	name: string;
+	email: string;
+}
+
+const AwaitDemo = define({
+	script: ({ useStore }) => {
+		const i18nStore = useStore('i18n') as typeof I18nStoreType;
+		const t = computed(
+			() => i18nStore.translations.value?.examples.controlFlow
+		);
+
+		const currentUserId = signal(1);
+
+		const fetchUser = (id: number): Promise<User> =>
+			fetch(`https://jsonplaceholder.typicode.com/users/${String(id)}`).then(
+				(res) => {
+					if (!res.ok) throw new Error('Network error');
+					return res.json() as Promise<User>;
+				}
+			);
+
+		const userPromise = signal(fetchUser(1));
+
+		const fetchNewUser = () => {
+			currentUserId.value = (currentUserId.value % 10) + 1;
+			userPromise.value = fetchUser(currentUserId.value);
+		};
+
+		return { userPromise, fetchNewUser, currentUserId, t };
+	},
+	template: ({ userPromise, fetchNewUser, currentUserId, t }) => (
+		<div class="demo-section" id="await">
+			<h3 class="demo-title">{() => t.value?.await?.title}</h3>
+			<p class="demo-description">{() => t.value?.await?.description}</p>
+
+			<div class="demo-controls">
+				<button
+					class="btn-secondary"
+					onClick={() => {
+						triggerHaptic('light');
+						fetchNewUser();
+					}}
+				>
+					{() => t.value?.await?.fetchNewUser} (ID: {currentUserId.value})
+				</button>
+			</div>
+
+			<div class="demo-result">
+				<Await
+					promise={userPromise}
+					pending={
+						<div class="demo-loading">
+							<div class="spinner" />
+							<span>{() => t.value?.await?.loading}</span>
+						</div>
+					}
+					error={(err) => (
+						<div class="demo-error">
+							<span>{() => t.value?.await?.errorMessage}</span>
+							<p class="error-detail">{String(err)}</p>
+						</div>
+					)}
+				>
+					{(user) => (
+						<div class="user-card">
+							<div class="user-avatar">{user.name.charAt(0)}</div>
+							<div class="user-info">
+								<p>
+									<strong>{() => t.value?.await?.userName}:</strong> {user.name}
+								</p>
+								<p>
+									<strong>{() => t.value?.await?.userEmail}:</strong>{' '}
+									{user.email}
+								</p>
+								<p class="user-id">
+									{() => t.value?.await?.userId}: {String(user.id)}
+								</p>
+							</div>
+						</div>
+					)}
+				</Await>
+			</div>
+
+			<Ink
+				content={`
+\`\`\`tsx
+<Await 
+  promise={fetchUser(userId)}
+  pending={<LoadingSpinner />}
+  error={(err) => <ErrorState error={err} />}
+>
+  {(user) => <UserProfile user={user} />}
+</Await>
+\`\`\`
+`.trim()}
+			/>
+		</div>
+	),
+});
+
 export const ComponentsPage = define({
 	script: ({ useStore }) => {
 		const i18nStore = useStore('i18n') as typeof I18nStoreType;
@@ -337,6 +528,8 @@ export const ComponentsPage = define({
 					<SwitchDemo />
 					<ForDemo />
 					<DynamicStyleDemo />
+					<RepeatDemo />
+					<AwaitDemo />
 				</div>
 			</div>
 		</DocsLayout>
