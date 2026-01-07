@@ -24,7 +24,7 @@ interface ToggleReturn {
 	close: () => void;
 }
 
-export const useToggle = defineHook<ToggleConfig, readonly [], ToggleReturn>({
+export const useToggle = defineHook<ToggleConfig, ToggleReturn>({
 	name: 'useToggle',
 	setup: ({ config, signal }): ToggleReturn => {
 		const isOpen = signal(config.initial ?? false);
@@ -104,7 +104,6 @@ interface ClickOutsideReturn {
 
 export const useClickOutside = defineHook<
 	ClickOutsideConfig,
-	readonly [],
 	ClickOutsideReturn
 >({
 	name: 'useClickOutside',
@@ -147,7 +146,6 @@ import { defineHook } from '@effuse/core';
 
 export const useTranslation = defineHook<
 	undefined,
-	readonly ['i18n'],
 	{ t: (key: string) => string }
 >({
 	name: 'useTranslation',
