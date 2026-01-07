@@ -96,6 +96,7 @@ const sectionsConfig: NavSection[] = [
 		key: 'Examples',
 		titleKey: 'examples',
 		items: [
+			{ labelKey: 'controlFlow', href: '/components' },
 			{ labelKey: 'context', href: '/context' },
 			{ labelKey: 'form', href: '/form' },
 			{ labelKey: 'todos', href: '/todos' },
@@ -163,6 +164,7 @@ const createStableSectionStates = (): SectionState[] => {
 				context: sidebar?.context,
 				hooks: sidebar?.hooks,
 				layers: sidebar?.layers,
+				controlFlow: sidebar?.controlFlow,
 			};
 			return section.items.map((item) => ({
 				label: labelMapping[item.labelKey] ?? item.labelKey,
