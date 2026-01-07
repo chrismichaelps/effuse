@@ -27,11 +27,7 @@ const getNestedValue = (
 	return typeof result === 'string' ? result : undefined;
 };
 
-export const useTranslation = defineHook<
-	undefined,
-	readonly ['i18n'],
-	TranslationReturn
->({
+export const useTranslation = defineHook<undefined, TranslationReturn>({
 	name: 'useTranslation',
 	deps: ['i18n'] as const,
 	setup: ({ layer }): TranslationReturn => {

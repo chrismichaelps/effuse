@@ -23,7 +23,6 @@ interface AnimatedDropdownReturn {
 
 export const useAnimatedDropdown = defineHook<
 	AnimatedDropdownConfig,
-	readonly [],
 	AnimatedDropdownReturn
 >({
 	name: 'useAnimatedDropdown',

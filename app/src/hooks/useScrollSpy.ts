@@ -17,11 +17,7 @@ interface ScrollSpyReturn {
 	init: () => void;
 }
 
-export const useScrollSpy = defineHook<
-	ScrollSpyConfig,
-	readonly [],
-	ScrollSpyReturn
->({
+export const useScrollSpy = defineHook<ScrollSpyConfig, ScrollSpyReturn>({
 	name: 'useScrollSpy',
 	setup: ({ config, signal, effect }): ScrollSpyReturn => {
 		const activeId = signal('');

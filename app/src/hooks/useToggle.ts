@@ -12,7 +12,7 @@ interface ToggleReturn {
 	set: (value: boolean) => void;
 }
 
-export const useToggle = defineHook<ToggleConfig, readonly [], ToggleReturn>({
+export const useToggle = defineHook<ToggleConfig, ToggleReturn>({
 	name: 'useToggle',
 	setup: ({ config, signal }): ToggleReturn => {
 		const isOpen = signal(config.initial ?? false);

@@ -11,7 +11,6 @@ interface InfiniteScrollReturn {
 
 export const useInfiniteScroll = defineHook<
 	InfiniteScrollConfig,
-	readonly [],
 	InfiniteScrollReturn
 >({
 	name: 'useInfiniteScroll',

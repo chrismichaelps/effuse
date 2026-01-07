@@ -12,7 +12,6 @@ interface ClickOutsideReturn {
 
 export const useClickOutside = defineHook<
 	ClickOutsideConfig,
-	readonly [],
 	ClickOutsideReturn
 >({
 	name: 'useClickOutside',

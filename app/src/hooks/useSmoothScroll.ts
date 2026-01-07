@@ -15,7 +15,6 @@ interface SmoothScrollReturn {
 
 export const useSmoothScroll = defineHook<
 	SmoothScrollConfig,
-	readonly [],
 	SmoothScrollReturn
 >({
 	name: 'useSmoothScroll',
