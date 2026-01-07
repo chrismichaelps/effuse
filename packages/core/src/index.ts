@@ -88,7 +88,18 @@ export {
 	DOMRendererLive,
 } from './render/index.js';
 
-export { For, type ForProps, createDynamicListNode } from './components/For.js';
+export {
+	For,
+	type ForProps,
+	Show,
+	type ShowProps,
+	Switch,
+	type SwitchProps,
+	Dynamic,
+	type DynamicProps,
+	ErrorBoundary,
+	type ErrorBoundaryProps,
+} from './components/index.js';
 
 export {
 	SUSPEND_TOKEN,

@@ -27,6 +27,7 @@ import { createListNode } from '../render/node.js';
 import type { Signal } from '../types/index.js';
 import { computed, untrack, signal } from '../reactivity/index.js';
 import { DuplicateKeysError } from '../errors.js';
+import { pipe, Match, Predicate } from 'effect';
 
 export interface ForProps<T> {
 	each: Signal<T[]> | (() => T[]);
@@ -41,71 +42,148 @@ export interface ForProps<T> {
 	};
 }
 
-export const For = <T>(props: ForProps<T>): EffuseNode => {
+type ItemMeta<T> = {
+	key: unknown;
+	itemSignal: Signal<T>;
+	indexSignal: Signal<number>;
+};
+
+type ForCache<T> = {
+	cachedChildren: EffuseNode[];
+	meta: WeakMap<EffuseNode, ItemMeta<T>>;
+};
+
+const createForCache = <T>(): ForCache<T> => ({
+	cachedChildren: [],
+	meta: new WeakMap(),
+});
+
+const resolveList = <T>(listSignal: Signal<T[]> | (() => T[])): T[] =>
+	pipe(
+		listSignal,
+		Match.value,
+		Match.when(Predicate.isFunction, (fn) => fn()),
+		Match.orElse((sig) => sig.value)
+	);
+
+const isValidRange = (r: { start: number; end: number }): boolean =>
+	r.end > r.start && r.start >= 0;
+
+const computeRange = <T>(
+	items: T[],
+	range: Signal<{ start: number; end: number }> | undefined
+): { start: number; end: number; sliced: T[] } => {
+	if (!Predicate.isNotNullable(range)) {
+		return { start: 0, end: items.length, sliced: items };
+	}
+
+	const r = range.value;
+	if (!isValidRange(r)) {
+		return { start: 0, end: items.length, sliced: items };
+	}
+
+	const start = Math.min(r.start, items.length);
+	const end = Math.min(r.end, items.length);
+	return { start, end, sliced: items.slice(start, end) };
+};
+
+const resolveFallback = (
+	fallback: EffuseChild | (() => EffuseChild) | undefined
+): EffuseChild[] => {
+	if (!Predicate.isNotNullable(fallback)) {
+		return [];
+	}
+
+	if (Predicate.isFunction(fallback)) {
+		return [fallback()];
+	}
+
+	return [fallback];
+};
+
+const invokeEnterTransition = <T>(
+	props: ForProps<T>,
+	node: EffuseNode,
+	index: number
+): void => {
+	if (!Predicate.isNotNullable(props.transitions)) return;
+	if (!Predicate.isNotNullable(props.transitions.enter)) return;
+	props.transitions.enter(node, index);
+};
+
+const invokeMoveTransition = <T>(
+	props: ForProps<T>,
+	node: EffuseNode,
+	fromIndex: number,
+	toIndex: number
+): void => {
+	if (!Predicate.isNotNullable(props.transitions)) return;
+	if (!Predicate.isNotNullable(props.transitions.move)) return;
+	props.transitions.move(node, fromIndex, toIndex);
+};
+
+const invokeExitTransitions = <T>(
+	props: ForProps<T>,
+	prevChildren: EffuseNode[],
+	cache: ForCache<T>,
+	seenKeys: Set<unknown>
+): void => {
+	if (!Predicate.isNotNullable(props.transitions)) return;
+	if (!Predicate.isNotNullable(props.transitions.exit)) return;
+
+	const exit = props.transitions.exit;
+	for (const child of prevChildren) {
+		const meta = cache.meta.get(child);
+		if (!Predicate.isNotNullable(meta)) continue;
+		if (seenKeys.has(meta.key)) continue;
+		exit(child, meta.indexSignal.value);
+	}
+};
+
+const createFor = <T>(props: ForProps<T>): EffuseNode => {
 	const {
 		each: listSignal,
 		children: renderChild,
 		keyExtractor: getKey,
 	} = props;
+	const keyFn = Predicate.isNotNullable(getKey)
+		? getKey
+		: (_item: T, i: number) => i;
 
-	const keyFn = getKey ?? ((_item: T, i: number) => i);
+	const cache = createForCache<T>();
+	const listNode = createListNode([]) as ListNode & { _cache: ForCache<T> };
+	listNode._cache = cache;
 
-	const listNode = createListNode([]) as ListNode & {
-		_cachedChildren?: EffuseNode[];
-		_meta?: WeakMap<
-			EffuseNode,
-			{ key: unknown; itemSignal: Signal<T>; indexSignal: Signal<number> }
-		>;
-	};
-
-	const childrenDescriptor: PropertyDescriptor = {
+	Object.defineProperty(listNode, 'children', {
 		enumerable: true,
 		configurable: true,
-		get: function () {
-			const fullItems =
-				typeof listSignal === 'function' ? listSignal() : listSignal.value;
-			if (!Array.isArray(fullItems)) {
-				return [];
-			}
-			const r = props.range?.value;
-			const hasValidRange = !!r && r.end > r.start && r.start >= 0;
-			const start = hasValidRange ? Math.min(r.start, fullItems.length) : 0;
-			const end = hasValidRange
-				? Math.min(r.end, fullItems.length)
-				: fullItems.length;
-			const newItems = fullItems.slice(start, end);
+		get() {
+			const fullItems = resolveList(listSignal);
+			if (!Array.isArray(fullItems)) return [];
+
+			const { start, sliced: newItems } = computeRange(fullItems, props.range);
 
 			if (newItems.length === 0) {
-				const fb = props.fallback;
-				if (fb) {
-					const node = typeof fb === 'function' ? fb() : fb;
-					listNode._cachedChildren = [];
-					return [node] as EffuseChild[];
-				}
-				listNode._cachedChildren = [];
-				return [] as EffuseChild[];
+				cache.cachedChildren = [];
+				return resolveFallback(props.fallback);
 			}
 
-			const prevChildren = listNode._cachedChildren ?? [];
-
-			// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-			const newChildren: EffuseNode[] = new Array(newItems.length);
-
-			const metaMap = listNode._meta ?? (listNode._meta = new WeakMap());
-
+			const prevChildren = cache.cachedChildren;
+			const newChildren: EffuseNode[] = Array.from({ length: newItems.length });
 			const keyToOldNode = new Map<unknown, EffuseNode>();
 			const seenKeys = new Set<unknown>();
 
 			for (const child of prevChildren) {
-				const meta = metaMap.get(child);
-				if (meta) {
+				const meta = cache.meta.get(child);
+				if (Predicate.isNotNullable(meta)) {
 					keyToOldNode.set(meta.key, child);
 				}
 			}
 
 			for (let i = 0; i < newItems.length; i++) {
 				const item = newItems[i];
-				if (item === undefined) continue;
+				if (!Predicate.isNotNullable(item)) continue;
+
 				const actualIndex = start + i;
 				const key = keyFn(item, actualIndex);
 
@@ -116,59 +194,41 @@ export const For = <T>(props: ForProps<T>): EffuseNode => {
 					seenKeys.add(key);
 				}
 
-				let childNode: EffuseNode;
+				const existingNode = keyToOldNode.get(key);
 
-				if (keyToOldNode.has(key)) {
-					const existingNode = keyToOldNode.get(key);
-					if (!existingNode) continue;
-					childNode = existingNode;
+				if (Predicate.isNotNullable(existingNode)) {
+					const meta = cache.meta.get(existingNode);
+					if (!Predicate.isNotNullable(meta)) continue;
 
-					const meta = metaMap.get(childNode);
-					if (!meta) continue;
 					const prevIndex = meta.indexSignal.value;
 					if (meta.itemSignal.value !== item) {
 						meta.itemSignal.value = item;
 					}
 					if (meta.indexSignal.value !== actualIndex) {
 						meta.indexSignal.value = actualIndex;
-						props.transitions?.move?.(childNode, prevIndex, actualIndex);
+						invokeMoveTransition(props, existingNode, prevIndex, actualIndex);
 					}
+					newChildren[i] = existingNode;
 				} else {
-					const itemSignal = signal<T>(item as T);
+					const itemSignal = signal<T>(item);
 					const indexSignal = signal<number>(actualIndex);
-
-					childNode = untrack(() => renderChild(itemSignal, indexSignal));
-
-					metaMap.set(childNode, { key, itemSignal, indexSignal });
-
-					props.transitions?.enter?.(childNode, actualIndex);
-				}
-
-				newChildren[i] = childNode;
-			}
-
-			if (props.transitions?.exit) {
-				const exit = props.transitions.exit;
-				const newKeySet = seenKeys;
-				for (const child of prevChildren) {
-					const meta = metaMap.get(child);
-					if (meta && !newKeySet.has(meta.key)) {
-						exit(child, meta.indexSignal.value);
-					}
+					const node = untrack(() => renderChild(itemSignal, indexSignal));
+					cache.meta.set(node, { key, itemSignal, indexSignal });
+					invokeEnterTransition(props, node, actualIndex);
+					newChildren[i] = node;
 				}
 			}
 
-			listNode._cachedChildren = newChildren;
-
+			invokeExitTransitions(props, prevChildren, cache, seenKeys);
+			cache.cachedChildren = newChildren;
 			return newChildren;
 		},
-	};
-	Object.defineProperty(listNode, 'children', childrenDescriptor);
+	});
 
 	return listNode;
 };
 
-export const createDynamicListNode = <T>(
+const createDynamic = <T>(
 	sig: Signal<T[]>,
 	render: (item: T, index: Signal<number>) => EffuseNode
 ): EffuseNode => {
@@ -188,3 +248,7 @@ export const createDynamicListNode = <T>(
 
 	return node;
 };
+
+export const For = Object.assign(createFor, {
+	Dynamic: createDynamic,
+});
