@@ -174,6 +174,3 @@ export const InlineNodeSchema = Schema.Union(
 	LineBreakNodeSchema,
 	ComponentNodeSchema
 );
-
-export const decodeDocumentNode = Schema.decodeUnknownSync(DocumentNodeSchema);
-export const encodeDocumentNode = Schema.encodeSync(DocumentNodeSchema);

@@ -34,7 +34,6 @@ export {
 	takeFirst,
 	debounceAction,
 	throttleAction,
-	TimeoutError,
 	type ActionResult,
 	type AsyncAction,
 	type CancellableAction,
@@ -42,7 +41,6 @@ export {
 } from './async.js';
 
 export {
-	CancellationError,
 	createCancellationToken,
 	createCancellationScope,
 	type CancellationToken,

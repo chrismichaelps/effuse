@@ -23,7 +23,6 @@
  */
 
 import { Effect, Option } from 'effect';
-import { raceAll } from '../actions/cancellation.js';
 
 // Storage engine interface
 export interface StorageAdapter {
@@ -82,13 +81,6 @@ export const createMemoryAdapter = (): StorageAdapter => {
 	};
 };
 
-// No-op storage adapter
-export const noopAdapter: StorageAdapter = {
-	getItem: () => Effect.succeed(Option.none()),
-	setItem: () => Effect.void,
-	removeItem: () => Effect.void,
-};
-
 // Synchronous storage adapter bridge
 export const runAdapter = {
 	getItem: (adapter: StorageAdapter, key: string): string | null =>
@@ -101,14 +93,4 @@ export const runAdapter = {
 	removeItem: (adapter: StorageAdapter, key: string): void => {
 		Effect.runSync(adapter.removeItem(key));
 	},
-};
-
-export const raceAdapters = (
-	adapters: StorageAdapter[],
-	key: string
-): Effect.Effect<Option.Option<string>> => {
-	if (adapters.length === 0) {
-		return Effect.succeed(Option.none());
-	}
-	return raceAll(adapters.map((adapter) => adapter.getItem(key)));
 };

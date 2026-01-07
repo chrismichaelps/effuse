@@ -22,11 +22,12 @@
  * SOFTWARE.
  */
 
-import { Effect, Fiber, Duration } from 'effect';
+import { Effect, Fiber, Duration, Predicate } from 'effect';
 import { signal, type Signal } from '@effuse/core';
 import { getGlobalQueryClient, type QueryKey } from '../client/index.js';
 import { buildRetrySchedule, type RetryConfig } from '../execution/index.js';
 import { DEFAULT_STALE_TIME_MS, DEFAULT_TIMEOUT_MS } from '../config/index.js';
+import { InfiniteQueryError, TimeoutError } from '../errors/index.js';
 
 // Paginated query page data
 export interface InfiniteQueryPage<TData> {
@@ -138,7 +139,9 @@ export const useInfiniteQuery = <TData, TPageParam = number>(
 		isErrorSignal.value = status === 'error';
 
 		const currentData = dataSignal.value;
-		allPagesDataSignal.value = currentData?.pages;
+		allPagesDataSignal.value = Predicate.isNotNullable(currentData)
+			? currentData.pages
+			: undefined;
 	};
 
 	const fetchPage = (
@@ -150,17 +153,20 @@ export const useInfiniteQuery = <TData, TPageParam = number>(
 		let effect: Effect.Effect<TData, Error, never> = Effect.tryPromise({
 			try: () => queryFn({ pageParam }),
 			catch: (error) =>
-				new Error(error instanceof Error ? error.message : String(error)),
+				new InfiniteQueryError({
+					message: error instanceof Error ? error.message : String(error),
+					cause: error,
+				}),
 		});
 
 		effect = effect.pipe(
 			Effect.timeoutFail({
 				duration: Duration.millis(timeout),
-				onTimeout: () => new Error(`Query timed out after ${timeout}ms`),
+				onTimeout: () => new TimeoutError({ durationMs: timeout }),
 			})
 		);
 
-		if (retryConfig?.times !== 0) {
+		if (!Predicate.isNotNullable(retryConfig) || retryConfig.times !== 0) {
 			effect = effect.pipe(Effect.retry(schedule));
 		}
 
@@ -213,7 +219,9 @@ export const useInfiniteQuery = <TData, TPageParam = number>(
 			isInternalUpdate = false;
 		} catch (error) {
 			errorSignal.value =
-				error instanceof Error ? error : new Error(String(error));
+				error instanceof Error
+					? error
+					: new InfiniteQueryError({ message: String(error), cause: error });
 			statusSignal.value = 'error';
 			updateDerivedState();
 		} finally {
@@ -263,7 +271,9 @@ export const useInfiniteQuery = <TData, TPageParam = number>(
 			isInternalUpdate = false;
 		} catch (error) {
 			errorSignal.value =
-				error instanceof Error ? error : new Error(String(error));
+				error instanceof Error
+					? error
+					: new InfiniteQueryError({ message: String(error), cause: error });
 			statusSignal.value = 'error';
 			updateDerivedState();
 		} finally {
@@ -308,7 +318,9 @@ export const useInfiniteQuery = <TData, TPageParam = number>(
 			isInternalUpdate = false;
 		} catch (error) {
 			errorSignal.value =
-				error instanceof Error ? error : new Error(String(error));
+				error instanceof Error
+					? error
+					: new InfiniteQueryError({ message: String(error), cause: error });
 			statusSignal.value = 'error';
 			updateDerivedState();
 		} finally {

@@ -43,6 +43,4 @@ export {
 	BlockNodeSchema,
 	DocumentNodeSchema,
 	InlineNodeSchema,
-	decodeDocumentNode,
-	encodeDocumentNode,
 } from './ast.js';

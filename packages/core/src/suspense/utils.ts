@@ -27,6 +27,7 @@ import { Effect } from 'effect';
 export const isEffect = <T>(
 	value: Effect.Effect<T, Error> | Promise<T>
 ): value is Effect.Effect<T, Error> =>
+	// eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
 	typeof value === 'object' && value !== null && '_op' in value;
 
 export const promiseToEffect = <T>(

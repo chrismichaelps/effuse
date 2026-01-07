@@ -22,6 +22,7 @@
  * SOFTWARE.
  */
 
+import { Option, pipe } from 'effect';
 import type { Effect } from 'effect';
 import { signal, computed } from '../reactivity/index.js';
 import type { Signal, ReadonlySignal } from '../types/index.js';
@@ -31,7 +32,7 @@ import type { ResourceOptions } from './schema.js';
 export interface ListResource<T> {
 	readonly items: Signal<T[]>;
 	readonly loading: boolean;
-	readonly error: unknown | undefined;
+	readonly error: unknown;
 	readonly length: ReadonlySignal<number>;
 	readonly isEmpty: ReadonlySignal<boolean>;
 	readonly refetch: () => void;
@@ -48,9 +49,16 @@ export const createListResource = <T>(
 ): ListResource<T> => {
 	const resource = createResource(fetcher, {
 		...options,
-		initialValue: (options?.initialValue as T[] | undefined) ?? [],
+		initialValue: pipe(
+			Option.fromNullable(options),
+			Option.flatMap((o) =>
+				Option.fromNullable(o.initialValue as T[] | undefined)
+			),
+			Option.getOrElse((): T[] => [])
+		),
 	});
 
+	// eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
 	const items = signal<T[]>((resource.state.value.data as T[]) ?? []);
 
 	const length = computed(() => items.value.length);
@@ -161,8 +169,11 @@ export const createMultiResource = <T extends Record<string, unknown>>(
 
 	const dataProxy = new Proxy({} as { [K in keyof T]: T[K] | undefined }, {
 		get(_, key: string) {
-			const sig = data[key as keyof T];
-			return sig?.value;
+			return pipe(
+				Option.fromNullable(data[key as keyof T]),
+				Option.map((sig) => sig.value),
+				Option.getOrUndefined
+			);
 		},
 	});
 

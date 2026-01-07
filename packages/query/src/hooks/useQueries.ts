@@ -26,6 +26,7 @@ import { Effect, Duration } from 'effect';
 import { signal, type Signal } from '@effuse/core';
 import { type QueryKey } from '../client/index.js';
 import { DEFAULT_TIMEOUT_MS } from '../config/index.js';
+import { QueryFetchError, TimeoutError } from '../errors/index.js';
 
 // Parallel query configuration
 export interface UseQueriesOptions<T> {
@@ -71,11 +72,14 @@ export const useQueries = <T>(
 			Effect.tryPromise({
 				try: () => q.queryFn(),
 				catch: (error) =>
-					new Error(error instanceof Error ? error.message : String(error)),
+					new QueryFetchError({
+						message: error instanceof Error ? error.message : String(error),
+						cause: error,
+					}),
 			}).pipe(
 				Effect.timeoutFail({
 					duration: Duration.millis(DEFAULT_TIMEOUT_MS),
-					onTimeout: () => new Error('Query timed out'),
+					onTimeout: () => new TimeoutError({ durationMs: DEFAULT_TIMEOUT_MS }),
 				}),
 				Effect.map((data) => ({
 					queryKey: q.queryKey,

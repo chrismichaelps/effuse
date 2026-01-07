@@ -22,6 +22,7 @@
  * SOFTWARE.
  */
 
+import { Predicate, Option, pipe } from 'effect';
 import { signal } from '../reactivity/signal.js';
 import { computed } from '../reactivity/computed.js';
 import { effect } from '../effects/effect.js';
@@ -44,10 +45,16 @@ export function useForm<T extends Record<string, unknown>>(
 	options: FormOptions<T>
 ): UseFormReturn<T> {
 	const { initial, validators, onSubmit, validationOptions } = options;
-	const debounceMs =
-		validationOptions?.debounce ?? DEFAULT_FORM_CONFIG.debounceMs;
-	const validateOn =
-		validationOptions?.validateOn ?? DEFAULT_FORM_CONFIG.validateOn;
+	const debounceMs = pipe(
+		Option.fromNullable(validationOptions),
+		Option.flatMap((o) => Option.fromNullable(o.debounce)),
+		Option.getOrElse(() => DEFAULT_FORM_CONFIG.debounceMs)
+	);
+	const validateOn = pipe(
+		Option.fromNullable(validationOptions),
+		Option.flatMap((o) => Option.fromNullable(o.validateOn)),
+		Option.getOrElse(() => DEFAULT_FORM_CONFIG.validateOn)
+	);
 
 	const initialValues = {} as T;
 	for (const key of Object.keys(initial) as Array<keyof T>) {
@@ -128,7 +135,9 @@ export function useForm<T extends Record<string, unknown>>(
 	};
 
 	const submit = async (e?: Event): Promise<void> => {
-		e?.preventDefault();
+		if (Predicate.isNotNullable(e)) {
+			e.preventDefault();
+		}
 
 		for (const key of Object.keys(touched) as Array<keyof T>) {
 			touched[key].value = true;

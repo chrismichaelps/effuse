@@ -23,6 +23,7 @@
  */
 import type { Store } from '../core/types.js';
 import { getStoreConfig } from '../config/index.js';
+import { StoreNotFoundError } from '../errors.js';
 
 const stores = new Map<string, Store<unknown>>();
 
@@ -39,7 +40,7 @@ export const registerStore = <T>(name: string, store: Store<T>): void => {
 export const getStore = <T>(name: string): Store<T> => {
 	const store = stores.get(name);
 	if (!store) {
-		throw new Error(`Store "${name}" not found. Did you forget to create it?`);
+		throw new StoreNotFoundError({ name });
 	}
 	return store as Store<T>;
 };

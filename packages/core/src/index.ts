@@ -22,16 +22,7 @@
  * SOFTWARE.
  */
 
-export {
-	EffuseError,
-	RenderError,
-	SignalError,
-	BlueprintError,
-	MountError,
-	EffectError,
-	CleanupError,
-	type EffuseErrors,
-} from './errors/index.js';
+export { TaggedError, isTaggedError, hasTag } from './errors/index.js';
 
 export type {
 	Signal,
@@ -97,7 +88,22 @@ export {
 	DOMRendererLive,
 } from './render/index.js';
 
-export { For, type ForProps, createDynamicListNode } from './components/For.js';
+export {
+	For,
+	type ForProps,
+	Show,
+	type ShowProps,
+	Switch,
+	type SwitchProps,
+	Dynamic,
+	type DynamicProps,
+	ErrorBoundary,
+	type ErrorBoundaryProps,
+	Repeat,
+	type RepeatProps,
+	Await,
+	type AwaitProps,
+} from './components/index.js';
 
 export {
 	SUSPEND_TOKEN,
@@ -123,29 +129,6 @@ export {
 	suspenseApi,
 	createResource,
 	type Resource,
-	type EffectFetcher,
-	type PromiseFetcher,
-	type Fetcher,
-	isEffectFetcher,
-	toEffect,
-	withTimeout,
-	withRetry,
-	applyResourceOptions,
-	fetchParallel,
-	fetchSequential,
-	fetchRace,
-	fetchAllSettled,
-	type SSRSuspenseState,
-	initSSRSuspense,
-	getSSRState,
-	clearSSRState,
-	serializeSSRData,
-	hydrateSSRData,
-	getHydratedData,
-	waitForAllResources,
-	collectSSRData,
-	type SSRRenderResult,
-	renderWithSuspense,
 	type ListResource,
 	createListResource,
 	type MultiResource,
@@ -153,6 +136,27 @@ export {
 	Suspense,
 	type SuspenseProps,
 } from './suspense/index.js';
+
+export {
+	initSSRSuspense,
+	getSSRState,
+	clearSSRState,
+	serializeSSRData,
+	hydrateSSRData,
+	getHydratedData,
+	waitForAllResourcesAsync,
+	collectSSRData,
+	renderWithSuspense,
+	type SSRSuspenseState,
+	type SSRRenderResult,
+} from './suspense/ssr.js';
+
+export {
+	type EffectFetcher,
+	type PromiseFetcher,
+	type Fetcher,
+	isEffectFetcher,
+} from './suspense/fetchers.js';
 
 export { EFFUSE_NODE, FRAGMENT, NodeType } from './constants.js';
 
@@ -164,11 +168,13 @@ export {
 	view,
 	type BlueprintOptions,
 	type DefineOptions,
+	type DefineOptionsWithLayer,
 	type ScriptContext,
+	type LayerScriptContext,
+	type LayerPropsFor,
 	type EffuseRegistry,
 	setGlobalStoreGetter,
 	setGlobalRouter,
-	createComponentLifecycle,
 	createComponentLifecycleSync,
 	type ComponentLifecycle,
 	PropSchema,
@@ -180,6 +186,7 @@ export {
 	PortalService,
 	PortalServiceLive,
 	Portal,
+	PortalOutlet,
 	createPortal,
 	registerPortalOutlet,
 	unregisterPortalOutlet,
@@ -189,6 +196,10 @@ export {
 	getGlobalPortalService,
 	type PortalServiceInterface,
 	type PortalContainer,
+	type PortalProps,
+	type PortalInsertMode,
+	type PortalPriority,
+	PORTAL_PRIORITY,
 } from './blueprint/index.js';
 
 export {
@@ -206,6 +217,19 @@ export {
 } from './canvas/index.js';
 
 export {
+	defineHook,
+	createHookContext,
+	type HookContext,
+	type HookDefinition,
+	type HookSetupFn,
+	type HookCleanup,
+	type HookScope,
+	type HookFinalizer,
+	type InferHookReturn,
+	type InferHookConfig,
+} from './hooks/index.js';
+
+export {
 	Renderer,
 	CanvasService,
 	BlueprintService,
@@ -219,11 +243,9 @@ export {
 	EffuseLive,
 	RouterService,
 	makeRouterLayer,
-	NoopRouterLayer,
 	type RouterApi,
 	StoreService,
 	makeStoreLayer,
-	NoopStoreLayer,
 	type StoreApi,
 } from './services/index.js';
 
@@ -232,8 +254,9 @@ export { jsx, jsxs, jsxDEV, Fragment } from './jsx/index.js';
 export {
 	defineLayer,
 	combineLayers,
-	resolveLayerExtends,
+	resolveLayerOrder,
 	mergeLayerConfigs,
+	createLayerRuntime,
 	type EffuseLayer,
 	type ResolvedLayer,
 	type RouteConfig,
@@ -241,14 +264,26 @@ export {
 	type Guard,
 	type PluginFn,
 	type PluginCleanup,
+	type MaybePromise,
 	type LayerRestriction,
-	type RouterConfig,
-	type StyleConfig,
-	type ProviderConfig,
-	type PluginConfig,
+	type MergedConfig,
+	type CombinedLayerResult,
+	type LayerProvides,
+	type SetupContext,
+	type LayerSetupFn,
+	type LayerProps,
+	type AnyLayer,
+	type AnyResolvedLayer,
+	type LayerRuntime,
+	type LayerRuntimeOptions,
 } from './layers/index.js';
 
-export { createApp, EffuseApp, type AppInstance } from './app/index.js';
+export {
+	createApp,
+	EffuseApp,
+	type AppInstance,
+	type MountOptions,
+} from './app/index.js';
 
 export {
 	createServerApp,
@@ -298,21 +333,9 @@ export {
 	logEffect,
 	logLifecycle,
 	logInk,
-	logReactivityE,
-	logRenderE,
-	logRouterE,
-	logStoreE,
-	logEffectE,
-	logLifecycleE,
-	logInkE,
 	DevTools,
 	DevToolsLive,
 	DevToolsConfig,
-	loadDevToolsConfig,
-	makeDevToolsService,
-	LogLevelSchema,
-	DevToolsCategorySchema,
-	LogEntrySchema,
 	DevToolsStateSchema,
 	type DevToolsService,
 	type DevToolsCategory,
@@ -341,7 +364,38 @@ export {
 } from './form/index.js';
 
 export {
-	useStyles,
-	type StyleOptions,
-	type StyleCleanup,
-} from './styles/index.js';
+	DEFAULT_DEBOUNCE_MS,
+	DEFAULT_THROTTLE_MS,
+	type EmitHandler,
+	type EmitEvents,
+	type EventMap,
+	type InferPayload,
+	type EmitOptions,
+	type EmitContextData,
+	type EmitFn,
+	type EmitFnAsync,
+	type SubscribeFn,
+	type EventSignal,
+	useEmitService,
+	getEmitService,
+	type EmitServiceApi,
+	useEmits,
+	useEventSignal,
+	createEventSignal,
+	createDebounce,
+	createThrottle,
+	createOnce,
+	createFilter,
+	type FilterPredicate,
+} from './emit/index.js';
+
+export {
+	createContext,
+	useContext,
+	hasContextValue,
+	isEffuseContext,
+	ContextNotFoundError,
+	type ContextOptions,
+	type ProviderProps,
+	type EffuseContext,
+} from './context/index.js';

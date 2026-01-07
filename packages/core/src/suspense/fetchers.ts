@@ -22,13 +22,9 @@
  * SOFTWARE.
  */
 
-import { Effect, pipe, Schedule } from 'effect';
+import { Effect, pipe, Schedule, Predicate } from 'effect';
 import type { ResourceOptions } from './schema.js';
-import {
-	DEFAULT_RETRY_TIMES,
-	DEFAULT_RETRY_DELAY_MS,
-	DEFAULT_EXPONENTIAL_RETRY,
-} from './config.js';
+import { DEFAULT_EXPONENTIAL_RETRY } from './config.js';
 import { isEffect } from './utils.js';
 
 export type EffectFetcher<T, E = Error> = () => Effect.Effect<T, E>;
@@ -78,16 +74,18 @@ export const applyResourceOptions = <T>(
 ): Effect.Effect<T, Error> => {
 	let effect = toEffect(fetcher);
 
-	if (options?.timeout) {
+	if (
+		Predicate.isNotNullable(options) &&
+		Predicate.isNotNullable(options.timeout)
+	) {
 		effect = withTimeout(effect, options.timeout);
 	}
 
-	if (options?.retry) {
-		const {
-			times = DEFAULT_RETRY_TIMES,
-			delay = DEFAULT_RETRY_DELAY_MS,
-			exponential = DEFAULT_EXPONENTIAL_RETRY,
-		} = options.retry;
+	if (
+		Predicate.isNotNullable(options) &&
+		Predicate.isNotNullable(options.retry)
+	) {
+		const { times, delay, exponential } = options.retry;
 		effect = withRetry(effect, times, delay, exponential);
 	}
 
@@ -109,8 +107,7 @@ export const fetchRace = <A, E>(
 export const fetchAllSettled = <A, E>(
 	effects: Effect.Effect<A, E>[]
 ): Effect.Effect<
-	Array<{ status: 'success'; value: A } | { status: 'error'; error: E }>,
-	never
+	Array<{ status: 'success'; value: A } | { status: 'error'; error: E }>
 > =>
 	Effect.all(
 		effects.map((eff) =>

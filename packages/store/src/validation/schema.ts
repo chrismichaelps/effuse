@@ -22,8 +22,8 @@
  * SOFTWARE.
  */
 
-import { Effect, Schema, Duration } from 'effect';
-import { TimeoutError } from '../actions/async.js';
+import { Effect, Schema, Duration, Predicate } from 'effect';
+import { TimeoutError } from '../errors.js';
 import { DEFAULT_TIMEOUT_MS } from '../config/constants.js';
 
 // State validation schema type
@@ -75,7 +75,7 @@ export const validateStateAsync = <T>(
 			})),
 			Effect.timeoutFail({
 				duration: Duration.millis(timeoutMs),
-				onTimeout: () => new TimeoutError(timeoutMs),
+				onTimeout: () => new TimeoutError({ ms: timeoutMs }),
 			}),
 			Effect.catchAll((error) =>
 				Effect.succeed({
@@ -104,7 +104,9 @@ export const createValidatedSetter = <T extends Record<string, unknown>>(
 			onValid(result.data);
 			return true;
 		}
-		onInvalid?.(result.errors);
+		if (Predicate.isNotNullable(onInvalid)) {
+			onInvalid(result.errors);
+		}
 		return false;
 	};
 };

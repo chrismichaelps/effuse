@@ -25,7 +25,7 @@
 import type { Effect } from 'effect';
 import { Context } from 'effect';
 import type { EffuseChild, BlueprintDef } from '../../render/node.js';
-import type { RenderError, BlueprintError } from '../../errors/index.js';
+import type { BlueprintError, RenderError } from '../../errors/internal.js';
 
 export interface CanvasServiceInterface {
 	readonly paint: <P extends Record<string, unknown>>(

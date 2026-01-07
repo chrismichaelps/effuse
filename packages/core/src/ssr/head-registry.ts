@@ -22,7 +22,14 @@
  * SOFTWARE.
  */
 
-import { Effect, Context, Ref, Layer } from 'effect';
+import {
+	Effect,
+	Context,
+	Ref,
+	Layer,
+	Option as EffectOption,
+	pipe,
+} from 'effect';
 import type { HeadProps, MetaTag, LinkTag, ScriptTag } from './types.js';
 
 export class HeadRegistry extends Context.Tag('HeadRegistry')<
@@ -109,7 +116,17 @@ const dedupeLinkTags = (tags: readonly LinkTag[]): LinkTag[] => {
 const dedupeScriptTags = (tags: readonly ScriptTag[]): ScriptTag[] => {
 	const seen = new Map<string, ScriptTag>();
 	for (const tag of tags) {
-		const key = tag.src ?? tag.id ?? tag.content?.slice(0, 50) ?? '';
+		const key = pipe(
+			EffectOption.fromNullable(tag.src),
+			EffectOption.orElse(() => EffectOption.fromNullable(tag.id)),
+			EffectOption.orElse(() =>
+				pipe(
+					EffectOption.fromNullable(tag.content),
+					EffectOption.map((c) => c.slice(0, 50))
+				)
+			),
+			EffectOption.getOrElse(() => '')
+		);
 		if (key) {
 			seen.set(key, tag);
 		}

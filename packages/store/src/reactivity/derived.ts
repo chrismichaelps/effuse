@@ -30,6 +30,7 @@ import {
 	createCancellationToken,
 	type CancellationToken,
 } from '../actions/cancellation.js';
+import { HydrationError } from '../errors.js';
 
 // Build derived reactive signal
 export const deriveFrom = <S extends Store<unknown>[], R>(
@@ -153,7 +154,7 @@ export const hydrateStores = (serialized: string): Effect.Effect<void> =>
 				);
 			}
 		},
-		catch: () => new Error('Failed to hydrate stores'),
+		catch: () => new HydrationError({}),
 	}).pipe(Effect.catchAll(() => Effect.void));
 
 // Hydrate stores synchronously

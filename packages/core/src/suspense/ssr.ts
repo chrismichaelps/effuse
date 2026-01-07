@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-import { Effect } from 'effect';
+import { Effect, Predicate, Option, pipe, Array as Arr } from 'effect';
 import { suspenseApi } from './service.js';
 
 export interface SSRSuspenseState {
@@ -66,14 +66,22 @@ export const hydrateSSRData = (serialized: string): void => {
 			errors: new Map(),
 		};
 	} else {
-		Object.entries(data).forEach(([key, value]) => {
-			ssrState?.resolvedData.set(key, value);
+		Arr.forEach(Object.entries(data), ([key, value]) => {
+			if (Predicate.isNotNullable(ssrState)) {
+				ssrState.resolvedData.set(key, value);
+			}
 		});
 	}
 };
 
 export const getHydratedData = (resourceId: string): unknown =>
-	ssrState?.resolvedData.get(resourceId);
+	pipe(
+		Option.fromNullable(ssrState),
+		Option.flatMap((state) =>
+			Option.fromNullable(state.resolvedData.get(resourceId))
+		),
+		Option.getOrUndefined
+	);
 
 export const waitForAllResources = (): Effect.Effect<void, Error> =>
 	Effect.gen(function* () {
@@ -82,6 +90,13 @@ export const waitForAllResources = (): Effect.Effect<void, Error> =>
 			yield* Effect.promise(() => boundary.waitForAll());
 		}
 	});
+
+export const waitForAllResourcesAsync = async (): Promise<void> => {
+	const boundary = suspenseApi.getCurrentBoundary();
+	if (boundary && boundary.hasPending()) {
+		await boundary.waitForAll();
+	}
+};
 
 export const collectSSRData = async (): Promise<string> => {
 	const boundary = suspenseApi.getCurrentBoundary();

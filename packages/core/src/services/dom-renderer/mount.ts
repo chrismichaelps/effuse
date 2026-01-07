@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-import { Context, Effect, Layer, pipe } from 'effect';
+import { Context, Effect, Layer, pipe, Predicate } from 'effect';
 import type { Signal } from '../../reactivity/signal.js';
 import { untrack, isSignal } from '../../reactivity/index.js';
 import { effect } from '../../effects/effect.js';
@@ -86,6 +86,103 @@ const mountChild = (
 		return Effect.succeed([]);
 	}
 
+	if (typeof child === 'function') {
+		const fn = child as () => unknown;
+		const anchor = document.createComment('fn');
+		let currentNodes: Node[] = [];
+		const fnCleanups: CleanupFn[] = [];
+		let effectHandle: EffectHandle | null = null;
+
+		const runEffect = () => {
+			effectHandle = effect(() => {
+				const value = fn();
+
+				for (const node of currentNodes) {
+					if (Predicate.isNotNullable(node.parentNode)) {
+						node.parentNode.removeChild(node);
+					}
+				}
+
+				for (const cleanup of fnCleanups) {
+					cleanup();
+				}
+				fnCleanups.length = 0;
+
+				if (value == null) {
+					currentNodes = [];
+					return;
+				}
+
+				if (typeof value === 'string' || typeof value === 'number') {
+					const textNode = document.createTextNode(String(value));
+					if (Predicate.isNotNullable(anchor.parentNode)) {
+						anchor.parentNode.insertBefore(textNode, anchor.nextSibling);
+					}
+					currentNodes = [textNode];
+					return;
+				}
+
+				if (typeof value === 'boolean') {
+					currentNodes = [];
+					return;
+				}
+
+				untrack(() => {
+					const childCleanups: CleanupFn[] = [];
+
+					let mountResult: Node[];
+					try {
+						mountResult = Effect.runSync(
+							pipe(
+								mountChild(value as EffuseChild, childCleanups),
+								Effect.provide(PropServiceLive),
+								Effect.provide(EventServiceLive)
+							)
+						);
+					} catch (err) {
+						const isSuspendError = (e: unknown): boolean => {
+							if (isSuspendToken(e)) return true;
+							if (typeof e === 'object' && e !== null) {
+								const anyErr = e as Record<string, unknown>;
+								if (isSuspendToken(anyErr.cause)) return true;
+								if (isSuspendToken(anyErr.error)) return true;
+								if (isSuspendToken(anyErr.defect)) return true;
+							}
+							return false;
+						};
+
+						if (isSuspendError(err)) {
+							currentNodes = [];
+							return;
+						}
+						throw err;
+					}
+
+					const insertPoint: Node | null = anchor.nextSibling;
+					for (const node of mountResult) {
+						if (anchor.parentNode) {
+							anchor.parentNode.insertBefore(node, insertPoint);
+						}
+					}
+					currentNodes = mountResult;
+					fnCleanups.push(...childCleanups);
+				});
+			});
+		};
+
+		queueMicrotask(runEffect);
+
+		cleanups.push(() => {
+			if (Predicate.isNotNullable(effectHandle)) {
+				effectHandle.stop();
+			}
+			for (const cleanup of fnCleanups) {
+				cleanup();
+			}
+		});
+		return Effect.succeed([anchor]);
+	}
+
 	if (isSignal(child)) {
 		const sig = child as Signal<EffuseChild>;
 		const anchor = document.createComment('signal');
@@ -98,7 +195,9 @@ const mountChild = (
 				const value = sig.value;
 
 				for (const node of currentNodes) {
-					node.parentNode?.removeChild(node);
+					if (Predicate.isNotNullable(node.parentNode)) {
+						node.parentNode.removeChild(node);
+					}
 				}
 
 				for (const cleanup of signalCleanups) {
@@ -113,7 +212,9 @@ const mountChild = (
 
 				if (typeof value === 'string' || typeof value === 'number') {
 					const textNode = document.createTextNode(String(value));
-					anchor.parentNode?.insertBefore(textNode, anchor.nextSibling);
+					if (Predicate.isNotNullable(anchor.parentNode)) {
+						anchor.parentNode.insertBefore(textNode, anchor.nextSibling);
+					}
 					currentNodes = [textNode];
 					return;
 				}
@@ -138,7 +239,8 @@ const mountChild = (
 								if (isSuspendToken(anyErr.cause)) return true;
 								if (isSuspendToken(anyErr.error)) return true;
 								if (isSuspendToken(anyErr.defect)) return true;
-								const msg = String(anyErr.message || '');
+								const msg =
+									typeof anyErr.message === 'string' ? anyErr.message : '';
 								if (msg.includes('"resourceId"') && msg.includes('"promise"')) {
 									return true;
 								}
@@ -168,7 +270,9 @@ const mountChild = (
 		queueMicrotask(runEffect);
 
 		cleanups.push(() => {
-			effectHandle?.stop();
+			if (Predicate.isNotNullable(effectHandle)) {
+				effectHandle.stop();
+			}
 			for (const cleanup of signalCleanups) {
 				cleanup();
 			}
@@ -263,6 +367,23 @@ const mountNode = (
 
 						if (
 							(key === 'value' || key === 'checked') &&
+							typeof value === 'function' &&
+							(element instanceof HTMLInputElement ||
+								element instanceof HTMLTextAreaElement ||
+								element instanceof HTMLSelectElement)
+						) {
+							const result = Effect.runSync(
+								propService.bindFormControl(
+									element,
+									value as () => string | number | boolean
+								)
+							);
+							bindingCleanups.push(result.cleanup);
+							continue;
+						}
+
+						if (
+							(key === 'value' || key === 'checked') &&
 							isSignal(value) &&
 							(element instanceof HTMLInputElement ||
 								element instanceof HTMLTextAreaElement ||
@@ -325,7 +446,9 @@ const mountNode = (
 					const children = getNodeChildren(node);
 
 					for (const n of currentNodes) {
-						n.parentNode?.removeChild(n);
+						if (Predicate.isNotNullable(n.parentNode)) {
+							n.parentNode.removeChild(n);
+						}
 					}
 					for (const cleanup of listCleanups) {
 						cleanup();
@@ -360,7 +483,8 @@ const mountNode = (
 						}
 						currentNodes = mountResult;
 						listCleanups.push(...childCleanups);
-					} catch (err) {
+					} catch {
+						// Error during list mounting - silently recover
 						currentNodes = [];
 					}
 				});
@@ -369,7 +493,9 @@ const mountNode = (
 			queueMicrotask(runEffect);
 
 			cleanups.push(() => {
-				effectHandle?.stop();
+				if (Predicate.isNotNullable(effectHandle)) {
+					effectHandle.stop();
+				}
 				for (const cleanup of listCleanups) {
 					cleanup();
 				}
@@ -385,6 +511,7 @@ const mountNode = (
 		);
 	}
 
+	// eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
 	if (nodeType === NodeType.BLUEPRINT) {
 		const blueprintNode = node as unknown as {
 			blueprint: BlueprintDef;
@@ -436,7 +563,9 @@ export const MountServiceLive = Layer.succeed(MountService, {
 									fn();
 								}
 								for (const nodeItem of nodes) {
-									nodeItem.parentNode?.removeChild(nodeItem);
+									if (Predicate.isNotNullable(nodeItem.parentNode)) {
+										nodeItem.parentNode.removeChild(nodeItem);
+									}
 								}
 							},
 						};

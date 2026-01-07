@@ -34,8 +34,12 @@ export {
 export {
 	define,
 	type DefineOptions,
+	type DefineOptionsWithLayer,
+	type LayerScriptContext,
+	type LayerPropsFor,
 	type InferExposed,
 	type InferProps,
+	type TemplateArgs,
 } from './define.js';
 export {
 	type ScriptContext,
@@ -46,7 +50,6 @@ export {
 } from './script-context.js';
 
 export {
-	createComponentLifecycle,
 	createComponentLifecycleSync,
 	type ComponentLifecycle,
 } from './lifecycle.js';
@@ -64,6 +67,7 @@ export {
 	PortalService,
 	PortalServiceLive,
 	Portal,
+	PortalOutlet,
 	createPortal,
 	registerPortalOutlet,
 	unregisterPortalOutlet,
@@ -73,4 +77,10 @@ export {
 	getGlobalPortalService,
 	type PortalServiceInterface,
 	type PortalContainer,
+	type PortalProps,
+	type PortalInsertMode,
+	type PortalPriority,
+	PORTAL_PRIORITY,
 } from './portal.js';
+
+export { useCallback, useMemo } from './hooks.js';

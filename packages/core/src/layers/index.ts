@@ -30,26 +30,73 @@ export type {
 	Guard,
 	PluginFn,
 	PluginCleanup,
+	CleanupFn,
+	MaybePromise,
 	LayerRestriction,
+	MergedConfig,
+	LayerProvides,
+	LayerSetupFn,
+	LayerProps,
+	LayerDependency,
+	SetupContext,
+	LifecycleHook,
+	ErrorHook,
+	DepsRecord,
+	AnyLayer,
+	AnyResolvedLayer,
+	EffuseLayerRegistry,
+	LayerPropsOf,
+	LayerProvidesOf,
 } from './types.js';
 
 export {
-	RouterService,
-	StoreService,
-	StyleService,
-	ProviderService,
-	PluginService,
-	type RouterConfig,
-	type StoreServiceConfig,
-	type StyleConfig,
-	type ProviderConfig,
-	type PluginConfig,
+	PropsService,
+	RegistryService,
+	type PropsRegistry,
+	type LayerRegistry,
 	type LayerServices,
-} from './services.js';
+} from './services/index.js';
+
+export {
+	resolveLayerOrder,
+	prefixRoutes,
+	mergeLayerConfigs,
+} from './utils/index.js';
 
 export {
 	defineLayer,
 	combineLayers,
-	resolveLayerExtends,
-	mergeLayerConfigs,
-} from './defineLayer.js';
+	type CombinedLayerResult,
+} from './api/index.js';
+
+export {
+	createLayerRuntime,
+	type LayerRuntime,
+	type LayerRuntimeOptions,
+} from './internal/index.js';
+
+export {
+	getLayerContext,
+	getLayerService,
+	isLayerRuntimeReady,
+	type LayerContext,
+	type TypedLayerContext,
+} from './context.js';
+
+export {
+	LayerNotFoundError,
+	LayerRuntimeNotReadyError,
+	LayerRuntimeNotInitializedError,
+	ServiceNotFoundError,
+	DependencyNotFoundError,
+	CircularDependencyError,
+	RouterNotConfiguredError,
+	type LayerError,
+} from './errors.js';
+
+export {
+	TracingService,
+	createTracingService,
+	withTracing,
+	type TracingConfig,
+} from './tracing/index.js';

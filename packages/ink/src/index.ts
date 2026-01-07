@@ -26,19 +26,11 @@ import { Effect } from 'effect';
 import type { EffuseChild } from '@effuse/core';
 import { InkLive, renderMarkdown } from './services/index.js';
 import type { ComponentMap } from './renderer/transformer.js';
-import type { DocumentNode } from './types/ast.js';
-import type { ParseError } from './types/errors.js';
-import {
-	parse as parseEffect,
-	parseSync as parseSyncInternal,
-} from './parser/index.js';
-import { transformDocument } from './renderer/transformer.js';
+import { parseSync as parseSyncInternal } from './parser/index.js';
 
 export { Ink } from './renderer/index.js';
 export { transformDocument, type ComponentMap } from './renderer/index.js';
-export { InkProseLayer } from './styles/index.js';
-
-export type { EffuseLayer } from '@effuse/core';
+export { InkLayer, injectInkStyles } from './styles/index.js';
 
 export type {
 	MarkdownNode,
@@ -84,22 +76,8 @@ export {
 	defaultInkConfig,
 } from './config/index.js';
 
-// Tokenize and parse markdown input
-export const parse = (input: string): DocumentNode => {
-	return Effect.runSync(
-		Effect.catchAll(parseEffect(input), () =>
-			Effect.succeed({
-				type: 'document' as const,
-				children: [],
-			})
-		)
-	);
-};
-
-// Tokenize and parse markdown input synchronously
 export const parseSync = parseSyncInternal;
 
-// Render markdown to reactive nodes
 export const render = (
 	input: string,
 	components: ComponentMap = {}
@@ -109,15 +87,4 @@ export const render = (
 		Effect.catchAll(() => Effect.succeed([] as EffuseChild[]))
 	);
 	return Effect.runSync(program);
-};
-
-// Build reactive nodes from markdown input
-export const renderEffect = (
-	input: string,
-	components: ComponentMap = {}
-): Effect.Effect<EffuseChild[], ParseError> => {
-	return Effect.gen(function* () {
-		const doc = yield* parseEffect(input);
-		return transformDocument(doc, components);
-	});
 };

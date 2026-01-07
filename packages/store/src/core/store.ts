@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-import { Effect, Option, pipe } from 'effect';
+import { Effect, Option, pipe, Predicate } from 'effect';
 import { signal, type Signal } from '@effuse/core';
 import type {
 	Store,
@@ -84,10 +84,26 @@ export const createStore = <T extends object>(
 	options?: CreateStoreOptions
 ): Store<T> & StoreState<T> => {
 	const config = getStoreConfig();
-	const shouldPersist = options?.persist ?? config.persistByDefault;
-	const storageKey = options?.storageKey ?? `${config.storagePrefix}${name}`;
-	const enableDevtools = options?.devtools ?? config.debug;
-	const adapter = options?.storage ?? localStorageAdapter;
+	const shouldPersist = pipe(
+		Option.fromNullable(options),
+		Option.flatMap((o) => Option.fromNullable(o.persist)),
+		Option.getOrElse(() => config.persistByDefault)
+	);
+	const storageKey = pipe(
+		Option.fromNullable(options),
+		Option.flatMap((o) => Option.fromNullable(o.storageKey)),
+		Option.getOrElse(() => `${config.storagePrefix}${name}`)
+	);
+	const enableDevtools = pipe(
+		Option.fromNullable(options),
+		Option.flatMap((o) => Option.fromNullable(o.devtools)),
+		Option.getOrElse(() => config.debug)
+	);
+	const adapter = pipe(
+		Option.fromNullable(options),
+		Option.flatMap((o) => Option.fromNullable(o.storage)),
+		Option.getOrElse(() => localStorageAdapter)
+	);
 
 	if (config.debug) {
 		console.log(`[store] Creating: ${name}`);
@@ -178,8 +194,8 @@ export const createStore = <T extends object>(
 		set(_, prop: string, value: unknown) {
 			if (!internals.signalMap.has(prop)) return false;
 
-			const sig = internals.signalMap.get(prop)!;
-			const oldValue = sig.value;
+			const sig = internals.signalMap.get(prop);
+			if (!sig) return false;
 			const newState = middlewareManager.execute(
 				{ ...atomicState.get(), [prop]: value },
 				`set:${prop}`,
@@ -190,7 +206,27 @@ export const createStore = <T extends object>(
 			atomicState.update((s) => ({ ...s, [prop]: newState[prop] }));
 
 			if (enableDevtools) {
-				console.log(`[${name}] ${prop}:`, oldValue, '->', newState[prop]);
+				const time = new Date().toLocaleTimeString();
+				console.groupCollapsed(
+					`%caction %c${name}/set:${prop} %c@ ${time}`,
+					'color: gray; font-weight: lighter;',
+					'color: inherit; font-weight: bold;',
+					'color: gray; font-weight: lighter;'
+				);
+				console.log(
+					'%cprev state',
+					'color: #9E9E9E; font-weight: bold;',
+					atomicState.get()
+				);
+				console.log('%caction', 'color: #03A9F4; font-weight: bold;', {
+					type: `set:${prop}`,
+					payload: value,
+				});
+				console.log('%cnext state', 'color: #4CAF50; font-weight: bold;', {
+					...atomicState.get(),
+					[prop]: newState[prop],
+				});
+				console.groupEnd();
 			}
 
 			notifySubscribers();
@@ -204,9 +240,9 @@ export const createStore = <T extends object>(
 	const boundActions: Record<string, (...args: unknown[]) => unknown> = {};
 	for (const [key, action] of Object.entries(internals.actions)) {
 		boundActions[key] = (...args: unknown[]) => {
-			if (enableDevtools) {
-				console.log(`[${name}] ${key}(`, ...args, ')');
-			}
+			const prevState = enableDevtools
+				? getSnapshot(internals.signalMap)
+				: undefined;
 
 			const existingToken = internals.pendingActions.get(key);
 			if (existingToken) {
@@ -225,6 +261,32 @@ export const createStore = <T extends object>(
 							internals.pendingActions.delete(key);
 							const currentState = getSnapshot(internals.signalMap);
 							middlewareManager.execute(currentState, key, args);
+
+							if (enableDevtools) {
+								const time = new Date().toLocaleTimeString();
+								console.groupCollapsed(
+									`%caction %c${name}/${key} (async) %c@ ${time}`,
+									'color: gray; font-weight: lighter;',
+									'color: inherit; font-weight: bold;',
+									'color: gray; font-weight: lighter;'
+								);
+								console.log(
+									'%cprev state',
+									'color: #9E9E9E; font-weight: bold;',
+									prevState
+								);
+								console.log('%caction', 'color: #03A9F4; font-weight: bold;', {
+									type: `${name}/${key}`,
+									payload: args,
+								});
+								console.log(
+									'%cnext state',
+									'color: #4CAF50; font-weight: bold;',
+									currentState
+								);
+								console.groupEnd();
+							}
+
 							notifySubscribers();
 						}
 						return value;
@@ -237,6 +299,31 @@ export const createStore = <T extends object>(
 
 			const currentState = getSnapshot(internals.signalMap);
 			middlewareManager.execute(currentState, key, args);
+
+			if (enableDevtools) {
+				const time = new Date().toLocaleTimeString();
+				console.groupCollapsed(
+					`%caction %c${name}/${key} %c@ ${time}`,
+					'color: gray; font-weight: lighter;',
+					'color: inherit; font-weight: bold;',
+					'color: gray; font-weight: lighter;'
+				);
+				console.log(
+					'%cprev state',
+					'color: #9E9E9E; font-weight: bold;',
+					prevState
+				);
+				console.log('%caction', 'color: #03A9F4; font-weight: bold;', {
+					type: `${name}/${key}`,
+					payload: args,
+				});
+				console.log(
+					'%cnext state',
+					'color: #4CAF50; font-weight: bold;',
+					currentState
+				);
+				console.groupEnd();
+			}
 
 			notifySubscribers();
 
@@ -270,7 +357,10 @@ export const createStore = <T extends object>(
 			const typedCallback = callback as (value: unknown) => void;
 			subs.add(typedCallback);
 			return () => {
-				internals.keySubscribers.get(keyStr)?.delete(typedCallback);
+				const subsSet = internals.keySubscribers.get(keyStr);
+				if (Predicate.isNotNullable(subsSet)) {
+					subsSet.delete(typedCallback);
+				}
 			};
 		},
 

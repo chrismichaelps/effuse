@@ -22,26 +22,26 @@
  * SOFTWARE.
  */
 
-import { Effect } from 'effect';
-import { markRaw } from '@effuse/core';
+import { Predicate } from 'effect';
+import { markRaw, effect } from '@effuse/core';
 import { getGlobalRouter, type RouterInstance } from '../core/router.js';
 import type { Route, RouteLocation } from '../core/route.js';
 import type { NavigationFailure } from '../navigation/errors.js';
+import { RouterNotInstalledError } from '../errors.js';
+import { getRouteSignal } from '../core/context.js';
 
-// Access global router instance
 export const useRouter = (): RouterInstance => {
 	const router = getGlobalRouter();
 	if (!router) {
-		throw new Error('Router not installed. Call installRouter() first.');
+		throw new RouterNotInstalledError({ operation: 'useRouter' });
 	}
 	return markRaw(router);
 };
 
-// Access current route state
 export const useRoute = (): Route => {
 	const routeSignal = getRouteSignal();
 	if (!routeSignal) {
-		throw new Error('Router not installed. Call installRouter() first.');
+		throw new RouterNotInstalledError({ operation: 'useRoute' });
 	}
 
 	return new Proxy(routeSignal.value, {
@@ -61,10 +61,6 @@ export const useRoute = (): Route => {
 	});
 };
 
-import { effect } from '@effuse/core';
-import { getRouteSignal } from '../core/context.js';
-
-// Observe route changes
 export const onRouteChange = (
 	callback: (route: Route) => void
 ): (() => void) => {
@@ -89,28 +85,26 @@ export const onRouteChange = (
 	return stop;
 };
 
-// Navigate to specified location
 export const navigateTo = (
 	to: RouteLocation,
 	options?: { replace?: boolean }
 ): Route | NavigationFailure => {
 	const router = useRouter();
-	return options?.replace ? router.replace(to) : router.push(to);
+	const shouldReplace =
+		Predicate.isNotNullable(options) && options.replace === true;
+	return shouldReplace ? router.replace(to) : router.push(to);
 };
 
-// Navigate back in history
 export const goBack = (): void => {
 	const router = useRouter();
 	router.back();
 };
 
-// Navigate forward in history
 export const goForward = (): void => {
 	const router = useRouter();
 	router.forward();
 };
 
-// Verify active route status
 export const isActiveRoute = (
 	path: string,
 	exact: boolean = false
@@ -122,7 +116,6 @@ export const isActiveRoute = (
 	return route.path.startsWith(path);
 };
 
-// Calculate dynamic link classes
 export const getLinkClasses = (
 	to: string,
 	options?: {
@@ -137,92 +130,25 @@ export const getLinkClasses = (
 
 	const classes: string[] = [];
 
-	if (isExactActive && options?.exactActiveClass) {
+	if (
+		isExactActive &&
+		Predicate.isNotNullable(options) &&
+		Predicate.isNotNullable(options.exactActiveClass)
+	) {
 		classes.push(options.exactActiveClass);
-	} else if (isActive && options?.activeClass) {
+	} else if (
+		isActive &&
+		Predicate.isNotNullable(options) &&
+		Predicate.isNotNullable(options.activeClass)
+	) {
 		classes.push(options.activeClass);
-	} else if (!isActive && options?.inactiveClass) {
+	} else if (
+		!isActive &&
+		Predicate.isNotNullable(options) &&
+		Predicate.isNotNullable(options.inactiveClass)
+	) {
 		classes.push(options.inactiveClass);
 	}
 
 	return classes.join(' ');
-};
-
-// Build navigation guard for route exit
-export const onBeforeRouteLeave = (
-	guard: (to: Route, from: Route) => boolean | undefined
-): (() => void) => {
-	const router = useRouter();
-	const currentPath = useRoute().path;
-
-	return router.beforeEach((to, from) =>
-		Effect.sync(() => {
-			if (from.path !== currentPath) {
-				return { _tag: 'NavigationAllowed' as const };
-			}
-
-			const result = guard(to as Route, from);
-			if (result === false) {
-				return {
-					_tag: 'NavigationCancelled' as const,
-					reason: 'Route leave blocked',
-				};
-			}
-			return { _tag: 'NavigationAllowed' as const };
-		})
-	);
-};
-
-// Build navigation guard for route update
-export const onBeforeRouteUpdate = (
-	guard: (to: Route, from: Route) => boolean | undefined
-): (() => void) => {
-	const router = useRouter();
-
-	return router.beforeEach((to, from) =>
-		Effect.sync(() => {
-			const toMatched = to.matched[to.matched.length - 1];
-			const fromMatched = from.matched[from.matched.length - 1];
-
-			if (toMatched?.path !== fromMatched?.path) {
-				return { _tag: 'NavigationAllowed' as const };
-			}
-
-			if (to.fullPath !== from.fullPath) {
-				const result = guard(to as Route, from);
-				if (result === false) {
-					return {
-						_tag: 'NavigationCancelled' as const,
-						reason: 'Route update blocked',
-					};
-				}
-			}
-
-			return { _tag: 'NavigationAllowed' as const };
-		})
-	);
-};
-
-// Initialize data fetch on route change
-export const useFetchOnRouteChange = <T>(
-	fetcher: (route: Route) => Effect.Effect<T>,
-	onData: (data: T) => void,
-	onError: (error: unknown) => void = () => {}
-): (() => void) => {
-	return onRouteChange((route) => {
-		Effect.runPromise(fetcher(route)).then(onData).catch(onError);
-	});
-};
-
-// Build reactive route data loader
-export const createRouteDataLoader = <T>(
-	loaders: Record<string, (route: Route) => Effect.Effect<T>>
-): ((route: Route) => Effect.Effect<T | null>) => {
-	return (route: Route) => {
-		const routeName = route.name;
-		if (routeName && loaders[routeName]) {
-			return loaders[routeName](route);
-		}
-		return Effect.succeed(null);
-	};
 };

@@ -22,6 +22,7 @@
  * SOFTWARE.
  */
 
+import { Option, pipe } from 'effect';
 import {
 	type EffuseNode,
 	type EffuseChild,
@@ -46,13 +47,14 @@ export function el<P>(
 	blueprint: BlueprintDef<P>,
 	props?: P | null,
 
+	// eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
 	portals?: Portals | PortalFn | null
 ): BlueprintNode<P>;
 
 export function el(
 	tagOrBlueprint: string | BlueprintDef,
 	propsOrNull?: ElementProps | Record<string, never> | null,
-
+	// eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
 	...rest: (EffuseChild | Portals | PortalFn | null)[]
 ): EffuseNode {
 	if (typeof tagOrBlueprint === 'string') {
@@ -65,7 +67,11 @@ export function el(
 			tag: tagOrBlueprint,
 			props: props ?? null,
 			children,
-			key: props?.key,
+			key: pipe(
+				Option.fromNullable(props),
+				Option.flatMap((p) => Option.fromNullable(p.key)),
+				Option.getOrUndefined
+			),
 		};
 	}
 

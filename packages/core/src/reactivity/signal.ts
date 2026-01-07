@@ -25,6 +25,10 @@
 import { Effect, SubscriptionRef } from 'effect';
 import type { Signal, ReadonlySignal } from '../types/index.js';
 import { Dep } from './dep.js';
+import {
+	traceSignalCreate,
+	traceSignalUpdate,
+} from '../layers/tracing/signals.js';
 
 export type { Signal };
 
@@ -32,15 +36,18 @@ interface SignalInternal<T> extends Signal<T> {
 	readonly _ref: SubscriptionRef.SubscriptionRef<T>;
 	readonly _dep: Dep;
 	readonly _version: { value: number };
+	readonly _traceId: string;
 }
 
 // Initialize reactive signal
-export function signal<T>(initialValue: T): Signal<T> {
+export function signal<T>(initialValue: T, name?: string): Signal<T> {
 	const refEffect = SubscriptionRef.make(initialValue);
 	const ref = Effect.runSync(refEffect);
 	const dep = new Dep();
 	const version = { value: 0 };
 	let cached = initialValue;
+
+	const traceId = traceSignalCreate(name, initialValue);
 
 	const signalObj: SignalInternal<T> = {
 		get _ref() {
@@ -52,16 +59,21 @@ export function signal<T>(initialValue: T): Signal<T> {
 		get _version() {
 			return version;
 		},
+		get _traceId() {
+			return traceId;
+		},
 		get value(): T {
 			dep.track();
 			return cached;
 		},
 		set value(newValue: T) {
 			if (!Object.is(cached, newValue)) {
+				const prevValue = cached;
 				cached = newValue;
 				version.value++;
 				Effect.runSync(SubscriptionRef.set(ref, newValue));
 				dep.trigger();
+				traceSignalUpdate(traceId, prevValue, newValue);
 			}
 		},
 	};

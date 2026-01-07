@@ -24,13 +24,18 @@
 
 import { Effect, Duration, Schedule } from 'effect';
 import type { Store } from '../core/types.js';
-import { CancellationError, createCancellationToken } from './cancellation.js';
+import { createCancellationToken } from './cancellation.js';
 import { runWithAbortSignal } from './cancellation.js';
 import {
 	DEFAULT_RETRY_INITIAL_DELAY_MS,
 	DEFAULT_RETRY_MAX_DELAY_MS,
 	DEFAULT_RETRY_BACKOFF_FACTOR,
 } from '../config/constants.js';
+import {
+	ActionNotFoundError,
+	CancellationError,
+	TimeoutError,
+} from '../errors.js';
 
 // Asynchronous operation outcome
 export interface ActionResult<T> {
@@ -140,15 +145,6 @@ export const createCancellableAction = <A extends unknown[], R>(
 	return action as CancellableAction<A, R>;
 };
 
-// Operation timeout error
-export class TimeoutError extends Error {
-	readonly _tag = 'TimeoutError';
-	constructor(ms: number) {
-		super(`Operation timed out after ${String(ms)}ms`);
-		this.name = 'TimeoutError';
-	}
-}
-
 // Enforce operation timeout
 export const withTimeout = <A extends unknown[], R>(
 	fn: ActionFn<A, R>,
@@ -161,7 +157,7 @@ export const withTimeout = <A extends unknown[], R>(
 		}).pipe(
 			Effect.timeoutFail({
 				duration: Duration.millis(timeoutMs),
-				onTimeout: () => new TimeoutError(timeoutMs),
+				onTimeout: () => new TimeoutError({ ms: timeoutMs }),
 			})
 		);
 
@@ -227,7 +223,7 @@ export const takeLatest = <A extends unknown[], R>(
 			const result = await fn(...args);
 
 			if (myToken.isCancelled || myCallId !== callId) {
-				throw new CancellationError('Superseded by newer call');
+				throw new CancellationError({ message: 'Superseded by newer call' });
 			}
 
 			return result;
@@ -349,7 +345,7 @@ export const dispatch = <T>(
 	const action = storeRecord[actionName as string];
 	if (typeof action !== 'function') {
 		return Promise.reject(
-			new Error(`Action "${String(actionName)}" not found`)
+			new ActionNotFoundError({ actionName: String(actionName) })
 		);
 	}
 	const actionFn = action as (...a: unknown[]) => unknown;
@@ -370,7 +366,7 @@ export const dispatchSync = <T>(
 	const storeRecord = store as unknown as Record<string, unknown>;
 	const action = storeRecord[actionName as string];
 	if (typeof action !== 'function') {
-		throw new Error(`Action "${String(actionName)}" not found`);
+		throw new ActionNotFoundError({ actionName: String(actionName) });
 	}
 	const actionFn = action as (...a: unknown[]) => unknown;
 	return actionFn(...args);

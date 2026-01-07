@@ -1,46 +1,46 @@
-# name: Release
+name: Release
 
-# on:
-#   push:
-#     branches:
-#       - main
+on:
+  push:
+    branches:
+      - main
 
-# permissions:
-#   contents: write
-#   issues: write
-#   pull-requests: write
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
 
-# jobs:
-#   release:
-#     name: Release
-#     runs-on: ubuntu-latest
-#     steps:
-#       - name: Checkout
-#         uses: actions/checkout@v4
-#         with:
-#           fetch-depth: 0
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-#       - name: Setup Node.js
-#         uses: actions/setup-node@v4
-#         with:
-#           node-version: 22
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 23.3.0
 
-#       - name: Install pnpm
-#         uses: pnpm/action-setup@v4
-#         with:
-#           version: 10.24.0
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.24.0
 
-#       - name: Install dependencies
-#         run: pnpm install --frozen-lockfile
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
-#       - name: Build
-#         run: pnpm build
+      - name: Build
+        run: pnpm build
 
-#       - name: Type check
-#         run: pnpm typecheck
+      - name: Type check
+        run: pnpm typecheck
 
-#       - name: Release
-#         env:
-#           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-#           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-#         run: npx semantic-release
+      - name: Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: pnpm exec semantic-release

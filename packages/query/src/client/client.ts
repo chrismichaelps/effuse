@@ -22,9 +22,10 @@
  * SOFTWARE.
  */
 
-import { Context, Effect, Layer, Ref } from 'effect';
+import { Context, Effect, Layer, Ref, Predicate, Option, pipe } from 'effect';
 import type { QueryKey, CacheEntry, QueryStatus } from './types.js';
 import { DEFAULT_GC_TIME_MS, DEFAULT_STALE_TIME_MS } from '../config/index.js';
+import { QueryFetchError } from '../errors/index.js';
 
 const serializeKey = (key: QueryKey): string => JSON.stringify(key);
 
@@ -191,9 +192,11 @@ const createQueryClientImpl = (): QueryClientApi => {
 			}
 			subs.add(callback);
 			return () => {
-				subs?.delete(callback);
-				if (subs?.size === 0) {
-					subscribers.delete(keyStr);
+				if (Predicate.isNotNullable(subs)) {
+					subs.delete(callback);
+					if (subs.size === 0) {
+						subscribers.delete(keyStr);
+					}
 				}
 			};
 		},
@@ -219,14 +222,22 @@ const createQueryClientImpl = (): QueryClientApi => {
 				const data = yield* Effect.tryPromise({
 					try: () => queryFn(),
 					catch: (error) =>
-						new Error(error instanceof Error ? error.message : String(error)),
+						new QueryFetchError({
+							message: error instanceof Error ? error.message : String(error),
+							cause: error,
+						}),
 				});
 
 				const entry: CacheEntry<T> = {
 					data,
 					dataUpdatedAt: Date.now(),
 					status: 'success' as QueryStatus,
-					fetchCount: (existing?.fetchCount ?? 0) + 1,
+					fetchCount:
+						pipe(
+							Option.fromNullable(existing),
+							Option.flatMap((e) => Option.fromNullable(e.fetchCount)),
+							Option.getOrElse(() => 0)
+						) + 1,
 				};
 
 				cache.set(keyStr, entry as CacheEntry<unknown>);
@@ -257,7 +268,11 @@ const createQueryClientImpl = (): QueryClientApi => {
 				data,
 				dataUpdatedAt: Date.now(),
 				status: 'success' as QueryStatus,
-				fetchCount: previous?.fetchCount ?? 0,
+				fetchCount: pipe(
+					Option.fromNullable(previous),
+					Option.flatMap((p) => Option.fromNullable(p.fetchCount)),
+					Option.getOrElse(() => 0)
+				),
 			};
 
 			cache.set(keyStr, entry as CacheEntry<unknown>);

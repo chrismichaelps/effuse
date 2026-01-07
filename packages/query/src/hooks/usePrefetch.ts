@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-import { Effect } from 'effect';
+import { Effect, Predicate, Option, pipe } from 'effect';
 import { getGlobalQueryClient, type QueryKey } from '../client/index.js';
 import { DEFAULT_STALE_TIME_MS } from '../config/index.js';
 
@@ -38,7 +38,11 @@ export const prefetchQuery = <T>(
 	options?: PrefetchOptions
 ): void => {
 	const client = getGlobalQueryClient();
-	const staleTime = options?.staleTime ?? DEFAULT_STALE_TIME_MS;
+	const staleTime = pipe(
+		Option.fromNullable(options),
+		Option.flatMap((o) => Option.fromNullable(o.staleTime)),
+		Option.getOrElse(() => DEFAULT_STALE_TIME_MS)
+	);
 
 	Effect.runFork(client.prefetch(queryKey, queryFn, staleTime));
 };
@@ -50,7 +54,11 @@ export const prefetchQueryAsync = async <T>(
 	options?: PrefetchOptions
 ): Promise<void> => {
 	const client = getGlobalQueryClient();
-	const staleTime = options?.staleTime ?? DEFAULT_STALE_TIME_MS;
+	const staleTime = pipe(
+		Option.fromNullable(options),
+		Option.flatMap((o) => Option.fromNullable(o.staleTime)),
+		Option.getOrElse(() => DEFAULT_STALE_TIME_MS)
+	);
 
 	await Effect.runPromise(client.prefetch(queryKey, queryFn, staleTime));
 };
@@ -62,11 +70,18 @@ export const fetchQuery = async <T>(
 	options?: PrefetchOptions
 ): Promise<T> => {
 	const client = getGlobalQueryClient();
-	const staleTime = options?.staleTime ?? DEFAULT_STALE_TIME_MS;
+	const staleTime = pipe(
+		Option.fromNullable(options),
+		Option.flatMap((o) => Option.fromNullable(o.staleTime)),
+		Option.getOrElse(() => DEFAULT_STALE_TIME_MS)
+	);
 
 	if (!client.isStale(queryKey, staleTime)) {
 		const cached = client.get<T>(queryKey);
-		if (cached?.data) {
+		if (
+			Predicate.isNotNullable(cached) &&
+			Predicate.isNotNullable(cached.data)
+		) {
 			return cached.data;
 		}
 	}
@@ -77,7 +92,12 @@ export const fetchQuery = async <T>(
 		data,
 		dataUpdatedAt: Date.now(),
 		status: 'success',
-		fetchCount: (client.get<T>(queryKey)?.fetchCount ?? 0) + 1,
+		fetchCount:
+			pipe(
+				Option.fromNullable(client.get<T>(queryKey)),
+				Option.flatMap((e) => Option.fromNullable(e.fetchCount)),
+				Option.getOrElse(() => 0)
+			) + 1,
 	});
 
 	return data;
@@ -90,11 +110,18 @@ export const ensureQueryData = async <T>(
 	options?: PrefetchOptions
 ): Promise<T> => {
 	const client = getGlobalQueryClient();
-	const staleTime = options?.staleTime ?? DEFAULT_STALE_TIME_MS;
+	const staleTime = pipe(
+		Option.fromNullable(options),
+		Option.flatMap((o) => Option.fromNullable(o.staleTime)),
+		Option.getOrElse(() => DEFAULT_STALE_TIME_MS)
+	);
 
 	if (!client.isStale(queryKey, staleTime)) {
 		const cached = client.get<T>(queryKey);
-		if (cached?.data) {
+		if (
+			Predicate.isNotNullable(cached) &&
+			Predicate.isNotNullable(cached.data)
+		) {
 			return cached.data;
 		}
 	}

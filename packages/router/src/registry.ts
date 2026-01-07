@@ -24,12 +24,10 @@
 
 import type { RouterInstance } from './core/router.js';
 
-// Augment core type registry with router types
 declare module '@effuse/core' {
 	interface EffuseRegistry {
 		router: RouterInstance;
 	}
 }
 
-// Empty export to make this a proper module
 export {};

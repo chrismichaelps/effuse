@@ -22,5 +22,5 @@
  * SOFTWARE.
  */
 
-export { EffuseApp, type AppInstance } from './EffuseApp.js';
+export { EffuseApp, type AppInstance, type MountOptions } from './EffuseApp.js';
 export { createApp } from './createApp.js';

@@ -26,7 +26,7 @@ import { Effect } from 'effect';
 import type { BlueprintDef, EffuseChild } from '../render/node.js';
 import { el } from '../render/element.js';
 import { render } from '../render/index.js';
-import { MountError, RenderError } from '../errors/index.js';
+import { MountError, RenderError } from '../errors/internal.js';
 
 export interface Canvas {
 	paint: <P extends Record<string, unknown>>(
@@ -73,7 +73,7 @@ export const canvas = (target: Element | string): Canvas => {
 				}
 
 				const node = el(blueprint, props ?? ({} as P));
-				cleanupFn = render(node as EffuseChild, container as Element);
+				cleanupFn = render(node as EffuseChild, container);
 			},
 			catch: (error) =>
 				new RenderError({
@@ -92,7 +92,7 @@ export const canvas = (target: Element | string): Canvas => {
 					cleanupFn = null;
 				}
 
-				cleanupFn = render(node, container as Element);
+				cleanupFn = render(node, container);
 			},
 			catch: (error) =>
 				new RenderError({

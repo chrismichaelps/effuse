@@ -32,6 +32,9 @@ export interface PropBindingResult {
 	cleanup: () => void;
 }
 
+type FormValue = string | number | boolean;
+type FormValueSource = Signal<FormValue> | (() => FormValue);
+
 export interface PropServiceInterface {
 	readonly bindProp: (
 		element: Element,
@@ -41,7 +44,7 @@ export interface PropServiceInterface {
 
 	readonly bindFormControl: (
 		element: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement,
-		sig: Signal<string | number | boolean>
+		source: FormValueSource
 	) => Effect.Effect<PropBindingResult>;
 }
 
@@ -58,6 +61,8 @@ const setElementProp = (
 	if (key === 'class' || key === 'className') {
 		if (typeof value === 'string') {
 			element.className = value;
+		} else if (value == null) {
+			element.className = '';
 		}
 		return;
 	}
@@ -76,10 +81,12 @@ const setElementProp = (
 
 	if (key === 'value') {
 		const inputEl = element as HTMLInputElement | HTMLTextAreaElement;
-		const stringValue =
-			typeof value === 'string' || typeof value === 'number'
-				? String(value)
-				: '';
+		let stringValue = '';
+		if (typeof value === 'string') {
+			stringValue = value;
+		} else if (typeof value === 'number') {
+			stringValue = String(value);
+		}
 		if (inputEl.value !== stringValue) {
 			inputEl.value = stringValue;
 		}
@@ -107,9 +114,16 @@ const setElementProp = (
 	}
 };
 
+const getValue = (source: FormValueSource): FormValue => {
+	if (isSignal(source)) {
+		return (source as Signal<FormValue>).value;
+	}
+	return (source as () => FormValue)();
+};
+
 const bindFormControlImpl = (
 	element: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement,
-	sig: Signal<string | number | boolean>
+	source: FormValueSource
 ): PropBindingResult => {
 	const cleanups: (() => void)[] = [];
 	const tagName = element.tagName.toLowerCase();
@@ -117,51 +131,26 @@ const bindFormControlImpl = (
 	const inputType = inputEl.type ? inputEl.type.toLowerCase() : '';
 
 	if (inputType === 'checkbox' || inputType === 'radio') {
-		const handler = () => {
-			(sig as Signal<boolean>).value = inputEl.checked;
-		};
-		element.addEventListener('change', handler);
-		cleanups.push(() => {
-			element.removeEventListener('change', handler);
-		});
-
 		const handle: EffectHandle = effect(() => {
-			const newVal = Boolean(sig.value);
+			const newVal = Boolean(getValue(source));
 			if (inputEl.checked !== newVal) {
 				inputEl.checked = newVal;
 			}
 		});
 		cleanups.push(handle.stop);
 	} else if (tagName === 'select') {
-		const handler = () => {
-			(sig as Signal<string>).value = element.value;
-		};
-		element.addEventListener('change', handler);
-		cleanups.push(() => {
-			element.removeEventListener('change', handler);
-		});
-
 		const handle: EffectHandle = effect(() => {
-			const newVal = String(sig.value);
+			const newVal = String(getValue(source));
 			if (element.value !== newVal) {
 				element.value = newVal;
 			}
 		});
 		cleanups.push(handle.stop);
 	} else {
-		const handler = (e: Event) => {
-			const target = e.target as HTMLInputElement | HTMLTextAreaElement;
-			(sig as Signal<string>).value = target.value;
-		};
-		element.addEventListener('input', handler);
-		cleanups.push(() => {
-			element.removeEventListener('input', handler);
-		});
-
+		const textEl = element as HTMLInputElement | HTMLTextAreaElement;
 		const handle: EffectHandle = effect(() => {
-			const newVal = String(sig.value);
-			const textEl = element as HTMLInputElement | HTMLTextAreaElement;
-			if (textEl.value !== newVal && document.activeElement !== element) {
+			const newVal = String(getValue(source));
+			if (textEl.value !== newVal) {
 				textEl.value = newVal;
 			}
 		});
@@ -177,19 +166,47 @@ const bindFormControlImpl = (
 	};
 };
 
+const isEventHandler = (key: string): boolean => {
+	if (key.length <= 2 || !key.startsWith('on')) return false;
+	const thirdChar = key[2];
+	return thirdChar !== undefined && thirdChar === thirdChar.toUpperCase();
+};
+
+const isCompilerGetter = (value: unknown): value is () => unknown => {
+	return typeof value === 'function' && value.length === 0;
+};
+
 export const PropServiceLive = Layer.succeed(PropService, {
 	bindProp: (element: Element, key: string, value: unknown) =>
 		Effect.sync(() => {
+			if (isEventHandler(key)) {
+				if (typeof value === 'function') {
+					const handler = value as EventListener;
+					const eventName = key.slice(2).toLowerCase();
+					element.addEventListener(eventName, handler);
+					return {
+						cleanup: () => {
+							element.removeEventListener(eventName, handler);
+						},
+					};
+				}
+				return {
+					cleanup: () => {
+						/*  */
+					},
+				};
+			}
+
 			if (isSignal(value)) {
-				const sig = value as Signal<unknown>;
+				const sig = value;
 				const handle: EffectHandle = effect(() => {
 					setElementProp(element, key, sig.value);
 				});
 				return { cleanup: handle.stop };
 			}
 
-			if (typeof value === 'function' && !key.startsWith('on')) {
-				const getter = value as () => unknown;
+			if (isCompilerGetter(value)) {
+				const getter = value;
 				const handle: EffectHandle = effect(() => {
 					const computedValue = getter();
 					setElementProp(element, key, computedValue);
@@ -203,6 +220,6 @@ export const PropServiceLive = Layer.succeed(PropService, {
 
 	bindFormControl: (
 		element: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement,
-		sig: Signal<string | number | boolean>
-	) => Effect.sync(() => bindFormControlImpl(element, sig)),
+		source: FormValueSource
+	) => Effect.sync(() => bindFormControlImpl(element, source)),
 });

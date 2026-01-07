@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-import { Effect, Fiber, Duration } from 'effect';
+import { Effect, Fiber, Duration, Predicate } from 'effect';
 import { signal, type Signal } from '@effuse/core';
 import {
 	getGlobalQueryClient,
@@ -33,6 +33,7 @@ import {
 import { buildRetrySchedule, type RetryConfig } from '../execution/index.js';
 import { executeMutation } from '../request/index.js';
 import { DEFAULT_TIMEOUT_MS } from '../config/index.js';
+import { TimeoutError } from '../errors/index.js';
 
 // Mutation result status
 export type MutationStatus = 'idle' | 'pending' | 'success' | 'error';
@@ -168,7 +169,7 @@ export const useMutation = <TData, TVariables = void, TContext = unknown>(
 		effect = effect.pipe(
 			Effect.timeoutFail({
 				duration: Duration.millis(timeout),
-				onTimeout: () => new Error(`Mutation timed out after ${timeout}ms`),
+				onTimeout: () => new TimeoutError({ durationMs: timeout }),
 			})
 		);
 
@@ -224,10 +225,24 @@ export const useMutation = <TData, TVariables = void, TContext = unknown>(
 							failureReasonSignal.value = undefined;
 							updateDerivedState();
 
-							onSuccess?.(data, variables, context);
-							mutateOptions?.onSuccess?.(data, variables);
-							onSettled?.(data, undefined, variables, context);
-							mutateOptions?.onSettled?.(data, undefined, variables);
+							if (Predicate.isNotNullable(onSuccess)) {
+								onSuccess(data, variables, context);
+							}
+							if (
+								Predicate.isNotNullable(mutateOptions) &&
+								Predicate.isNotNullable(mutateOptions.onSuccess)
+							) {
+								mutateOptions.onSuccess(data, variables);
+							}
+							if (Predicate.isNotNullable(onSettled)) {
+								onSettled(data, undefined, variables, context);
+							}
+							if (
+								Predicate.isNotNullable(mutateOptions) &&
+								Predicate.isNotNullable(mutateOptions.onSettled)
+							) {
+								mutateOptions.onSettled(data, undefined, variables);
+							}
 
 							resolve(data);
 						})
@@ -238,10 +253,24 @@ export const useMutation = <TData, TVariables = void, TContext = unknown>(
 							statusSignal.value = 'error';
 							updateDerivedState();
 
-							onError?.(error, variables, context);
-							mutateOptions?.onError?.(error, variables);
-							onSettled?.(undefined, error, variables, context);
-							mutateOptions?.onSettled?.(undefined, error, variables);
+							if (Predicate.isNotNullable(onError)) {
+								onError(error, variables, context);
+							}
+							if (
+								Predicate.isNotNullable(mutateOptions) &&
+								Predicate.isNotNullable(mutateOptions.onError)
+							) {
+								mutateOptions.onError(error, variables);
+							}
+							if (Predicate.isNotNullable(onSettled)) {
+								onSettled(undefined, error, variables, context);
+							}
+							if (
+								Predicate.isNotNullable(mutateOptions) &&
+								Predicate.isNotNullable(mutateOptions.onSettled)
+							) {
+								mutateOptions.onSettled(undefined, error, variables);
+							}
 
 							reject(error);
 						})
@@ -328,7 +357,10 @@ export const useOptimisticMutation = <TData, TVariables>(options: {
 		onMutate: (variables) => {
 			const snapshot = client.getSnapshot<TData>(queryKey);
 
-			const currentData = client.get<TData>(queryKey)?.data;
+			const existing = client.get<TData>(queryKey);
+			const currentData = Predicate.isNotNullable(existing)
+				? existing.data
+				: undefined;
 			const optimisticData = optimisticUpdate(variables, currentData);
 			client.setOptimistic(queryKey, optimisticData);
 

@@ -22,21 +22,4 @@
  * SOFTWARE.
  */
 
-export * from './core.js';
-export * from './dom.js';
-export * from './reactivity.js';
-export * from './component.js';
-
-import type { EffuseError, CleanupError } from './core.js';
-import type { RenderError, MountError } from './dom.js';
-import type { SignalError, EffectError } from './reactivity.js';
-import type { BlueprintError } from './component.js';
-
-export type EffuseErrors =
-	| EffuseError
-	| RenderError
-	| SignalError
-	| BlueprintError
-	| MountError
-	| EffectError
-	| CleanupError;
+export { TaggedError, isTaggedError, hasTag } from './tagged.js';

@@ -32,42 +32,76 @@ import type { ScriptContext, ExposedValues } from './script-context.js';
 import { createScriptContext, runMountCallbacks } from './script-context.js';
 import type { ComponentLifecycle } from './lifecycle.js';
 import type { AnyPropSchemaBuilder } from './props.js';
-import { useStyles } from '../styles/useStyles.js';
-import type { StyleOptions, StyleCleanup } from '../styles/types.js';
+import type { EffuseLayerRegistry, LayerPropsOf } from '../layers/types.js';
+import type { LayerContext } from '../layers/context.js';
+import { getLayerContext, isLayerRuntimeReady } from '../layers/context.js';
 
 export interface PropsSchema<P> {
 	Type: P;
 }
 
+interface PropsWithChildren {
+	readonly children?: EffuseChild;
+}
+
+export type TemplateArgs<E extends ExposedValues> = E & {
+	readonly children?: EffuseChild;
+};
+
+export interface LayerScriptContext<
+	P,
+	K extends keyof EffuseLayerRegistry,
+> extends ScriptContext<P> {
+	readonly layerProps: LayerPropsOf<K>;
+	readonly layer: LayerContext<LayerPropsOf<K>>;
+}
+
 export interface DefineOptions<P, E extends ExposedValues> {
 	props?: PropsSchema<P>;
 	propsSchema?: AnyPropSchemaBuilder;
-	styles?: string | readonly string[];
-	styleOptions?: StyleOptions;
+	layer?: undefined;
 	script: (ctx: ScriptContext<P>) => E | undefined;
-	template: (exposed: E, props: Readonly<P>) => EffuseChild;
+	template: (exposed: TemplateArgs<E>, props: Readonly<P>) => EffuseChild;
+}
+
+export interface DefineOptionsWithLayer<
+	P,
+	E extends ExposedValues,
+	K extends keyof EffuseLayerRegistry,
+> {
+	props?: PropsSchema<P>;
+	propsSchema?: AnyPropSchemaBuilder;
+	layer: K;
+	script: (ctx: LayerScriptContext<P, K>) => E | undefined;
+	template: (exposed: TemplateArgs<E>, props: Readonly<P>) => EffuseChild;
 }
 
 interface DefineState<E extends ExposedValues> {
 	exposed: E;
 	lifecycle: ComponentLifecycle;
-	_template: (exposed: E, props: unknown) => EffuseChild;
-	_styleCleanup?: StyleCleanup;
+	_template: (exposed: TemplateArgs<E>, props: unknown) => EffuseChild;
+
 	[key: string]: unknown;
 }
 
-// Build component definition
-export const define = <
+export function define<
 	P = Record<string, unknown>,
 	E extends ExposedValues = ExposedValues,
->(options: {
-	props?: PropsSchema<P>;
-	propsSchema?: AnyPropSchemaBuilder;
-	styles?: string | readonly string[];
-	styleOptions?: StyleOptions;
-	script: (ctx: ScriptContext<P>) => E;
-	template: (exposed: E, props: Readonly<P>) => EffuseChild;
-}): Component<P> => {
+>(options: DefineOptions<P, E>): Component<P>;
+
+export function define<
+	K extends keyof EffuseLayerRegistry,
+	P = Record<string, unknown>,
+	E extends ExposedValues = ExposedValues,
+>(options: DefineOptionsWithLayer<P, E, K>): Component<P>;
+
+export function define<
+	P = Record<string, unknown>,
+	E extends ExposedValues = ExposedValues,
+	K extends keyof EffuseLayerRegistry = never,
+>(
+	options: DefineOptions<P, E> | DefineOptionsWithLayer<P, E, K>
+): Component<P> {
 	const blueprint: BlueprintDef<P> = {
 		_tag: 'Blueprint',
 
@@ -77,15 +111,39 @@ export const define = <
 				validatedProps = options.propsSchema.validateSync(props) as P;
 			}
 
-			let styleCleanup: StyleCleanup | undefined;
-			if (options.styles) {
-				styleCleanup = useStyles(options.styles, options.styleOptions);
-			}
-
 			const { context, state } = createScriptContext<P, E>(validatedProps);
 
-			const scriptResult = options.script(context);
-			Object.assign(state.exposed, scriptResult);
+			let scriptResult: E | undefined;
+
+			if ('layer' in options) {
+				if (isLayerRuntimeReady()) {
+					const layerContext = getLayerContext(
+						options.layer as string
+					) as LayerContext<LayerPropsOf<K>>;
+
+					const extendedContext: LayerScriptContext<P, K> = {
+						...context,
+						layerProps: layerContext.props,
+						layer: layerContext,
+					};
+
+					scriptResult = (options as DefineOptionsWithLayer<P, E, K>).script(
+						extendedContext
+					);
+				} else {
+					scriptResult = (options as DefineOptionsWithLayer<P, E, K>).script({
+						...context,
+						layerProps: {} as LayerPropsOf<K>,
+						layer: {} as LayerContext<LayerPropsOf<K>>,
+					});
+				}
+			} else {
+				scriptResult = options.script(context);
+			}
+
+			if (scriptResult) {
+				Object.assign(state.exposed, scriptResult);
+			}
 
 			queueMicrotask(() => {
 				runMountCallbacks(state);
@@ -95,21 +153,30 @@ export const define = <
 				exposed: state.exposed,
 				lifecycle: state.lifecycle,
 				_template: options.template,
-				_styleCleanup: styleCleanup,
 			} as DefineState<E> as unknown as Record<string, never>;
 		},
 
 		view: (ctx: BlueprintContext<P>) => {
 			const state = ctx.state as unknown as DefineState<E>;
-			return state._template(state.exposed, ctx.props);
+
+			const propsWithChildren = ctx.props as unknown as PropsWithChildren;
+			const exposedWithChildren: TemplateArgs<E> = {
+				...state.exposed,
+				children: propsWithChildren.children,
+			};
+
+			return state._template(exposedWithChildren, ctx.props);
 		},
 	};
 
 	return blueprint as unknown as Component<P>;
-};
+}
 
 export type InferExposed<D> =
 	D extends DefineOptions<unknown, infer E> ? E : never;
 
 export type InferProps<D> =
 	D extends DefineOptions<infer P, ExposedValues> ? P : never;
+
+export type LayerPropsFor<K extends keyof EffuseLayerRegistry> =
+	LayerPropsOf<K>;

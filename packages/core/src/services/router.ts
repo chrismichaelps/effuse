@@ -22,7 +22,8 @@
  * SOFTWARE.
  */
 
-import { Context, Effect, Layer } from 'effect';
+import type { Effect } from 'effect';
+import { Context, Layer } from 'effect';
 
 export interface RouterApi {
 	navigate: (path: string) => Effect.Effect<void>;
@@ -40,11 +41,3 @@ export class RouterService extends Context.Tag('effuse/RouterService')<
 export const makeRouterLayer = (
 	router: RouterApi
 ): Layer.Layer<RouterService> => Layer.succeed(RouterService, router);
-
-export const noopRouter: RouterApi = {
-	navigate: () => Effect.void,
-	currentPath: () => Effect.succeed('/'),
-	onRouteChange: () => Effect.succeed(() => {}),
-};
-
-export const NoopRouterLayer = Layer.succeed(RouterService, noopRouter);

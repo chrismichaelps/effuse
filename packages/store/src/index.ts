@@ -22,8 +22,6 @@
  * SOFTWARE.
  */
 
-import { getStore } from './registry/index.js';
-
 export {
 	createStore,
 	createAtomicState,
@@ -81,8 +79,6 @@ export {
 	takeFirst,
 	debounceAction,
 	throttleAction,
-	TimeoutError,
-	CancellationError,
 	createCancellationToken,
 	createCancellationScope,
 	type ActionResult,
@@ -115,7 +111,6 @@ export {
 	deriveFrom,
 	deriveFromAsync,
 	serializeStores,
-	hydrateStores,
 	hydrateStoresSync,
 	createStoreStream,
 	streamAll,
@@ -155,10 +150,8 @@ export {
 export {
 	StoreNotFoundError,
 	StoreAlreadyExistsError,
+	ActionNotFoundError,
+	TimeoutError,
+	CancellationError,
 	ValidationError,
-} from './services/index.js';
-
-// Bootstrap store system
-export const installStore = (): ((name: string) => unknown) => {
-	return getStore;
-};
+} from './errors.js';

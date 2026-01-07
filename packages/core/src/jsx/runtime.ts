@@ -34,6 +34,8 @@ import { EFFUSE_NODE, NodeType, FRAGMENT as Fragment } from '../constants.js';
 import { el, fragment } from '../render/element.js';
 import { isBlueprint } from '../blueprint/blueprint.js';
 import type { Signal } from '../reactivity/signal.js';
+import type { ReadonlySignal } from '../types/index.js';
+import { UnknownJSXTypeError } from '../errors.js';
 
 export type JSXElement = EffuseNode;
 
@@ -81,7 +83,7 @@ export const jsx = (
 		return (type as Component)(componentProps);
 	}
 
-	throw new Error(`Unknown JSX type: ${String(type)}`);
+	throw new UnknownJSXTypeError({ type });
 };
 
 export const jsxs = jsx;
@@ -123,11 +125,11 @@ export namespace JSX {
 		key?: string | number | undefined;
 	}
 
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	export type ElementType =
 		| string
 		| BlueprintDef
 		| Component
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		| ((props: any) => EffuseNode);
 
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -148,8 +150,8 @@ export namespace JSX {
 		className?: string | (() => string | undefined | null);
 		style?:
 			| string
-			| Record<string, string | number>
-			| (() => Record<string, string | number>);
+			| Partial<CSSStyleDeclaration>
+			| (() => string | Partial<CSSStyleDeclaration>);
 		id?: string | (() => string);
 		title?: string | (() => string);
 		tabIndex?: number;
@@ -185,7 +187,11 @@ export namespace JSX {
 
 	export interface ButtonAttributes extends HTMLAttributes {
 		type?: 'button' | 'submit' | 'reset';
-		disabled?: boolean;
+		disabled?:
+			| boolean
+			| Signal<boolean>
+			| ReadonlySignal<boolean>
+			| (() => boolean);
 	}
 
 	export interface InputAttributes extends HTMLAttributes {

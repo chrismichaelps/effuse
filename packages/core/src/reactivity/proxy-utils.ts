@@ -22,6 +22,8 @@
  * SOFTWARE.
  */
 
+import { Predicate } from 'effect';
+
 export interface PropertyLookupResult {
 	descriptor: PropertyDescriptor | undefined;
 	found: boolean;
@@ -71,8 +73,13 @@ export function setPropertyWithPrivateFieldSupport(
 ): boolean {
 	const { descriptor, found } = findPropertyDescriptor(target, key);
 
-	if (found && descriptor?.set) {
-		descriptor.set.call(target, value);
+	if (
+		found &&
+		Predicate.isNotNullable(descriptor) &&
+		typeof descriptor.set === 'function'
+	) {
+		// eslint-disable-next-line @typescript-eslint/unbound-method
+		Reflect.apply(descriptor.set, target, [value]);
 		return true;
 	}
 

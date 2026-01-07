@@ -9,10 +9,12 @@ rm -rf packages/store/dist
 rm -rf packages/router/dist
 rm -rf packages/ink/dist
 rm -rf packages/query/dist
-rm -rf playground/dist
+rm -rf packages/i18n/dist
+rm -rf packages/compiler/dist
+rm -rf app/dist
 
-rm -rf playground/node_modules/.vite
-rm -rf playground/.vite
+rm -rf app/node_modules/.vite
+rm -rf app/.vite
 rm -rf node_modules/.cache
 rm -rf .turbo
 

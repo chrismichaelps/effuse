@@ -25,14 +25,18 @@
 export {
 	DEFAULT_STALE_TIME_MS,
 	DEFAULT_CACHE_TIME_MS,
+	DEFAULT_GC_TIME_MS,
 	DEFAULT_RETRY_COUNT,
 	DEFAULT_RETRY_DELAY_MS,
-	DEFAULT_RETRY_BACKOFF_FACTOR,
-	DEFAULT_RETRY_MAX_DELAY_MS,
 	DEFAULT_TIMEOUT_MS,
-	DEFAULT_GC_TIME_MS,
 	DEFAULT_REFETCH_INTERVAL_MS,
-} from './config/index.js';
+	DEFAULT_REFETCH_ON_WINDOW_FOCUS,
+	DEFAULT_REFETCH_ON_RECONNECT,
+	QueryConfigOptions,
+	getQueryConfig,
+	resetQueryConfigCache,
+	type QueryConfigValues,
+} from './config/constants.js';
 
 export {
 	setGlobalQueryClient,

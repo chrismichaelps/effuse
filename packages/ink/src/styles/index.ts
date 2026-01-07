@@ -22,4 +22,12 @@
  * SOFTWARE.
  */
 
-export { InkProseLayer } from './prose.js';
+import { defineLayer } from '@effuse/core';
+import { injectInkStyles } from './prose.js';
+
+export { injectInkStyles };
+
+export const InkLayer = defineLayer({
+	name: 'ink',
+	setup: injectInkStyles,
+});

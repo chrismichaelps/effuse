@@ -24,6 +24,17 @@
 
 import type { Component } from '../render/node.js';
 import type { HeadProps } from '../ssr/types.js';
+import type { Signal } from '../reactivity/signal.js';
+
+export type MaybePromise<T> = T | Promise<T>;
+
+export type CleanupFn = () => void;
+
+export type SetupResult = CleanupFn | undefined;
+
+export type PluginCleanup = () => void;
+
+export type PluginFn = () => MaybePromise<PluginCleanup | undefined>;
 
 export type Guard = (
 	to: RouteConfig,
@@ -47,40 +58,135 @@ export interface StoreConfig {
 	readonly actions?: Record<string, (...args: unknown[]) => void>;
 }
 
-export type PluginCleanup = () => void;
-
-export type PluginFn = () =>
-	| Promise<undefined | PluginCleanup>
-	| undefined
-	| PluginCleanup;
-
 export type LayerRestriction =
 	| 'components'
 	| 'routes'
-	| 'styles'
 	| 'stores'
 	| 'providers'
 	| 'plugins';
 
-export interface EffuseLayer {
-	readonly name?: string;
+export type LayerProps = Record<string, Signal<unknown>>;
+
+export type LayerProvides = Record<string, () => unknown>;
+
+export interface LayerDependency<P extends LayerProps = LayerProps> {
+	readonly name: string;
+	readonly props: P;
+	get: (key: string) => unknown;
+	component: (name: string) => Component | undefined;
+}
+
+export type DepsRecord<D extends readonly string[]> = {
+	[K in D[number]]: LayerDependency;
+};
+
+export interface SetupContext<
+	P extends LayerProps = LayerProps,
+	D extends readonly string[] = readonly string[],
+	S = unknown,
+> {
+	readonly props: P;
+	readonly store: S;
+	readonly deps: DepsRecord<D>;
+	get: (name: string) => LayerDependency;
+	getService: (key: string) => unknown;
+	component: (name: string) => Component | undefined;
+	readonly layers: readonly ResolvedLayer[];
+}
+
+export type LayerSetupFn<
+	P extends LayerProps = LayerProps,
+	D extends readonly string[] = readonly string[],
+	S = unknown,
+	// eslint-disable-next-line @typescript-eslint/no-invalid-void-type -- void is valid for functions with no return
+> = (ctx: SetupContext<P, D, S>) => SetupResult | Promise<SetupResult> | void;
+
+export type LifecycleHook<
+	P extends LayerProps = LayerProps,
+	D extends readonly string[] = readonly string[],
+	S = unknown,
+> = (ctx: SetupContext<P, D, S>) => void | Promise<void>;
+
+export type ErrorHook<
+	P extends LayerProps = LayerProps,
+	D extends readonly string[] = readonly string[],
+	S = unknown,
+> = (error: Error, ctx: SetupContext<P, D, S>) => void;
+
+export type OnReadyHook<
+	P extends LayerProps = LayerProps,
+	D extends readonly string[] = readonly string[],
+	S = unknown,
+> = (
+	ctx: SetupContext<P, D, S>,
+	allLayers: readonly ResolvedLayer[]
+) => void | Promise<void>;
+
+export interface EffuseLayer<
+	P extends LayerProps = LayerProps,
+	D extends readonly string[] = readonly string[],
+	S = unknown,
+> {
+	readonly name: string;
 	readonly domain?: string;
+	readonly props?: P;
+	readonly store?: S;
+	readonly deriveProps?: (store: S) => P;
 	readonly extends?: readonly EffuseLayer[];
-	readonly dependencies?: readonly string[];
+	readonly dependencies?: D;
 	readonly restrict?: readonly LayerRestriction[];
 	readonly head?: HeadProps;
-	readonly components?: Record<string, Component>;
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any -- components may have various prop types
+	readonly components?: Record<string, Component<any>>;
+	readonly provides?: LayerProvides;
+
+	readonly setup?: LayerSetupFn<P, D, S>;
+	readonly onMount?: LifecycleHook<P, D, S>;
+	readonly onUnmount?: LifecycleHook<P, D, S>;
+	readonly onError?: ErrorHook<P, D, S>;
+	readonly onReady?: OnReadyHook<P, D, S>;
+
 	readonly routes?: readonly RouteConfig[];
 	readonly routeOptions?: {
 		readonly lazy?: boolean;
 		readonly guards?: readonly Guard[];
 	};
 	readonly stores?: readonly StoreConfig[];
-	readonly styles?: readonly (string | (() => string))[];
 	readonly providers?: readonly Component[];
 	readonly plugins?: readonly PluginFn[];
 }
 
-export interface ResolvedLayer extends EffuseLayer {
+export interface ResolvedLayer<
+	P extends LayerProps = LayerProps,
+	D extends readonly string[] = readonly string[],
+	S = unknown,
+> extends EffuseLayer<P, D, S> {
 	readonly _resolved: true;
+	readonly _order: number;
 }
+
+export interface MergedConfig {
+	readonly routes: readonly RouteConfig[];
+	readonly guards: readonly Guard[];
+	readonly stores: readonly StoreConfig[];
+	readonly providers: readonly Component[];
+	readonly plugins: readonly PluginFn[];
+	readonly setups: readonly LayerSetupFn[];
+	readonly lazy: boolean;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type AnyLayer = EffuseLayer<any, any, any>;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type AnyResolvedLayer = ResolvedLayer<any, any, any>;
+
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+export interface EffuseLayerRegistry {}
+
+export type LayerPropsOf<K extends keyof EffuseLayerRegistry> =
+	EffuseLayerRegistry[K] extends { props: infer P extends LayerProps }
+		? P
+		: LayerProps;
+
+export type LayerProvidesOf<K extends keyof EffuseLayerRegistry> =
+	EffuseLayerRegistry[K] extends { provides: infer S } ? S : unknown;

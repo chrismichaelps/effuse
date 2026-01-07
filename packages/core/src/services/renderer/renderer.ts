@@ -25,7 +25,7 @@
 import type { Effect } from 'effect';
 import { Context } from 'effect';
 import type { EffuseChild } from '../../render/node.js';
-import type { RenderError } from '../../errors/index.js';
+import type { RenderError } from '../../errors/internal.js';
 
 export interface RendererService {
 	readonly paint: (

@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-import { Effect, Fiber, Duration, Exit } from 'effect';
+import { Effect, Fiber, Duration, Exit, Predicate, Option, pipe } from 'effect';
 import { signal, type Signal } from '@effuse/core';
 import {
 	getGlobalQueryClient,
@@ -36,6 +36,7 @@ import {
 } from '../execution/index.js';
 import { executeQuery } from '../request/index.js';
 import { DEFAULT_STALE_TIME_MS, DEFAULT_TIMEOUT_MS } from '../config/index.js';
+import { TimeoutError } from '../errors/index.js';
 
 // Network request status
 export type FetchStatus = 'idle' | 'fetching' | 'paused';
@@ -156,11 +157,11 @@ export const useQuery = <TData>(
 		effect = effect.pipe(
 			Effect.timeoutFail({
 				duration: Duration.millis(timeout),
-				onTimeout: () => new Error(`Query timed out after ${timeout}ms`),
+				onTimeout: () => new TimeoutError({ durationMs: timeout }),
 			})
 		);
 
-		if (retryConfig?.times !== 0) {
+		if (!Predicate.isNotNullable(retryConfig) || retryConfig.times !== 0) {
 			effect = effect.pipe(
 				Effect.retry(schedule),
 				Effect.tapError((error) =>
@@ -203,7 +204,12 @@ export const useQuery = <TData>(
 								data,
 								dataUpdatedAt: Date.now(),
 								status: 'success',
-								fetchCount: (client.get<TData>(queryKey)?.fetchCount ?? 0) + 1,
+								fetchCount:
+									pipe(
+										Option.fromNullable(client.get<TData>(queryKey)),
+										Option.flatMap((e) => Option.fromNullable(e.fetchCount)),
+										Option.getOrElse(() => 0)
+									) + 1,
 							};
 							isInternalUpdate = true;
 							client.set(queryKey, entry);
@@ -220,8 +226,12 @@ export const useQuery = <TData>(
 						failureReasonSignal.value = undefined;
 						updateDerivedState();
 
-						onSuccess?.(data);
-						onSettled?.(data, undefined);
+						if (Predicate.isNotNullable(onSuccess)) {
+							onSuccess(data);
+						}
+						if (Predicate.isNotNullable(onSettled)) {
+							onSettled(data, undefined);
+						}
 					})
 				),
 				Effect.catchAll((error: Error) =>
@@ -231,7 +241,12 @@ export const useQuery = <TData>(
 							dataUpdatedAt: Date.now(),
 							status: 'error',
 							error,
-							fetchCount: (client.get<TData>(queryKey)?.fetchCount ?? 0) + 1,
+							fetchCount:
+								pipe(
+									Option.fromNullable(client.get<TData>(queryKey)),
+									Option.flatMap((e) => Option.fromNullable(e.fetchCount)),
+									Option.getOrElse(() => 0)
+								) + 1,
 						};
 						isInternalUpdate = true;
 						client.set(queryKey, entry);
@@ -243,8 +258,12 @@ export const useQuery = <TData>(
 						errorUpdatedAtSignal.value = Date.now();
 						updateDerivedState();
 
-						onError?.(error);
-						onSettled?.(undefined, error);
+						if (Predicate.isNotNullable(onError)) {
+							onError(error);
+						}
+						if (Predicate.isNotNullable(onSettled)) {
+							onSettled(undefined, error);
+						}
 					})
 				),
 				Effect.scoped

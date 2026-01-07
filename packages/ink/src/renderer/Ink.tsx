@@ -22,22 +22,16 @@
  * SOFTWARE.
  */
 
-import {
-	define,
-	computed,
-	EFFUSE_NODE,
-	NodeType,
-	type ElementNode,
-	type Signal,
-} from '@effuse/core';
+import { define, computed, type ReadonlySignal } from '@effuse/core';
 import { parseSync } from '../parser/index.js';
 import { transformDocument, type ComponentMap } from './transformer.js';
 import type { InkProps, DocumentNode } from '../types/ast.js';
 
 interface InkExposed {
-	ast: Signal<DocumentNode>;
+	ast: ReadonlySignal<DocumentNode>;
 	componentMap: ComponentMap;
 	className: string;
+	renderedContent: ReadonlySignal<ReturnType<typeof transformDocument>>;
 }
 
 // Build markdown renderer component
@@ -48,30 +42,28 @@ export const Ink = define<InkProps, InkExposed>({
 				typeof props.content === 'string'
 					? props.content
 					: ((props.content as { value?: string }).value ?? '');
+
 			return parseSync(content);
 		});
 
 		const componentMap = (props.components ?? {}) as ComponentMap;
 		const className = props.class ?? '';
 
+		const renderedContent = computed(() => {
+			return transformDocument(ast.value, componentMap);
+		});
+
 		return {
 			ast,
 			componentMap,
 			className,
+			renderedContent,
 		};
 	},
 
-	template: (exposed: InkExposed): ElementNode => {
-		const children = transformDocument(exposed.ast.value, exposed.componentMap);
-
-		return {
-			[EFFUSE_NODE]: true,
-			type: NodeType.ELEMENT,
-			tag: 'div',
-			props: {
-				class: `prose ${exposed.className}`.trim(),
-			},
-			children,
-		};
-	},
+	template: (exposed: InkExposed) => (
+		<div class={() => `prose ${exposed.className}`.trim()}>
+			{exposed.renderedContent}
+		</div>
+	),
 });

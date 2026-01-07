@@ -113,8 +113,7 @@ dist
 .yarn/install-state.gz
 .pnp.*
 
-# Playground
-playground/
+# App
 
 # CHANGELOG
 CHANGELOG/
