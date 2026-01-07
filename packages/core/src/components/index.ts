@@ -27,3 +27,5 @@ export { Show, type ShowProps } from './Show.js';
 export { Switch, type SwitchProps } from './Switch.js';
 export { Dynamic, type DynamicProps } from './Dynamic.js';
 export { ErrorBoundary, type ErrorBoundaryProps } from './ErrorBoundary.js';
+export { Repeat, type RepeatProps } from './Repeat.js';
+export { Await, type AwaitProps } from './Await.js';

@@ -99,6 +99,10 @@ export {
 	type DynamicProps,
 	ErrorBoundary,
 	type ErrorBoundaryProps,
+	Repeat,
+	type RepeatProps,
+	Await,
+	type AwaitProps,
 } from './components/index.js';
 
 export {
