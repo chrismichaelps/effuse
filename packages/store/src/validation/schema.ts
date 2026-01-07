@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-import { Effect, Schema, Duration } from 'effect';
+import { Effect, Schema, Duration, Predicate } from 'effect';
 import { TimeoutError } from '../errors.js';
 import { DEFAULT_TIMEOUT_MS } from '../config/constants.js';
 
@@ -104,7 +104,9 @@ export const createValidatedSetter = <T extends Record<string, unknown>>(
 			onValid(result.data);
 			return true;
 		}
-		onInvalid?.(result.errors);
+		if (Predicate.isNotNullable(onInvalid)) {
+			onInvalid(result.errors);
+		}
 		return false;
 	};
 };

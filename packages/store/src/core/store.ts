@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-import { Effect, Option, pipe } from 'effect';
+import { Effect, Option, pipe, Predicate } from 'effect';
 import { signal, type Signal } from '@effuse/core';
 import type {
 	Store,
@@ -84,10 +84,26 @@ export const createStore = <T extends object>(
 	options?: CreateStoreOptions
 ): Store<T> & StoreState<T> => {
 	const config = getStoreConfig();
-	const shouldPersist = options?.persist ?? config.persistByDefault;
-	const storageKey = options?.storageKey ?? `${config.storagePrefix}${name}`;
-	const enableDevtools = options?.devtools ?? config.debug;
-	const adapter = options?.storage ?? localStorageAdapter;
+	const shouldPersist = pipe(
+		Option.fromNullable(options),
+		Option.flatMap((o) => Option.fromNullable(o.persist)),
+		Option.getOrElse(() => config.persistByDefault)
+	);
+	const storageKey = pipe(
+		Option.fromNullable(options),
+		Option.flatMap((o) => Option.fromNullable(o.storageKey)),
+		Option.getOrElse(() => `${config.storagePrefix}${name}`)
+	);
+	const enableDevtools = pipe(
+		Option.fromNullable(options),
+		Option.flatMap((o) => Option.fromNullable(o.devtools)),
+		Option.getOrElse(() => config.debug)
+	);
+	const adapter = pipe(
+		Option.fromNullable(options),
+		Option.flatMap((o) => Option.fromNullable(o.storage)),
+		Option.getOrElse(() => localStorageAdapter)
+	);
 
 	if (config.debug) {
 		console.log(`[store] Creating: ${name}`);
@@ -341,7 +357,10 @@ export const createStore = <T extends object>(
 			const typedCallback = callback as (value: unknown) => void;
 			subs.add(typedCallback);
 			return () => {
-				internals.keySubscribers.get(keyStr)?.delete(typedCallback);
+				const subsSet = internals.keySubscribers.get(keyStr);
+				if (Predicate.isNotNullable(subsSet)) {
+					subsSet.delete(typedCallback);
+				}
 			};
 		},
 

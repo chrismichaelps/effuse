@@ -22,6 +22,7 @@
  * SOFTWARE.
  */
 
+import { Option, pipe } from 'effect';
 import type { Store } from '../core/types.js';
 
 interface DevToolsExtension {
@@ -60,7 +61,11 @@ export const connectDevTools = <T>(
 	const extension = w.__REDUX_DEVTOOLS_EXTENSION__;
 	if (!extension) return () => {};
 
-	const storeName = options?.name ?? store.name;
+	const storeName = pipe(
+		Option.fromNullable(options),
+		Option.flatMap((o) => Option.fromNullable(o.name)),
+		Option.getOrElse(() => store.name)
+	);
 
 	if (connections.has(storeName)) {
 		return () => {};
