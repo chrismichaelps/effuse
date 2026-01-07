@@ -22,6 +22,7 @@
  * SOFTWARE.
  */
 
+import { Predicate } from 'effect';
 import { getGlobalTracing } from './global.js';
 
 export const traceEmit = (
@@ -30,7 +31,8 @@ export const traceEmit = (
 	subscriberCount: number
 ): void => {
 	const tracing = getGlobalTracing();
-	if (!tracing?.isCategoryEnabled('emit')) return;
+	if (!Predicate.isNotNullable(tracing) || !tracing.isCategoryEnabled('emit'))
+		return;
 
 	tracing.log('emit', 'event', event, {
 		payload,
@@ -40,14 +42,16 @@ export const traceEmit = (
 
 export const traceEmitSubscribe = (event: string): void => {
 	const tracing = getGlobalTracing();
-	if (!tracing?.isCategoryEnabled('emit')) return;
+	if (!Predicate.isNotNullable(tracing) || !tracing.isCategoryEnabled('emit'))
+		return;
 
 	tracing.log('emit', 'subscribe', event);
 };
 
 export const traceEmitUnsubscribe = (event: string): void => {
 	const tracing = getGlobalTracing();
-	if (!tracing?.isCategoryEnabled('emit')) return;
+	if (!Predicate.isNotNullable(tracing) || !tracing.isCategoryEnabled('emit'))
+		return;
 
 	tracing.log('emit', 'unsubscribe', event);
 };

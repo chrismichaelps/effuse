@@ -22,6 +22,7 @@
  * SOFTWARE.
  */
 
+import { Predicate } from 'effect';
 import { getGlobalTracing } from './global.js';
 
 let signalCounter = 0;
@@ -33,7 +34,10 @@ export const traceSignalCreate = (
 	const tracing = getGlobalTracing();
 	const signalId = name ?? `signal_${String(++signalCounter)}`;
 
-	if (tracing?.isCategoryEnabled('signals')) {
+	if (
+		Predicate.isNotNullable(tracing) &&
+		tracing.isCategoryEnabled('signals')
+	) {
 		tracing.log('signals', 'create', signalId, {
 			initial: initialValue,
 		});
@@ -48,7 +52,11 @@ export const traceSignalUpdate = (
 	nextValue: unknown
 ): void => {
 	const tracing = getGlobalTracing();
-	if (!tracing?.isCategoryEnabled('signals')) return;
+	if (
+		!Predicate.isNotNullable(tracing) ||
+		!tracing.isCategoryEnabled('signals')
+	)
+		return;
 
 	tracing.log('signals', 'update', signalId, {
 		prev: prevValue,
@@ -60,7 +68,10 @@ export const traceComputedCreate = (name: string | undefined): string => {
 	const tracing = getGlobalTracing();
 	const computedId = name ?? `computed_${String(++signalCounter)}`;
 
-	if (tracing?.isCategoryEnabled('signals')) {
+	if (
+		Predicate.isNotNullable(tracing) &&
+		tracing.isCategoryEnabled('signals')
+	) {
 		tracing.log('signals', 'computed', computedId);
 	}
 

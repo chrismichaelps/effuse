@@ -22,6 +22,7 @@
  * SOFTWARE.
  */
 
+import { Predicate } from 'effect';
 import { getGlobalTracing } from './global.js';
 
 export type ResourceStatus = 'loading' | 'success' | 'error' | 'stale';
@@ -35,7 +36,11 @@ export interface ResourceTraceData {
 
 export const traceResourceLoading = (key: string): void => {
 	const tracing = getGlobalTracing();
-	if (!tracing?.isCategoryEnabled('suspense')) return;
+	if (
+		!Predicate.isNotNullable(tracing) ||
+		!tracing.isCategoryEnabled('suspense')
+	)
+		return;
 
 	tracing.log('suspense', 'resource', key, {
 		status: 'loading',
@@ -48,13 +53,17 @@ export const traceResourceSuccess = (
 	itemCount?: number
 ): void => {
 	const tracing = getGlobalTracing();
-	if (!tracing?.isCategoryEnabled('suspense')) return;
+	if (
+		!Predicate.isNotNullable(tracing) ||
+		!tracing.isCategoryEnabled('suspense')
+	)
+		return;
 
 	const data: Record<string, unknown> = {
 		status: 'success',
 	};
 
-	if (itemCount !== undefined) {
+	if (Predicate.isNotNullable(itemCount)) {
 		data['items'] = itemCount;
 	}
 
@@ -67,7 +76,11 @@ export const traceResourceError = (
 	duration: number
 ): void => {
 	const tracing = getGlobalTracing();
-	if (!tracing?.isCategoryEnabled('suspense')) return;
+	if (
+		!Predicate.isNotNullable(tracing) ||
+		!tracing.isCategoryEnabled('suspense')
+	)
+		return;
 
 	tracing.logWithDuration('suspense', 'resource', key, duration, {
 		status: 'error',
@@ -80,7 +93,11 @@ export const traceSuspenseBoundary = (
 	action: 'suspend' | 'resolve'
 ): void => {
 	const tracing = getGlobalTracing();
-	if (!tracing?.isCategoryEnabled('suspense')) return;
+	if (
+		!Predicate.isNotNullable(tracing) ||
+		!tracing.isCategoryEnabled('suspense')
+	)
+		return;
 
 	tracing.log('suspense', 'boundary', name, {
 		action,

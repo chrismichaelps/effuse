@@ -22,6 +22,7 @@
  * SOFTWARE.
  */
 
+import { Predicate } from 'effect';
 import { getGlobalTracing } from './global.js';
 
 const formatValue = (v: unknown): string => {
@@ -47,7 +48,8 @@ export const traceHookSetup = (
 	config?: Record<string, unknown>
 ): void => {
 	const tracing = getGlobalTracing();
-	if (!tracing?.isCategoryEnabled('hooks')) return;
+	if (!Predicate.isNotNullable(tracing) || !tracing.isCategoryEnabled('hooks'))
+		return;
 
 	const name = `${hookName}${formatConfigSummary(config)}`;
 	const data: Record<string, unknown> =
@@ -62,7 +64,8 @@ export const traceHookEffect = (
 	duration: number
 ): void => {
 	const tracing = getGlobalTracing();
-	if (!tracing?.isCategoryEnabled('hooks')) return;
+	if (!Predicate.isNotNullable(tracing) || !tracing.isCategoryEnabled('hooks'))
+		return;
 
 	tracing.logWithDuration(
 		'hooks',
@@ -74,7 +77,8 @@ export const traceHookEffect = (
 
 export const traceHookCleanup = (hookName: string): void => {
 	const tracing = getGlobalTracing();
-	if (!tracing?.isCategoryEnabled('hooks')) return;
+	if (!Predicate.isNotNullable(tracing) || !tracing.isCategoryEnabled('hooks'))
+		return;
 
 	tracing.log('hooks', 'hook:cleanup', hookName);
 };
@@ -85,7 +89,8 @@ export const traceHookDispose = (
 	cleanupCount: number
 ): void => {
 	const tracing = getGlobalTracing();
-	if (!tracing?.isCategoryEnabled('hooks')) return;
+	if (!Predicate.isNotNullable(tracing) || !tracing.isCategoryEnabled('hooks'))
+		return;
 
 	tracing.logWithDuration('hooks', 'hook:dispose', hookName, duration, {
 		cleanups: cleanupCount,
@@ -94,7 +99,8 @@ export const traceHookDispose = (
 
 export const traceHookMount = (hookName: string): void => {
 	const tracing = getGlobalTracing();
-	if (!tracing?.isCategoryEnabled('hooks')) return;
+	if (!Predicate.isNotNullable(tracing) || !tracing.isCategoryEnabled('hooks'))
+		return;
 
 	tracing.log('hooks', 'hook:mount', hookName);
 };

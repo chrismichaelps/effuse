@@ -22,6 +22,7 @@
  * SOFTWARE.
  */
 
+import { Predicate } from 'effect';
 import { getGlobalTracing } from './global.js';
 
 export const traceNavigation = (
@@ -31,7 +32,8 @@ export const traceNavigation = (
 	duration?: number
 ): void => {
 	const tracing = getGlobalTracing();
-	if (!tracing?.isCategoryEnabled('router')) return;
+	if (!Predicate.isNotNullable(tracing) || !tracing.isCategoryEnabled('router'))
+		return;
 
 	const data: Record<string, unknown> = {
 		from,
@@ -68,7 +70,8 @@ export const traceGuard = (
 	duration?: number
 ): void => {
 	const tracing = getGlobalTracing();
-	if (!tracing?.isCategoryEnabled('router')) return;
+	if (!Predicate.isNotNullable(tracing) || !tracing.isCategoryEnabled('router'))
+		return;
 
 	const logData: Record<string, unknown> = { result };
 	if (redirectTo) {
@@ -84,7 +87,8 @@ export const traceGuard = (
 
 export const traceRouteMatch = (route: string, pattern: string): void => {
 	const tracing = getGlobalTracing();
-	if (!tracing?.isCategoryEnabled('router')) return;
+	if (!Predicate.isNotNullable(tracing) || !tracing.isCategoryEnabled('router'))
+		return;
 
 	tracing.log('router', 'match', route, { pattern });
 };

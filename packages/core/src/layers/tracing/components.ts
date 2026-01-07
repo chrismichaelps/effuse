@@ -22,6 +22,7 @@
  * SOFTWARE.
  */
 
+import { Predicate } from 'effect';
 import { getGlobalTracing } from './global.js';
 
 export const traceComponentMount = (
@@ -30,7 +31,11 @@ export const traceComponentMount = (
 	duration?: number
 ): void => {
 	const tracing = getGlobalTracing();
-	if (!tracing?.isCategoryEnabled('components')) return;
+	if (
+		!Predicate.isNotNullable(tracing) ||
+		!tracing.isCategoryEnabled('components')
+	)
+		return;
 
 	const logData: Record<string, unknown> = {};
 	if (props && Object.keys(props).length > 0) {
@@ -49,7 +54,11 @@ export const traceComponentUnmount = (
 	lifetime?: number
 ): void => {
 	const tracing = getGlobalTracing();
-	if (!tracing?.isCategoryEnabled('components')) return;
+	if (
+		!Predicate.isNotNullable(tracing) ||
+		!tracing.isCategoryEnabled('components')
+	)
+		return;
 
 	if (lifetime !== undefined) {
 		tracing.log('components', 'unmount', name, {
@@ -66,7 +75,11 @@ export const traceComponentRender = (
 	reason?: string
 ): void => {
 	const tracing = getGlobalTracing();
-	if (!tracing?.isCategoryEnabled('components')) return;
+	if (
+		!Predicate.isNotNullable(tracing) ||
+		!tracing.isCategoryEnabled('components')
+	)
+		return;
 
 	const logData: Record<string, unknown> = {};
 	if (reason) {

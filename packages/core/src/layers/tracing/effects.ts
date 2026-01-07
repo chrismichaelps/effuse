@@ -22,6 +22,7 @@
  * SOFTWARE.
  */
 
+import { Predicate } from 'effect';
 import { getGlobalTracing } from './global.js';
 
 export const traceEffect = (
@@ -30,7 +31,11 @@ export const traceEffect = (
 	duration: number
 ): void => {
 	const tracing = getGlobalTracing();
-	if (!tracing?.isCategoryEnabled('effects')) return;
+	if (
+		!Predicate.isNotNullable(tracing) ||
+		!tracing.isCategoryEnabled('effects')
+	)
+		return;
 
 	tracing.logWithDuration('effects', 'effect', name, duration, {
 		deps,
@@ -39,7 +44,11 @@ export const traceEffect = (
 
 export const traceEffectCleanup = (name: string): void => {
 	const tracing = getGlobalTracing();
-	if (!tracing?.isCategoryEnabled('effects')) return;
+	if (
+		!Predicate.isNotNullable(tracing) ||
+		!tracing.isCategoryEnabled('effects')
+	)
+		return;
 
 	tracing.log('effects', 'cleanup', name);
 };
@@ -50,7 +59,11 @@ export const traceWatch = (
 	duration: number
 ): void => {
 	const tracing = getGlobalTracing();
-	if (!tracing?.isCategoryEnabled('effects')) return;
+	if (
+		!Predicate.isNotNullable(tracing) ||
+		!tracing.isCategoryEnabled('effects')
+	)
+		return;
 
 	tracing.logWithDuration('effects', 'watch', name, duration, {
 		source,

@@ -23,7 +23,7 @@
  */
 
 /* eslint-disable no-console */
-import { Context, Effect, Layer } from 'effect';
+import { Context, Effect, Layer, Option, pipe } from 'effect';
 import {
 	type TracingCategories,
 	type TracingCategory,
@@ -135,7 +135,11 @@ export const createTracingService = (
 			if (!checkCategory('layers')) return;
 
 			const time = new Date().toLocaleTimeString();
-			const depsAttr = attributes?.['depends'] as string[] | undefined;
+			const depsAttr = pipe(
+				Option.fromNullable(attributes),
+				Option.flatMap((attrs) => Option.fromNullable(attrs['depends'])),
+				Option.getOrElse(() => undefined)
+			) as string[] | undefined;
 			const depsStr = depsAttr ? ` <- [${depsAttr.join(', ')}]` : '';
 
 			console.groupCollapsed(

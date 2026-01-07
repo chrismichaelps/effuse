@@ -22,14 +22,16 @@
  * SOFTWARE.
  */
 
+import { Predicate } from 'effect';
 import { getGlobalTracing } from './global.js';
 
 export const traceFiberCreated = (fiberId: string, parentId?: string): void => {
 	const tracing = getGlobalTracing();
-	if (!tracing?.isCategoryEnabled('fibers')) return;
+	if (!Predicate.isNotNullable(tracing) || !tracing.isCategoryEnabled('fibers'))
+		return;
 
 	const data: Record<string, unknown> = {};
-	if (parentId) {
+	if (Predicate.isNotNullable(parentId)) {
 		data['parent'] = parentId;
 	}
 
@@ -38,21 +40,24 @@ export const traceFiberCreated = (fiberId: string, parentId?: string): void => {
 
 export const traceFiberDone = (fiberId: string, duration: number): void => {
 	const tracing = getGlobalTracing();
-	if (!tracing?.isCategoryEnabled('fibers')) return;
+	if (!Predicate.isNotNullable(tracing) || !tracing.isCategoryEnabled('fibers'))
+		return;
 
 	tracing.logWithDuration('fibers', 'done', fiberId, duration);
 };
 
 export const traceFiberInterrupted = (fiberId: string): void => {
 	const tracing = getGlobalTracing();
-	if (!tracing?.isCategoryEnabled('fibers')) return;
+	if (!Predicate.isNotNullable(tracing) || !tracing.isCategoryEnabled('fibers'))
+		return;
 
 	tracing.log('fibers', 'interrupted', fiberId);
 };
 
 export const traceFiberCount = (count: number, peak: number): void => {
 	const tracing = getGlobalTracing();
-	if (!tracing?.isCategoryEnabled('fibers')) return;
+	if (!Predicate.isNotNullable(tracing) || !tracing.isCategoryEnabled('fibers'))
+		return;
 
 	tracing.log('fibers', 'snapshot', `${String(count)} active`, {
 		current: count,
@@ -65,7 +70,8 @@ export const traceFiberBuildPhase = (
 	layerNames: string[]
 ): void => {
 	const tracing = getGlobalTracing();
-	if (!tracing?.isCategoryEnabled('fibers')) return;
+	if (!Predicate.isNotNullable(tracing) || !tracing.isCategoryEnabled('fibers'))
+		return;
 
 	tracing.log('fibers', 'build-phase', `level ${String(phase)}`, {
 		layers: layerNames,
