@@ -22,6 +22,7 @@
  * SOFTWARE.
  */
 
+import { Predicate } from 'effect';
 import type { Translations, TranslationParams } from '../types/index.js';
 import {
 	INTERPOLATION_PATTERN,
@@ -111,7 +112,10 @@ export const translate = (
 	locale: string
 ): string => {
 	let lookupKey = key;
-	if (params?.count !== undefined) {
+	if (
+		Predicate.isNotNullable(params) &&
+		Predicate.isNotNullable(params.count)
+	) {
 		const pluralSuffix = getPluralSuffix(params.count, locale);
 		const pluralKey = `${key}${pluralSuffix}`;
 

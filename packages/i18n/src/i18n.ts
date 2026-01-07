@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-import { Effect } from 'effect';
+import { Effect, Predicate } from 'effect';
 import type { Signal } from '@effuse/core';
 import type {
 	I18n,
@@ -73,7 +73,11 @@ class I18nInstance implements I18n {
 		const detectEnabled = options.detectLocale ?? envConfig.detectLocale;
 		if (detectEnabled && typeof navigator !== 'undefined') {
 			const browserLocale = navigator.language.split('-')[0];
-			if (browserLocale && options.translations?.[browserLocale]) {
+			if (
+				Predicate.isNotNullable(browserLocale) &&
+				Predicate.isNotNullable(options.translations) &&
+				Predicate.isNotNullable(options.translations[browserLocale])
+			) {
 				initialLocale = browserLocale;
 			}
 		}
@@ -81,7 +85,11 @@ class I18nInstance implements I18n {
 		const persistEnabled = options.persistLocale ?? envConfig.persistLocale;
 		if (persistEnabled && typeof localStorage !== 'undefined') {
 			const stored = localStorage.getItem(LOCALE_STORAGE_KEY);
-			if (stored && options.translations?.[stored]) {
+			if (
+				Predicate.isNotNullable(stored) &&
+				Predicate.isNotNullable(options.translations) &&
+				Predicate.isNotNullable(options.translations[stored])
+			) {
 				initialLocale = stored;
 			}
 		}
