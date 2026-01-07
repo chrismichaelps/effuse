@@ -102,7 +102,7 @@ export const DocsHeader = define<DocsHeaderProps, DocsHeaderExposed>({
 			const items = tocItems.value;
 			const activeId = activeSectionId.value;
 			const found = items.find((item) => item.id === activeId);
-			return found?.title ?? pageTitle.value;
+			return found ? found.title : pageTitle.value;
 		});
 
 		const onThisPageText = computed(() => t('toc.onThisPage', ''));
@@ -192,7 +192,7 @@ export const DocsHeader = define<DocsHeaderProps, DocsHeaderExposed>({
 		>
 			<div class="flex items-center w-full h-full relative px-2">
 				<div class="w-9 flex-shrink-0">
-					{!isSidebarOpen.value && (
+					{!(isSidebarOpen as Signal<boolean>).value && (
 						<SidebarToggle
 							class="md:hidden"
 							onToggle={docsStore.toggleSidebar}
