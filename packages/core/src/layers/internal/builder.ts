@@ -23,7 +23,7 @@
  */
 
 /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument */
-import { Effect, Fiber } from 'effect';
+import { Effect, Fiber, Predicate } from 'effect';
 import type {
 	AnyResolvedLayer,
 	SetupContext,
@@ -195,8 +195,9 @@ export const buildLayerEffect = (
 						}
 					: undefined;
 
-			const onReady = layer.onReady
-				? () => layer.onReady?.(ctx, allLayers)
+			const layerOnReady = layer.onReady;
+			const onReady = Predicate.isNotNullable(layerOnReady)
+				? () => layerOnReady(ctx, allLayers)
 				: undefined;
 
 			return { layer, cleanup, onReady };

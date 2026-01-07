@@ -22,6 +22,7 @@
  * SOFTWARE.
  */
 
+import { Array as Arr, pipe, Option } from 'effect';
 import type {
 	AnyLayer,
 	AnyResolvedLayer,
@@ -110,9 +111,13 @@ export const mergeLayerConfigs = (
 			routes.push(...layerRoutes);
 		}
 
-		if (layer.routeOptions?.guards) {
-			guards.push(...layer.routeOptions.guards);
-		}
+		pipe(
+			Option.fromNullable(layer.routeOptions),
+			Option.flatMap((opts) => Option.fromNullable(opts.guards)),
+			Option.map((layerGuards) => {
+				guards.push(...layerGuards);
+			})
+		);
 
 		if (layer.stores) {
 			stores.push(...layer.stores);
@@ -138,6 +143,12 @@ export const mergeLayerConfigs = (
 		providers,
 		plugins,
 		setups,
-		lazy: layers.some((l) => l.routeOptions?.lazy === true),
+		lazy: Arr.some(layers, (l) =>
+			pipe(
+				Option.fromNullable(l.routeOptions),
+				Option.flatMap((opts) => Option.fromNullable(opts.lazy)),
+				Option.getOrElse(() => false)
+			)
+		),
 	};
 };

@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-import { Effect, Either, Option } from 'effect';
+import { Effect, Either, Option, Predicate } from 'effect';
 import type { AnyResolvedLayer } from '../types.js';
 import { CircularDependencyError } from '../errors.js';
 
@@ -49,7 +49,9 @@ const detectCycle = (
 	path.push(node);
 
 	const layer = layerMap.get(node);
-	const deps = (layer?.dependencies as string[] | undefined) ?? [];
+	const deps: string[] = Predicate.isNotNullable(layer)
+		? ((layer.dependencies as string[] | undefined) ?? [])
+		: [];
 
 	for (const dep of deps) {
 		const depState = state.get(dep) ?? NodeState.Unvisited;

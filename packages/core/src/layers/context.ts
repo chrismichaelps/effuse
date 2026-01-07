@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-import { Effect } from 'effect';
+import { Effect, Option, pipe } from 'effect';
 import type {
 	LayerProps,
 	AnyResolvedLayer,
@@ -115,9 +115,20 @@ export function getLayerContext(name: string): LayerContext {
 			provides: layer.provides as Record<string, () => unknown>,
 		}),
 		deps,
-		getService: (key: string) => globalState.layerRegistry?.getService(key),
+		getService: (key: string) =>
+			pipe(
+				Option.fromNullable(globalState.layerRegistry),
+				Option.map((registry) => registry.getService(key)),
+				Option.getOrUndefined
+			),
 		getComponent: (componentName: string) =>
-			globalState.layerRegistry?.getComponent(componentName),
+			pipe(
+				Option.fromNullable(globalState.layerRegistry),
+				Option.flatMap((registry) =>
+					Option.fromNullable(registry.getComponent(componentName))
+				),
+				Option.getOrUndefined
+			),
 	};
 }
 
