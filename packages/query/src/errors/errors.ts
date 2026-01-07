@@ -76,3 +76,23 @@ export class MutationError extends Data.TaggedError('MutationError')<{
 		return `MutationError: ${this.message}`;
 	}
 }
+
+// Query fetch operation error
+export class QueryFetchError extends Data.TaggedError('QueryFetchError')<{
+	readonly message: string;
+	readonly cause?: unknown;
+}> {
+	override toString(): string {
+		return `QueryFetchError: ${this.message}`;
+	}
+}
+
+// Infinite query operation error
+export class InfiniteQueryError extends Data.TaggedError('InfiniteQueryError')<{
+	readonly message: string;
+	readonly cause?: unknown;
+}> {
+	override toString(): string {
+		return `InfiniteQueryError: ${this.message}`;
+	}
+}

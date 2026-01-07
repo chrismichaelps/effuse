@@ -29,4 +29,6 @@ export {
 	TimeoutError,
 	CancellationError,
 	MutationError,
+	QueryFetchError,
+	InfiniteQueryError,
 } from './errors.js';
