@@ -50,7 +50,6 @@ export {
 } from './script-context.js';
 
 export {
-	createComponentLifecycle,
 	createComponentLifecycleSync,
 	type ComponentLifecycle,
 } from './lifecycle.js';

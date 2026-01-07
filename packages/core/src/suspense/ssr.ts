@@ -91,6 +91,13 @@ export const waitForAllResources = (): Effect.Effect<void, Error> =>
 		}
 	});
 
+export const waitForAllResourcesAsync = async (): Promise<void> => {
+	const boundary = suspenseApi.getCurrentBoundary();
+	if (boundary && boundary.hasPending()) {
+		await boundary.waitForAll();
+	}
+};
+
 export const collectSSRData = async (): Promise<string> => {
 	const boundary = suspenseApi.getCurrentBoundary();
 	if (boundary) {

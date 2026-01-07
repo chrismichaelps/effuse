@@ -111,7 +111,6 @@ export {
 	deriveFrom,
 	deriveFromAsync,
 	serializeStores,
-	hydrateStores,
 	hydrateStoresSync,
 	createStoreStream,
 	streamAll,
