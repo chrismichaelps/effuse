@@ -116,10 +116,7 @@
 			}
 		],
 		[
-			"@semantic-release/npm",
-			{
-				"pkgRoot": "."
-			}
+			"@semantic-release/npm"
 		],
 		[
 			"@semantic-release/git",
