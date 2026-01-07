@@ -1,6 +1,6 @@
 {
 	"name": "effuse",
-	"version": "0.1.0",
+	"version": "1.0.0",
 	"private": true,
 	"description": "A lightweight, simple reactive UI library for building web interfaces.",
 	"author": "Chris M. Pérez",
