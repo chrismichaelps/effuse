@@ -22,6 +22,7 @@
  * SOFTWARE.
  */
 
+import { Option, pipe } from 'effect';
 import {
 	type EffuseNode,
 	type EffuseChild,
@@ -66,7 +67,11 @@ export function el(
 			tag: tagOrBlueprint,
 			props: props ?? null,
 			children,
-			key: props?.key,
+			key: pipe(
+				Option.fromNullable(props),
+				Option.flatMap((p) => Option.fromNullable(p.key)),
+				Option.getOrUndefined
+			),
 		};
 	}
 
