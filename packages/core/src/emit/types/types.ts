@@ -26,6 +26,7 @@ import type { Signal, ReadonlySignal } from '../../types/index.js';
 
 export type EmitHandler<P> = (payload: P) => void;
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type EventMap = Record<string, any>;
 
 export type EmitEvents<T extends EventMap> = T;
