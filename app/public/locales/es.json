@@ -31,7 +31,9 @@
 		"emit": "Emit",
 		"events": "Emit",
 		"errorHandling": "Manejo de Errores",
-		"controlFlow": "Flujo de Control"
+		"controlFlow": "Flujo de Control",
+		"repeat": "Repeat",
+		"await": "Await"
 	},
 	"toc": {
 		"onThisPage": "En esta página"
@@ -250,6 +252,26 @@
 				"description": "Estilos y clases reactivas con señales",
 				"changeColor": "Cambiar Color",
 				"current": "Actual"
+			},
+			"repeat": {
+				"title": "Componente Repeat",
+				"description": "Renderiza contenido N veces con acceso al índice y soporte de fallback",
+				"skeletonItems": "Elementos Skeleton",
+				"currentCount": "Conteo actual",
+				"noItems": "No hay elementos para mostrar",
+				"item": "Elemento"
+			},
+			"await": {
+				"title": "Componente Await",
+				"description": "Renderizado asíncrono declarativo con estados pendiente, error y éxito",
+				"fetchUser": "Obtener Usuario",
+				"fetchNewUser": "Obtener Nuevo Usuario",
+				"loading": "Cargando datos del usuario...",
+				"errorMessage": "Error al cargar usuario",
+				"retry": "Reintentar",
+				"userName": "Nombre",
+				"userEmail": "Correo",
+				"userId": "ID Usuario"
 			}
 		}
 	},

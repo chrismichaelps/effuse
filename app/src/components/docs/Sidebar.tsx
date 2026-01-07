@@ -165,6 +165,8 @@ const createStableSectionStates = (): SectionState[] => {
 				hooks: sidebar?.hooks,
 				layers: sidebar?.layers,
 				controlFlow: sidebar?.controlFlow,
+				repeat: sidebar?.repeat,
+				await: sidebar?.await,
 			};
 			return section.items.map((item) => ({
 				label: labelMapping[item.labelKey] ?? item.labelKey,

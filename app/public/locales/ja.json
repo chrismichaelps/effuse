@@ -31,7 +31,9 @@
 		"emit": "Emit",
 		"events": "Emit",
 		"errorHandling": "エラーハンドリング",
-		"controlFlow": "コントロールフロー"
+		"controlFlow": "コントロールフロー",
+		"repeat": "Repeat",
+		"await": "Await"
 	},
 	"toc": {
 		"onThisPage": "このページの内容"
@@ -250,6 +252,26 @@
 				"description": "シグナルを使用したリアクティブなスタイルとクラス",
 				"changeColor": "色を変更",
 				"current": "現在"
+			},
+			"repeat": {
+				"title": "Repeat コンポーネント",
+				"description": "インデックスアクセスとフォールバックサポート付きでN回コンテンツをレンダリング",
+				"skeletonItems": "スケルトンアイテム",
+				"currentCount": "現在のカウント",
+				"noItems": "表示するアイテムがありません",
+				"item": "アイテム"
+			},
+			"await": {
+				"title": "Await コンポーネント",
+				"description": "保留中、エラー、成功状態を持つ宣言的な非同期レンダリング",
+				"fetchUser": "ユーザー取得",
+				"fetchNewUser": "新しいユーザーを取得",
+				"loading": "ユーザーデータを読み込み中...",
+				"errorMessage": "ユーザーの読み込みに失敗しました",
+				"retry": "再試行",
+				"userName": "名前",
+				"userEmail": "メール",
+				"userId": "ユーザーID"
 			}
 		}
 	},

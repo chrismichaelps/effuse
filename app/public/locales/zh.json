@@ -31,7 +31,9 @@
 		"emit": "Emit",
 		"events": "Emit",
 		"errorHandling": "错误处理",
-		"controlFlow": "控制流"
+		"controlFlow": "控制流",
+		"repeat": "Repeat",
+		"await": "Await"
 	},
 	"toc": {
 		"onThisPage": "本页目录"
@@ -250,6 +252,26 @@
 				"description": "使用信号实现的响应式样式和类",
 				"changeColor": "更换颜色",
 				"current": "当前"
+			},
+			"repeat": {
+				"title": "Repeat 组件",
+				"description": "支持索引访问和后备内容的N次内容渲染",
+				"skeletonItems": "骨架项目",
+				"currentCount": "当前数量",
+				"noItems": "没有可显示的项目",
+				"item": "项目"
+			},
+			"await": {
+				"title": "Await 组件",
+				"description": "具有待处理、错误和成功状态的声明式异步渲染",
+				"fetchUser": "获取用户",
+				"fetchNewUser": "获取新用户",
+				"loading": "正在加载用户数据...",
+				"errorMessage": "加载用户失败",
+				"retry": "重试",
+				"userName": "姓名",
+				"userEmail": "邮箱",
+				"userId": "用户ID"
 			}
 		}
 	},

@@ -48,6 +48,8 @@ interface Translations {
 		hooks: string;
 		layers: string;
 		controlFlow: string;
+		repeat: string;
+		await: string;
 	};
 	toc: {
 		onThisPage: string;
@@ -264,6 +266,26 @@ interface Translations {
 				description: string;
 				changeColor: string;
 				current: string;
+			};
+			repeat: {
+				title: string;
+				description: string;
+				skeletonItems: string;
+				currentCount: string;
+				noItems: string;
+				item: string;
+			};
+			await: {
+				title: string;
+				description: string;
+				fetchUser: string;
+				fetchNewUser: string;
+				loading: string;
+				errorMessage: string;
+				retry: string;
+				userName: string;
+				userEmail: string;
+				userId: string;
 			};
 		};
 	};

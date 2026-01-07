@@ -31,7 +31,9 @@
 		"emit": "Emit",
 		"events": "Emit",
 		"errorHandling": "Error Handling",
-		"controlFlow": "Control Flow"
+		"controlFlow": "Control Flow",
+		"repeat": "Repeat",
+		"await": "Await"
 	},
 	"toc": {
 		"onThisPage": "On this page"
@@ -250,6 +252,26 @@
 				"description": "Reactive styles and classes with signals",
 				"changeColor": "Change Color",
 				"current": "Current"
+			},
+			"repeat": {
+				"title": "Repeat Component",
+				"description": "Render content N times with index access and fallback support",
+				"skeletonItems": "Skeleton Items",
+				"currentCount": "Current count",
+				"noItems": "No items to display",
+				"item": "Item"
+			},
+			"await": {
+				"title": "Await Component",
+				"description": "Declarative async rendering with pending, error, and success states",
+				"fetchUser": "Fetch User",
+				"fetchNewUser": "Fetch New User",
+				"loading": "Loading user data...",
+				"errorMessage": "Failed to load user",
+				"retry": "Retry",
+				"userName": "Name",
+				"userEmail": "Email",
+				"userId": "User ID"
 			}
 		}
 	},
