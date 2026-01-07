@@ -217,6 +217,39 @@
 			"card3": "卡片 3",
 			"card4": "卡片 4",
 			"codeSnippet": "```tsx\n// 使用默认值创建上下文\nconst ThemeContext = createContext<ThemeConfig>({\n  id: 'app-theme',\n  defaultValue: { mode: 'dark', primary: '#818cf8' },\n});\n\n// 在任何组件中消费\nconst MyComponent = define({\n  script: () => {\n    const theme = useContext(ThemeContext);\n    return { theme };\n  },\n  template: ({ theme }) => (\n    <div style={{ color: theme.primary }}>\n      当前主题: {theme.mode}\n    </div>\n  ),\n});\n\n// 提供者包裹子组件\n<ThemeContext.Provider value={customTheme}>\n  <MyComponent />\n</ThemeContext.Provider>\n```"
+		},
+		"controlFlow": {
+			"title": "控制流组件",
+			"description": "用于条件渲染和列表渲染的强大组件",
+			"show": {
+				"title": "Show 组件",
+				"description": "基于信号真值性的条件渲染",
+				"login": "登录",
+				"logout": "登出",
+				"pleaseLogin": "请登录",
+				"welcome": "欢迎"
+			},
+			"switch": {
+				"title": "Switch / Match 模式",
+				"description": "使用 Show 实现互斥的条件渲染",
+				"idle": "准备就绪",
+				"loading": "加载中...",
+				"success": "操作成功！",
+				"error": "出错了"
+			},
+			"for": {
+				"title": "For 组件",
+				"description": "具有键值校验功能的响应式列表渲染",
+				"addPlaceholder": "添加项目...",
+				"add": "添加",
+				"noItems": "暂无项目"
+			},
+			"dynamic": {
+				"title": "动态样式",
+				"description": "使用信号实现的响应式样式和类",
+				"changeColor": "更换颜色",
+				"current": "当前"
+			}
 		}
 	},
 	"legal": {

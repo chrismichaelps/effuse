@@ -217,6 +217,39 @@
 			"card3": "カード 3",
 			"card4": "カード 4",
 			"codeSnippet": "```tsx\n// デフォルト値を使用してコンテキストを作成\nconst ThemeContext = createContext<ThemeConfig>({\n  id: 'app-theme',\n  defaultValue: { mode: 'dark', primary: '#818cf8' },\n});\n\n// 任意のコンポーネントで消費\nconst MyComponent = define({\n  script: () => {\n    const theme = useContext(ThemeContext);\n    return { theme };\n  },\n  template: ({ theme }) => (\n    <div style={{ color: theme.primary }}>\n      現在のテーマ: {theme.mode}\n    </div>\n  ),\n});\n\n// プロバイダーが子要素をラップ\n<ThemeContext.Provider value={customTheme}>\n  <MyComponent />\n</ThemeContext.Provider>\n```"
+		},
+		"controlFlow": {
+			"title": "制御フローコンポーネント",
+			"description": "条件付きレンダリングとリストレンダリングのための強力なコンポーネント",
+			"show": {
+				"title": "Show コンポーネント",
+				"description": "シグナルの真偽に基づいた条件付きレンダリング",
+				"login": "ログイン",
+				"logout": "ログアウト",
+				"pleaseLogin": "ログインしてください",
+				"welcome": "ようこそ"
+			},
+			"switch": {
+				"title": "Switch / Match パターン",
+				"description": "Show を使用した相互に排他的な条件付きレンダリング",
+				"idle": "開始準備完了",
+				"loading": "読み込み中...",
+				"success": "操作成功！",
+				"error": "エラーが発生しました"
+			},
+			"for": {
+				"title": "For コンポーネント",
+				"description": "キーベースの調整によるリアクティブなリストレンダリング",
+				"addPlaceholder": "アイテムを追加...",
+				"add": "追加",
+				"noItems": "アイテムがありません"
+			},
+			"dynamic": {
+				"title": "動的スタイリング",
+				"description": "シグナルを使用したリアクティブなスタイルとクラス",
+				"changeColor": "色を変更",
+				"current": "現在"
+			}
 		}
 	},
 	"legal": {

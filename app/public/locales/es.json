@@ -217,6 +217,39 @@
 			"card3": "Tarjeta 3",
 			"card4": "Tarjeta 4",
 			"codeSnippet": "```tsx\n// Crear un contexto con un valor predeterminado\nconst ThemeContext = createContext<ThemeConfig>({\n  id: 'app-theme',\n  defaultValue: { mode: 'dark', primary: '#818cf8' },\n});\n\n// Consumir en cualquier componente\nconst MyComponent = define({\n  script: () => {\n    const theme = useContext(ThemeContext);\n    return { theme };\n  },\n  template: ({ theme }) => (\n    <div style={{ color: theme.primary }}>\n      Tema actual: {theme.mode}\n    </div>\n  ),\n});\n\n// El proveedor envuelve a los hijos\n<ThemeContext.Provider value={customTheme}>\n  <MyComponent />\n</ThemeContext.Provider>\n```"
+		},
+		"controlFlow": {
+			"title": "Componentes de Flujo de Control",
+			"description": "Componentes potentes para renderizado condicional y de listas",
+			"show": {
+				"title": "Componente Show",
+				"description": "Renderizado condicional basado en la veracidad de la señal",
+				"login": "Iniciar sesión",
+				"logout": "Cerrar sesión",
+				"pleaseLogin": "Por favor, inicie sesión",
+				"welcome": "Bienvenido"
+			},
+			"switch": {
+				"title": "Patrón Switch / Match",
+				"description": "Renderizado condicional mutuamente excluyente usando Show",
+				"idle": "Listo para comenzar",
+				"loading": "Cargando...",
+				"success": "¡Operación exitosa!",
+				"error": "Algo salió mal"
+			},
+			"for": {
+				"title": "Componente For",
+				"description": "Renderizado de listas reactivas con reconciliación por clave",
+				"addPlaceholder": "Agregar elemento...",
+				"add": "Agregar",
+				"noItems": "No hay elementos"
+			},
+			"dynamic": {
+				"title": "Estilo Dinámico",
+				"description": "Estilos y clases reactivas con señales",
+				"changeColor": "Cambiar Color",
+				"current": "Actual"
+			}
 		}
 	},
 	"legal": {

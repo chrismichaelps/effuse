@@ -30,7 +30,8 @@
 		"i18n": "I18n",
 		"emit": "Emit",
 		"events": "Emit",
-		"errorHandling": "Error Handling"
+		"errorHandling": "Error Handling",
+		"controlFlow": "Control Flow"
 	},
 	"toc": {
 		"onThisPage": "On this page"
@@ -217,6 +218,39 @@
 			"card3": "Card 3",
 			"card4": "Card 4",
 			"codeSnippet": "```tsx\n// Create a context with default value\nconst ThemeContext = createContext<ThemeConfig>({\n  id: 'app-theme',\n  defaultValue: { mode: 'dark', primary: '#818cf8' },\n});\n\n// Consume in any component\nconst MyComponent = define({\n  script: () => {\n    const theme = useContext(ThemeContext);\n    return { theme };\n  },\n  template: ({ theme }) => (\n    <div style={{ color: theme.primary }}>\n      Current theme: {theme.mode}\n    </div>\n  ),\n});\n\n// Provider wraps children\n<ThemeContext.Provider value={customTheme}>\n  <MyComponent />\n</ThemeContext.Provider>\n```"
+		},
+		"controlFlow": {
+			"title": "Control Flow Components",
+			"description": "Powerful components for conditional and list rendering",
+			"show": {
+				"title": "Show Component",
+				"description": "Conditional rendering based on signal truthiness",
+				"login": "Login",
+				"logout": "Logout",
+				"pleaseLogin": "Please log in",
+				"welcome": "Welcome"
+			},
+			"switch": {
+				"title": "Switch / Match Pattern",
+				"description": "Mutually exclusive conditional rendering using Show",
+				"idle": "Ready to start",
+				"loading": "Loading...",
+				"success": "Operation successful!",
+				"error": "Something went wrong"
+			},
+			"for": {
+				"title": "For Component",
+				"description": "Reactive list rendering with keyed reconciliation",
+				"addPlaceholder": "Add item...",
+				"add": "Add",
+				"noItems": "No items"
+			},
+			"dynamic": {
+				"title": "Dynamic Styling",
+				"description": "Reactive styles and classes with signals",
+				"changeColor": "Change Color",
+				"current": "Current"
+			}
 		}
 	},
 	"legal": {
