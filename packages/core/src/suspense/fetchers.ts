@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-import { Effect, pipe, Schedule } from 'effect';
+import { Effect, pipe, Schedule, Predicate } from 'effect';
 import type { ResourceOptions } from './schema.js';
 import { DEFAULT_EXPONENTIAL_RETRY } from './config.js';
 import { isEffect } from './utils.js';
@@ -74,11 +74,17 @@ export const applyResourceOptions = <T>(
 ): Effect.Effect<T, Error> => {
 	let effect = toEffect(fetcher);
 
-	if (options?.timeout) {
+	if (
+		Predicate.isNotNullable(options) &&
+		Predicate.isNotNullable(options.timeout)
+	) {
 		effect = withTimeout(effect, options.timeout);
 	}
 
-	if (options?.retry) {
+	if (
+		Predicate.isNotNullable(options) &&
+		Predicate.isNotNullable(options.retry)
+	) {
 		const { times, delay, exponential } = options.retry;
 		effect = withRetry(effect, times, delay, exponential);
 	}

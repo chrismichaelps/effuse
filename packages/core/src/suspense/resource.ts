@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-import { Effect, Schedule, pipe } from 'effect';
+import { Effect, Schedule, pipe, Predicate, Option } from 'effect';
 import { signal } from '../reactivity/index.js';
 import type { Signal } from '../types/index.js';
 import {
@@ -56,7 +56,7 @@ export const createResource = <T>(
 ): Resource<T> => {
 	const resourceId = generateResourceId(RESOURCE_ID_PREFIX);
 	const state = signal<ResourceState<T>>(
-		options?.initialValue !== undefined
+		Predicate.isNotNullable(options) && options.initialValue !== undefined
 			? createSuccessState(options.initialValue as T)
 			: createPendingState<T>()
 	);
@@ -74,14 +74,34 @@ export const createResource = <T>(
 			baseEffect = Effect.promise(() => result);
 		}
 
-		if (options?.timeout) {
+		const hasTimeout = pipe(
+			Option.fromNullable(options),
+			Option.flatMap((o) => Option.fromNullable(o.timeout)),
+			Option.isSome
+		);
+
+		if (
+			hasTimeout &&
+			Predicate.isNotNullable(options) &&
+			Predicate.isNotNullable(options.timeout)
+		) {
 			baseEffect = pipe(
 				baseEffect,
 				Effect.timeout(options.timeout)
 			) as Effect.Effect<T, Error>;
 		}
 
-		if (options?.retry) {
+		const hasRetry = pipe(
+			Option.fromNullable(options),
+			Option.flatMap((o) => Option.fromNullable(o.retry)),
+			Option.isSome
+		);
+
+		if (
+			hasRetry &&
+			Predicate.isNotNullable(options) &&
+			Predicate.isNotNullable(options.retry)
+		) {
 			const retryConfig = options.retry;
 			const delayMs = retryConfig.delay;
 			const times = retryConfig.times;
@@ -106,7 +126,14 @@ export const createResource = <T>(
 		}
 		abortController = new AbortController();
 
-		const needsEffectFeatures = options?.timeout || options?.retry;
+		const needsEffectFeatures = pipe(
+			Option.fromNullable(options),
+			Option.map(
+				(o) =>
+					Predicate.isNotNullable(o.timeout) || Predicate.isNotNullable(o.retry)
+			),
+			Option.getOrElse(() => false)
+		);
 
 		let fetchPromise: Promise<T>;
 
@@ -150,7 +177,13 @@ export const createResource = <T>(
 		state.value = createPendingState<T>();
 	};
 
-	if (options?.initialValue === undefined) {
+	const hasInitialValue = pipe(
+		Option.fromNullable(options),
+		Option.flatMap((o) => Option.fromNullable(o.initialValue)),
+		Option.isNone
+	);
+
+	if (hasInitialValue) {
 		doFetch();
 	}
 
