@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-import { Schedule, Duration } from 'effect';
+import { Schedule, Duration, Option, pipe } from 'effect';
 import {
 	DEFAULT_RETRY_COUNT,
 	DEFAULT_RETRY_DELAY_MS,
@@ -98,12 +98,37 @@ export const buildLinearSchedule = (
 export const buildRetrySchedule = (
 	config?: RetryConfig
 ): Schedule.Schedule<number> => {
-	const times = config?.times ?? DEFAULT_RETRY_COUNT;
-	const backoff = config?.backoff ?? 'exponential';
-	const delayMs = config?.delayMs ?? DEFAULT_RETRY_DELAY_MS;
-	const maxDelayMs = config?.maxDelayMs ?? DEFAULT_RETRY_MAX_DELAY_MS;
-	const factor = config?.factor ?? DEFAULT_RETRY_BACKOFF_FACTOR;
-	const jitter = config?.jitter ?? true;
+	const optConfig = Option.fromNullable(config);
+	const times = pipe(
+		optConfig,
+		Option.flatMap((c) => Option.fromNullable(c.times)),
+		Option.getOrElse(() => DEFAULT_RETRY_COUNT)
+	);
+	const backoff = pipe(
+		optConfig,
+		Option.flatMap((c) => Option.fromNullable(c.backoff)),
+		Option.getOrElse((): BackoffStrategy => 'exponential')
+	);
+	const delayMs = pipe(
+		optConfig,
+		Option.flatMap((c) => Option.fromNullable(c.delayMs)),
+		Option.getOrElse(() => DEFAULT_RETRY_DELAY_MS)
+	);
+	const maxDelayMs = pipe(
+		optConfig,
+		Option.flatMap((c) => Option.fromNullable(c.maxDelayMs)),
+		Option.getOrElse(() => DEFAULT_RETRY_MAX_DELAY_MS)
+	);
+	const factor = pipe(
+		optConfig,
+		Option.flatMap((c) => Option.fromNullable(c.factor)),
+		Option.getOrElse(() => DEFAULT_RETRY_BACKOFF_FACTOR)
+	);
+	const jitter = pipe(
+		optConfig,
+		Option.flatMap((c) => Option.fromNullable(c.jitter)),
+		Option.getOrElse(() => true)
+	);
 
 	if (times <= 0) {
 		return Schedule.stop.pipe(Schedule.map(() => 0));

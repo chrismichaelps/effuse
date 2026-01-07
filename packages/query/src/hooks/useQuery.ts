@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-import { Effect, Fiber, Duration, Exit } from 'effect';
+import { Effect, Fiber, Duration, Exit, Predicate, Option, pipe } from 'effect';
 import { signal, type Signal } from '@effuse/core';
 import {
 	getGlobalQueryClient,
@@ -160,7 +160,7 @@ export const useQuery = <TData>(
 			})
 		);
 
-		if (retryConfig?.times !== 0) {
+		if (!Predicate.isNotNullable(retryConfig) || retryConfig.times !== 0) {
 			effect = effect.pipe(
 				Effect.retry(schedule),
 				Effect.tapError((error) =>
@@ -203,7 +203,12 @@ export const useQuery = <TData>(
 								data,
 								dataUpdatedAt: Date.now(),
 								status: 'success',
-								fetchCount: (client.get<TData>(queryKey)?.fetchCount ?? 0) + 1,
+								fetchCount:
+									pipe(
+										Option.fromNullable(client.get<TData>(queryKey)),
+										Option.flatMap((e) => Option.fromNullable(e.fetchCount)),
+										Option.getOrElse(() => 0)
+									) + 1,
 							};
 							isInternalUpdate = true;
 							client.set(queryKey, entry);
@@ -220,8 +225,12 @@ export const useQuery = <TData>(
 						failureReasonSignal.value = undefined;
 						updateDerivedState();
 
-						onSuccess?.(data);
-						onSettled?.(data, undefined);
+						if (Predicate.isNotNullable(onSuccess)) {
+							onSuccess(data);
+						}
+						if (Predicate.isNotNullable(onSettled)) {
+							onSettled(data, undefined);
+						}
 					})
 				),
 				Effect.catchAll((error: Error) =>
@@ -231,7 +240,12 @@ export const useQuery = <TData>(
 							dataUpdatedAt: Date.now(),
 							status: 'error',
 							error,
-							fetchCount: (client.get<TData>(queryKey)?.fetchCount ?? 0) + 1,
+							fetchCount:
+								pipe(
+									Option.fromNullable(client.get<TData>(queryKey)),
+									Option.flatMap((e) => Option.fromNullable(e.fetchCount)),
+									Option.getOrElse(() => 0)
+								) + 1,
 						};
 						isInternalUpdate = true;
 						client.set(queryKey, entry);
@@ -243,8 +257,12 @@ export const useQuery = <TData>(
 						errorUpdatedAtSignal.value = Date.now();
 						updateDerivedState();
 
-						onError?.(error);
-						onSettled?.(undefined, error);
+						if (Predicate.isNotNullable(onError)) {
+							onError(error);
+						}
+						if (Predicate.isNotNullable(onSettled)) {
+							onSettled(undefined, error);
+						}
 					})
 				),
 				Effect.scoped

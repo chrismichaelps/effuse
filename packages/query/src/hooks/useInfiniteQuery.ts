@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-import { Effect, Fiber, Duration } from 'effect';
+import { Effect, Fiber, Duration, Predicate } from 'effect';
 import { signal, type Signal } from '@effuse/core';
 import { getGlobalQueryClient, type QueryKey } from '../client/index.js';
 import { buildRetrySchedule, type RetryConfig } from '../execution/index.js';
@@ -138,7 +138,9 @@ export const useInfiniteQuery = <TData, TPageParam = number>(
 		isErrorSignal.value = status === 'error';
 
 		const currentData = dataSignal.value;
-		allPagesDataSignal.value = currentData?.pages;
+		allPagesDataSignal.value = Predicate.isNotNullable(currentData)
+			? currentData.pages
+			: undefined;
 	};
 
 	const fetchPage = (
@@ -160,7 +162,7 @@ export const useInfiniteQuery = <TData, TPageParam = number>(
 			})
 		);
 
-		if (retryConfig?.times !== 0) {
+		if (!Predicate.isNotNullable(retryConfig) || retryConfig.times !== 0) {
 			effect = effect.pipe(Effect.retry(schedule));
 		}
 
