@@ -36,7 +36,7 @@ import { createSuspendToken, type SuspendToken } from './token.js';
 import { suspenseApi } from './service.js';
 import { RESOURCE_ID_PREFIX, ResourceErrorMessages } from './config.js';
 import { isEffect, generateResourceId } from './utils.js';
-import { ResourcePendingError } from '../errors.js';
+import { ResourcePendingError, ResourceFetchError } from '../errors.js';
 
 export interface Resource<T> {
 	readonly value: T;
@@ -208,7 +208,10 @@ export const createResource = <T>(
 			if (currentState.status === 'error') {
 				throw currentState.error instanceof Error
 					? currentState.error
-					: new Error(String(currentState.error));
+					: new ResourceFetchError({
+							message: String(currentState.error),
+							cause: currentState.error,
+						});
 			}
 
 			return currentState.data as T;

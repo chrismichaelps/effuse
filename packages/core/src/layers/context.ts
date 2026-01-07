@@ -35,6 +35,7 @@ import {
 	LayerNotFoundError,
 	LayerRuntimeNotInitializedError,
 } from './errors.js';
+import { LayerExecutionError } from '../errors.js';
 
 export interface LayerContext<P extends LayerProps = LayerProps> {
 	readonly name: string;
@@ -145,7 +146,9 @@ export const getLayerContextEffect = (
 	Effect.try({
 		try: () => getLayerContext(name),
 		catch: (error) =>
-			error instanceof Error ? error : new Error(String(error)),
+			error instanceof Error
+				? error
+				: new LayerExecutionError({ message: String(error), cause: error }),
 	});
 
 export const getLayerServiceEffect = (
@@ -154,7 +157,9 @@ export const getLayerServiceEffect = (
 	Effect.try({
 		try: () => getLayerService(key),
 		catch: (error) =>
-			error instanceof Error ? error : new Error(String(error)),
+			error instanceof Error
+				? error
+				: new LayerExecutionError({ message: String(error), cause: error }),
 	});
 
 export const getRegisteredServiceKeys = (): string[] => {

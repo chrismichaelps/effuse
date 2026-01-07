@@ -59,3 +59,15 @@ export class CauseExtractionError extends Data.TaggedError(
 )<{
 	readonly cause: unknown;
 }> {}
+
+export class ResourceFetchError extends Data.TaggedError('ResourceFetchError')<{
+	readonly message: string;
+	readonly cause?: unknown;
+}> {}
+
+export class LayerExecutionError extends Data.TaggedError(
+	'LayerExecutionError'
+)<{
+	readonly message: string;
+	readonly cause?: unknown;
+}> {}
