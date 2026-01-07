@@ -220,7 +220,6 @@ import { defineHook, signal } from '@effuse/core';
 
 export const useTheme = defineHook<
 	undefined, // Sin config
-	readonly ['theme'], // Depende de la capa 'theme'
 	{ mode: Signal<string>; toggle: () => void }
 >({
 	name: 'useTheme',

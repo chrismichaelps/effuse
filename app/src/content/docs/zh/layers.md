@@ -219,8 +219,7 @@ const ThemeToggle = define({
 import { defineHook, signal } from '@effuse/core';
 
 export const useTheme = defineHook<
-	undefined, // 无配置
-	readonly ['theme'], // 依赖 'theme' 层
+	undefined, // No config
 	{ mode: Signal<string>; toggle: () => void }
 >({
 	name: 'useTheme',
