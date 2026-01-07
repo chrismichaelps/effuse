@@ -165,10 +165,12 @@ const transformAST = (
 
 			return { ast, stats };
 		} catch (error) {
-			throw TransformError.create({
-				file: filename,
-				message: error instanceof Error ? error.message : String(error),
-			});
+			return yield* Effect.fail(
+				TransformError.create({
+					file: filename,
+					message: error instanceof Error ? error.message : String(error),
+				})
+			);
 		}
 	});
 

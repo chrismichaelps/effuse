@@ -51,11 +51,9 @@ export {
 
 export {
 	AstAnalyzer,
-	AstAnalyzerLive,
 	type AstAnalyzerService,
 	type NodeAnalysis,
 	SourceCache,
-	SourceCacheLive,
 	createContentHash,
 	type SourceCacheService,
 } from './services/index.js';
@@ -64,7 +62,6 @@ export {
 	transform,
 	transformSync,
 	transformAsync,
-	TransformerLive,
 	type TransformResult,
 	type TransformStats,
 } from './transformer/index.js';
