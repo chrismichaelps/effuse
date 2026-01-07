@@ -22,6 +22,7 @@ interface HeaderExposed {
 }
 
 const LOCALIZED_SECTIONS = [
+	'/components',
 	'/context',
 	'/docs',
 	'/form',
