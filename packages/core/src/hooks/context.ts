@@ -41,11 +41,11 @@ const createHookScope = (): { scope: HookScope } => {
 	return { scope };
 };
 
-export const createHookContext = <C, D extends readonly string[]>(
+export const createHookContext = <C>(
 	config: C,
 	hookName?: string
 ): {
-	ctx: HookContext<C, D>;
+	ctx: HookContext<C>;
 	dispose: () => Promise<void>;
 	mountCallbacks: EffectCallback[];
 } => {
@@ -77,7 +77,7 @@ export const createHookContext = <C, D extends readonly string[]>(
 		mountCallbacks.push(fn);
 	};
 
-	const layer = <K extends D[number] & keyof EffuseLayerRegistry>(
+	const layer = <K extends keyof EffuseLayerRegistry>(
 		name: K
 	): LayerPropsOf<K> => {
 		if (!isLayerRuntimeReady()) {
@@ -90,7 +90,7 @@ export const createHookContext = <C, D extends readonly string[]>(
 		return layerCtx.props as LayerPropsOf<K>;
 	};
 
-	const layerProvider = <K extends D[number] & keyof EffuseLayerRegistry>(
+	const layerProvider = <K extends keyof EffuseLayerRegistry>(
 		name: K
 	): LayerProvidesOf<K> => {
 		if (!isLayerRuntimeReady()) {
@@ -127,7 +127,7 @@ export const createHookContext = <C, D extends readonly string[]>(
 		traceHookDispose(name, duration, cleanupCount);
 	};
 
-	const ctx: HookContext<C, D> = {
+	const ctx: HookContext<C> = {
 		config,
 		signal,
 		computed,
