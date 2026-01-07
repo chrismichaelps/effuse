@@ -22,6 +22,7 @@
  * SOFTWARE.
  */
 
+import { Option, pipe } from 'effect';
 import { signal } from '../../reactivity/signal.js';
 import { batch } from '../../reactivity/dep.js';
 import type { Signal } from '../../types/index.js';
@@ -99,7 +100,12 @@ const defaultService: EmitServiceApi = {
 		});
 
 		const handlers = ctx.handlers.get(event);
-		traceEmit(event, payload, handlers?.size ?? 0);
+		const handlerCount = pipe(
+			Option.fromNullable(handlers),
+			Option.map((h) => h.size),
+			Option.getOrElse(() => 0)
+		);
+		traceEmit(event, payload, handlerCount);
 	},
 
 	getSignal: <T extends EventMap>(
