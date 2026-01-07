@@ -47,6 +47,7 @@ interface Translations {
 		context: string;
 		hooks: string;
 		layers: string;
+		controlFlow: string;
 	};
 	toc: {
 		onThisPage: string;
@@ -231,6 +232,39 @@ interface Translations {
 			card3: string;
 			card4: string;
 			codeSnippet: string;
+		};
+		controlFlow: {
+			title: string;
+			description: string;
+			show: {
+				title: string;
+				description: string;
+				login: string;
+				logout: string;
+				pleaseLogin: string;
+				welcome: string;
+			};
+			switch: {
+				title: string;
+				description: string;
+				idle: string;
+				loading: string;
+				success: string;
+				error: string;
+			};
+			for: {
+				title: string;
+				description: string;
+				addPlaceholder: string;
+				add: string;
+				noItems: string;
+			};
+			dynamic: {
+				title: string;
+				description: string;
+				changeColor: string;
+				current: string;
+			};
 		};
 	};
 	legal: {
