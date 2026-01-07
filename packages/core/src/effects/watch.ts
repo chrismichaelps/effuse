@@ -22,6 +22,7 @@
  * SOFTWARE.
  */
 
+import { Array as Arr, Option, Predicate, Record as Rec, pipe } from 'effect';
 import { signal, isSignal } from '../reactivity/signal.js';
 import { isReactive } from '../reactivity/reactive.js';
 import type {
@@ -52,7 +53,59 @@ export type DeepWatchCallback<T> = (
 	onCleanup: OnCleanup
 ) => void | Promise<void>;
 
-// Build reactive source watcher
+const getDeepOption = (options: WatchOptions | undefined): boolean =>
+	pipe(
+		Option.fromNullable(options),
+		Option.flatMap((o) => Option.fromNullable(o.deep)),
+		Option.getOrElse(() => false)
+	);
+
+const getImmediateOption = (options: WatchOptions | undefined): boolean =>
+	pipe(
+		Option.fromNullable(options),
+		Option.flatMap((o) => Option.fromNullable(o.immediate)),
+		Option.getOrElse(() => false)
+	);
+
+const getOnceOption = (options: WatchOptions | undefined): boolean =>
+	pipe(
+		Option.fromNullable(options),
+		Option.flatMap((o) => Option.fromNullable(o.once)),
+		Option.getOrElse(() => false)
+	);
+
+const createCleanupRunner = (): {
+	queue: CleanupFn[];
+	run: () => void;
+	register: OnCleanup;
+} => {
+	let queue: CleanupFn[] = [];
+	return {
+		get queue() {
+			return queue;
+		},
+		run: () => {
+			Arr.forEach(queue, (cleanup) => {
+				try {
+					cleanup();
+				} catch {
+					/* silent */
+				}
+			});
+			queue = [];
+		},
+		register: (fn) => {
+			queue.push(fn);
+		},
+	};
+};
+
+const handleAsyncResult = (result: void | Promise<void>): void => {
+	if (result instanceof Promise) {
+		void result;
+	}
+};
+
 export function watch<T>(
 	source: WatchSource<T>,
 	callback: WatchCallback<T>,
@@ -60,24 +113,11 @@ export function watch<T>(
 ): EffectHandle {
 	let oldValue: T | undefined;
 	let hasRun = false;
-	let cleanupQueue: CleanupFn[] = [];
-
-	const runCleanups = (): void => {
-		for (const cleanup of cleanupQueue) {
-			try {
-				cleanup();
-			} catch {
-				/* */
-			}
-		}
-		cleanupQueue = [];
-	};
-
-	const onCleanup: OnCleanup = (cleanupFn) => {
-		cleanupQueue.push(cleanupFn);
-	};
-
-	const getter = createGetter(source, options.deep);
+	const cleanup = createCleanupRunner();
+	const deep = getDeepOption(options);
+	const immediate = getImmediateOption(options);
+	const once = getOnceOption(options);
+	const getter = createGetter(source, deep);
 
 	const handle = effect(
 		() => {
@@ -85,102 +125,78 @@ export function watch<T>(
 
 			if (!hasRun) {
 				hasRun = true;
-				oldValue = options.deep ? deepClone(newValue) : newValue;
-
-				if (options.immediate) {
-					runCleanups();
-					const result = callback(newValue, undefined, onCleanup);
-					if (result instanceof Promise) {
-						void result;
-					}
+				oldValue = deep ? deepClone(newValue) : newValue;
+				if (immediate) {
+					cleanup.run();
+					handleAsyncResult(callback(newValue, undefined, cleanup.register));
 				}
 				return;
 			}
 
-			if (options.deep || !Object.is(newValue, oldValue)) {
-				runCleanups();
-				const result = callback(newValue, oldValue, onCleanup);
-				if (result instanceof Promise) {
-					void result;
-				}
-				oldValue = options.deep ? deepClone(newValue) : newValue;
+			if (deep || !Object.is(newValue, oldValue)) {
+				cleanup.run();
+				handleAsyncResult(callback(newValue, oldValue, cleanup.register));
+				oldValue = deep ? deepClone(newValue) : newValue;
 			}
 
-			if (options.once) {
+			if (once) {
 				handle.stop();
 			}
 		},
-		{
-			...options,
-			immediate: true,
-		}
+		{ ...options, immediate: true }
 	);
 
 	return handle;
 }
 
-const createGetter = <T>(source: WatchSource<T>, deep?: boolean): (() => T) => {
-	if (typeof source === 'function') {
+const createGetter = <T>(source: WatchSource<T>, deep: boolean): (() => T) => {
+	if (Predicate.isFunction(source)) {
 		return source as () => T;
 	}
-
 	if (isSignal<T>(source)) {
 		return () => source.value;
 	}
-
 	if (isReactive(source)) {
-		if (deep) {
-			return () => {
-				traverse(source);
-				return source as T;
-			};
-		}
-		return () => source as T;
+		return deep
+			? () => {
+					traverse(source);
+					return source as T;
+				}
+			: () => source as T;
 	}
-
 	const sig = signal(source as T);
 	return () => sig.value;
 };
 
 const traverse = (value: unknown, seen = new WeakSet()): void => {
-	if (typeof value !== 'object' || value === null) {
-		return;
-	}
-
-	if (seen.has(value)) {
-		return;
-	}
-
+	if (!Predicate.isObject(value)) return;
+	if (seen.has(value)) return;
 	seen.add(value);
 
 	if (Array.isArray(value)) {
-		for (const item of value) {
+		Arr.forEach(value, (item) => {
 			traverse(item, seen);
-		}
+		});
 	} else {
-		for (const key of Object.keys(value)) {
+		Arr.forEach(Rec.keys(value as Record<string, unknown>), (key) => {
 			traverse((value as Record<string, unknown>)[key], seen);
-		}
+		});
 	}
 };
 
 const deepClone = <T>(value: T): T => {
-	if (typeof value !== 'object' || value === null) {
-		return value;
-	}
+	if (!Predicate.isObject(value)) return value;
 
 	if (Array.isArray(value)) {
-		return value.map(deepClone) as T;
+		return Arr.map(value, deepClone) as T;
 	}
 
-	const cloned: Record<string, unknown> = {};
-	for (const key of Object.keys(value)) {
-		cloned[key] = deepClone((value as Record<string, unknown>)[key]);
-	}
-	return cloned as T;
+	return pipe(
+		Rec.map(value as Record<string, unknown>, deepClone),
+		(cloned) => cloned as T
+	);
 };
 
-// Build multiple reactive source watcher
 export const watchMultiple = <T extends readonly WatchSource<unknown>[]>(
 	sources: T,
 	callback: (
@@ -194,60 +210,48 @@ export const watchMultiple = <T extends readonly WatchSource<unknown>[]>(
 	) => void | Promise<void>,
 	options?: WatchOptions
 ): EffectHandle => {
-	const getters = sources.map((source) => createGetter(source, options?.deep));
+	const deep = getDeepOption(options);
+	const immediate = getImmediateOption(options);
+	const once = getOnceOption(options);
+	const getters = Arr.map(sources, (source) => createGetter(source, deep));
 	let oldValues: unknown[] = [];
 	let hasRun = false;
-	let cleanupQueue: CleanupFn[] = [];
-
-	const runCleanups = (): void => {
-		for (const cleanup of cleanupQueue) {
-			try {
-				cleanup();
-			} catch {
-				/* */
-			}
-		}
-		cleanupQueue = [];
-	};
-
-	const onCleanup: OnCleanup = (cleanupFn) => {
-		cleanupQueue.push(cleanupFn);
-	};
+	const cleanup = createCleanupRunner();
 
 	const handle = effect(
 		() => {
-			const newValues = getters.map((getter) => getter());
+			const newValues = Arr.map(getters, (getter) => getter());
 
 			if (!hasRun) {
 				hasRun = true;
-				oldValues = newValues.map((v) => (options?.deep ? deepClone(v) : v));
-
-				if (options?.immediate) {
-					runCleanups();
-					const result = callback(
-						newValues as never,
-						new Array(sources.length).fill(undefined) as never,
-						onCleanup
+				oldValues = Arr.map(newValues, (v) => (deep ? deepClone(v) : v));
+				if (immediate) {
+					cleanup.run();
+					handleAsyncResult(
+						callback(
+							newValues as never,
+							Arr.replicate(undefined, sources.length) as never,
+							cleanup.register
+						)
 					);
-					if (result instanceof Promise) void result;
 				}
 				return;
 			}
 
-			const hasChanged = newValues.some((v, i) => !Object.is(v, oldValues[i]));
+			const hasChanged = Arr.some(
+				newValues,
+				(v, i) => !Object.is(v, oldValues[i])
+			);
 
-			if (hasChanged || options?.deep) {
-				runCleanups();
-				const result = callback(
-					newValues as never,
-					oldValues as never,
-					onCleanup
+			if (hasChanged || deep) {
+				cleanup.run();
+				handleAsyncResult(
+					callback(newValues as never, oldValues as never, cleanup.register)
 				);
-				if (result instanceof Promise) void result;
-				oldValues = newValues.map((v) => (options?.deep ? deepClone(v) : v));
+				oldValues = Arr.map(newValues, (v) => (deep ? deepClone(v) : v));
 			}
 
-			if (options?.once) {
+			if (once) {
 				handle.stop();
 			}
 		},
