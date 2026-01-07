@@ -180,19 +180,6 @@ export type AnyLayer = EffuseLayer<any, any, any>;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type AnyResolvedLayer = ResolvedLayer<any, any, any>;
 
-/**
- * Layer registry interface - extend via module augmentation in your app:
- *
- * @example
- * ```typescript
- * // In your app (e.g., app/src/layers/effuse.d.ts)
- * declare module '@effuse/core' {
- *   interface EffuseLayerRegistry {
- *     myLayer: { props: { value: Signal<string> } };
- *   }
- * }
- * ```
- */
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface EffuseLayerRegistry {}
 

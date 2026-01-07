@@ -131,7 +131,11 @@ export const buildLayerEffect = (
 				}
 			}
 
-			const ctx = createSetupContext(layer, propsRegistry, registry, allLayers);
+			const ctx = yield* Effect.try({
+				try: () =>
+					createSetupContext(layer, propsRegistry, registry, allLayers),
+				catch: (error) => error as DependencyNotFoundError,
+			});
 			const cleanups: CleanupFn[] = [];
 
 			const handleError = (error: unknown) => {
@@ -230,7 +234,7 @@ export const buildAllLayersEffect = (
 	PropsService | RegistryService | TracingService
 > =>
 	Effect.gen(function* () {
-		const topology = buildTopologyLevels(layers);
+		const topology = yield* buildTopologyLevels(layers);
 		const results: LayerBuildResult[] = [];
 
 		for (const level of topology) {
@@ -250,7 +254,11 @@ export const buildAllLayersEffect = (
 					level.layers.map((layer) =>
 						Effect.fork(buildLayerEffect(layer, layers))
 					)
-				);
+				) as Effect.Effect<
+					Fiber.Fiber<LayerBuildResult, unknown>[],
+					never,
+					PropsService | RegistryService | TracingService
+				>;
 
 				const levelResults = yield* Fiber.joinAll(fibers);
 				results.push(...levelResults);

@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-import { Effect, Option, pipe } from 'effect';
+import { Option, pipe } from 'effect';
 import type {
 	LayerProps,
 	AnyResolvedLayer,
@@ -35,7 +35,6 @@ import {
 	LayerNotFoundError,
 	LayerRuntimeNotInitializedError,
 } from './errors.js';
-import { LayerExecutionError } from '../errors.js';
 
 export interface LayerContext<P extends LayerProps = LayerProps> {
 	readonly name: string;
@@ -138,41 +137,4 @@ export const getLayerService = (key: string): unknown => {
 		throw new LayerRuntimeNotInitializedError({ resource: `service "${key}"` });
 	}
 	return globalState.layerRegistry.getService(key);
-};
-
-export const getLayerContextEffect = (
-	name: string
-): Effect.Effect<LayerContext, Error> =>
-	Effect.try({
-		try: () => getLayerContext(name),
-		catch: (error) =>
-			error instanceof Error
-				? error
-				: new LayerExecutionError({ message: String(error), cause: error }),
-	});
-
-export const getLayerServiceEffect = (
-	key: string
-): Effect.Effect<unknown, Error> =>
-	Effect.try({
-		try: () => getLayerService(key),
-		catch: (error) =>
-			error instanceof Error
-				? error
-				: new LayerExecutionError({ message: String(error), cause: error }),
-	});
-
-export const getRegisteredServiceKeys = (): string[] => {
-	if (!globalState.layerRegistry) {
-		return [];
-	}
-	return Array.from(globalState.layerRegistry.services.keys());
-};
-
-export const getLayerNames = (): string[] => {
-	return globalState.layers.map((l) => l.name);
-};
-
-export const getAllLayers = (): readonly AnyResolvedLayer[] => {
-	return globalState.layers;
 };

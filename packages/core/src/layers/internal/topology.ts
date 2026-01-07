@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-import { Effect, Either, Option, Predicate } from 'effect';
+import { Effect, Option, Predicate } from 'effect';
 import type { AnyResolvedLayer } from '../types.js';
 import { CircularDependencyError } from '../errors.js';
 
@@ -148,27 +148,13 @@ const buildLevelsFromLayers = (
 	return levels;
 };
 
-const buildTopologyLevelsEffect = (
+export const buildTopologyLevels = (
 	layers: readonly AnyResolvedLayer[]
 ): Effect.Effect<readonly TopologyLevel[], CircularDependencyError> =>
 	Effect.gen(function* () {
 		yield* detectCircularDependencies(layers);
 		return buildLevelsFromLayers(layers);
 	});
-
-export const buildTopologyLevels = (
-	layers: readonly AnyResolvedLayer[]
-): readonly TopologyLevel[] => {
-	const result = Effect.runSync(
-		Effect.either(buildTopologyLevelsEffect(layers))
-	);
-
-	if (Either.isLeft(result)) {
-		throw result.left;
-	}
-
-	return result.right;
-};
 
 export const getMaxParallelism = (levels: readonly TopologyLevel[]): number =>
 	levels.reduce((max, level) => Math.max(max, level.layers.length), 0);

@@ -70,26 +70,15 @@ export {
 } from './api/index.js';
 
 export {
-	createSetupContext,
-	buildLayerEffect,
-	buildAllLayersEffect,
 	createLayerRuntime,
-	CoreServicesLive,
 	type LayerRuntime,
-	type LayerRuntimeServices,
-	type LayerBuildResult,
-	type AllLayersBuildResult,
 	type LayerRuntimeOptions,
 } from './internal/index.js';
 
 export {
 	getLayerContext,
 	getLayerService,
-	getLayerContextEffect,
-	getLayerServiceEffect,
 	isLayerRuntimeReady,
-	getLayerNames,
-	getAllLayers,
 	type LayerContext,
 	type TypedLayerContext,
 } from './context.js';
@@ -107,11 +96,7 @@ export {
 
 export {
 	TracingService,
-	TracingServiceLive,
 	createTracingService,
 	withTracing,
-	withLayerSpan,
-	withRuntimeSpan,
-	logDependencyGraph,
 	type TracingConfig,
 } from './tracing/index.js';
