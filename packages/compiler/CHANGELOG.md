@@ -1,3 +1,9 @@
+## @effuse/compiler [1.0.1](https://github.com/chrismichaelps/effuse/compare/@effuse/compiler@1.0.0...@effuse/compiler@1.0.1) (2026-01-08)
+
+### Bug Fixes
+
+* sync lockfile, restore workspace deps, update node engine ([652944d](https://github.com/chrismichaelps/effuse/commit/652944de75966caee5178d74c44620820d081f16))
+
 ## @effuse/compiler 1.0.0 (2026-01-07)
 
 ### Features
