@@ -14,7 +14,50 @@ title: 安装指南
 
 ## 包安装
 
-Effuse 包尚未发布到 npm。框架目前正在开发中。您可以克隆仓库并通过工作区链接在本地使用。
+安装核心包和您需要的任何其他包：
+
+### 使用 pnpm（推荐）
+
+```bash
+# 核心包（必需）
+pnpm add @effuse/core
+
+# 其他包
+pnpm add @effuse/router    # 路由
+pnpm add @effuse/store     # 状态管理
+pnpm add @effuse/i18n      # 国际化
+pnpm add @effuse/query     # 数据获取
+pnpm add @effuse/ink       # Markdown 渲染
+
+# 开发依赖
+pnpm add -D @effuse/compiler  # JSX 编译器插件
+```
+
+### 使用 npm
+
+```bash
+# 核心包（必需）
+npm install @effuse/core
+
+# 其他包
+npm install @effuse/router @effuse/store @effuse/i18n @effuse/query @effuse/ink
+
+# 开发依赖
+npm install -D @effuse/compiler
+```
+
+### 使用 yarn
+
+```bash
+# 核心包（必需）
+yarn add @effuse/core
+
+# 其他包
+yarn add @effuse/router @effuse/store @effuse/i18n @effuse/query @effuse/ink
+
+# 开发依赖
+yarn add -D @effuse/compiler
+```
 
 ## 手动设置
 

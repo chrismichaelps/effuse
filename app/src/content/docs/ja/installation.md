@@ -14,7 +14,50 @@ title: インストール
 
 ## パッケージインストール
 
-Effuse パッケージはまだ npm に公開されていません。フレームワークは現在開発中です。リポジトリをクローンして、ワークスペースリンク経由でローカルで使用できます。
+コアパッケージと必要な追加パッケージをインストールします：
+
+### pnpm を使用（推奨）
+
+```bash
+# コアパッケージ（必須）
+pnpm add @effuse/core
+
+# 追加パッケージ
+pnpm add @effuse/router    # ルーティング
+pnpm add @effuse/store     # 状態管理
+pnpm add @effuse/i18n      # 国際化
+pnpm add @effuse/query     # データフェッチ
+pnpm add @effuse/ink       # Markdown レンダリング
+
+# 開発用
+pnpm add -D @effuse/compiler  # JSX コンパイラプラグイン
+```
+
+### npm を使用
+
+```bash
+# コアパッケージ（必須）
+npm install @effuse/core
+
+# 追加パッケージ
+npm install @effuse/router @effuse/store @effuse/i18n @effuse/query @effuse/ink
+
+# 開発用
+npm install -D @effuse/compiler
+```
+
+### yarn を使用
+
+```bash
+# コアパッケージ（必須）
+yarn add @effuse/core
+
+# 追加パッケージ
+yarn add @effuse/router @effuse/store @effuse/i18n @effuse/query @effuse/ink
+
+# 開発用
+yarn add -D @effuse/compiler
+```
 
 ## 手動セットアップ
 

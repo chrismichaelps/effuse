@@ -14,7 +14,50 @@ Configura Effuse en tu proyecto en minutos.
 
 ## Instalación de Paquetes
 
-Los paquetes de Effuse aún no están publicados en npm. El framework está actualmente en desarrollo. Puedes clonar el repositorio y usarlo localmente mediante enlace de workspace.
+Instala el paquete principal y cualquier paquete adicional que necesites:
+
+### Usando pnpm (recomendado)
+
+```bash
+# Paquete principal (requerido)
+pnpm add @effuse/core
+
+# Paquetes adicionales
+pnpm add @effuse/router    # Enrutamiento
+pnpm add @effuse/store     # Gestión de estado
+pnpm add @effuse/i18n      # Internacionalización
+pnpm add @effuse/query     # Obtención de datos
+pnpm add @effuse/ink       # Renderizado de Markdown
+
+# Desarrollo
+pnpm add -D @effuse/compiler  # Plugin del compilador JSX
+```
+
+### Usando npm
+
+```bash
+# Paquete principal (requerido)
+npm install @effuse/core
+
+# Paquetes adicionales
+npm install @effuse/router @effuse/store @effuse/i18n @effuse/query @effuse/ink
+
+# Desarrollo
+npm install -D @effuse/compiler
+```
+
+### Usando yarn
+
+```bash
+# Paquete principal (requerido)
+yarn add @effuse/core
+
+# Paquetes adicionales
+yarn add @effuse/router @effuse/store @effuse/i18n @effuse/query @effuse/ink
+
+# Desarrollo
+yarn add -D @effuse/compiler
+```
 
 ## Configuración Manual
 

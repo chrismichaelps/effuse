@@ -14,7 +14,50 @@ Get Effuse set up in your project in minutes.
 
 ## Package Installation
 
-Effuse packages are not yet published to npm. The framework is currently in development. You can clone the repository and use it locally via workspace linking.
+Install the core package and any additional packages you need:
+
+### Using pnpm (recommended)
+
+```bash
+# Core package (required)
+pnpm add @effuse/core
+
+# Additional packages
+pnpm add @effuse/router    # Routing
+pnpm add @effuse/store     # State management
+pnpm add @effuse/i18n      # Internationalization
+pnpm add @effuse/query     # Data fetching
+pnpm add @effuse/ink       # Markdown rendering
+
+# Development
+pnpm add -D @effuse/compiler  # JSX compiler plugin
+```
+
+### Using npm
+
+```bash
+# Core package (required)
+npm install @effuse/core
+
+# Additional packages
+npm install @effuse/router @effuse/store @effuse/i18n @effuse/query @effuse/ink
+
+# Development
+npm install -D @effuse/compiler
+```
+
+### Using yarn
+
+```bash
+# Core package (required)
+yarn add @effuse/core
+
+# Additional packages
+yarn add @effuse/router @effuse/store @effuse/i18n @effuse/query @effuse/ink
+
+# Development
+yarn add -D @effuse/compiler
+```
 
 ## Manual Setup
 
