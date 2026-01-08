@@ -4,6 +4,9 @@
 	"description": "A simple, type-safe router for Single Page Applications (SPA). It manages URL state and navigation seamlessly for Effuse applications.",
 	"author": "Chris M. Pérez",
 	"license": "MIT",
+	"publishConfig": {
+		"access": "public"
+	},
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/chrismichaelps/effuse.git"

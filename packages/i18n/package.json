@@ -4,6 +4,9 @@
 	"description": "The official internationalization library for Effuse.",
 	"author": "Chris M. Pérez",
 	"license": "MIT",
+	"publishConfig": {
+		"access": "public"
+	},
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/chrismichaelps/effuse.git"

@@ -4,6 +4,9 @@
 	"description": "An optimized JSX/TSX transformer that automatically handles reactive signal access, reducing boilerplate without impacting performance.",
 	"author": "Chris M. Pérez",
 	"license": "MIT",
+	"publishConfig": {
+		"access": "public"
+	},
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/chrismichaelps/effuse.git"

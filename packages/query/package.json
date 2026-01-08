@@ -4,6 +4,9 @@
 	"description": "Effuse Query handles loading, caching, and synchronizing server state. It provides reactive hooks for data fetching with built-in reliability.",
 	"author": "Chris M. Pérez",
 	"license": "MIT",
+	"publishConfig": {
+		"access": "public"
+	},
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/chrismichaelps/effuse.git"

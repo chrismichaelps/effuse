@@ -4,6 +4,9 @@
 	"description": "A reactive Markdown renderer for Effuse. It allows you to render Markdown content and embed interactive components directly within your text.",
 	"author": "Chris M. Pérez",
 	"license": "MIT",
+	"publishConfig": {
+		"access": "public"
+	},
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/chrismichaelps/effuse.git"

@@ -4,6 +4,9 @@
 	"description": "A functional state management system built on Effect-ts. It offers typed, robust global state handling designed to scale with your application's logic.",
 	"author": "Chris M. Pérez",
 	"license": "MIT",
+	"publishConfig": {
+		"access": "public"
+	},
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/chrismichaelps/effuse.git"
