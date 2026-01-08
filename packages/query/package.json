@@ -55,7 +55,7 @@
 		"structured-concurrency"
 	],
 	"engines": {
-		"node": ">=23.0.0"
+		"node": ">=22.14.0"
 	},
 	"peerDependencies": {
 		"@effuse/core": "workspace:*"

@@ -28,7 +28,7 @@
 		"update:deps": "sh scripts/update-deps.sh"
 	},
 	"engines": {
-		"node": ">=23.0.0"
+		"node": ">=22.14.0"
 	},
 	"packageManager": "pnpm@10.27.0",
 	"devDependencies": {
