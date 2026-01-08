@@ -1,6 +1,6 @@
 {
 	"name": "@effuse/core",
-	"version": "1.0.1",
+	"version": "1.0.2",
 	"description": "The core library for Effuse. It provides the reactive Signals engine and the lightweight DOM renderer, serving as the foundation for building interactive interfaces.",
 	"author": "Chris M. Pérez",
 	"license": "MIT",
