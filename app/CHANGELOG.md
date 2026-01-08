@@ -1,3 +1,18 @@
+## @effuse/app [1.0.2](https://github.com/chrismichaelps/effuse/compare/@effuse/app@1.0.1...@effuse/app@1.0.2) (2026-01-08)
+
+### Bug Fixes
+
+* restore workspace references and update lockfile ([1be52c5](https://github.com/chrismichaelps/effuse/commit/1be52c5aee7f1130840f7428400d28ec5c2598fb))
+
+
+### Dependencies
+
+* **@effuse/i18n:** upgraded to 1.0.0
+* **@effuse/ink:** upgraded to 1.0.0
+* **@effuse/query:** upgraded to 1.0.0
+* **@effuse/router:** upgraded to 1.0.0
+* **@effuse/store:** upgraded to 1.0.0
+
 ## @effuse/app [1.0.1](https://github.com/chrismichaelps/effuse/compare/@effuse/app@1.0.0...@effuse/app@1.0.1) (2026-01-08)
 
 ### Bug Fixes
