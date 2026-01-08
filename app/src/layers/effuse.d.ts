@@ -1,6 +1,6 @@
 import type { Signal, ReadonlySignal, EffuseLayerRegistry } from '@effuse/core';
 
-declare module '../../../packages/core/src/layers/types.js' {
+declare module '@effuse/core' {
 	interface EffuseLayerRegistry {
 		docs: {
 			props: { theme: Signal<string>; currentSlug: Signal<string> };
@@ -49,4 +49,4 @@ declare module '../../../packages/core/src/layers/types.js' {
 	}
 }
 
-export {};
+export { };
