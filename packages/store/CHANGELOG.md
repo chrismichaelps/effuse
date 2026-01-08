@@ -1,3 +1,14 @@
+## @effuse/store [1.0.1](https://github.com/chrismichaelps/effuse/compare/@effuse/store@1.0.0...@effuse/store@1.0.1) (2026-01-08)
+
+### Bug Fixes
+
+* restore workspace:* references for core to resolve deadlock ([da8fce4](https://github.com/chrismichaelps/effuse/commit/da8fce440254b0ec41cbd0524fd8a97b66d5c739))
+
+
+### Dependencies
+
+* **@effuse/core:** upgraded to 1.0.2
+
 ## @effuse/store 1.0.0 (2026-01-08)
 
 ### Features
