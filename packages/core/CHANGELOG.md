@@ -1,3 +1,9 @@
+## @effuse/core [1.0.3](https://github.com/chrismichaelps/effuse/compare/@effuse/core@1.0.2...@effuse/core@1.0.3) (2026-01-08)
+
+### Bug Fixes
+
+* **core:** export EffuseLayerRegistry to support module augmentation ([1050c3a](https://github.com/chrismichaelps/effuse/commit/1050c3a520c20d9925a7a31e2c23e743f8edf02a))
+
 ## @effuse/core [1.0.2](https://github.com/chrismichaelps/effuse/compare/@effuse/core@1.0.1...@effuse/core@1.0.2) (2026-01-08)
 
 ### Bug Fixes
