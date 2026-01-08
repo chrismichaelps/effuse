@@ -1,3 +1,20 @@
+## @effuse/app [1.0.5](https://github.com/chrismichaelps/effuse/compare/@effuse/app@1.0.4...@effuse/app@1.0.5) (2026-01-08)
+
+### Bug Fixes
+
+* explicit workspace:* references in app/package.json to unblock build ([168f0e4](https://github.com/chrismichaelps/effuse/commit/168f0e4925aebb2ed584fbdf237b6974ba2408e9))
+
+
+### Dependencies
+
+* **@effuse/core:** upgraded to 1.0.2
+* **@effuse/i18n:** upgraded to 1.0.2
+* **@effuse/ink:** upgraded to 1.0.2
+* **@effuse/query:** upgraded to 1.0.1
+* **@effuse/router:** upgraded to 1.0.1
+* **@effuse/store:** upgraded to 1.0.1
+* **@effuse/compiler:** upgraded to 1.0.3
+
 ## @effuse/app [1.0.4](https://github.com/chrismichaelps/effuse/compare/@effuse/app@1.0.3...@effuse/app@1.0.4) (2026-01-08)
 
 ### Bug Fixes
