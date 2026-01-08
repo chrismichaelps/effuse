@@ -1,3 +1,9 @@
+## @effuse/app [1.0.6](https://github.com/chrismichaelps/effuse/compare/@effuse/app@1.0.5...@effuse/app@1.0.6) (2026-01-08)
+
+### Documentation
+
+* add package installation instructions for pnpm/npm/yarn ([c2f0553](https://github.com/chrismichaelps/effuse/commit/c2f0553501ef162133fb5e6ca0b23897ef89fe40))
+
 ## @effuse/app [1.0.5](https://github.com/chrismichaelps/effuse/compare/@effuse/app@1.0.4...@effuse/app@1.0.5) (2026-01-08)
 
 ### Bug Fixes

@@ -1,7 +1,7 @@
 {
 	"name": "@effuse/app",
 	"private": true,
-	"version": "1.0.5",
+	"version": "1.0.6",
 	"type": "module",
 	"description": "Effuse documentation website",
 	"author": "Chris M. Pérez",
