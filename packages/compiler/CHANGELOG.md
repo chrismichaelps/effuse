@@ -1,3 +1,9 @@
+## @effuse/compiler [1.0.3](https://github.com/chrismichaelps/effuse/compare/@effuse/compiler@1.0.2...@effuse/compiler@1.0.3) (2026-01-08)
+
+### Bug Fixes
+
+* trigger release for core and compiler ([e35df2f](https://github.com/chrismichaelps/effuse/commit/e35df2f65a199f7458fa50b3433a391f4d4bdd93))
+
 ## @effuse/compiler [1.0.2](https://github.com/chrismichaelps/effuse/compare/@effuse/compiler@1.0.1...@effuse/compiler@1.0.2) (2026-01-08)
 
 ### Bug Fixes
