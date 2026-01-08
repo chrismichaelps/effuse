@@ -1,3 +1,18 @@
+## @effuse/app [1.0.4](https://github.com/chrismichaelps/effuse/compare/@effuse/app@1.0.3...@effuse/app@1.0.4) (2026-01-08)
+
+### Bug Fixes
+
+* restore workspace:* references in app/package.json [skip ci] ([a7decac](https://github.com/chrismichaelps/effuse/commit/a7decacb84d4ab803b9c99cd88edfd0b3de997dc))
+
+
+### Dependencies
+
+* **@effuse/i18n:** upgraded to 1.0.1
+* **@effuse/ink:** upgraded to 1.0.1
+* **@effuse/query:** upgraded to 1.0.0
+* **@effuse/router:** upgraded to 1.0.0
+* **@effuse/store:** upgraded to 1.0.0
+
 ## @effuse/app [1.0.3](https://github.com/chrismichaelps/effuse/compare/@effuse/app@1.0.2...@effuse/app@1.0.3) (2026-01-08)
 
 ### Bug Fixes
