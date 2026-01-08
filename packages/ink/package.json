@@ -48,7 +48,7 @@
 		"node": ">=22.14.0"
 	},
 	"peerDependencies": {
-		"@effuse/core": "1.0.0"
+		"@effuse/core": "workspace:*"
 	},
 	"dependencies": {
 		"effect": "^3.19.14"
@@ -56,7 +56,7 @@
 	"devDependencies": {
 		"@effect/eslint-plugin": "^0.3.2",
 		"@types/node": "^25.0.3",
-		"@effuse/core": "1.0.0",
+		"@effuse/core": "workspace:*",
 		"eslint": "^9.39.2",
 		"tsup": "^8.5.1",
 		"typescript": "^5.9.3",
