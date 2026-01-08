@@ -34,13 +34,13 @@ jobs:
         run: pnpm install --no-frozen-lockfile
 
       - name: Build
-        run: pnpm build
+        run: pnpm --filter "./packages/**" build
 
       - name: Type check
-        run: pnpm typecheck
+        run: pnpm --filter "./packages/**" typecheck
 
       - name: Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: pnpm exec multi-semantic-release
+        run: pnpm exec multi-semantic-release --ignore-packages="@effuse/app"
