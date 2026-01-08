@@ -1,3 +1,9 @@
+## @effuse/core [1.0.1](https://github.com/chrismichaelps/effuse/compare/@effuse/core@1.0.0...@effuse/core@1.0.1) (2026-01-08)
+
+### Bug Fixes
+
+* add publishConfig to enable public npm publishing for scoped packages ([5d5ed45](https://github.com/chrismichaelps/effuse/commit/5d5ed454c076db8d96703b154836e2856c4da259))
+
 ## @effuse/core 1.0.0 (2026-01-08)
 
 ### Features
