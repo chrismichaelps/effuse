@@ -1,3 +1,9 @@
+## @effuse/compiler [1.0.2](https://github.com/chrismichaelps/effuse/compare/@effuse/compiler@1.0.1...@effuse/compiler@1.0.2) (2026-01-08)
+
+### Bug Fixes
+
+* add publishConfig to enable public npm publishing for scoped packages ([5d5ed45](https://github.com/chrismichaelps/effuse/commit/5d5ed454c076db8d96703b154836e2856c4da259))
+
 ## @effuse/compiler [1.0.1](https://github.com/chrismichaelps/effuse/compare/@effuse/compiler@1.0.0...@effuse/compiler@1.0.1) (2026-01-08)
 
 ### Bug Fixes
