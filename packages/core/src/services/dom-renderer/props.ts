@@ -27,6 +27,8 @@ import type { Signal } from '../../reactivity/signal.js';
 import { isSignal } from '../../reactivity/signal.js';
 import { effect } from '../../effects/effect.js';
 import type { EffectHandle } from '../../types/index.js';
+import { applyRef, isRefCallback, isRefObject } from '../../refs/ref.js';
+import { applyDirective } from '../../refs/directive.js';
 
 export interface PropBindingResult {
 	cleanup: () => void;
@@ -179,6 +181,20 @@ const isCompilerGetter = (value: unknown): value is () => unknown => {
 export const PropServiceLive = Layer.succeed(PropService, {
 	bindProp: (element: Element, key: string, value: unknown) =>
 		Effect.sync(() => {
+			if (key === 'ref') {
+				if (isRefCallback(value) || isRefObject(value)) {
+					applyRef(value, element);
+				} else if (typeof value === 'function') {
+					(value as (el: Element) => void)(element);
+				}
+				return { cleanup: () => {} };
+			}
+			if (key.startsWith('use:')) {
+				const directiveName = key.slice(4);
+				const cleanup = applyDirective(directiveName, element, () => value);
+				return { cleanup: cleanup ?? (() => {}) };
+			}
+
 			if (isEventHandler(key)) {
 				if (typeof value === 'function') {
 					const handler = value as EventListener;
