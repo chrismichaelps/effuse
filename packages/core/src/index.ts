@@ -399,3 +399,23 @@ export {
 	type ProviderProps,
 	type EffuseContext,
 } from './context/index.js';
+
+export {
+	createRef,
+	isRefObject,
+	isRefCallback,
+	applyRef,
+	registerDirective,
+	getDirective,
+	hasDirective,
+	unregisterDirective,
+	applyDirective,
+	getDirectiveNames,
+	RefNotAttachedError,
+	DirectiveError,
+	type RefCallback,
+	type RefObject,
+	type Ref,
+	type Directive,
+	type RefOptions,
+} from './refs/index.js';
