@@ -1,0 +1,6 @@
+# Protect main branch config during merges from dev
+.gitignore merge=ours
+pnpm-workspace.yaml merge=ours
+tsconfig.json merge=ours
+.github/workflows/release.yml merge=ours
+pnpm-lock.yaml merge=ours
