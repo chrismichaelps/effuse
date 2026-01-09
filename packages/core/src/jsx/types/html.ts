@@ -35,11 +35,17 @@ import type {
 } from './unions.js';
 
 export interface HTMLAttributes extends AriaAttributes, DOMAttributes {
-	// Core Attributes
 	key?: string | number | undefined;
-	ref?: ((el: unknown) => void) | undefined;
-
-	// Identifiers
+	ref?:
+		| ((el: Element) => void)
+		| {
+				readonly current: Element | null;
+				readonly subscribe?: (
+					callback: (el: Element | null) => void
+				) => () => void;
+		  }
+		| undefined;
+	[key: `use:${string}`]: unknown;
 	id?: string | (() => string);
 
 	// Class / Styling
