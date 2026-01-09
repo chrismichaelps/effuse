@@ -30,20 +30,47 @@ import {
 	type Portals,
 } from '../render/node.js';
 import type { ElementProps } from '../schema/index.js';
-import { EFFUSE_NODE, NodeType, FRAGMENT as Fragment } from '../constants.js';
+import { EFFUSE_NODE, NodeType } from '../constants.js';
 import { el, fragment } from '../render/element.js';
 import { isBlueprint } from '../blueprint/blueprint.js';
 import type { Signal } from '../reactivity/signal.js';
 import type { ReadonlySignal } from '../types/index.js';
 import { UnknownJSXTypeError } from '../errors.js';
+import { pipe, Predicate } from 'effect';
+
+interface FragmentProps {
+	children?: EffuseChild;
+}
+
+const FragmentTag = Symbol.for('effuse.fragment');
+
+export interface FragmentComponent {
+	(props: FragmentProps): EffuseNode;
+	readonly _tag: typeof FragmentTag;
+}
+
+export const Fragment: FragmentComponent = pipe(
+	(props: FragmentProps): EffuseNode =>
+		fragment(...normalizeJSXChildren(props.children)),
+	(fn) => Object.assign(fn, { _tag: FragmentTag } as const)
+);
+
+const isFragment = (value: unknown): value is FragmentComponent =>
+	Predicate.isFunction(value) && '_tag' in value && value._tag === FragmentTag;
 
 export type JSXElement = EffuseNode;
 
 export const jsx = (
-	type: string | BlueprintDef,
+	type: string | BlueprintDef | typeof Fragment,
 	props: Record<string, unknown> | null,
 	key?: string | number
 ): EffuseNode => {
+	if (type === Fragment) {
+		const { children } = props ?? {};
+		const childArray = normalizeJSXChildren(children);
+		return fragment(...childArray);
+	}
+
 	const { children, ...restProps } = props ?? {};
 	const propsWithKey = key !== undefined ? { ...restProps, key } : restProps;
 
@@ -75,7 +102,7 @@ export const jsx = (
 		};
 	}
 
-	if (typeof type === 'function') {
+	if (Predicate.isFunction(type) && !isFragment(type)) {
 		const componentProps =
 			key !== undefined
 				? { ...restProps, key, children }
@@ -83,12 +110,14 @@ export const jsx = (
 		return (type as Component)(componentProps);
 	}
 
+	if (isFragment(type)) {
+		return type({ children: children as EffuseChild });
+	}
+
 	throw new UnknownJSXTypeError({ type });
 };
 
 export const jsxs = jsx;
-
-export { Fragment };
 
 export const jsxDEV = (
 	type: string | BlueprintDef | typeof Fragment,
@@ -129,6 +158,7 @@ export namespace JSX {
 		| string
 		| BlueprintDef
 		| Component
+		| FragmentComponent
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		| ((props: any) => EffuseNode);
 
