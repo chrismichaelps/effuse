@@ -208,22 +208,20 @@ class I18nInstance implements I18n {
 }
 
 // Initializes the i18n instance.
-export function createI18n<const T extends Translations>(
-	options: TypedI18nOptions<T>
-): TypedI18n<T>;
+export function createI18n<const T>(options: TypedI18nOptions<T>): TypedI18n<T>;
 export function createI18n(options?: I18nOptions): I18n;
-export function createI18n<const T extends Translations>(
+export function createI18n<const T>(
 	options: I18nOptions | TypedI18nOptions<T> = {}
 ): I18n | TypedI18n<T> {
-	const instance = new I18nInstance(options);
+	const instance = new I18nInstance(options as I18nOptions);
 	globalI18nInstance = instance;
 	return instance as I18n | TypedI18n<T>;
 }
 
 // Retrieves the global i18n instance. Throws if not initialized.
-export function getI18n<T extends Translations>(): TypedI18n<T>;
 export function getI18n(): I18n;
-export function getI18n<T extends Translations>(): I18n | TypedI18n<T> {
+export function getI18n<T>(): TypedI18n<T>;
+export function getI18n<T>(): I18n | TypedI18n<T> {
 	if (!globalI18nInstance) {
 		throw new I18nNotInitializedError({});
 	}
@@ -246,11 +244,9 @@ export const getLocale = (): string => {
 };
 
 // Hook for using translations in components.
-export function useTranslation<
-	T extends Translations,
->(): TypedUseTranslationReturn<T>;
 export function useTranslation(): UseTranslationReturn;
-export function useTranslation<T extends Translations>():
+export function useTranslation<T>(): TypedUseTranslationReturn<T>;
+export function useTranslation<T>():
 	| UseTranslationReturn
 	| TypedUseTranslationReturn<T> {
 	const i18n = getI18n();

@@ -98,7 +98,7 @@ export interface I18nOptions {
 	onMissingKey?: (key: string, locale: string) => string | undefined;
 }
 
-export interface TypedI18nOptions<TTranslations extends Translations> {
+export interface TypedI18nOptions<TTranslations> {
 	defaultLocale?: string;
 	fallbackLocale?: string;
 	translations: Record<string, TTranslations>;
@@ -109,7 +109,7 @@ export interface TypedI18nOptions<TTranslations extends Translations> {
 	onMissingKey?: (key: string, locale: string) => string | undefined;
 }
 
-export interface TypedI18n<TTranslations extends Translations> {
+export interface TypedI18n<TTranslations> {
 	t: <K extends FlattenKeys<TTranslations>>(
 		key: K,
 		params?: InferParams<TTranslations, K>
@@ -132,7 +132,7 @@ export interface I18n {
 	addTranslations: (locale: string, translations: Translations) => void;
 }
 
-export interface TypedUseTranslationReturn<TTranslations extends Translations> {
+export interface TypedUseTranslationReturn<TTranslations> {
 	t: <K extends FlattenKeys<TTranslations>>(
 		key: K,
 		params?: InferParams<TTranslations, K>
@@ -162,8 +162,6 @@ export interface I18nState {
 }
 
 // Define translations with `as const` for type inference.
-export function defineTranslations<const T extends Translations>(
-	translations: T
-): T {
+export function defineTranslations<const T>(translations: T): T {
 	return translations;
 }
