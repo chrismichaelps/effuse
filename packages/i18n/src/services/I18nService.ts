@@ -78,7 +78,7 @@ export const makeI18nServiceLayer = (
 
 	if (options.translations) {
 		for (const [locale, translations] of Object.entries(options.translations)) {
-			translationsMap.set(locale, translations);
+			translationsMap.set(locale, translations as Translations);
 		}
 	}
 
