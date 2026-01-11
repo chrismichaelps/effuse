@@ -28,7 +28,6 @@ export {
 	defaultEffuseConfig,
 	getEffuseConfig,
 	isDebugEnabled,
-	isDevtoolsEnabled,
 	isStrictMode,
 	isSSRMode,
 	type EffuseConfigType,

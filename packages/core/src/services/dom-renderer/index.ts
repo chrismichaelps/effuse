@@ -25,13 +25,11 @@
 import { Layer } from 'effect';
 import { PropServiceLive } from './props.js';
 import { EventServiceLive } from './events.js';
-import { ReconcileServiceLive } from './reconcile.js';
 import { MountServiceLive } from './mount.js';
 
 export const DOMRendererLive = Layer.mergeAll(
 	PropServiceLive,
 	EventServiceLive,
-	ReconcileServiceLive,
 	MountServiceLive
 );
 
@@ -45,10 +43,4 @@ export {
 	EventServiceLive,
 	type EventBindingResult,
 } from './events.js';
-export {
-	ReconcileService,
-	ReconcileServiceLive,
-	type ReconcileResult,
-	type KeyedNode,
-} from './reconcile.js';
 export { MountService, MountServiceLive, type MountedNode } from './mount.js';

@@ -26,28 +26,24 @@ import { Config, Effect } from 'effect';
 
 export const EffuseConfig = {
 	debug: Config.boolean('EFFUSE_DEBUG').pipe(Config.withDefault(false)),
-	devtools: Config.boolean('EFFUSE_DEVTOOLS').pipe(Config.withDefault(false)),
 	strictMode: Config.boolean('EFFUSE_STRICT').pipe(Config.withDefault(true)),
 	ssrMode: Config.boolean('EFFUSE_SSR').pipe(Config.withDefault(false)),
 };
 
 export interface EffuseConfigType {
 	debug: boolean;
-	devtools: boolean;
 	strictMode: boolean;
 	ssrMode: boolean;
 }
 
 export const loadEffuseConfig = Effect.all({
 	debug: EffuseConfig.debug,
-	devtools: EffuseConfig.devtools,
 	strictMode: EffuseConfig.strictMode,
 	ssrMode: EffuseConfig.ssrMode,
 });
 
 export const defaultEffuseConfig: EffuseConfigType = {
 	debug: false,
-	devtools: false,
 	strictMode: true,
 	ssrMode: false,
 };
@@ -64,6 +60,5 @@ export const getEffuseConfig = (): EffuseConfigType => {
 };
 
 export const isDebugEnabled = (): boolean => getEffuseConfig().debug;
-export const isDevtoolsEnabled = (): boolean => getEffuseConfig().devtools;
 export const isStrictMode = (): boolean => getEffuseConfig().strictMode;
 export const isSSRMode = (): boolean => getEffuseConfig().ssrMode;

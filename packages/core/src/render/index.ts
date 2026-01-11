@@ -24,13 +24,7 @@
 
 import { Effect, pipe } from 'effect';
 import type { EffuseChild } from './node.js';
-import {
-	DOMRendererLive,
-	MountService,
-	PropService,
-	EventService,
-	type MountedNode,
-} from '../services/dom-renderer/index.js';
+import { DOMRendererLive, MountService, type MountedNode } from '../services/dom-renderer/index.js';
 
 export {
 	type EffuseChild,
@@ -81,5 +75,3 @@ export const unmount = (container: Element): void => {
 	container.innerHTML = '';
 };
 
-export { MountService, PropService, EventService };
-export { DOMRendererLive } from '../services/dom-renderer/index.js';

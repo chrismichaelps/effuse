@@ -82,10 +82,6 @@ export {
 	el,
 	fragment,
 	toNode,
-	MountService,
-	PropService,
-	EventService,
-	DOMRendererLive,
 } from './render/index.js';
 
 export {
@@ -132,8 +128,6 @@ export {
 	type PropSchemaBuilder,
 	type AnyPropSchemaBuilder,
 	type PropSchemaInfer,
-	PortalService,
-	PortalServiceLive,
 	Portal,
 	PortalOutlet,
 	createPortal,
@@ -141,9 +135,6 @@ export {
 	unregisterPortalOutlet,
 	getPortalOutlet,
 	renderToNamedPortal,
-	setGlobalPortalService,
-	getGlobalPortalService,
-	type PortalServiceInterface,
 	type PortalContainer,
 	type PortalProps,
 	type PortalInsertMode,
@@ -179,17 +170,7 @@ export {
 } from './hooks/index.js';
 
 export {
-	Renderer,
-	CanvasService,
-	BlueprintService,
-	BlueprintLive,
-	EffuseLive,
-	RouterService,
-	makeRouterLayer,
-	type RouterApi,
-	StoreService,
-	makeStoreLayer,
-	type StoreApi,
+	type MountedNode,
 } from './services/index.js';
 
 export { jsx, jsxs, jsxDEV, Fragment } from './jsx/index.js';
@@ -261,32 +242,10 @@ export {
 export {
 	getEffuseConfig,
 	isDebugEnabled,
-	isDevtoolsEnabled,
 	isStrictMode,
 	isSSRMode,
 	type EffuseConfigType,
 } from './config/index.js';
-
-export {
-	devtools,
-	logReactivity,
-	logRender,
-	logRouter,
-	logStore,
-	logEffect,
-	logLifecycle,
-	logInk,
-	DevTools,
-	DevToolsLive,
-	DevToolsConfig,
-	DevToolsStateSchema,
-	type DevToolsService,
-	type DevToolsCategory,
-	type LogLevel,
-	type LogEntry,
-	type DevToolsState,
-	type DevToolsConfigType,
-} from './devtools/index.js';
 
 export {
 	useForm,

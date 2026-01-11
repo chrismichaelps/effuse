@@ -22,33 +22,9 @@
  * SOFTWARE.
  */
 
-import { BlueprintLive } from './blueprint/blueprint.js';
 
-export { Renderer, type RendererService } from './renderer/index.js';
-export { CanvasService, type CanvasServiceInterface } from './canvas/index.js';
-export {
-	BlueprintService,
-	BlueprintLive,
-	type BlueprintServiceInterface,
-} from './blueprint/index.js';
-
-export { RouterService, makeRouterLayer, type RouterApi } from './router.js';
-export { StoreService, makeStoreLayer, type StoreApi } from './store.js';
-
-export {
-	DOMRendererLive,
-	PropService,
-	PropServiceLive,
-	EventService,
-	EventServiceLive,
-	ReconcileService,
-	ReconcileServiceLive,
-	MountService,
-	MountServiceLive,
-	type PropBindingResult,
-	type EventBindingResult,
-	type ReconcileResult,
-	type MountedNode,
+export type {
+	PropBindingResult,
+	EventBindingResult,
+	MountedNode,
 } from './dom-renderer/index.js';
-
-export const EffuseLive = BlueprintLive;
