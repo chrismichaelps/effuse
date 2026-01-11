@@ -46,7 +46,7 @@ import {
 } from './events.js';
 import { instantiateBlueprint } from '../../blueprint/blueprint.js';
 import type { BlueprintContext } from '../../schema/node.js';
-import { isSuspendToken } from '../../suspense/token.js';
+import { isSuspendToken } from '../../suspense/Suspense.js';
 
 export interface MountedNode {
 	nodes: Node[];

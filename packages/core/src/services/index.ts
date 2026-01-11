@@ -22,8 +22,6 @@
  * SOFTWARE.
  */
 
-import { Layer } from 'effect';
-import { SchedulerLive } from './scheduler/scheduler.js';
 import { BlueprintLive } from './blueprint/blueprint.js';
 
 export { Renderer, type RendererService } from './renderer/index.js';
@@ -33,11 +31,6 @@ export {
 	BlueprintLive,
 	type BlueprintServiceInterface,
 } from './blueprint/index.js';
-export {
-	Scheduler,
-	SchedulerLive,
-	type SchedulerService,
-} from './scheduler/index.js';
 
 export { RouterService, makeRouterLayer, type RouterApi } from './router.js';
 export { StoreService, makeStoreLayer, type StoreApi } from './store.js';
@@ -58,4 +51,4 @@ export {
 	type MountedNode,
 } from './dom-renderer/index.js';
 
-export const EffuseLive = Layer.mergeAll(SchedulerLive, BlueprintLive);
+export const EffuseLive = BlueprintLive;

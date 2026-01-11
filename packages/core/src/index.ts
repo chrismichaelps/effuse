@@ -105,58 +105,7 @@ export {
 	type AwaitProps,
 } from './components/index.js';
 
-export {
-	SUSPEND_TOKEN,
-	type SuspendToken,
-	createSuspendToken,
-	isSuspendToken,
-	ResourceStatusSchema,
-	type ResourceStatus,
-	RetryConfigSchema,
-	type RetryConfig,
-	ResourceOptionsSchema,
-	type ResourceOptions,
-	ResourceStateSchema,
-	type ResourceState,
-	createPendingState,
-	createSuccessState,
-	createErrorState,
-	SuspenseService,
-	type SuspenseContext,
-	type SuspenseApi,
-	SuspenseLive,
-	makeSuspenseLayer,
-	suspenseApi,
-	createResource,
-	type Resource,
-	type ListResource,
-	createListResource,
-	type MultiResource,
-	createMultiResource,
-	Suspense,
-	type SuspenseProps,
-} from './suspense/index.js';
-
-export {
-	initSSRSuspense,
-	getSSRState,
-	clearSSRState,
-	serializeSSRData,
-	hydrateSSRData,
-	getHydratedData,
-	waitForAllResourcesAsync,
-	collectSSRData,
-	renderWithSuspense,
-	type SSRSuspenseState,
-	type SSRRenderResult,
-} from './suspense/ssr.js';
-
-export {
-	type EffectFetcher,
-	type PromiseFetcher,
-	type Fetcher,
-	isEffectFetcher,
-} from './suspense/fetchers.js';
+export { Suspense, type SuspenseProps } from './suspense/index.js';
 
 export { EFFUSE_NODE, FRAGMENT, NodeType } from './constants.js';
 
@@ -233,12 +182,6 @@ export {
 	Renderer,
 	CanvasService,
 	BlueprintService,
-	Scheduler,
-	type RendererService,
-	type CanvasServiceInterface,
-	type BlueprintServiceInterface,
-	type SchedulerService,
-	SchedulerLive,
 	BlueprintLive,
 	EffuseLive,
 	RouterService,
