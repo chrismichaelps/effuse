@@ -24,73 +24,73 @@
 
 import { Effect, SubscriptionRef, Predicate } from 'effect';
 import type {
-  RefObject,
-  RefObjectInternal,
-  RefCallback,
-  RefOptions,
+	RefObject,
+	RefObjectInternal,
+	RefCallback,
+	RefOptions,
 } from './types.js';
 
 export function createRef<T extends Element = Element>(
-  _options?: RefOptions
+	_options?: RefOptions
 ): RefObject<T> {
-  const internalRef = Effect.runSync(SubscriptionRef.make<T | null>(null));
-  const subscribers = new Set<RefCallback<T>>();
+	const internalRef = Effect.runSync(SubscriptionRef.make<T | null>(null));
+	const subscribers = new Set<RefCallback<T>>();
 
-  const refObject: RefObjectInternal<T> = {
-    get current(): T | null {
-      return Effect.runSync(SubscriptionRef.get(internalRef));
-    },
+	const refObject: RefObjectInternal<T> = {
+		get current(): T | null {
+			return Effect.runSync(SubscriptionRef.get(internalRef));
+		},
 
-    subscribe(callback: RefCallback<T>): () => void {
-      subscribers.add(callback);
-      callback(this.current);
-      return () => {
-        subscribers.delete(callback);
-      };
-    },
+		subscribe(callback: RefCallback<T>): () => void {
+			subscribers.add(callback);
+			callback(this.current);
+			return () => {
+				subscribers.delete(callback);
+			};
+		},
 
-    _setCurrent(el: T | null): void {
-      Effect.runSync(SubscriptionRef.set(internalRef, el));
-      for (const cb of subscribers) {
-        cb(el);
-      }
-    },
-  };
+		_setCurrent(el: T | null): void {
+			Effect.runSync(SubscriptionRef.set(internalRef, el));
+			for (const cb of subscribers) {
+				cb(el);
+			}
+		},
+	};
 
-  return refObject as RefObject<T>;
+	return refObject as RefObject<T>;
 }
 
 export function isRefObject<T extends Element = Element>(
-  value: unknown
+	value: unknown
 ): value is RefObject<T> {
-  return (
-    Predicate.isObject(value) &&
-    Predicate.hasProperty(value, 'current') &&
-    Predicate.hasProperty(value, 'subscribe') &&
-    Predicate.isFunction((value as RefObject<T>).subscribe)
-  );
+	return (
+		Predicate.isObject(value) &&
+		Predicate.hasProperty(value, 'current') &&
+		Predicate.hasProperty(value, 'subscribe') &&
+		Predicate.isFunction((value as RefObject<T>).subscribe)
+	);
 }
 
 export function isRefCallback<T extends Element = Element>(
-  value: unknown
+	value: unknown
 ): value is RefCallback<T> {
-  return Predicate.isFunction(value);
+	return Predicate.isFunction(value);
 }
 
 export function applyRef<T extends Element>(
-  ref: RefCallback<T> | RefObject<T> | undefined | null,
-  element: T | null
+	ref: RefCallback<T> | RefObject<T> | undefined | null,
+	element: T | null
 ): void {
-  if (Predicate.isNullable(ref)) {
-    return;
-  }
+	if (Predicate.isNullable(ref)) {
+		return;
+	}
 
-  if (isRefCallback(ref)) {
-    ref(element);
-  } else if (isRefObject(ref)) {
-    const internal = ref as RefObjectInternal<T>;
-    if (Predicate.isFunction(internal._setCurrent)) {
-      internal._setCurrent(element);
-    }
-  }
+	if (isRefCallback(ref)) {
+		ref(element);
+	} else if (isRefObject(ref)) {
+		const internal = ref as RefObjectInternal<T>;
+		if (Predicate.isFunction(internal._setCurrent)) {
+			internal._setCurrent(element);
+		}
+	}
 }
