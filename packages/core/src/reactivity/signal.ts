@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-import { Effect, SubscriptionRef } from 'effect';
+import { Effect, Predicate, SubscriptionRef } from 'effect';
 import type { Signal, ReadonlySignal } from '../types/index.js';
 import { Dep } from './dep.js';
 import {
@@ -92,7 +92,7 @@ export function readonlySignal<T>(source: Signal<T>): ReadonlySignal<T> {
 
 // Detect reactive signal
 export function isSignal<T>(value: unknown): value is Signal<T> {
-	if (typeof value !== 'object' || value === null) {
+	if (!Predicate.isObject(value)) {
 		return false;
 	}
 	const obj = value as Record<string, unknown>;

@@ -22,6 +22,7 @@
  * SOFTWARE.
  */
 
+import { Predicate } from 'effect';
 import { Dep, isTracking } from './dep.js';
 import { REACTIVE_MARKER } from '../constants.js';
 import {
@@ -102,9 +103,9 @@ export const reactive = <T extends object>(target: T): Reactive<T> => {
 
 			if (
 				Array.isArray(obj) &&
-				typeof key === 'string' &&
+				Predicate.isString(key) &&
 				ARRAY_MUTATION_METHODS.has(key) &&
-				typeof value === 'function'
+				Predicate.isFunction(value)
 			) {
 				return (...args: unknown[]) => {
 					const result = (value as (...a: unknown[]) => unknown).apply(
@@ -119,7 +120,7 @@ export const reactive = <T extends object>(target: T): Reactive<T> => {
 
 			const boundValue = bindMethodToTarget(value, obj);
 
-			if (typeof boundValue === 'object' && boundValue !== null) {
+			if (Predicate.isObject(boundValue)) {
 				if (isMarkedRaw(boundValue)) {
 					return boundValue;
 				}
@@ -188,8 +189,7 @@ export const reactive = <T extends object>(target: T): Reactive<T> => {
 // Detect reactive proxy
 export const isReactive = (value: unknown): value is Reactive<object> => {
 	return (
-		typeof value === 'object' &&
-		value !== null &&
+		Predicate.isObject(value) &&
 		(value as Record<symbol, unknown>)[REACTIVE_MARKER] === true
 	);
 };

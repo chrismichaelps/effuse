@@ -22,6 +22,7 @@
  * SOFTWARE.
  */
 
+import { Predicate } from 'effect';
 import type { ReadonlySignal, Signal } from '../types/index.js';
 import type { Reactive } from './reactive.js';
 import { isDebugEnabled, isStrictMode } from '../config/index.js';
@@ -49,7 +50,7 @@ export function readonly<T>(
 		};
 	}
 
-	if (typeof target === 'object' && target !== null) {
+	if (Predicate.isObject(target)) {
 		return createReadonlyProxy(target as object) as DeepReadonly<T>;
 	}
 
@@ -65,7 +66,7 @@ const createReadonlyProxy = <T extends object>(target: T): DeepReadonly<T> => {
 
 			const value = Reflect.get(obj, key, receiver);
 
-			if (typeof value === 'object' && value !== null) {
+			if (Predicate.isObject(value)) {
 				return createReadonlyProxy(value);
 			}
 
@@ -99,8 +100,7 @@ const createReadonlyProxy = <T extends object>(target: T): DeepReadonly<T> => {
 // Detect readonly proxy
 export const isReadonly = (value: unknown): boolean => {
 	return (
-		typeof value === 'object' &&
-		value !== null &&
+		Predicate.isObject(value) &&
 		(value as Record<symbol, unknown>)[READONLY_MARKER] === true
 	);
 };
