@@ -171,8 +171,9 @@ export const Suspense = define<SuspenseProps, SuspenseExposed>({
 				if (Array.isArray(children) && children.length === 1) {
 					childToRender = children[0];
 				}
-				const rendered =
-					typeof childToRender === 'function' ? childToRender() : childToRender;
+				const rendered = Predicate.isFunction(childToRender)
+					? childToRender()
+					: childToRender;
 				resolvedChildren.value = rendered;
 				shouldShowFallback.value = false;
 			} catch (error: unknown) {

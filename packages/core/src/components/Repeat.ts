@@ -34,7 +34,7 @@ export interface RepeatProps {
 }
 
 const isSignal = <T>(val: unknown): val is Signal<T> =>
-	Predicate.isNotNullable(val) && typeof val === 'object' && 'value' in val;
+	Predicate.isObject(val) && Predicate.hasProperty(val, 'value');
 
 const resolveCount = (times: number | Signal<number>): number =>
 	isSignal<number>(times) ? times.value : times;

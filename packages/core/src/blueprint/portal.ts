@@ -129,8 +129,9 @@ export const Portal = define<PortalProps>({
 			}
 
 			const resolveTarget = (): Element | null => {
-				const target =
-					typeof props.target === 'function' ? props.target() : props.target;
+				const target = Predicate.isFunction(props.target)
+					? props.target()
+					: props.target;
 				if (!target) return null;
 				return typeof target === 'string'
 					? document.querySelector(target)

@@ -48,7 +48,7 @@ export interface AwaitProps<T> {
 }
 
 const isSignalLike = <T>(val: unknown): val is Signal<T> =>
-	Predicate.isNotNullable(val) && typeof val === 'object' && 'value' in val;
+	Predicate.isObject(val) && Predicate.hasProperty(val, 'value');
 
 const isPromiseFn = Predicate.isFunction;
 
