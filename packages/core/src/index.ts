@@ -110,7 +110,6 @@ export {
 	define,
 	isBlueprint,
 	instantiateBlueprint,
-	view,
 	type BlueprintOptions,
 	type DefineOptions,
 	type DefineOptionsWithLayer,
@@ -141,12 +140,6 @@ export {
 	type PortalPriority,
 	PORTAL_PRIORITY,
 } from './blueprint/index.js';
-
-export {
-	createVirtualRange,
-	createAutoVirtualRange,
-} from './utils/virtualize.js';
-export { createDOMTransitions } from './utils/transitions.js';
 
 export {
 	canvas,

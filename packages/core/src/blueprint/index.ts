@@ -26,7 +26,6 @@ export {
 	blueprint,
 	isBlueprint,
 	instantiateBlueprint,
-	view,
 	type BlueprintOptions,
 	type PropsDef,
 } from './blueprint.js';
