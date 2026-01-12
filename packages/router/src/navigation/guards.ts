@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-import { Effect } from 'effect';
+import { Effect, Predicate } from 'effect';
 import type { Route, ResolvedRoute, RouteLocation } from '../core/route.js';
 
 export interface NavigationAllowed {
@@ -74,7 +74,7 @@ export const NavigationResult = {
 		if (value === false) return NavigationResult.cancelled();
 		if (typeof value === 'string') return NavigationResult.redirected(value);
 		if (value instanceof Error) return NavigationResult.failed(value);
-		if (typeof value === 'object' && value !== null) {
+		if (Predicate.isObject(value)) {
 			return NavigationResult.redirected(value as RouteLocation);
 		}
 		return NavigationResult.allowed();

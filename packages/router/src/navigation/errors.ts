@@ -22,6 +22,7 @@
  * SOFTWARE.
  */
 
+import { Predicate } from 'effect';
 import type { RouteLocation, ResolvedRoute } from '../core/route.js';
 
 export interface NavigationFailureBase {
@@ -93,16 +94,15 @@ export const NavigationFailure = {
 	}),
 
 	isNavigationFailure: (value: unknown): value is NavigationFailure =>
-		typeof value === 'object' &&
-		value !== null &&
-		'_tag' in value &&
-		typeof (value as NavigationFailure)._tag === 'string' &&
+		Predicate.isObject(value) &&
+		Predicate.hasProperty(value, '_tag') &&
+		Predicate.isString(value._tag) &&
 		[
 			'NavigationAborted',
 			'NavigationGuardCancelled',
 			'NavigationRedirect',
 			'NavigationDuplicated',
-		].includes((value as NavigationFailure)._tag),
+		].includes(value._tag),
 
 	isAborted: (failure: NavigationFailure): failure is NavigationAborted =>
 		failure._tag === 'NavigationAborted',

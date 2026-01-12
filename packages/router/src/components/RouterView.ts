@@ -74,7 +74,7 @@ const getComponentProps = (
 		return {};
 	}
 
-	if (typeof matched.props === 'function') {
+	if (Predicate.isFunction(matched.props)) {
 		return matched.props(route);
 	}
 
@@ -87,11 +87,10 @@ const renderComponent = (
 	props: Record<string, unknown>
 ): EffuseChild => {
 	if (
-		typeof component === 'object' &&
-		component !== null &&
-		'_tag' in component
+		Predicate.isObject(component) &&
+		Predicate.hasProperty(component, '_tag')
 	) {
-		if ((component as { _tag: string })._tag === 'Blueprint') {
+		if (component._tag === 'Blueprint') {
 			return {
 				[EFFUSE_NODE]: true,
 				type: NodeType.BLUEPRINT,
@@ -102,7 +101,7 @@ const renderComponent = (
 		}
 	}
 
-	if (typeof component === 'function') {
+	if (Predicate.isFunction(component)) {
 		return (component as (p: Record<string, unknown>) => EffuseChild)({
 			...props,
 			...route.params,

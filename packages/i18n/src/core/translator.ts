@@ -163,7 +163,7 @@ export const mergeTranslations = (
 			continue;
 		}
 
-		if (typeof sourceValue === 'object' && typeof targetValue === 'object') {
+		if (Predicate.isObject(sourceValue) && Predicate.isObject(targetValue)) {
 			result[key] = mergeTranslations(targetValue, sourceValue);
 		} else {
 			result[key] = sourceValue;
@@ -186,7 +186,7 @@ export const flattenTranslations = (
 
 		if (typeof value === 'string') {
 			result[fullKey] = value;
-		} else if (typeof value === 'object') {
+		} else if (Predicate.isObject(value)) {
 			Object.assign(result, flattenTranslations(value, fullKey));
 		}
 	}
