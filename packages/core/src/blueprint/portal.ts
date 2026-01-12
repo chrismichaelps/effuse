@@ -22,12 +22,7 @@
  * SOFTWARE.
  */
 
-import {
-	Match,
-	Option,
-	Predicate,
-	pipe,
-} from 'effect';
+import { Match, Option, Predicate, pipe } from 'effect';
 import type { EffuseChild } from '../render/node.js';
 import { render } from '../render/index.js';
 import { define } from './define.js';
@@ -46,7 +41,7 @@ export const createPortal = (
 		typeof target === 'string' ? document.querySelector(target) : target;
 
 	if (!targetElement) {
-		return { cleanup: () => { } };
+		return { cleanup: () => {} };
 	}
 
 	const cleanup = render(content, targetElement);
@@ -74,7 +69,7 @@ export const renderToNamedPortal = (
 ): { cleanup: () => void } => {
 	const outlet = namedOutlets.get(name);
 	if (!outlet) {
-		return { cleanup: () => { } };
+		return { cleanup: () => {} };
 	}
 	return createPortal(content, outlet);
 };
@@ -118,7 +113,7 @@ export const Portal = define<PortalProps>({
 		const isMounted = signal(false);
 
 		onMount(() => {
-			if (typeof window === 'undefined') return () => { };
+			if (typeof window === 'undefined') return () => {};
 
 			const isDisabled = pipe(
 				Match.value(props.disabled),
@@ -145,7 +140,7 @@ export const Portal = define<PortalProps>({
 			const targetElement = resolveTarget();
 
 			if (!targetElement) {
-				return () => { };
+				return () => {};
 			}
 
 			const portalId = pipe(

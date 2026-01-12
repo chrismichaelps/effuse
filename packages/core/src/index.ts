@@ -169,9 +169,7 @@ export {
 	type InferHookConfig,
 } from './hooks/index.js';
 
-export {
-	type MountedNode,
-} from './services/index.js';
+export { type MountedNode } from './services/index.js';
 
 export { jsx, jsxs, jsxDEV, Fragment } from './jsx/index.js';
 

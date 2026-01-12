@@ -24,7 +24,11 @@
 
 import { Effect, pipe } from 'effect';
 import type { EffuseChild } from './node.js';
-import { DOMRendererLive, MountService, type MountedNode } from '../services/dom-renderer/index.js';
+import {
+	DOMRendererLive,
+	MountService,
+	type MountedNode,
+} from '../services/dom-renderer/index.js';
 
 export {
 	type EffuseChild,
@@ -74,4 +78,3 @@ export const render = (child: EffuseChild, container: Element): CleanupFn => {
 export const unmount = (container: Element): void => {
 	container.innerHTML = '';
 };
-
