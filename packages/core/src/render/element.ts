@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-import { Option, pipe } from 'effect';
+import { Option, pipe, Predicate } from 'effect';
 import {
 	type EffuseNode,
 	type EffuseChild,
@@ -57,7 +57,7 @@ export function el(
 	// eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
 	...rest: (EffuseChild | Portals | PortalFn | null)[]
 ): EffuseNode {
-	if (typeof tagOrBlueprint === 'string') {
+	if (Predicate.isString(tagOrBlueprint)) {
 		const props = propsOrNull as ElementProps | null;
 		const children = normalizeChildren(rest as EffuseChild[]);
 
@@ -80,11 +80,11 @@ export function el(
 	const portalsArg = rest[0];
 
 	let portals: Portals | null = null;
-	if (typeof portalsArg === 'function') {
+	if (Predicate.isFunction(portalsArg)) {
 		portals = { default: portalsArg as PortalFn };
 	} else if (
 		portalsArg &&
-		typeof portalsArg === 'object' &&
+		Predicate.isObject(portalsArg) &&
 		!Array.isArray(portalsArg)
 	) {
 		portals = portalsArg as Portals;
@@ -109,7 +109,7 @@ const normalizeChildren = (children: EffuseChild[]): EffuseChild[] => {
 	const result: EffuseChild[] = [];
 
 	for (const child of children) {
-		if (child === null || child === undefined || typeof child === 'boolean') {
+		if (Predicate.isNullable(child) || Predicate.isBoolean(child)) {
 			continue;
 		}
 
@@ -125,19 +125,19 @@ const normalizeChildren = (children: EffuseChild[]): EffuseChild[] => {
 
 // Convert child to reactive node
 export const toNode = (child: EffuseChild): EffuseNode | null => {
-	if (child === null || child === undefined || typeof child === 'boolean') {
+	if (Predicate.isNullable(child) || Predicate.isBoolean(child)) {
 		return null;
 	}
 
-	if (typeof child === 'string') {
+	if (Predicate.isString(child)) {
 		return createTextNode(child);
 	}
 
-	if (typeof child === 'number') {
+	if (Predicate.isNumber(child)) {
 		return createTextNode(String(child));
 	}
 
-	if (typeof child === 'object' && EFFUSE_NODE in child) {
+	if (Predicate.isObject(child) && EFFUSE_NODE in child) {
 		return child;
 	}
 

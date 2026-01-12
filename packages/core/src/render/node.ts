@@ -22,6 +22,7 @@
  * SOFTWARE.
  */
 
+import { Predicate } from 'effect';
 import type { Signal } from '../types/index.js';
 import type {
 	ElementNode,
@@ -96,8 +97,7 @@ export type EffuseNode =
 
 export const isEffuseNode = (value: unknown): value is EffuseNode => {
 	return (
-		typeof value === 'object' &&
-		value !== null &&
+		Predicate.isObject(value) &&
 		EFFUSE_NODE in value &&
 		(value as Record<symbol, unknown>)[EFFUSE_NODE] === true
 	);
@@ -105,10 +105,9 @@ export const isEffuseNode = (value: unknown): value is EffuseNode => {
 
 export const isSignalChild = (value: unknown): value is Signal<EffuseChild> => {
 	return (
-		typeof value === 'object' &&
-		value !== null &&
+		Predicate.isObject(value) &&
 		'value' in value &&
-		typeof (value as Record<string, unknown>)._subscribers === 'object'
+		Predicate.isObject((value as Record<string, unknown>)._subscribers)
 	);
 };
 

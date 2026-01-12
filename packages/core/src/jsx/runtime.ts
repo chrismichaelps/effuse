@@ -57,7 +57,9 @@ export const Fragment: FragmentComponent = pipe(
 );
 
 const isFragment = (value: unknown): value is FragmentComponent =>
-	Predicate.isFunction(value) && '_tag' in value && value._tag === FragmentTag;
+	Predicate.isFunction(value) &&
+	Predicate.hasProperty(value, '_tag') &&
+	value._tag === FragmentTag;
 
 export type JSXElement = EffuseNode;
 
@@ -75,16 +77,14 @@ export const jsx = (
 	const { children, ...restProps } = props ?? {};
 	const propsWithKey = key !== undefined ? { ...restProps, key } : restProps;
 
-	if (typeof type === 'string') {
+	if (Predicate.isString(type)) {
 		const childArray = normalizeJSXChildren(children);
 		return el(type, propsWithKey as ElementProps, ...childArray);
 	}
 
 	if (isBlueprint(type)) {
 		const portals =
-			typeof children === 'object' &&
-			children !== null &&
-			!Array.isArray(children)
+			Predicate.isObject(children) && !Array.isArray(children)
 				? (children as Portals)
 				: children
 					? { default: () => children as EffuseChild }
@@ -135,7 +135,7 @@ export const jsxDEV = (
 };
 
 const normalizeJSXChildren = (children: unknown): EffuseChild[] => {
-	if (children === undefined || children === null) {
+	if (Predicate.isNullable(children)) {
 		return [];
 	}
 

@@ -22,9 +22,8 @@
  * SOFTWARE.
  */
 
-import { Effect } from 'effect';
 import type { HeadProps } from './types.js';
-import { HeadRegistry } from './head-registry.js';
+import { Predicate } from 'effect';
 
 let ssrContext: { push: (head: HeadProps) => void } | null = null;
 
@@ -39,7 +38,7 @@ export const getSSRContext = (): { push: (head: HeadProps) => void } | null => {
 };
 
 export const isServer = (): boolean => {
-	return ssrContext !== null;
+	return Predicate.isNotNullable(ssrContext);
 };
 
 export const useHead = (head: HeadProps): void => {
@@ -125,11 +124,3 @@ const updateLinkTag = (rel: string, href: string): void => {
 
 	link.href = href;
 };
-
-export const useHeadEffect = (
-	head: HeadProps
-): Effect.Effect<void, never, HeadRegistry> =>
-	Effect.gen(function* () {
-		const registry = yield* HeadRegistry;
-		yield* registry.push(head);
-	});

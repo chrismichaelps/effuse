@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-import { Effect, Scope, Exit } from 'effect';
+import { Effect, Predicate, Scope, Exit } from 'effect';
 import type {
 	EffuseNode,
 	EffuseChild,
@@ -93,14 +93,14 @@ const renderNodeToString = (node: unknown): string => {
 		return '';
 	}
 
-	if (typeof node === 'string') {
+	if (Predicate.isString(node)) {
 		return escapeHtml(node);
 	}
-	if (typeof node === 'number') {
+	if (Predicate.isNumber(node)) {
 		return String(node);
 	}
 
-	if (typeof node === 'boolean') {
+	if (Predicate.isBoolean(node)) {
 		return '';
 	}
 
@@ -116,7 +116,7 @@ const renderNodeToString = (node: unknown): string => {
 		return renderEffuseNode(node);
 	}
 
-	if (typeof node === 'function') {
+	if (Predicate.isFunction(node)) {
 		try {
 			const result = (node as () => unknown)();
 			return renderNodeToString(result);
@@ -126,9 +126,9 @@ const renderNodeToString = (node: unknown): string => {
 	}
 
 	if (
-		typeof node === 'object' &&
-		'_tag' in node &&
-		(node as Record<string, unknown>)._tag === 'Blueprint'
+		Predicate.isObject(node) &&
+		Predicate.hasProperty(node, '_tag') &&
+		node._tag === 'Blueprint'
 	) {
 		return renderBlueprint(node as BlueprintDef, {});
 	}
@@ -219,7 +219,7 @@ const renderAttributes = (props: Record<string, unknown>): string => {
 			continue;
 		}
 
-		if (key.startsWith('on') && typeof value === 'function') {
+		if (key.startsWith('on') && Predicate.isFunction(value)) {
 			continue;
 		}
 
@@ -231,7 +231,7 @@ const renderAttributes = (props: Record<string, unknown>): string => {
 			? (value as { value: unknown }).value
 			: value;
 
-		if (typeof actualValue === 'boolean') {
+		if (Predicate.isBoolean(actualValue)) {
 			if (actualValue) {
 				parts.push(
 					escapeAttrName(key === 'className' ? 'class' : camelToKebab(key))
@@ -244,7 +244,7 @@ const renderAttributes = (props: Record<string, unknown>): string => {
 			key === 'className' ? 'class' : camelToKebab(key)
 		);
 
-		if (key === 'style' && typeof actualValue === 'object') {
+		if (key === 'style' && Predicate.isObject(actualValue)) {
 			const styleStr = Object.entries(
 				actualValue as Record<string, string | number>
 			)
