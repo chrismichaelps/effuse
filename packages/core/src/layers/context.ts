@@ -17,12 +17,12 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
  * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * LIABILITY, WHETHER IN AN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
 
-import { Option, pipe } from 'effect';
+import { Option, pipe, Predicate } from 'effect';
 import type {
 	LayerProps,
 	AnyResolvedLayer,
@@ -78,7 +78,8 @@ export const clearGlobalLayerContext = (): void => {
 
 export const isLayerRuntimeReady = (): boolean => {
 	return (
-		globalState.propsRegistry !== null && globalState.layerRegistry !== null
+		Predicate.isNotNullable(globalState.propsRegistry) &&
+		Predicate.isNotNullable(globalState.layerRegistry)
 	);
 };
 

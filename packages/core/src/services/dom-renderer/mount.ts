@@ -77,16 +77,16 @@ const mountChild = (
 		return Effect.succeed([]);
 	}
 
-	if (typeof child === 'string' || typeof child === 'number') {
+	if (Predicate.isString(child) || Predicate.isNumber(child)) {
 		const textNode = document.createTextNode(String(child));
 		return Effect.succeed([textNode]);
 	}
 
-	if (typeof child === 'boolean') {
+	if (Predicate.isBoolean(child)) {
 		return Effect.succeed([]);
 	}
 
-	if (typeof child === 'function') {
+	if (Predicate.isFunction(child)) {
 		const fn = child as () => unknown;
 		const anchor = document.createComment('fn');
 		let currentNodes: Node[] = [];
@@ -113,7 +113,7 @@ const mountChild = (
 					return;
 				}
 
-				if (typeof value === 'string' || typeof value === 'number') {
+				if (Predicate.isString(value) || Predicate.isNumber(value)) {
 					const textNode = document.createTextNode(String(value));
 					if (Predicate.isNotNullable(anchor.parentNode)) {
 						anchor.parentNode.insertBefore(textNode, anchor.nextSibling);
@@ -122,7 +122,7 @@ const mountChild = (
 					return;
 				}
 
-				if (typeof value === 'boolean') {
+				if (Predicate.isBoolean(value)) {
 					currentNodes = [];
 					return;
 				}
@@ -142,7 +142,7 @@ const mountChild = (
 					} catch (err) {
 						const isSuspendError = (e: unknown): boolean => {
 							if (isSuspendToken(e)) return true;
-							if (typeof e === 'object' && e !== null) {
+							if (Predicate.isObject(e)) {
 								const anyErr = e as Record<string, unknown>;
 								if (isSuspendToken(anyErr.cause)) return true;
 								if (isSuspendToken(anyErr.error)) return true;
@@ -210,7 +210,7 @@ const mountChild = (
 					return;
 				}
 
-				if (typeof value === 'string' || typeof value === 'number') {
+				if (Predicate.isString(value) || Predicate.isNumber(value)) {
 					const textNode = document.createTextNode(String(value));
 					if (Predicate.isNotNullable(anchor.parentNode)) {
 						anchor.parentNode.insertBefore(textNode, anchor.nextSibling);
@@ -234,13 +234,14 @@ const mountChild = (
 					} catch (err) {
 						const isSuspendError = (e: unknown): boolean => {
 							if (isSuspendToken(e)) return true;
-							if (typeof e === 'object' && e !== null) {
+							if (Predicate.isObject(e)) {
 								const anyErr = e as Record<string, unknown>;
 								if (isSuspendToken(anyErr.cause)) return true;
 								if (isSuspendToken(anyErr.error)) return true;
 								if (isSuspendToken(anyErr.defect)) return true;
-								const msg =
-									typeof anyErr.message === 'string' ? anyErr.message : '';
+								const msg = Predicate.isString(anyErr.message)
+									? anyErr.message
+									: '';
 								if (msg.includes('"resourceId"') && msg.includes('"promise"')) {
 									return true;
 								}
@@ -309,14 +310,14 @@ const getNodeProps = (node: EffuseNode): Record<string, unknown> | null => {
 };
 
 const getNodeTag = (node: EffuseNode): string => {
-	if ('tag' in node && typeof node.tag === 'string') {
+	if ('tag' in node && Predicate.isString(node.tag)) {
 		return node.tag;
 	}
 	return 'div';
 };
 
 const getNodeText = (node: EffuseNode): string => {
-	if ('text' in node && typeof node.text === 'string') {
+	if ('text' in node && Predicate.isString(node.text)) {
 		return node.text;
 	}
 	return '';
@@ -353,7 +354,7 @@ const mountNode = (
 					for (const [key, value] of Object.entries(props)) {
 						if (key === 'children' || key === 'key') continue;
 
-						if (key.startsWith('on') && typeof value === 'function') {
+						if (key.startsWith('on') && Predicate.isFunction(value)) {
 							const eventName = key.slice(2).toLowerCase();
 							eventEffects.push(
 								eventService.bindEvent(
@@ -367,7 +368,7 @@ const mountNode = (
 
 						if (
 							(key === 'value' || key === 'checked') &&
-							typeof value === 'function' &&
+							Predicate.isFunction(value) &&
 							(element instanceof HTMLInputElement ||
 								element instanceof HTMLTextAreaElement ||
 								element instanceof HTMLSelectElement)

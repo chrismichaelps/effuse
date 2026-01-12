@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-import { Effect, Option, pipe } from 'effect';
+import { Effect, Option, pipe, Predicate } from 'effect';
 import type { EffuseChild } from '../render/node.js';
 import { define } from '../blueprint/define.js';
 import { pushContext, popContext, getContext } from './registry.js';
@@ -51,7 +51,7 @@ export interface EffuseContext<T> {
 const createdContexts = new Map<string, EffuseContext<unknown>>();
 
 const resolveDefaultValue = <T>(defaultValue?: T | (() => T)): T | undefined =>
-	typeof defaultValue === 'function'
+	Predicate.isFunction(defaultValue)
 		? (defaultValue as () => T)()
 		: defaultValue;
 
@@ -143,7 +143,6 @@ export function hasContextValue<T>(context: EffuseContext<T>): boolean {
 export const isEffuseContext = (
 	value: unknown
 ): value is EffuseContext<unknown> =>
-	typeof value === 'object' &&
-	value !== null &&
-	'_tag' in value &&
+	Predicate.isObject(value) &&
+	Predicate.hasProperty(value, '_tag') &&
 	value._tag === 'EffuseContext';

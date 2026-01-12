@@ -22,14 +22,16 @@
  * SOFTWARE.
  */
 
-import { Data } from 'effect';
+import { Data, Predicate } from 'effect';
 
 export const TaggedError = Data.TaggedError;
 
 export type TaggedErrorLike = Error & { readonly _tag: string };
 
 export const isTaggedError = (value: unknown): value is TaggedErrorLike =>
-	value instanceof Error && '_tag' in value && typeof value._tag === 'string';
+	value instanceof Error &&
+	Predicate.hasProperty(value, '_tag') &&
+	Predicate.isString(value._tag);
 
 export const hasTag = <Tag extends string>(
 	value: unknown,

@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-import { Context, Effect, Layer } from 'effect';
+import { Context, Effect, Layer, Predicate } from 'effect';
 import type { Signal } from '../../reactivity/signal.js';
 import { isSignal } from '../../reactivity/signal.js';
 import { effect } from '../../effects/effect.js';
@@ -61,7 +61,7 @@ const setElementProp = (
 	value: unknown
 ): void => {
 	if (key === 'class' || key === 'className') {
-		if (typeof value === 'string') {
+		if (Predicate.isString(value)) {
 			element.className = value;
 		} else if (value == null) {
 			element.className = '';
@@ -70,7 +70,7 @@ const setElementProp = (
 	}
 
 	if (key === 'style') {
-		if (typeof value === 'object' && value !== null) {
+		if (Predicate.isObject(value)) {
 			const el = element as HTMLElement;
 			const styles = value as Record<string, string | number>;
 			for (const [prop, val] of Object.entries(styles)) {
@@ -84,9 +84,9 @@ const setElementProp = (
 	if (key === 'value') {
 		const inputEl = element as HTMLInputElement | HTMLTextAreaElement;
 		let stringValue = '';
-		if (typeof value === 'string') {
+		if (Predicate.isString(value)) {
 			stringValue = value;
-		} else if (typeof value === 'number') {
+		} else if (Predicate.isNumber(value)) {
 			stringValue = String(value);
 		}
 		if (inputEl.value !== stringValue) {
@@ -100,7 +100,7 @@ const setElementProp = (
 		return;
 	}
 
-	if (typeof value === 'boolean') {
+	if (Predicate.isBoolean(value)) {
 		if (value) {
 			element.setAttribute(key, '');
 		} else {
@@ -111,7 +111,7 @@ const setElementProp = (
 
 	if (value == null) {
 		element.removeAttribute(key);
-	} else if (typeof value === 'string' || typeof value === 'number') {
+	} else if (Predicate.isString(value) || Predicate.isNumber(value)) {
 		element.setAttribute(key, String(value));
 	}
 };
@@ -175,7 +175,7 @@ const isEventHandler = (key: string): boolean => {
 };
 
 const isCompilerGetter = (value: unknown): value is () => unknown => {
-	return typeof value === 'function' && value.length === 0;
+	return Predicate.isFunction(value) && value.length === 0;
 };
 
 export const PropServiceLive = Layer.succeed(PropService, {
@@ -184,7 +184,7 @@ export const PropServiceLive = Layer.succeed(PropService, {
 			if (key === 'ref') {
 				if (isRefCallback(value) || isRefObject(value)) {
 					applyRef(value, element);
-				} else if (typeof value === 'function') {
+				} else if (Predicate.isFunction(value)) {
 					(value as (el: Element) => void)(element);
 				}
 				return { cleanup: () => {} };
@@ -196,7 +196,7 @@ export const PropServiceLive = Layer.succeed(PropService, {
 			}
 
 			if (isEventHandler(key)) {
-				if (typeof value === 'function') {
+				if (Predicate.isFunction(value)) {
 					const handler = value as EventListener;
 					const eventName = key.slice(2).toLowerCase();
 					element.addEventListener(eventName, handler);
