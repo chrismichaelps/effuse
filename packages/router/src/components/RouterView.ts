@@ -27,8 +27,10 @@ import {
 	define,
 	effect,
 	type EffuseChild,
+	type BlueprintDef,
 	EFFUSE_NODE,
-	NodeType,
+	CreateElementNode,
+	CreateBlueprintNode,
 } from '@effuse/core';
 import { getGlobalRouter } from '../core/router.js';
 import { injectDepth, getRouteSignal } from '../core/context.js';
@@ -91,13 +93,12 @@ const renderComponent = (
 		Predicate.hasProperty(component, '_tag')
 	) {
 		if (component._tag === 'Blueprint') {
-			return {
+			return CreateBlueprintNode({
 				[EFFUSE_NODE]: true,
-				type: NodeType.BLUEPRINT,
-				blueprint: component,
+				blueprint: component as unknown as BlueprintDef,
 				props: { ...props, ...route.params },
 				portals: null,
-			} as unknown as EffuseChild;
+			});
 		}
 	}
 
@@ -167,16 +168,15 @@ export const RouterView = define({
 
 			const rendered = renderComponent(component, route, props);
 
-			const content = {
+			const content = CreateElementNode({
 				[EFFUSE_NODE]: true,
-				type: NodeType.ELEMENT,
 				tag: 'div',
+				key: `route-${String(depth)}-${currentRoutePath}`,
 				props: {
-					key: `route-${String(depth)}-${currentRoutePath}`,
 					class: 'router-view-content',
 				},
 				children: [rendered],
-			} as unknown as EffuseChild;
+			});
 
 			lastRoutePath = currentRoutePath;
 			matchedView.value = content;
@@ -202,15 +202,14 @@ export const RouterView = define({
 	},
 
 	template: ({ matchedView }): EffuseChild => {
-		return {
+		return CreateElementNode({
 			[EFFUSE_NODE]: true,
-			type: NodeType.ELEMENT,
 			tag: 'div',
 			props: {
 				class: 'router-view',
 			},
 			children: [matchedView],
-		} as unknown as EffuseChild;
+		});
 	},
 });
 

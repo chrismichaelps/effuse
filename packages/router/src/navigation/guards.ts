@@ -22,51 +22,49 @@
  * SOFTWARE.
  */
 
-import { Effect, Predicate } from 'effect';
+import { Data, Effect, Predicate } from 'effect';
 import type { Route, ResolvedRoute, RouteLocation } from '../core/route.js';
 
-export interface NavigationAllowed {
-	readonly _tag: 'NavigationAllowed';
-}
+export type NavigationResult = Data.TaggedEnum<{
+	// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+	NavigationAllowed: {};
+	NavigationCancelled: { readonly reason: string | undefined };
+	NavigationRedirected: { readonly to: RouteLocation };
+	NavigationFailed: { readonly error: Error };
+}>;
 
-export interface NavigationCancelled {
-	readonly _tag: 'NavigationCancelled';
-	readonly reason: string | undefined;
-}
+const {
+	NavigationAllowed,
+	NavigationCancelled,
+	NavigationRedirected,
+	NavigationFailed,
+	$is,
+	$match,
+} = Data.taggedEnum<NavigationResult>();
 
-export interface NavigationRedirected {
-	readonly _tag: 'NavigationRedirected';
-	readonly to: RouteLocation;
-}
-
-export interface NavigationFailed {
-	readonly _tag: 'NavigationFailed';
-	readonly error: Error;
-}
-
-export type NavigationResult =
-	| NavigationAllowed
-	| NavigationCancelled
-	| NavigationRedirected
-	| NavigationFailed;
+export {
+	NavigationAllowed,
+	NavigationCancelled,
+	NavigationRedirected,
+	NavigationFailed,
+	$is as NavigationResult$is,
+	$match as NavigationResult$match,
+};
 
 export const NavigationResult = {
-	allowed: (): NavigationResult => ({ _tag: 'NavigationAllowed' }),
-	cancelled: (reason?: string): NavigationResult => ({
-		_tag: 'NavigationCancelled',
-		reason,
-	}),
-	redirected: (to: RouteLocation): NavigationResult => ({
-		_tag: 'NavigationRedirected',
-		to,
-	}),
-	failed: (error: Error): NavigationResult => ({
-		_tag: 'NavigationFailed',
-		error,
-	}),
+	allowed: (): NavigationResult => NavigationAllowed(),
+	cancelled: (reason?: string): NavigationResult =>
+		NavigationCancelled({ reason }),
+	redirected: (to: RouteLocation): NavigationResult =>
+		NavigationRedirected({ to }),
+	failed: (error: Error): NavigationResult => NavigationFailed({ error }),
 
-	isAllowed: (result: NavigationResult): result is NavigationAllowed =>
-		result._tag === 'NavigationAllowed',
+	isAllowed: $is('NavigationAllowed'),
+	isCancelled: $is('NavigationCancelled'),
+	isRedirected: $is('NavigationRedirected'),
+	isFailed: $is('NavigationFailed'),
+
+	match: $match,
 
 	fromLegacy: (value: unknown): NavigationResult => {
 		if (value === undefined || value === true)

@@ -22,76 +22,61 @@
  * SOFTWARE.
  */
 
-import { Predicate } from 'effect';
+import { Data, Predicate } from 'effect';
 import type { RouteLocation, ResolvedRoute } from '../core/route.js';
 
-export interface NavigationFailureBase {
-	readonly _tag: string;
+interface NavigationFailureBase {
 	readonly to: ResolvedRoute;
 	readonly from: ResolvedRoute;
 }
 
-export interface NavigationAborted extends NavigationFailureBase {
-	readonly _tag: 'NavigationAborted';
-}
+export type NavigationFailure = Data.TaggedEnum<{
+	NavigationAborted: NavigationFailureBase;
+	NavigationGuardCancelled: NavigationFailureBase & {
+		readonly reason: string | undefined;
+	};
+	NavigationRedirect: NavigationFailureBase & {
+		readonly redirectTo: RouteLocation;
+	};
+	NavigationDuplicated: NavigationFailureBase;
+}>;
 
-export interface NavigationGuardCancelled extends NavigationFailureBase {
-	readonly _tag: 'NavigationGuardCancelled';
-	readonly reason: string | undefined;
-}
+const {
+	NavigationAborted,
+	NavigationGuardCancelled,
+	NavigationRedirect,
+	NavigationDuplicated,
+	$is,
+	$match,
+} = Data.taggedEnum<NavigationFailure>();
 
-export interface NavigationRedirect extends NavigationFailureBase {
-	readonly _tag: 'NavigationRedirect';
-	readonly redirectTo: RouteLocation;
-}
-
-export interface NavigationDuplicated extends NavigationFailureBase {
-	readonly _tag: 'NavigationDuplicated';
-}
-
-export type NavigationFailure =
-	| NavigationAborted
-	| NavigationGuardCancelled
-	| NavigationRedirect
-	| NavigationDuplicated;
+export {
+	NavigationAborted,
+	NavigationGuardCancelled,
+	NavigationRedirect,
+	NavigationDuplicated,
+	$is as NavigationFailure$is,
+	$match as NavigationFailure$match,
+};
 
 export const NavigationFailure = {
-	aborted: (to: ResolvedRoute, from: ResolvedRoute): NavigationAborted => ({
-		_tag: 'NavigationAborted',
-		to,
-		from,
-	}),
+	aborted: (to: ResolvedRoute, from: ResolvedRoute): NavigationFailure =>
+		NavigationAborted({ to, from }),
 
 	guardCancelled: (
 		to: ResolvedRoute,
 		from: ResolvedRoute,
 		reason?: string
-	): NavigationGuardCancelled => ({
-		_tag: 'NavigationGuardCancelled',
-		to,
-		from,
-		reason,
-	}),
+	): NavigationFailure => NavigationGuardCancelled({ to, from, reason }),
 
 	redirect: (
 		to: ResolvedRoute,
 		from: ResolvedRoute,
 		redirectTo: RouteLocation
-	): NavigationRedirect => ({
-		_tag: 'NavigationRedirect',
-		to,
-		from,
-		redirectTo,
-	}),
+	): NavigationFailure => NavigationRedirect({ to, from, redirectTo }),
 
-	duplicated: (
-		to: ResolvedRoute,
-		from: ResolvedRoute
-	): NavigationDuplicated => ({
-		_tag: 'NavigationDuplicated',
-		to,
-		from,
-	}),
+	duplicated: (to: ResolvedRoute, from: ResolvedRoute): NavigationFailure =>
+		NavigationDuplicated({ to, from }),
 
 	isNavigationFailure: (value: unknown): value is NavigationFailure =>
 		Predicate.isObject(value) &&
@@ -104,17 +89,10 @@ export const NavigationFailure = {
 			'NavigationDuplicated',
 		].includes(value._tag),
 
-	isAborted: (failure: NavigationFailure): failure is NavigationAborted =>
-		failure._tag === 'NavigationAborted',
+	isAborted: $is('NavigationAborted'),
+	isCancelled: $is('NavigationGuardCancelled'),
+	isRedirect: $is('NavigationRedirect'),
+	isDuplicated: $is('NavigationDuplicated'),
 
-	isCancelled: (
-		failure: NavigationFailure
-	): failure is NavigationGuardCancelled =>
-		failure._tag === 'NavigationGuardCancelled',
-
-	isRedirect: (failure: NavigationFailure): failure is NavigationRedirect =>
-		failure._tag === 'NavigationRedirect',
-
-	isDuplicated: (failure: NavigationFailure): failure is NavigationDuplicated =>
-		failure._tag === 'NavigationDuplicated',
+	match: $match,
 };

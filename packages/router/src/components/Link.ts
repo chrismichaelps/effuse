@@ -26,8 +26,9 @@ import { Effect, SubscriptionRef, Predicate } from 'effect';
 import {
 	define,
 	EFFUSE_NODE,
-	NodeType,
+	CreateElementNode,
 	type ElementNode,
+	type EffuseChild,
 	type Signal,
 	effect,
 	computed,
@@ -150,12 +151,11 @@ export const Link = define<LinkProps, LinkState>({
 			childrenProp == null
 				? []
 				: Array.isArray(childrenProp)
-					? (childrenProp as unknown[])
-					: [childrenProp];
+					? (childrenProp as EffuseChild[])
+					: [childrenProp as EffuseChild];
 
-		return {
+		return CreateElementNode({
 			[EFFUSE_NODE]: true,
-			type: NodeType.ELEMENT,
 			tag: 'a',
 			props: {
 				href: exposed.to,
@@ -164,7 +164,7 @@ export const Link = define<LinkProps, LinkState>({
 				'aria-current': ariaCurrentSig,
 			},
 			children: childrenArr,
-		} as ElementNode;
+		});
 	},
 });
 

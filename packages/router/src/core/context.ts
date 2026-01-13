@@ -33,10 +33,12 @@ const contextMap = new Map<symbol, unknown>();
 
 let globalRouteSignal: Signal<Route> | null = null;
 
+// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters
 export const provide = <T>(key: symbol, value: T): void => {
 	contextMap.set(key, value);
 };
 
+// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters
 export const inject = <T>(key: symbol): T | undefined => {
 	return contextMap.get(key) as T | undefined;
 };
