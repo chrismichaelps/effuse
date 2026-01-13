@@ -40,7 +40,7 @@ export const parseSync = (input: string): DocumentNode => {
 	return Effect.runSync(
 		Effect.catchAll(parse(input), () =>
 			Effect.succeed({
-				type: 'document' as const,
+				_tag: 'Document' as const,
 				children: [],
 			})
 		)
