@@ -25,14 +25,14 @@
 import type { EffuseNode, EffuseChild } from '../render/node.js';
 import { createListNode } from '../render/node.js';
 import type { Signal } from '../types/index.js';
-import { NodeType, EFFUSE_NODE } from '../constants.js';
+import { EFFUSE_NODE } from '../constants.js';
 import { Option, pipe, Predicate } from 'effect';
 
 const MATCH_MARKER = Symbol('effuse.match');
 
 type MatchNode<T> = {
 	[EFFUSE_NODE]: true;
-	type: typeof NodeType.FRAGMENT;
+	_tag: 'Fragment';
 	_matchMarker: typeof MATCH_MARKER;
 	when: Signal<T> | (() => T) | T;
 	children: EffuseChild | ((item: NonNullable<T>) => EffuseChild);
@@ -64,7 +64,7 @@ const createMatch = <T>(props: {
 	children: EffuseChild | ((item: NonNullable<T>) => EffuseChild);
 }): MatchNode<T> => ({
 	[EFFUSE_NODE]: true,
-	type: NodeType.FRAGMENT,
+	_tag: 'Fragment',
 	_matchMarker: MATCH_MARKER,
 	when: props.when,
 	children: props.children,

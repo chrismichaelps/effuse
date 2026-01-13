@@ -44,6 +44,12 @@ export {
 	type BlueprintNode,
 	type Component,
 	isEffuseNode,
+	CreateElementNode,
+	CreateTextNode,
+	CreateFragmentNode,
+	CreateListNode,
+	CreateBlueprintNode,
+	matchEffuseNode,
 } from './node.js';
 
 export { el, fragment, toNode } from './element.js';

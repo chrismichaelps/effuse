@@ -22,14 +22,9 @@
  * SOFTWARE.
  */
 
-import { Effect, Predicate, Scope, Exit } from 'effect';
-import type {
-	EffuseNode,
-	EffuseChild,
-	Component,
-	BlueprintDef,
-} from '../render/node.js';
-import { isEffuseNode, NodeType } from '../render/node.js';
+import { Effect, Predicate, Scope, Exit, pipe } from 'effect';
+import type { EffuseNode, Component, BlueprintDef } from '../render/node.js';
+import { isEffuseNode, matchEffuseNode } from '../render/node.js';
 import { isSignal } from '../reactivity/index.js';
 import type { HeadProps, RenderResult } from './types.js';
 import { RenderError } from './errors.js';
@@ -137,62 +132,47 @@ const renderNodeToString = (node: unknown): string => {
 };
 
 const renderEffuseNode = (node: EffuseNode): string => {
-	switch (node.type) {
-		case NodeType.TEXT:
-			return escapeHtml(node.text);
+	return pipe(
+		node,
+		matchEffuseNode({
+			Text: (node) => escapeHtml(node.text),
+			Element: (node) => {
+				const tag = node.tag;
+				const props = node.props ?? {};
+				const children = node.children;
 
-		case NodeType.ELEMENT: {
-			const tag = node.tag;
-			const props = node.props ?? {};
-			const children =
-				(node as unknown as { children?: EffuseChild[] }).children ?? [];
+				const attrs = renderAttributes(props);
+				const attrStr = attrs ? ` ${attrs}` : '';
 
-			const attrs = renderAttributes(props);
-			const attrStr = attrs ? ` ${attrs}` : '';
+				const selfClosing = [
+					'area',
+					'base',
+					'br',
+					'col',
+					'embed',
+					'hr',
+					'img',
+					'input',
+					'link',
+					'meta',
+					'param',
+					'source',
+					'track',
+					'wbr',
+				];
 
-			const selfClosing = [
-				'area',
-				'base',
-				'br',
-				'col',
-				'embed',
-				'hr',
-				'img',
-				'input',
-				'link',
-				'meta',
-				'param',
-				'source',
-				'track',
-				'wbr',
-			];
+				if (selfClosing.includes(tag)) {
+					return `<${tag}${attrStr}>`;
+				}
 
-			if (selfClosing.includes(tag)) {
-				return `<${tag}${attrStr}>`;
-			}
-
-			const childHtml = children.map(renderNodeToString).join('');
-			return `<${tag}${attrStr}>${childHtml}</${tag}>`;
-		}
-
-		case NodeType.BLUEPRINT: {
-			const bp = node as unknown as {
-				blueprint: BlueprintDef;
-				props: Record<string, unknown>;
-			};
-			return renderBlueprint(bp.blueprint, bp.props);
-		}
-
-		case NodeType.FRAGMENT:
-		case NodeType.LIST: {
-			const children =
-				(node as unknown as { children?: EffuseChild[] }).children ?? [];
-			return children.map(renderNodeToString).join('');
-		}
-
-		default:
-			return '';
-	}
+				const childHtml = children.map(renderNodeToString).join('');
+				return `<${tag}${attrStr}>${childHtml}</${tag}>`;
+			},
+			Blueprint: (node) => renderBlueprint(node.blueprint, node.props),
+			Fragment: (node) => node.children.map(renderNodeToString).join(''),
+			List: (node) => node.children.map(renderNodeToString).join(''),
+		})
+	);
 };
 
 const renderBlueprint = (

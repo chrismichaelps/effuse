@@ -1,48 +1,9 @@
-/**
- * MIT License
- *
- * Copyright (c) 2025 Chris M. Perez
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- */
-
-import { Predicate } from 'effect';
+import { Data, Predicate } from 'effect';
 import type { Signal } from '../types/index.js';
-import type {
-	ElementNode,
-	TextNode,
-	FragmentNode,
-	ListNode,
-	Portals,
-	PortalFn,
-} from '../schema/index.js';
+import type { ElementProps, Portals, PortalFn } from '../schema/index.js';
 import { EFFUSE_NODE, NodeType } from '../constants.js';
 
-export type {
-	ElementNode,
-	TextNode,
-	FragmentNode,
-	ListNode,
-	Portals,
-	PortalFn,
-};
-export type { ElementProps } from '../schema/index.js';
+export type { ElementProps, Portals, PortalFn };
 
 export { EFFUSE_NODE, NodeType };
 
@@ -79,29 +40,91 @@ export interface Component<
 	(props?: P): EffuseNode;
 }
 
-export interface BlueprintNode<P = Record<string, unknown>> {
-	readonly [EFFUSE_NODE]: true;
-	readonly type: typeof NodeType.BLUEPRINT;
-	readonly key?: string | number | undefined;
-	readonly blueprint: BlueprintDef<P>;
-	readonly props: P;
-	readonly portals: Portals | null;
-}
+export type EffuseNode = Data.TaggedEnum<{
+	Element: {
+		readonly [EFFUSE_NODE]: true;
+		readonly tag: string;
+		readonly props: ElementProps | null;
+		readonly children: EffuseChild[];
+		readonly key?: string | number | undefined;
+	};
+	Text: {
+		readonly [EFFUSE_NODE]: true;
+		readonly text: string;
+		readonly key?: string | number | undefined;
+	};
+	Fragment: {
+		readonly [EFFUSE_NODE]: true;
+		readonly children: EffuseChild[];
+		readonly key?: string | number | undefined;
+	};
+	List: {
+		readonly [EFFUSE_NODE]: true;
+		readonly children: EffuseChild[];
+		readonly key?: string | number | undefined;
+	};
+	Blueprint: {
+		readonly [EFFUSE_NODE]: true;
+		readonly blueprint: BlueprintDef;
+		readonly props: Record<string, unknown>;
+		readonly portals: Portals | null;
+		readonly key?: string | number | undefined;
+	};
+}>;
 
-export type EffuseNode =
-	| ElementNode
-	| TextNode
-	| FragmentNode
-	| ListNode
-	| BlueprintNode;
+const { $match, Element, Text, Fragment, List, Blueprint } =
+	Data.taggedEnum<EffuseNode>();
 
-export const isEffuseNode = (value: unknown): value is EffuseNode => {
-	return (
-		Predicate.isObject(value) &&
-		EFFUSE_NODE in value &&
-		(value as Record<symbol, unknown>)[EFFUSE_NODE] === true
-	);
-};
+export const isEffuseNode = (u: unknown): u is EffuseNode =>
+	Predicate.isObject(u) && Predicate.hasProperty(u, EFFUSE_NODE);
+
+export type ElementNodeInput = Omit<ElementNode, '_tag'>;
+export type TextNodeInput = Omit<TextNode, '_tag'>;
+export type FragmentNodeInput = Omit<FragmentNode, '_tag'>;
+export type ListNodeInput = Omit<ListNode, '_tag'>;
+export type BlueprintNodeInput = Omit<BlueprintNode, '_tag'>;
+
+export const CreateElementNode = (args: ElementNodeInput): ElementNode =>
+	Element(args);
+
+export const CreateTextNode = (args: TextNodeInput): TextNode => Text(args);
+
+export const CreateFragmentNode = (args: FragmentNodeInput): FragmentNode =>
+	Fragment(args);
+
+export const CreateListNode = (args: ListNodeInput): ListNode => List(args);
+
+export const CreateBlueprintNode = (args: BlueprintNodeInput): BlueprintNode =>
+	Blueprint(args);
+
+export const matchEffuseNode = $match;
+
+export type ElementNode = Extract<EffuseNode, { _tag: 'Element' }>;
+export type TextNode = Extract<EffuseNode, { _tag: 'Text' }>;
+export type FragmentNode = Extract<EffuseNode, { _tag: 'Fragment' }>;
+export type ListNode = Extract<EffuseNode, { _tag: 'List' }>;
+export type BlueprintNode<P = Record<string, unknown>> = Extract<
+	EffuseNode,
+	{ _tag: 'Blueprint' }
+> & { props: P; blueprint: BlueprintDef<P> };
+
+export const createTextNode = (text: string): TextNode =>
+	Text({
+		[EFFUSE_NODE]: true,
+		text,
+	});
+
+export const createFragmentNode = (children: EffuseChild[]): FragmentNode =>
+	Fragment({
+		[EFFUSE_NODE]: true,
+		children,
+	});
+
+export const createListNode = (children: EffuseChild[]): ListNode =>
+	List({
+		[EFFUSE_NODE]: true,
+		children,
+	});
 
 export const isSignalChild = (value: unknown): value is Signal<EffuseChild> => {
 	return (
@@ -110,21 +133,3 @@ export const isSignalChild = (value: unknown): value is Signal<EffuseChild> => {
 		Predicate.isObject((value as Record<string, unknown>)._subscribers)
 	);
 };
-
-export const createTextNode = (text: string): TextNode => ({
-	[EFFUSE_NODE]: true,
-	type: NodeType.TEXT,
-	text,
-});
-
-export const createFragmentNode = (children: EffuseChild[]): FragmentNode => ({
-	[EFFUSE_NODE]: true,
-	type: NodeType.FRAGMENT,
-	children,
-});
-
-export const createListNode = (children: EffuseChild[]): ListNode => ({
-	[EFFUSE_NODE]: true,
-	type: NodeType.LIST,
-	children,
-});

@@ -23,7 +23,7 @@
  */
 
 import { Schema } from 'effect';
-import { EFFUSE_NODE, NodeType } from '../constants.js';
+import { EFFUSE_NODE } from '../constants.js';
 import { ElementPropsSchema } from './dom.js';
 
 const BaseNodeSchema = Schema.Struct({
@@ -53,7 +53,7 @@ export const PortalsSchema = Schema.Record({
 export const ElementNodeSchema = BaseNodeSchema.pipe(
 	Schema.extend(
 		Schema.Struct({
-			type: Schema.Literal(NodeType.ELEMENT),
+			_tag: Schema.Literal('Element'),
 			tag: Schema.String,
 			props: Schema.Union(ElementPropsSchema, Schema.Null),
 			children: Schema.Array(EffuseChildSchema),
@@ -64,7 +64,7 @@ export const ElementNodeSchema = BaseNodeSchema.pipe(
 export const TextNodeSchema = BaseNodeSchema.pipe(
 	Schema.extend(
 		Schema.Struct({
-			type: Schema.Literal(NodeType.TEXT),
+			_tag: Schema.Literal('Text'),
 			text: Schema.String,
 		})
 	)
@@ -73,7 +73,7 @@ export const TextNodeSchema = BaseNodeSchema.pipe(
 export const FragmentNodeSchema = BaseNodeSchema.pipe(
 	Schema.extend(
 		Schema.Struct({
-			type: Schema.Literal(NodeType.FRAGMENT),
+			_tag: Schema.Literal('Fragment'),
 			children: Schema.Array(EffuseChildSchema),
 		})
 	)
@@ -100,7 +100,7 @@ export const BlueprintDefSchema = Schema.Struct({
 export const BlueprintNodeSchema = BaseNodeSchema.pipe(
 	Schema.extend(
 		Schema.Struct({
-			type: Schema.Literal(NodeType.BLUEPRINT),
+			_tag: Schema.Literal('Blueprint'),
 			blueprint: BlueprintDefSchema,
 			props: Schema.Record({ key: Schema.String, value: Schema.Unknown }),
 			portals: Schema.Union(PortalsSchema, Schema.Null),
@@ -111,7 +111,7 @@ export const BlueprintNodeSchema = BaseNodeSchema.pipe(
 export const ListNodeSchema = BaseNodeSchema.pipe(
 	Schema.extend(
 		Schema.Struct({
-			type: Schema.Literal(NodeType.LIST),
+			_tag: Schema.Literal('List'),
 			children: Schema.Array(EffuseChildSchema),
 		})
 	)

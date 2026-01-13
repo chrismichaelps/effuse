@@ -32,10 +32,12 @@ import {
 	type BlueprintDef,
 	type Portals,
 	type PortalFn,
-	createTextNode,
+	CreateElementNode,
+	CreateBlueprintNode,
 	createFragmentNode,
+	createTextNode,
 } from './node.js';
-import { EFFUSE_NODE, NodeType } from '../constants.js';
+import { EFFUSE_NODE } from '../constants.js';
 
 export function el(
 	tag: string,
@@ -61,9 +63,8 @@ export function el(
 		const props = propsOrNull as ElementProps | null;
 		const children = normalizeChildren(rest as EffuseChild[]);
 
-		return {
+		return CreateElementNode({
 			[EFFUSE_NODE]: true,
-			type: NodeType.ELEMENT,
 			tag: tagOrBlueprint,
 			props: props ?? null,
 			children,
@@ -72,7 +73,7 @@ export function el(
 				Option.flatMap((p) => Option.fromNullable(p.key)),
 				Option.getOrUndefined
 			),
-		};
+		});
 	}
 
 	const blueprint = tagOrBlueprint;
@@ -90,14 +91,13 @@ export function el(
 		portals = portalsArg as Portals;
 	}
 
-	return {
+	return CreateBlueprintNode({
 		[EFFUSE_NODE]: true,
-		type: NodeType.BLUEPRINT,
 		blueprint,
 		props,
 		portals,
 		key: (props as { key?: string | number }).key,
-	};
+	});
 }
 
 // Build fragment node

@@ -27,13 +27,7 @@ import type { Signal } from '../../reactivity/signal.js';
 import { untrack, isSignal } from '../../reactivity/index.js';
 import { effect } from '../../effects/effect.js';
 import type { EffectHandle } from '../../types/index.js';
-import {
-	type EffuseChild,
-	type EffuseNode,
-	type BlueprintDef,
-	isEffuseNode,
-} from '../../render/node.js';
-import { NodeType } from '../../constants.js';
+import { type EffuseChild, type EffuseNode } from '../../render/node.js';
 import {
 	PropService,
 	PropServiceLive,
@@ -47,6 +41,7 @@ import {
 import { instantiateBlueprint } from '../../blueprint/blueprint.js';
 import type { BlueprintContext } from '../../schema/node.js';
 import { isSuspendToken } from '../../suspense/Suspense.js';
+import { isEffuseNode } from '../../render/index.js';
 
 export interface MountedNode {
 	nodes: Node[];
@@ -295,148 +290,120 @@ const mountChild = (
 	return Effect.succeed([]);
 };
 
-const getNodeChildren = (node: EffuseNode): readonly unknown[] => {
-	if ('children' in node && Array.isArray(node.children)) {
-		return node.children;
-	}
-	return [];
-};
-
-const getNodeProps = (node: EffuseNode): Record<string, unknown> | null => {
-	if ('props' in node && node.props != null) {
-		return node.props as Record<string, unknown>;
-	}
-	return null;
-};
-
-const getNodeTag = (node: EffuseNode): string => {
-	if ('tag' in node && Predicate.isString(node.tag)) {
-		return node.tag;
-	}
-	return 'div';
-};
-
-const getNodeText = (node: EffuseNode): string => {
-	if ('text' in node && Predicate.isString(node.text)) {
-		return node.text;
-	}
-	return '';
-};
-
 const mountNode = (
 	node: EffuseNode,
 	cleanups: CleanupFn[]
 ): Effect.Effect<Node[], never, PropService | EventService> => {
-	const nodeType = node.type;
+	switch (node._tag) {
+		case 'Text': {
+			const domNode = document.createTextNode(node.text);
+			return Effect.succeed([domNode]);
+		}
+		case 'Element': {
+			const tag = node.tag;
+			const props = node.props;
+			const children = node.children;
 
-	if (nodeType === NodeType.TEXT) {
-		const domNode = document.createTextNode(getNodeText(node));
-		return Effect.succeed([domNode]);
-	}
+			return pipe(
+				Effect.Do,
+				Effect.bind('propService', () => PropService),
+				Effect.bind('eventService', () => EventService),
+				Effect.flatMap(({ propService, eventService }) => {
+					const element = document.createElement(tag);
+					const bindingCleanups: CleanupFn[] = [];
 
-	if (nodeType === NodeType.ELEMENT) {
-		const tag = getNodeTag(node);
-		const props = getNodeProps(node);
-		const children = getNodeChildren(node);
+					const propEffects: Effect.Effect<PropBindingResult>[] = [];
+					const eventEffects: Effect.Effect<EventBindingResult>[] = [];
 
-		return pipe(
-			Effect.Do,
-			Effect.bind('propService', () => PropService),
-			Effect.bind('eventService', () => EventService),
-			Effect.flatMap(({ propService, eventService }) => {
-				const element = document.createElement(tag);
-				const bindingCleanups: CleanupFn[] = [];
+					if (props) {
+						for (const [key, value] of Object.entries(props)) {
+							if (key === 'children' || key === 'key') continue;
 
-				const propEffects: Effect.Effect<PropBindingResult>[] = [];
-				const eventEffects: Effect.Effect<EventBindingResult>[] = [];
+							if (key.startsWith('on') && Predicate.isFunction(value)) {
+								const eventName = key.slice(2).toLowerCase();
+								eventEffects.push(
+									eventService.bindEvent(
+										element,
+										eventName,
+										value as EventListener
+									)
+								);
+								continue;
+							}
 
-				if (props) {
-					for (const [key, value] of Object.entries(props)) {
-						if (key === 'children' || key === 'key') continue;
+							if (
+								(key === 'value' || key === 'checked') &&
+								Predicate.isFunction(value) &&
+								(element instanceof HTMLInputElement ||
+									element instanceof HTMLTextAreaElement ||
+									element instanceof HTMLSelectElement)
+							) {
+								const result = Effect.runSync(
+									propService.bindFormControl(
+										element,
+										value as () => string | number | boolean
+									)
+								);
+								bindingCleanups.push(result.cleanup);
+								continue;
+							}
 
-						if (key.startsWith('on') && Predicate.isFunction(value)) {
-							const eventName = key.slice(2).toLowerCase();
-							eventEffects.push(
-								eventService.bindEvent(
-									element,
-									eventName,
-									value as EventListener
-								)
-							);
-							continue;
+							if (
+								(key === 'value' || key === 'checked') &&
+								isSignal(value) &&
+								(element instanceof HTMLInputElement ||
+									element instanceof HTMLTextAreaElement ||
+									element instanceof HTMLSelectElement)
+							) {
+								const result = Effect.runSync(
+									propService.bindFormControl(
+										element,
+										value as Signal<string | number | boolean>
+									)
+								);
+								bindingCleanups.push(result.cleanup);
+								continue;
+							}
+
+							propEffects.push(propService.bindProp(element, key, value));
 						}
-
-						if (
-							(key === 'value' || key === 'checked') &&
-							Predicate.isFunction(value) &&
-							(element instanceof HTMLInputElement ||
-								element instanceof HTMLTextAreaElement ||
-								element instanceof HTMLSelectElement)
-						) {
-							const result = Effect.runSync(
-								propService.bindFormControl(
-									element,
-									value as () => string | number | boolean
-								)
-							);
-							bindingCleanups.push(result.cleanup);
-							continue;
-						}
-
-						if (
-							(key === 'value' || key === 'checked') &&
-							isSignal(value) &&
-							(element instanceof HTMLInputElement ||
-								element instanceof HTMLTextAreaElement ||
-								element instanceof HTMLSelectElement)
-						) {
-							const result = Effect.runSync(
-								propService.bindFormControl(
-									element,
-									value as Signal<string | number | boolean>
-								)
-							);
-							bindingCleanups.push(result.cleanup);
-							continue;
-						}
-
-						propEffects.push(propService.bindProp(element, key, value));
 					}
-				}
 
-				for (const propEffect of propEffects) {
-					const result = Effect.runSync(propEffect);
-					bindingCleanups.push(result.cleanup);
-				}
-
-				for (const eventEffect of eventEffects) {
-					const result = Effect.runSync(eventEffect);
-					bindingCleanups.push(result.cleanup);
-				}
-
-				cleanups.push(() => {
-					for (const fn of bindingCleanups) {
-						fn();
+					for (const propEffect of propEffects) {
+						const result = Effect.runSync(propEffect);
+						bindingCleanups.push(result.cleanup);
 					}
-				});
 
-				return pipe(
-					Effect.all(
-						children.map((c) => mountChild(c as EffuseChild, cleanups))
-					),
-					Effect.map((results) => {
-						for (const childNode of results.flat()) {
-							element.appendChild(childNode);
+					for (const eventEffect of eventEffects) {
+						const result = Effect.runSync(eventEffect);
+						bindingCleanups.push(result.cleanup);
+					}
+
+					cleanups.push(() => {
+						for (const fn of bindingCleanups) {
+							fn();
 						}
-						return [element];
-					})
-				);
-			})
-		);
-	}
+					});
 
-	if (nodeType === NodeType.FRAGMENT || nodeType === NodeType.LIST) {
-		if (nodeType === NodeType.LIST) {
+					return pipe(
+						Effect.all(children.map((c) => mountChild(c, cleanups))),
+						Effect.map((results) => {
+							for (const childNode of results.flat()) {
+								element.appendChild(childNode);
+							}
+							return [element];
+						})
+					);
+				})
+			);
+		}
+		case 'Fragment': {
+			return pipe(
+				Effect.all(node.children.map((c) => mountChild(c, cleanups))),
+				Effect.map((results) => results.flat())
+			);
+		}
+		case 'List': {
 			const anchor = document.createComment('list');
 			let currentNodes: Node[] = [];
 			const listCleanups: CleanupFn[] = [];
@@ -444,7 +411,7 @@ const mountNode = (
 
 			const runEffect = () => {
 				effectHandle = effect(() => {
-					const children = getNodeChildren(node);
+					const children = node.children;
 
 					for (const n of currentNodes) {
 						if (Predicate.isNotNullable(n.parentNode)) {
@@ -465,11 +432,7 @@ const mountNode = (
 					try {
 						const mountResult = Effect.runSync(
 							pipe(
-								Effect.all(
-									children.map((c) =>
-										mountChild(c as EffuseChild, childCleanups)
-									)
-								),
+								Effect.all(children.map((c) => mountChild(c, childCleanups))),
 								Effect.map((results) => results.flat()),
 								Effect.provide(PropServiceLive),
 								Effect.provide(EventServiceLive)
@@ -504,43 +467,38 @@ const mountNode = (
 
 			return Effect.succeed([anchor]);
 		}
+		case 'Blueprint': {
+			const context = instantiateBlueprint(
+				node.blueprint,
+				node.props,
+				node.portals ?? {}
+			);
 
-		const children = getNodeChildren(node);
-		return pipe(
-			Effect.all(children.map((c) => mountChild(c as EffuseChild, cleanups))),
-			Effect.map((results) => results.flat())
-		);
-	}
+			const stateWithLifecycle = context.state as unknown as {
+				lifecycle?: { runCleanup: () => Effect.Effect<void> };
+			};
 
-	// eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-	if (nodeType === NodeType.BLUEPRINT) {
-		const blueprintNode = node as unknown as {
-			blueprint: BlueprintDef;
-			props: Record<string, unknown>;
-			portals: Record<string, unknown> | null;
-		};
-		const context = instantiateBlueprint(
-			blueprintNode.blueprint,
-			blueprintNode.props,
-			blueprintNode.portals ?? {}
-		);
+			if (stateWithLifecycle.lifecycle) {
+				const lifecycle = stateWithLifecycle.lifecycle;
+				cleanups.push(() => {
+					Effect.runSync(lifecycle.runCleanup());
+				});
+			}
 
-		const stateWithLifecycle = context.state as unknown as {
-			lifecycle?: { runCleanup: () => Effect.Effect<void> };
-		};
-
-		if (stateWithLifecycle.lifecycle) {
-			const lifecycle = stateWithLifecycle.lifecycle;
-			cleanups.push(() => {
-				Effect.runSync(lifecycle.runCleanup());
-			});
+			const childView = node.blueprint.view(context as BlueprintContext);
+			return mountChild(childView, cleanups);
 		}
-
-		const childView = blueprintNode.blueprint.view(context as BlueprintContext);
-		return mountChild(childView, cleanups);
+		default: {
+			let tag: unknown = 'unknown';
+			if (Predicate.isObject(node)) {
+				const n = node as Record<string, unknown>;
+				tag = n._tag || n.type || 'unknown';
+			}
+			throw new Error(
+				`Paint failed: Unknown node tag "${Predicate.isString(tag) ? tag : 'unknown'}"`
+			);
+		}
 	}
-
-	return Effect.succeed([]);
 };
 
 export const MountServiceLive = Layer.succeed(MountService, {

@@ -28,9 +28,10 @@ import {
 	type BlueprintDef,
 	type Component,
 	type Portals,
+	CreateBlueprintNode,
 } from '../render/node.js';
 import type { ElementProps } from '../schema/index.js';
-import { EFFUSE_NODE, NodeType } from '../constants.js';
+import { EFFUSE_NODE } from '../constants.js';
 import { el, fragment } from '../render/element.js';
 import { isBlueprint } from '../blueprint/blueprint.js';
 import { UnknownJSXTypeError } from '../errors.js';
@@ -93,14 +94,13 @@ export const jsx = (
 		const blueprintProps =
 			children !== undefined ? { ...propsWithKey, children } : propsWithKey;
 
-		return {
+		return CreateBlueprintNode({
 			[EFFUSE_NODE]: true,
-			type: NodeType.BLUEPRINT,
 			blueprint: type,
 			props: blueprintProps,
 			portals,
 			key: propsWithKey.key as string | number | undefined,
-		};
+		});
 	}
 
 	if (Predicate.isFunction(type) && !isFragment(type)) {

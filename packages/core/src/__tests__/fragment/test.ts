@@ -6,12 +6,12 @@ import {
 	Fragment,
 	type FragmentComponent,
 } from '../../jsx/runtime.js';
-import { NodeType, EFFUSE_NODE } from '../../constants.js';
+import { EFFUSE_NODE } from '../../constants.js';
 import { signal } from '../../reactivity/signal.js';
 import type { FragmentNode, EffuseNode } from '../../render/node.js';
 
 const isFragmentNode = (node: EffuseNode): node is FragmentNode =>
-	node.type === NodeType.FRAGMENT;
+	node._tag === 'Fragment';
 
 describe('Fragment', () => {
 	describe('Core Identity', () => {
@@ -99,7 +99,7 @@ describe('Fragment', () => {
 				});
 
 				const fragmentNode = result as FragmentNode;
-				expect(fragmentNode.type).toBe(NodeType.FRAGMENT);
+				expect(fragmentNode._tag).toBe('Fragment');
 				expect(fragmentNode.children).toEqual(['First', 'Second', 'Third']);
 			});
 
@@ -313,7 +313,7 @@ describe('Fragment', () => {
 		it('should have correct type property', () => {
 			const result = jsx(Fragment, { children: 'test' });
 
-			expect(result.type).toBe(NodeType.FRAGMENT);
+			expect(result._tag).toBe('Fragment');
 		});
 
 		it('should have children property as array', () => {

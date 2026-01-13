@@ -26,8 +26,8 @@ import { Predicate, Option } from 'effect';
 import { define } from '../blueprint/index.js';
 import { computed } from '../reactivity/index.js';
 import { effect } from '../effects/index.js';
-import type { EffuseChild, EffuseNode } from '../render/node.js';
-import { EFFUSE_NODE, NodeType } from '../constants.js';
+import { CreateFragmentNode, type EffuseChild } from '../render/node.js';
+import { EFFUSE_NODE } from '../constants.js';
 import type { Signal, ReadonlySignal } from '../types/index.js';
 
 export const SUSPEND_TOKEN = Symbol.for('effuse/SuspendToken');
@@ -202,10 +202,9 @@ export const Suspense = define<SuspenseProps, SuspenseExposed>({
 	},
 
 	template: (exposed) => {
-		return {
+		return CreateFragmentNode({
 			[EFFUSE_NODE]: true,
-			type: NodeType.FRAGMENT,
 			children: [exposed.currentContent],
-		} as EffuseNode;
+		});
 	},
 });

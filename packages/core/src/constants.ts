@@ -33,8 +33,8 @@ export const REACTIVE_MARKER = Symbol('effuse.reactive');
 export const READONLY_MARKER = Symbol('effuse.readonly');
 
 export enum NodeType {
-	ELEMENT = 'element',
-	TEXT = 'text',
+	ELEMENT = 'Element',
+	TEXT = 'Text',
 	BLUEPRINT = 'Blueprint',
 	FRAGMENT = 'Fragment',
 	LIST = 'List',
