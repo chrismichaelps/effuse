@@ -27,10 +27,14 @@ import { define } from '../blueprint/index.js';
 import { computed } from '../reactivity/index.js';
 import { effect } from '../effects/index.js';
 import { CreateFragmentNode, type EffuseChild } from '../render/node.js';
-import { EFFUSE_NODE } from '../constants.js';
+import {
+	EFFUSE_NODE,
+	SUSPEND_TOKEN,
+	BOUNDARY_ID_PREFIX,
+} from '../constants.js';
 import type { Signal, ReadonlySignal } from '../types/index.js';
 
-export const SUSPEND_TOKEN = Symbol.for('effuse/SuspendToken');
+export { SUSPEND_TOKEN };
 
 export const isSuspendToken = (value: unknown): value is SuspendToken =>
 	Predicate.isRecord(value) && Predicate.hasProperty(value, SUSPEND_TOKEN);
@@ -60,7 +64,6 @@ export interface SuspenseApi {
 	readonly popBoundary: () => void;
 }
 
-const BOUNDARY_ID_PREFIX = 'suspense-boundary-';
 let boundaryIdCounter = 0;
 
 const generateBoundaryId = (prefix: string): string =>

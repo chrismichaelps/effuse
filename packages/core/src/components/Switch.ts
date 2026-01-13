@@ -25,10 +25,8 @@
 import type { EffuseNode, EffuseChild } from '../render/node.js';
 import { createListNode } from '../render/node.js';
 import type { Signal } from '../types/index.js';
-import { EFFUSE_NODE } from '../constants.js';
+import { EFFUSE_NODE, MATCH_MARKER } from '../constants.js';
 import { Option, pipe, Predicate } from 'effect';
-
-const MATCH_MARKER = Symbol('effuse.match');
 
 type MatchNode<T> = {
 	[EFFUSE_NODE]: true;

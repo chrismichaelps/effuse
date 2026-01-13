@@ -23,6 +23,9 @@
  */
 
 import type { HeadProps } from './types.js';
+import { HYDRATION_SCRIPT_ID } from '../constants.js';
+
+export { HYDRATION_SCRIPT_ID };
 
 export interface HydrationData {
 	head: HeadProps;
@@ -30,8 +33,6 @@ export interface HydrationData {
 	url: string;
 	timestamp: number;
 }
-
-export const HYDRATION_SCRIPT_ID = '__EFFUSE_DATA__';
 
 export const serializeHydrationData = (data: HydrationData): string => {
 	const json = JSON.stringify(data);

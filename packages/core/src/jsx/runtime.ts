@@ -31,7 +31,7 @@ import {
 	CreateBlueprintNode,
 } from '../render/node.js';
 import type { ElementProps } from '../schema/index.js';
-import { EFFUSE_NODE } from '../constants.js';
+import { EFFUSE_NODE, FRAGMENT } from '../constants.js';
 import { el, fragment } from '../render/element.js';
 import { isBlueprint } from '../blueprint/blueprint.js';
 import { UnknownJSXTypeError } from '../errors.js';
@@ -42,25 +42,23 @@ interface FragmentProps {
 	children?: EffuseChild;
 }
 
-const FragmentTag = Symbol.for('effuse.fragment');
-
 export type * from './types/index.js';
 
 export interface FragmentComponent {
 	(props: FragmentProps): EffuseNode;
-	readonly _tag: typeof FragmentTag;
+	readonly _tag: typeof FRAGMENT;
 }
 
 export const Fragment: FragmentComponent = pipe(
 	(props: FragmentProps): EffuseNode =>
 		fragment(...normalizeJSXChildren(props.children)),
-	(fn) => Object.assign(fn, { _tag: FragmentTag } as const)
+	(fn) => Object.assign(fn, { _tag: FRAGMENT } as const)
 );
 
 const isFragment = (value: unknown): value is FragmentComponent =>
 	Predicate.isFunction(value) &&
 	Predicate.hasProperty(value, '_tag') &&
-	value._tag === FragmentTag;
+	value._tag === FRAGMENT;
 
 export type JSXElement = EffuseNode;
 
