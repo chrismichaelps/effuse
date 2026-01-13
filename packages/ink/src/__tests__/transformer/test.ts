@@ -1,8 +1,3 @@
-/**
- * Tests for Ink transformer with TaggedEnum pattern matching
- * Includes production real-world cases and edge cases
- */
-
 import { describe, it, expect, beforeEach } from 'vitest';
 import { Predicate } from 'effect';
 import {

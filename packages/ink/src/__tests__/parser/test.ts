@@ -1,8 +1,3 @@
-/**
- * Tests for Ink parser with TaggedEnum factories
- * Includes production real-world cases and edge cases
- */
-
 import { describe, it, expect } from 'vitest';
 import { parseSync } from '../../parser/index.js';
 import type { BlockNode } from '../../types/ast.js';
