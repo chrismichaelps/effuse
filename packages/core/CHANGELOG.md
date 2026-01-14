@@ -1,3 +1,39 @@
+## @effuse/core [1.1.0](https://github.com/chrismichaelps/effuse/compare/@effuse/core@1.0.3...@effuse/core@1.1.0) (2026-01-14)
+
+### Features
+
+* **core:** Add comprehensive DOM event handlers Ref: [#15](https://github.com/chrismichaelps/effuse/issues/15) ([6321247](https://github.com/chrismichaelps/effuse/commit/6321247db5b08021919f080d816eb4ec071642e5))
+* **core:** Add element-specific attribute interfaces Ref: [#15](https://github.com/chrismichaelps/effuse/issues/15) ([0ed70a1](https://github.com/chrismichaelps/effuse/commit/0ed70a1ea7d5c68bf227e26047effc0be82b10da))
+* **core:** Add strict HTMLAttributes interface Ref: [#15](https://github.com/chrismichaelps/effuse/issues/15) ([2207453](https://github.com/chrismichaelps/effuse/commit/220745335e1bc420a9eb04dcd1134fe8d53187ed))
+* **core:** Add strict JSX type unions Ref: [#15](https://github.com/chrismichaelps/effuse/issues/15) ([258ec5d](https://github.com/chrismichaelps/effuse/commit/258ec5d9a166cf152a563623f0097815bfb1eed3))
+* **core:** Add WAI-ARIA 1.2 attribute types Ref: [#15](https://github.com/chrismichaelps/effuse/issues/15) ([809ffd8](https://github.com/chrismichaelps/effuse/commit/809ffd8069b298e3d1bd49f440664b273b93be52))
+* **core:** Define IntrinsicElements interface Ref: [#15](https://github.com/chrismichaelps/effuse/issues/15) ([28cfa88](https://github.com/chrismichaelps/effuse/commit/28cfa880ebaaf52cd8ebfb0f984039256ed7a3f7))
+* **core:** Export modular JSX type system Ref: [#15](https://github.com/chrismichaelps/effuse/issues/15) ([76be321](https://github.com/chrismichaelps/effuse/commit/76be32181ef6be5cdc1fc2f35141a575d11ed095))
+* **core:** implement reactive refs and directives module ([cff6c2d](https://github.com/chrismichaelps/effuse/commit/cff6c2dbbc7a5e7929232be5bf3c13eb4796303c))
+* **core:** integrate refs system into renderer ([4d191c9](https://github.com/chrismichaelps/effuse/commit/4d191c9321a0f006b29d0749418147ee9c751109))
+
+### Bug Fixes
+
+* **core:** explicitly re-export CreateElementNode from render/index ([fc03143](https://github.com/chrismichaelps/effuse/commit/fc03143463f46e3d27dc7c0944156099b44c82e7))
+* **core:** refactor Fragment to callable function ([60662c1](https://github.com/chrismichaelps/effuse/commit/60662c13434919f49ab170833941e5430b5d9835))
+* **core:** restore isEffuseNode export ([f2a1a63](https://github.com/chrismichaelps/effuse/commit/f2a1a63d07c61d848b5f6a1a43b2a982f44df2eb))
+
+### Code Refactoring
+
+* **core/blueprint:** replace manual type guards with Predicate ([bda20b1](https://github.com/chrismichaelps/effuse/commit/bda20b1f9753972b72c526c89b222a956372499d))
+* **core/infra:** replace manual type guards with Predicate ([6d5d745](https://github.com/chrismichaelps/effuse/commit/6d5d745534acc63c5d3296d640a471132b1bb950))
+* **core/reactivity:** replace manual type guards with Predicate ([fc1b0ee](https://github.com/chrismichaelps/effuse/commit/fc1b0ee62cd3559c0c40b4cd47820b0d121d7d71))
+* **core/render:** replace manual type guards with Predicate ([3f20c56](https://github.com/chrismichaelps/effuse/commit/3f20c5610ea0dd358a9cdcb5d426bd58fe38b7fd))
+* **core:** audit and consolidate suspense module and remove dead code ([a47dd08](https://github.com/chrismichaelps/effuse/commit/a47dd08af5d085d6d94cc665de6f81ba3666ca62))
+* **core:** consolidate scattered constants into constants.ts ([dc97342](https://github.com/chrismichaelps/effuse/commit/dc97342178775eb42874c5e936d01f70ce700144))
+* **core:** Migrate runtime to modular bindings Ref: [#15](https://github.com/chrismichaelps/effuse/issues/15) ([79a4325](https://github.com/chrismichaelps/effuse/commit/79a4325b2d9afe8a339429e0ab86f6cde9551292))
+* **core:** remove dead internal services and devtools module ([e2b896e](https://github.com/chrismichaelps/effuse/commit/e2b896efb957417bbb5b0082e255690708fd1fb9))
+* **core:** use tagged enums for node types and mount logic ([3a2c5fd](https://github.com/chrismichaelps/effuse/commit/3a2c5fd9646e3ae9a5ea844dbcf692fdf775964b))
+
+### Tests
+
+* **core:** add refs system comprehensive tests ([60ee23e](https://github.com/chrismichaelps/effuse/commit/60ee23ed8a7281b2e7e37300c4582fdd3e2a67a8))
+
 ## @effuse/core [1.0.3](https://github.com/chrismichaelps/effuse/compare/@effuse/core@1.0.2...@effuse/core@1.0.3) (2026-01-08)
 
 ### Bug Fixes
