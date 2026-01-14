@@ -117,8 +117,8 @@ importers:
         specifier: ^0.3.2
         version: 0.3.2
       '@effuse/core':
-        specifier: 1.0.2
-        version: 1.0.2(@effect/platform@0.94.1(effect@3.19.14))(@opentelemetry/resources@2.2.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.38.0)
+        specifier: 1.0.3
+        version: 1.0.3(@effect/platform@0.94.1(effect@3.19.14))(@opentelemetry/resources@2.2.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.38.0)
       '@types/node':
         specifier: ^25.0.3
         version: 25.0.3
@@ -145,8 +145,8 @@ importers:
         specifier: ^0.3.2
         version: 0.3.2
       '@effuse/core':
-        specifier: 1.0.2
-        version: 1.0.2(@effect/platform@0.94.1(effect@3.19.14))(@opentelemetry/resources@2.2.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.38.0)
+        specifier: 1.0.3
+        version: 1.0.3(@effect/platform@0.94.1(effect@3.19.14))(@opentelemetry/resources@2.2.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.38.0)
       '@types/node':
         specifier: ^25.0.3
         version: 25.0.3
@@ -173,8 +173,8 @@ importers:
         specifier: ^0.3.2
         version: 0.3.2
       '@effuse/core':
-        specifier: 1.0.2
-        version: 1.0.2(@effect/platform@0.94.1(effect@3.19.14))(@opentelemetry/resources@2.2.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.38.0)
+        specifier: 1.0.3
+        version: 1.0.3(@effect/platform@0.94.1(effect@3.19.14))(@opentelemetry/resources@2.2.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.38.0)
       '@types/node':
         specifier: ^25.0.3
         version: 25.0.3
@@ -201,8 +201,8 @@ importers:
         specifier: ^0.3.2
         version: 0.3.2
       '@effuse/core':
-        specifier: 1.0.2
-        version: 1.0.2(@effect/platform@0.94.1(effect@3.19.14))(@opentelemetry/resources@2.2.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.38.0)
+        specifier: 1.0.3
+        version: 1.0.3(@effect/platform@0.94.1(effect@3.19.14))(@opentelemetry/resources@2.2.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.38.0)
       '@types/node':
         specifier: ^25.0.3
         version: 25.0.3
@@ -229,8 +229,8 @@ importers:
         specifier: ^0.3.2
         version: 0.3.2
       '@effuse/core':
-        specifier: 1.0.2
-        version: 1.0.2(@effect/platform@0.94.1(effect@3.19.14))(@opentelemetry/resources@2.2.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.38.0)
+        specifier: 1.0.3
+        version: 1.0.3(@effect/platform@0.94.1(effect@3.19.14))(@opentelemetry/resources@2.2.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.38.0)
       '@types/node':
         specifier: ^25.0.3
         version: 25.0.3
@@ -396,8 +396,8 @@ packages:
     peerDependencies:
       effect: ^3.19.14
 
-  '@effuse/core@1.0.2':
-    resolution: {integrity: sha512-pE5ljxKV4v9AOdTixId077kH6j8tlQTyXQqJRGG3QljOphO7s92WT+xKVv81yZ916XlWd/acdT/MES+dxkBgKg==}
+  '@effuse/core@1.0.3':
+    resolution: {integrity: sha512-YSonvRSTsH8SahaU8W2zbe5sr9z7KVJyvMYfclxiAIoc2wuOZhDPYu6U67t4ERVBDJEXLJZCYvROArzm6YFvtg==}
     engines: {node: '>=22.14.0'}
 
   '@esbuild/aix-ppc64@0.27.2':
@@ -3263,7 +3263,7 @@ snapshots:
       msgpackr: 1.11.8
       multipasta: 0.2.7
 
-  '@effuse/core@1.0.2(@effect/platform@0.94.1(effect@3.19.14))(@opentelemetry/resources@2.2.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.38.0)':
+  '@effuse/core@1.0.3(@effect/platform@0.94.1(effect@3.19.14))(@opentelemetry/resources@2.2.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.38.0)':
     dependencies:
       '@effect/opentelemetry': 0.60.0(@effect/platform@0.94.1(effect@3.19.14))(@opentelemetry/api@1.9.0)(@opentelemetry/resources@2.2.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.2.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-web@2.2.0(@opentelemetry/api@1.9.0))(@opentelemetry/semantic-conventions@1.38.0)(effect@3.19.14)
       '@opentelemetry/api': 1.9.0
