@@ -33,8 +33,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build
-        run: pnpm build
+      - name: Build packages
+        run: pnpm -r --workspace-concurrency=1 build
 
       - name: Type check
         run: pnpm typecheck
