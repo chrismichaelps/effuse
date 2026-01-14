@@ -23,65 +23,95 @@
  */
 
 import { Effect, Option } from 'effect';
+import {
+	getItem,
+	setItem,
+	removeItem,
+	hasItem,
+	clearStorage,
+	getStorageKeys,
+	getStorageSize,
+	type StorageHandlerDeps,
+} from '../handlers/index.js';
 
-// Storage engine interface
 export interface StorageAdapter {
 	getItem: (key: string) => Effect.Effect<Option.Option<string>>;
 	setItem: (key: string, value: string) => Effect.Effect<void>;
 	removeItem: (key: string) => Effect.Effect<void>;
+	has: (key: string) => Effect.Effect<boolean>;
+	clear: () => Effect.Effect<void>;
+	keys: () => Effect.Effect<string[]>;
+	size: () => Effect.Effect<number>;
 }
 
-// Browser local storage adapter
-export const localStorageAdapter: StorageAdapter = {
+const createBrowserStorageAdapter = (storage: Storage): StorageAdapter => ({
 	getItem: (key) =>
 		Effect.try({
-			try: () => Option.fromNullable(localStorage.getItem(key)),
+			try: () => Option.fromNullable(storage.getItem(key)),
 			catch: () => Option.none<string>(),
 		}).pipe(Effect.catchAll(() => Effect.succeed(Option.none<string>()))),
 	setItem: (key, value) =>
 		Effect.try(() => {
-			localStorage.setItem(key, value);
+			storage.setItem(key, value);
 		}).pipe(Effect.catchAll(() => Effect.void)),
 	removeItem: (key) =>
 		Effect.try(() => {
-			localStorage.removeItem(key);
+			storage.removeItem(key);
 		}).pipe(Effect.catchAll(() => Effect.void)),
-};
-
-// Browser session storage adapter
-export const sessionStorageAdapter: StorageAdapter = {
-	getItem: (key) =>
+	has: (key) =>
 		Effect.try({
-			try: () => Option.fromNullable(sessionStorage.getItem(key)),
-			catch: () => Option.none<string>(),
-		}).pipe(Effect.catchAll(() => Effect.succeed(Option.none<string>()))),
-	setItem: (key, value) =>
+			try: () => storage.getItem(key) !== null,
+			catch: () => false,
+		}).pipe(Effect.catchAll(() => Effect.succeed(false))),
+	clear: () =>
 		Effect.try(() => {
-			sessionStorage.setItem(key, value);
+			storage.clear();
 		}).pipe(Effect.catchAll(() => Effect.void)),
-	removeItem: (key) =>
-		Effect.try(() => {
-			sessionStorage.removeItem(key);
-		}).pipe(Effect.catchAll(() => Effect.void)),
-};
+	keys: () =>
+		Effect.try({
+			try: () => Object.keys(storage),
+			catch: () => [] as string[],
+		}).pipe(Effect.catchAll(() => Effect.succeed([] as string[]))),
+	size: () =>
+		Effect.try({
+			try: () => storage.length,
+			catch: () => 0,
+		}).pipe(Effect.catchAll(() => Effect.succeed(0))),
+});
 
-// Build in memory storage adapter
+export const localStorageAdapter: StorageAdapter = createBrowserStorageAdapter(
+	typeof localStorage !== 'undefined' ? localStorage : ({} as Storage)
+);
+
+export const sessionStorageAdapter: StorageAdapter =
+	createBrowserStorageAdapter(
+		typeof sessionStorage !== 'undefined' ? sessionStorage : ({} as Storage)
+	);
+
 export const createMemoryAdapter = (): StorageAdapter => {
 	const storage = new Map<string, string>();
+	const deps: StorageHandlerDeps = { storage };
+
 	return {
-		getItem: (key) => Effect.succeed(Option.fromNullable(storage.get(key))),
+		getItem: (key) => Effect.succeed(getItem(deps, { key })),
 		setItem: (key, value) =>
 			Effect.sync(() => {
-				storage.set(key, value);
+				setItem(deps, { key, value });
 			}),
 		removeItem: (key) =>
 			Effect.sync(() => {
-				storage.delete(key);
+				removeItem(deps, { key });
 			}),
+		has: (key) => Effect.succeed(hasItem(deps, { key })),
+		clear: () =>
+			Effect.sync(() => {
+				clearStorage(deps);
+			}),
+		keys: () => Effect.succeed(getStorageKeys(deps)),
+		size: () => Effect.succeed(getStorageSize(deps)),
 	};
 };
 
-// Synchronous storage adapter bridge
 export const runAdapter = {
 	getItem: (adapter: StorageAdapter, key: string): string | null =>
 		Effect.runSync(
@@ -93,4 +123,11 @@ export const runAdapter = {
 	removeItem: (adapter: StorageAdapter, key: string): void => {
 		Effect.runSync(adapter.removeItem(key));
 	},
+	has: (adapter: StorageAdapter, key: string): boolean =>
+		Effect.runSync(adapter.has(key)),
+	clear: (adapter: StorageAdapter): void => {
+		Effect.runSync(adapter.clear());
+	},
+	keys: (adapter: StorageAdapter): string[] => Effect.runSync(adapter.keys()),
+	size: (adapter: StorageAdapter): number => Effect.runSync(adapter.size()),
 };

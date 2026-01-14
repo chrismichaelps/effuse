@@ -22,33 +22,37 @@
  * SOFTWARE.
  */
 
-import type { Store } from '../core/types.js';
-import { getStoreConfig } from '../config/index.js';
-import { StoreNotFoundError } from '../errors.js';
+import { Predicate } from 'effect';
+import type {
+	StoreInternals,
+	SubscribeInput,
+	SubscribeKeyInput,
+} from './types.js';
 
-const stores = new Map<string, Store<unknown>>();
+export const addSubscriber = (
+	internals: StoreInternals,
+	input: SubscribeInput
+): (() => void) => {
+	internals.subscribers.add(input.callback);
+	return () => {
+		internals.subscribers.delete(input.callback);
+	};
+};
 
-export const registerStore = <T>(name: string, store: Store<T>): void => {
-	if (stores.has(name) && getStoreConfig().debug) {
-		console.warn(`[store] Overwriting existing store: ${name}`);
+export const addKeySubscriber = (
+	internals: StoreInternals,
+	input: SubscribeKeyInput
+): (() => void) => {
+	let subs = internals.keySubscribers.get(input.key);
+	if (!subs) {
+		subs = new Set();
+		internals.keySubscribers.set(input.key, subs);
 	}
-	stores.set(name, store as Store<unknown>);
+	subs.add(input.callback);
+	return () => {
+		const subsSet = internals.keySubscribers.get(input.key);
+		if (Predicate.isNotNullable(subsSet)) {
+			subsSet.delete(input.callback);
+		}
+	};
 };
-
-export const getStore = <T>(name: string): Store<T> => {
-	const store = stores.get(name);
-	if (!store) {
-		throw new StoreNotFoundError({ name });
-	}
-	return store as Store<T>;
-};
-
-export const hasStore = (name: string): boolean => stores.has(name);
-
-export const removeStore = (name: string): boolean => stores.delete(name);
-
-export const clearStores = (): void => {
-	stores.clear();
-};
-
-export const getStoreNames = (): string[] => Array.from(stores.keys());

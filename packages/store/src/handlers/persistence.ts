@@ -22,33 +22,61 @@
  * SOFTWARE.
  */
 
-import type { Store } from '../core/types.js';
-import { getStoreConfig } from '../config/index.js';
-import { StoreNotFoundError } from '../errors.js';
+import { Option } from 'effect';
 
-const stores = new Map<string, Store<unknown>>();
+export interface StorageHandlerDeps {
+	storage: Map<string, string>;
+}
 
-export const registerStore = <T>(name: string, store: Store<T>): void => {
-	if (stores.has(name) && getStoreConfig().debug) {
-		console.warn(`[store] Overwriting existing store: ${name}`);
-	}
-	stores.set(name, store as Store<unknown>);
+export interface StorageGetInput {
+	key: string;
+}
+
+export interface StorageSetInput {
+	key: string;
+	value: string;
+}
+
+export interface StorageRemoveInput {
+	key: string;
+}
+
+export const getItem = (
+	deps: StorageHandlerDeps,
+	input: StorageGetInput
+): Option.Option<string> => {
+	return Option.fromNullable(deps.storage.get(input.key));
 };
 
-export const getStore = <T>(name: string): Store<T> => {
-	const store = stores.get(name);
-	if (!store) {
-		throw new StoreNotFoundError({ name });
-	}
-	return store as Store<T>;
+export const setItem = (
+	deps: StorageHandlerDeps,
+	input: StorageSetInput
+): void => {
+	deps.storage.set(input.key, input.value);
 };
 
-export const hasStore = (name: string): boolean => stores.has(name);
-
-export const removeStore = (name: string): boolean => stores.delete(name);
-
-export const clearStores = (): void => {
-	stores.clear();
+export const removeItem = (
+	deps: StorageHandlerDeps,
+	input: StorageRemoveInput
+): boolean => {
+	return deps.storage.delete(input.key);
 };
 
-export const getStoreNames = (): string[] => Array.from(stores.keys());
+export const hasItem = (
+	deps: StorageHandlerDeps,
+	input: StorageGetInput
+): boolean => {
+	return deps.storage.has(input.key);
+};
+
+export const clearStorage = (deps: StorageHandlerDeps): void => {
+	deps.storage.clear();
+};
+
+export const getStorageKeys = (deps: StorageHandlerDeps): string[] => {
+	return Array.from(deps.storage.keys());
+};
+
+export const getStorageSize = (deps: StorageHandlerDeps): number => {
+	return deps.storage.size;
+};

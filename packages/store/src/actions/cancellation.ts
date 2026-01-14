@@ -25,7 +25,6 @@
 import { Effect } from 'effect';
 import { CancellationError } from '../errors.js';
 
-// Cancellation tracking token
 export interface CancellationToken {
 	readonly isCancelled: boolean;
 	cancel: () => void;
@@ -33,7 +32,6 @@ export interface CancellationToken {
 	onCancel: (callback: () => void) => () => void;
 }
 
-// Build cancellation token
 export const createCancellationToken = (): CancellationToken => {
 	let cancelled = false;
 	const callbacks = new Set<() => void>();
@@ -64,14 +62,12 @@ export const createCancellationToken = (): CancellationToken => {
 	};
 };
 
-// Nested cancellation scope
 export interface CancellationScope {
 	readonly token: CancellationToken;
 	createChild: () => CancellationToken;
 	dispose: () => void;
 }
 
-// Build cancellation scope
 export const createCancellationScope = (): CancellationScope => {
 	const children = new Set<CancellationToken>();
 	const token = createCancellationToken();
@@ -94,7 +90,6 @@ export const createCancellationScope = (): CancellationScope => {
 	};
 };
 
-// Connect external abort signal
 export const runWithAbortSignal = <A, E>(
 	effect: Effect.Effect<A, E>,
 	signal: AbortSignal
