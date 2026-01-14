@@ -1,3 +1,19 @@
+## @effuse/ink [1.0.4](https://github.com/chrismichaelps/effuse/compare/@effuse/ink@1.0.3...@effuse/ink@1.0.4) (2026-01-14)
+
+### Code Refactoring
+
+* **ink:** migrate AST to tagged enums and update parser ([195395c](https://github.com/chrismichaelps/effuse/commit/195395c0283c797cc2002627e8872d5a6f25f9ed))
+
+### Tests
+
+* **ink:** remove redundant file header comments ([e061b43](https://github.com/chrismichaelps/effuse/commit/e061b437d638e5694d948236d45f79d8234b0d4a))
+* **ink:** reorganize tests and add comprehensive coverage ([f52301b](https://github.com/chrismichaelps/effuse/commit/f52301bf1a838375756bfcfa78068b852f4cd61a))
+
+
+### Dependencies
+
+* **@effuse/core:** upgraded to 1.1.0
+
 ## @effuse/ink [1.0.3](https://github.com/chrismichaelps/effuse/compare/@effuse/ink@1.0.2...@effuse/ink@1.0.3) (2026-01-08)
 
 
