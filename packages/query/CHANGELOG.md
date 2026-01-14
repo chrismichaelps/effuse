@@ -1,3 +1,14 @@
+## @effuse/query [1.0.3](https://github.com/chrismichaelps/effuse/compare/@effuse/query@1.0.2...@effuse/query@1.0.3) (2026-01-14)
+
+### Code Refactoring
+
+* **query:** migrate client to internal handler architecture ([de0eb73](https://github.com/chrismichaelps/effuse/commit/de0eb73f5d25ddca548a06cc3a2a6bbf45fb8d0d))
+
+
+### Dependencies
+
+* **@effuse/core:** upgraded to 1.1.0
+
 ## @effuse/query [1.0.2](https://github.com/chrismichaelps/effuse/compare/@effuse/query@1.0.1...@effuse/query@1.0.2) (2026-01-08)
 
 
