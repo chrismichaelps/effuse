@@ -22,11 +22,9 @@
  * SOFTWARE.
  */
 
-// Query hooks
 export { useQuery } from './useQuery.js';
 export type { UseQueryResult, FetchStatus, QueryStatus } from './useQuery.js';
 
-// Mutation hooks
 export { useMutation, useOptimisticMutation } from './useMutation.js';
 export type {
 	UseMutationResult,
@@ -35,7 +33,6 @@ export type {
 	OptimisticMutationOptions,
 } from './useMutation.js';
 
-// Parallel query hooks
 export { useQueries, useCombinedQueries } from './useQueries.js';
 export type {
 	UseQueriesOptions,
@@ -43,7 +40,6 @@ export type {
 	CombinedQueryResult,
 } from './useQueries.js';
 
-// Infinite query hooks
 export { useInfiniteQuery } from './useInfiniteQuery.js';
 export type {
 	InfiniteQueryOptions,
@@ -52,7 +48,6 @@ export type {
 	InfiniteQueryPage,
 } from './useInfiniteQuery.js';
 
-// Prefetch hooks
 export {
 	prefetchQuery,
 	prefetchQueryAsync,

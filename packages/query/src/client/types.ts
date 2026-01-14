@@ -24,13 +24,10 @@
 
 import type { RetryConfig } from '../execution/index.js';
 
-// Unique query identifier
 export type QueryKey = readonly unknown[];
 
-// Query lifecycle status
 export type QueryStatus = 'idle' | 'loading' | 'success' | 'error';
 
-// Cache entry data and metadata
 export interface CacheEntry<T = unknown> {
 	readonly data: T;
 	readonly dataUpdatedAt: number;
@@ -39,7 +36,6 @@ export interface CacheEntry<T = unknown> {
 	readonly fetchCount: number;
 }
 
-// Query configuration
 export interface QueryOptions<T = unknown> {
 	readonly queryKey: QueryKey;
 	readonly queryFn: () => Promise<T>;
@@ -63,7 +59,6 @@ export interface QueryOptions<T = unknown> {
 	readonly placeholderData?: T | (() => T);
 }
 
-// Mutation configuration
 export interface MutationOptions<TData = unknown, TVariables = unknown> {
 	readonly mutationKey?: QueryKey;
 	readonly mutationFn: (variables: TVariables) => Promise<TData>;
@@ -79,7 +74,6 @@ export interface MutationOptions<TData = unknown, TVariables = unknown> {
 	readonly onMutate?: (variables: TVariables) => unknown | Promise<unknown>;
 }
 
-// Internal query data state
 export interface QueryState<T = unknown> {
 	readonly data: T | undefined;
 	readonly error: unknown | undefined;
@@ -94,7 +88,6 @@ export interface QueryState<T = unknown> {
 	readonly fetchCount: number;
 }
 
-// Internal mutation data state
 export interface MutationState<TData = unknown> {
 	readonly data: TData | undefined;
 	readonly error: unknown | undefined;

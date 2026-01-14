@@ -22,24 +22,23 @@
  * SOFTWARE.
  */
 
-export {
-	setGlobalQueryClient,
-	getGlobalQueryClient,
-	createQueryClient,
-	invalidateQuery,
-	invalidateQueries,
-	invalidateAllQueries,
-	invalidateQueryAsync,
-	invalidateQueriesAsync,
-	invalidateAllAsync,
-} from './client.js';
+export type { QueryCacheInternals, QueryHandlerDeps } from './types.js';
 
 export {
-	type QueryKey,
-	type QueryStatus,
-	type CacheEntry,
-	type QueryOptions,
-	type MutationOptions,
-	type QueryState,
-	type MutationState,
-} from './types.js';
+	getEntry,
+	setEntry,
+	removeEntry,
+	hasEntry,
+	clearCache,
+	getQueryKeys,
+	isStale,
+	notifySubscribersForKey,
+} from './cache.js';
+
+export {
+	invalidateKey,
+	invalidatePattern,
+	invalidateAll,
+} from './invalidation.js';
+
+export { addSubscriber } from './subscriptions.js';

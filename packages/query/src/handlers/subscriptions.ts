@@ -22,24 +22,27 @@
  * SOFTWARE.
  */
 
-export {
-	setGlobalQueryClient,
-	getGlobalQueryClient,
-	createQueryClient,
-	invalidateQuery,
-	invalidateQueries,
-	invalidateAllQueries,
-	invalidateQueryAsync,
-	invalidateQueriesAsync,
-	invalidateAllAsync,
-} from './client.js';
+import { Predicate } from 'effect';
+import type { QueryHandlerDeps, SubscribeInput } from './types.js';
 
-export {
-	type QueryKey,
-	type QueryStatus,
-	type CacheEntry,
-	type QueryOptions,
-	type MutationOptions,
-	type QueryState,
-	type MutationState,
-} from './types.js';
+export const addSubscriber = (
+	deps: QueryHandlerDeps,
+	input: SubscribeInput
+): (() => void) => {
+	const { internals } = deps;
+	let subs = internals.subscribers.get(input.keyStr);
+	if (!subs) {
+		subs = new Set();
+		internals.subscribers.set(input.keyStr, subs);
+	}
+	subs.add(input.callback);
+	return () => {
+		const subsSet = internals.subscribers.get(input.keyStr);
+		if (Predicate.isNotNullable(subsSet)) {
+			subsSet.delete(input.callback);
+			if (subsSet.size === 0) {
+				internals.subscribers.delete(input.keyStr);
+			}
+		}
+	};
+};

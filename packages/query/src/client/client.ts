@@ -22,22 +22,30 @@
  * SOFTWARE.
  */
 
-import { Context, Effect, Layer, Ref, Predicate, Option, pipe } from 'effect';
+import { Context, Effect, Layer, Ref, Option, pipe } from 'effect';
 import type { QueryKey, CacheEntry, QueryStatus } from './types.js';
 import { DEFAULT_GC_TIME_MS, DEFAULT_STALE_TIME_MS } from '../config/index.js';
 import { QueryFetchError } from '../errors/index.js';
+import {
+	getEntry,
+	setEntry,
+	removeEntry,
+	hasEntry,
+	clearCache,
+	getQueryKeys,
+	isStale,
+	invalidateKey,
+	invalidatePattern,
+	invalidateAll,
+	addSubscriber,
+	notifySubscribersForKey,
+	type QueryCacheInternals,
+	type QueryHandlerDeps,
+} from '../handlers/index.js';
 
 const serializeKey = (key: QueryKey): string => JSON.stringify(key);
 
-const matchesKeyPattern = (pattern: QueryKey, key: QueryKey): boolean => {
-	if (pattern.length > key.length) return false;
-	for (let i = 0; i < pattern.length; i++) {
-		if (JSON.stringify(pattern[i]) !== JSON.stringify(key[i])) {
-			return false;
-		}
-	}
-	return true;
-};
+const parseKey = (keyStr: string): QueryKey => JSON.parse(keyStr);
 
 export interface QueryClientApi {
 	readonly get: <T>(key: QueryKey) => CacheEntry<T> | undefined;
@@ -46,22 +54,17 @@ export interface QueryClientApi {
 	readonly has: (key: QueryKey) => boolean;
 	readonly clear: () => void;
 	readonly getQueryKeys: () => QueryKey[];
-
 	readonly invalidate: (key: QueryKey) => Effect.Effect<void>;
 	readonly invalidateQueries: (pattern: QueryKey) => Effect.Effect<void>;
 	readonly invalidateAll: () => Effect.Effect<void>;
-
 	readonly subscribe: (key: QueryKey, callback: () => void) => () => void;
 	readonly notifySubscribers: (key: QueryKey) => void;
-
 	readonly prefetch: <T>(
 		key: QueryKey,
 		queryFn: () => Promise<T>,
 		staleTime?: number
 	) => Effect.Effect<void>;
-
 	readonly isStale: (key: QueryKey, staleTime?: number) => boolean;
-
 	readonly getSnapshot: <T>(key: QueryKey) => CacheEntry<T> | undefined;
 	readonly setOptimistic: <T>(
 		key: QueryKey,
@@ -76,134 +79,70 @@ export class QueryClient extends Context.Tag('effuse/query/QueryClient')<
 >() {}
 
 const createQueryClientImpl = (): QueryClientApi => {
-	const cache = new Map<string, CacheEntry<unknown>>();
-	const subscribers = new Map<string, Set<() => void>>();
-	const gcTimers = new Map<string, ReturnType<typeof setTimeout>>();
-
-	const scheduleGC = (keyStr: string): void => {
-		const existing = gcTimers.get(keyStr);
-		if (existing) {
-			clearTimeout(existing);
-		}
-		const timer = setTimeout(() => {
-			const subs = subscribers.get(keyStr);
-			if (!subs || subs.size === 0) {
-				cache.delete(keyStr);
-				subscribers.delete(keyStr);
-				gcTimers.delete(keyStr);
-			}
-		}, DEFAULT_GC_TIME_MS);
-		gcTimers.set(keyStr, timer);
+	const internals: QueryCacheInternals = {
+		cache: new Map(),
+		subscribers: new Map(),
+		gcTimers: new Map(),
 	};
 
-	const notifySubscribersForKey = (keyStr: string): void => {
-		const subs = subscribers.get(keyStr);
-		if (subs) {
-			for (const callback of subs) {
-				callback();
-			}
-		}
+	const deps: QueryHandlerDeps = {
+		internals,
+		config: {
+			gcTimeMs: DEFAULT_GC_TIME_MS,
+			staleTimeMs: DEFAULT_STALE_TIME_MS,
+		},
 	};
 
 	return {
 		get: <T>(key: QueryKey): CacheEntry<T> | undefined => {
 			const keyStr = serializeKey(key);
-			return cache.get(keyStr) as CacheEntry<T> | undefined;
+			return getEntry<T>(deps, { keyStr });
 		},
 
 		set: <T>(key: QueryKey, entry: CacheEntry<T>): void => {
 			const keyStr = serializeKey(key);
-			cache.set(keyStr, entry as CacheEntry<unknown>);
-			scheduleGC(keyStr);
-			notifySubscribersForKey(keyStr);
+			setEntry(deps, { keyStr, entry });
 		},
 
 		remove: (key: QueryKey): boolean => {
 			const keyStr = serializeKey(key);
-			const timer = gcTimers.get(keyStr);
-			if (timer) {
-				clearTimeout(timer);
-				gcTimers.delete(keyStr);
-			}
-			const result = cache.delete(keyStr);
-			notifySubscribersForKey(keyStr);
-			return result;
+			return removeEntry(deps, { keyStr });
 		},
 
 		has: (key: QueryKey): boolean => {
 			const keyStr = serializeKey(key);
-			return cache.has(keyStr);
+			return hasEntry(deps, { keyStr });
 		},
 
 		clear: (): void => {
-			for (const timer of gcTimers.values()) {
-				clearTimeout(timer);
-			}
-			gcTimers.clear();
-			cache.clear();
-			for (const subs of subscribers.values()) {
-				for (const callback of subs) {
-					callback();
-				}
-			}
+			clearCache(deps);
 		},
 
 		getQueryKeys: (): QueryKey[] => {
-			const keys: QueryKey[] = [];
-			for (const keyStr of cache.keys()) {
-				keys.push(JSON.parse(keyStr) as QueryKey);
-			}
-			return keys;
+			return getQueryKeys(deps).map(parseKey);
 		},
 
-		invalidate: (key: QueryKey): Effect.Effect<void> =>
-			Effect.sync(() => {
-				const keyStr = serializeKey(key);
-				cache.delete(keyStr);
-				notifySubscribersForKey(keyStr);
-			}),
+		invalidate: (key: QueryKey): Effect.Effect<void> => {
+			const keyStr = serializeKey(key);
+			return invalidateKey(deps, keyStr);
+		},
 
-		invalidateQueries: (pattern: QueryKey): Effect.Effect<void> =>
-			Effect.sync(() => {
-				for (const keyStr of cache.keys()) {
-					const key = JSON.parse(keyStr) as QueryKey;
-					if (matchesKeyPattern(pattern, key)) {
-						cache.delete(keyStr);
-						notifySubscribersForKey(keyStr);
-					}
-				}
-			}),
+		invalidateQueries: (pattern: QueryKey): Effect.Effect<void> => {
+			return invalidatePattern(deps, { pattern });
+		},
 
-		invalidateAll: (): Effect.Effect<void> =>
-			Effect.sync(() => {
-				const allKeys = Array.from(cache.keys());
-				cache.clear();
-				for (const keyStr of allKeys) {
-					notifySubscribersForKey(keyStr);
-				}
-			}),
+		invalidateAll: (): Effect.Effect<void> => {
+			return invalidateAll(deps);
+		},
 
 		subscribe: (key: QueryKey, callback: () => void): (() => void) => {
 			const keyStr = serializeKey(key);
-			let subs = subscribers.get(keyStr);
-			if (!subs) {
-				subs = new Set();
-				subscribers.set(keyStr, subs);
-			}
-			subs.add(callback);
-			return () => {
-				if (Predicate.isNotNullable(subs)) {
-					subs.delete(callback);
-					if (subs.size === 0) {
-						subscribers.delete(keyStr);
-					}
-				}
-			};
+			return addSubscriber(deps, { keyStr, callback });
 		},
 
 		notifySubscribers: (key: QueryKey): void => {
 			const keyStr = serializeKey(key);
-			notifySubscribersForKey(keyStr);
+			notifySubscribersForKey(deps, keyStr);
 		},
 
 		prefetch: <T>(
@@ -213,7 +152,7 @@ const createQueryClientImpl = (): QueryClientApi => {
 		): Effect.Effect<void> =>
 			Effect.gen(function* () {
 				const keyStr = serializeKey(key);
-				const existing = cache.get(keyStr) as CacheEntry<T> | undefined;
+				const existing = getEntry<T>(deps, { keyStr });
 
 				if (existing && Date.now() - existing.dataUpdatedAt <= staleTime) {
 					return;
@@ -228,63 +167,61 @@ const createQueryClientImpl = (): QueryClientApi => {
 						}),
 				});
 
+				const status: QueryStatus = 'success';
+				const fetchCount =
+					pipe(
+						Option.fromNullable(existing),
+						Option.map((e) => e.fetchCount),
+						Option.getOrElse(() => 0)
+					) + 1;
+
 				const entry: CacheEntry<T> = {
 					data,
 					dataUpdatedAt: Date.now(),
-					status: 'success' as QueryStatus,
-					fetchCount:
-						pipe(
-							Option.fromNullable(existing),
-							Option.flatMap((e) => Option.fromNullable(e.fetchCount)),
-							Option.getOrElse(() => 0)
-						) + 1,
+					status,
+					fetchCount,
 				};
 
-				cache.set(keyStr, entry as CacheEntry<unknown>);
-				scheduleGC(keyStr);
+				setEntry(deps, { keyStr, entry });
 			}).pipe(Effect.catchAll(() => Effect.void)),
 
-		isStale: (
-			key: QueryKey,
-			staleTime: number = DEFAULT_STALE_TIME_MS
-		): boolean => {
+		isStale: (key: QueryKey, staleTime?: number): boolean => {
 			const keyStr = serializeKey(key);
-			const entry = cache.get(keyStr);
-			if (!entry) return true;
-			return Date.now() - entry.dataUpdatedAt > staleTime;
+			return isStale(deps, { keyStr }, staleTime);
 		},
 
 		getSnapshot: <T>(key: QueryKey): CacheEntry<T> | undefined => {
 			const keyStr = serializeKey(key);
-			const entry = cache.get(keyStr);
-			return entry ? ({ ...entry } as CacheEntry<T>) : undefined;
+			const entry = getEntry<T>(deps, { keyStr });
+			if (!entry) return undefined;
+			return { ...entry };
 		},
 
 		setOptimistic: <T>(key: QueryKey, data: T): CacheEntry<T> | undefined => {
 			const keyStr = serializeKey(key);
-			const previous = cache.get(keyStr) as CacheEntry<T> | undefined;
+			const previous = getEntry<T>(deps, { keyStr });
+
+			const status: QueryStatus = 'success';
+			const fetchCount = pipe(
+				Option.fromNullable(previous),
+				Option.map((p) => p.fetchCount),
+				Option.getOrElse(() => 0)
+			);
 
 			const entry: CacheEntry<T> = {
 				data,
 				dataUpdatedAt: Date.now(),
-				status: 'success' as QueryStatus,
-				fetchCount: pipe(
-					Option.fromNullable(previous),
-					Option.flatMap((p) => Option.fromNullable(p.fetchCount)),
-					Option.getOrElse(() => 0)
-				),
+				status,
+				fetchCount,
 			};
 
-			cache.set(keyStr, entry as CacheEntry<unknown>);
-			notifySubscribersForKey(keyStr);
-
+			setEntry(deps, { keyStr, entry });
 			return previous;
 		},
 
 		rollback: <T>(key: QueryKey, snapshot: CacheEntry<T>): void => {
 			const keyStr = serializeKey(key);
-			cache.set(keyStr, snapshot as CacheEntry<unknown>);
-			notifySubscribersForKey(keyStr);
+			setEntry(deps, { keyStr, entry: snapshot });
 		},
 	};
 };
@@ -310,45 +247,36 @@ export const getGlobalQueryClient = (): QueryClientApi => {
 	return globalQueryClient;
 };
 
-// Query client factory
 export const createQueryClient = (): QueryClientApi => {
 	return createQueryClientImpl();
 };
 
-// Invalidate single query by exact key
 export const invalidateQuery = (key: QueryKey): void => {
 	const client = getGlobalQueryClient();
 	Effect.runFork(client.invalidate(key));
 };
 
-// Invalidate queries by key pattern
 export const invalidateQueries = (pattern: QueryKey): void => {
 	const client = getGlobalQueryClient();
 	Effect.runFork(client.invalidateQueries(pattern));
 };
 
-// Invalidate all cached queries
-export const invalidateAll = (): void => {
+export const invalidateAllQueries = (): void => {
 	const client = getGlobalQueryClient();
 	Effect.runFork(client.invalidateAll());
 };
 
-// Invalidate single query by exact key
-export const invalidateQueryAsync = async (key: QueryKey): Promise<void> => {
+export const invalidateQueryAsync = (key: QueryKey): Promise<void> => {
 	const client = getGlobalQueryClient();
-	await Effect.runPromise(client.invalidate(key));
+	return Effect.runPromise(client.invalidate(key));
 };
 
-// Invalidate queries by key pattern
-export const invalidateQueriesAsync = async (
-	pattern: QueryKey
-): Promise<void> => {
+export const invalidateQueriesAsync = (pattern: QueryKey): Promise<void> => {
 	const client = getGlobalQueryClient();
-	await Effect.runPromise(client.invalidateQueries(pattern));
+	return Effect.runPromise(client.invalidateQueries(pattern));
 };
 
-// Invalidate all cached queries
-export const invalidateAllAsync = async (): Promise<void> => {
+export const invalidateAllAsync = (): Promise<void> => {
 	const client = getGlobalQueryClient();
-	await Effect.runPromise(client.invalidateAll());
+	return Effect.runPromise(client.invalidateAll());
 };

@@ -24,21 +24,17 @@
 
 import { Config, Duration, Effect } from 'effect';
 
-// Cache duration defaults
 export const DEFAULT_STALE_TIME_MS = 0;
 export const DEFAULT_CACHE_TIME_MS = 300000;
 export const DEFAULT_GC_TIME_MS = 300000;
 
-// Retry logic defaults
 export const DEFAULT_RETRY_COUNT = 3;
 export const DEFAULT_RETRY_DELAY_MS = 1000;
 export const DEFAULT_RETRY_MAX_DELAY_MS = 30000;
 export const DEFAULT_RETRY_BACKOFF_FACTOR = 2;
 
-// Resource timeout defaults
 export const DEFAULT_TIMEOUT_MS = 30000;
 
-// Automatic refetch defaults
 export const DEFAULT_REFETCH_INTERVAL_MS = 0;
 export const DEFAULT_REFETCH_ON_WINDOW_FOCUS = true;
 export const DEFAULT_REFETCH_ON_RECONNECT = true;

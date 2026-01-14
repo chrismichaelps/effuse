@@ -22,24 +22,44 @@
  * SOFTWARE.
  */
 
-export {
-	setGlobalQueryClient,
-	getGlobalQueryClient,
-	createQueryClient,
-	invalidateQuery,
-	invalidateQueries,
-	invalidateAllQueries,
-	invalidateQueryAsync,
-	invalidateQueriesAsync,
-	invalidateAllAsync,
-} from './client.js';
+import type { CacheEntry } from '../client/types.js';
 
-export {
-	type QueryKey,
-	type QueryStatus,
-	type CacheEntry,
-	type QueryOptions,
-	type MutationOptions,
-	type QueryState,
-	type MutationState,
-} from './types.js';
+export type QueryKey = ReadonlyArray<unknown>;
+
+export interface QueryCacheInternals {
+	cache: Map<string, CacheEntry<unknown>>;
+	subscribers: Map<string, Set<() => void>>;
+	gcTimers: Map<string, ReturnType<typeof setTimeout>>;
+}
+
+export interface QueryCacheConfig {
+	gcTimeMs: number;
+	staleTimeMs: number;
+}
+
+export interface QueryHandlerDeps {
+	internals: QueryCacheInternals;
+	config: QueryCacheConfig;
+}
+
+export interface GetEntryInput {
+	keyStr: string;
+}
+
+export interface SetEntryInput<T> {
+	keyStr: string;
+	entry: CacheEntry<T>;
+}
+
+export interface RemoveEntryInput {
+	keyStr: string;
+}
+
+export interface InvalidatePatternInput {
+	pattern: QueryKey;
+}
+
+export interface SubscribeInput {
+	keyStr: string;
+	callback: () => void;
+}
