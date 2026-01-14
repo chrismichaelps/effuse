@@ -15,7 +15,7 @@
 	"homepage": "https://github.com/chrismichaelps/effuse#readme",
 	"type": "module",
 	"scripts": {
-		"build": "pnpm -r build",
+		"build": "pnpm -r --workspace-concurrency=1 build",
 		"dev": "pnpm -r dev",
 		"test": "pnpm -r test",
 		"lint": "pnpm -r lint",
