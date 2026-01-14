@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-import { Effect, Exit, Scope } from 'effect';
+import { Effect, Exit, Predicate, Scope } from 'effect';
 
 export interface ComponentLifecycle {
 	readonly scope: Scope.CloseableScope;
@@ -90,7 +90,7 @@ const createLifecycleFns = (
 			state.beforeUnmountCallbacks.length = 0;
 
 			for (const cleanup of state.mountCleanups) {
-				if (typeof cleanup === 'function') {
+				if (Predicate.isFunction(cleanup)) {
 					cleanup();
 				}
 			}

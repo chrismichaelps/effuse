@@ -37,20 +37,17 @@ import {
 	TimeoutError,
 } from '../errors.js';
 
-// Asynchronous operation outcome
 export interface ActionResult<T> {
 	data: T | null;
 	error: Error | null;
 	loading: boolean;
 }
 
-// Asynchronous action with pending state
 export interface AsyncAction<A extends unknown[], R> {
 	(...args: A): Promise<R>;
 	pending: boolean;
 }
 
-// Cancellable asynchronous action
 export interface CancellableAction<A extends unknown[], R> {
 	(...args: A): Promise<R>;
 	pending: boolean;
@@ -59,7 +56,6 @@ export interface CancellableAction<A extends unknown[], R> {
 
 type ActionFn<A extends unknown[], R> = (...args: A) => Promise<R> | R;
 
-// Build asynchronous action
 export const createAsyncAction = <A extends unknown[], R>(
 	fn: ActionFn<A, R>
 ): AsyncAction<A, R> => {
@@ -95,7 +91,6 @@ export const createAsyncAction = <A extends unknown[], R>(
 	return action as AsyncAction<A, R>;
 };
 
-// Build cancellable asynchronous action
 export const createCancellableAction = <A extends unknown[], R>(
 	fn: ActionFn<A, R>
 ): CancellableAction<A, R> => {
@@ -145,7 +140,6 @@ export const createCancellableAction = <A extends unknown[], R>(
 	return action as CancellableAction<A, R>;
 };
 
-// Enforce operation timeout
 export const withTimeout = <A extends unknown[], R>(
 	fn: ActionFn<A, R>,
 	timeoutMs: number
@@ -165,7 +159,6 @@ export const withTimeout = <A extends unknown[], R>(
 	};
 };
 
-// Retry configuration
 export interface RetryConfig {
 	maxRetries: number;
 	initialDelayMs?: number;
@@ -173,7 +166,6 @@ export interface RetryConfig {
 	backoffFactor?: number;
 }
 
-// Retry on failure
 export const withRetry = <A extends unknown[], R>(
 	fn: ActionFn<A, R>,
 	config: RetryConfig
@@ -203,7 +195,6 @@ export const withRetry = <A extends unknown[], R>(
 	};
 };
 
-// Execute only latest call
 export const takeLatest = <A extends unknown[], R>(
 	fn: ActionFn<A, R>
 ): CancellableAction<A, R> => {
@@ -250,7 +241,6 @@ export const takeLatest = <A extends unknown[], R>(
 	return action as CancellableAction<A, R>;
 };
 
-// Execute only first call
 export const takeFirst = <A extends unknown[], R>(
 	fn: ActionFn<A, R>
 ): AsyncAction<A, R | undefined> => {
@@ -277,7 +267,6 @@ export const takeFirst = <A extends unknown[], R>(
 	return action as AsyncAction<A, R | undefined>;
 };
 
-// Debounce action execution
 export const debounceAction = <A extends unknown[], R>(
 	fn: ActionFn<A, R>,
 	delayMs: number
@@ -310,7 +299,6 @@ export const debounceAction = <A extends unknown[], R>(
 	};
 };
 
-// Throttle action execution
 export const throttleAction = <A extends unknown[], R>(
 	fn: ActionFn<A, R>,
 	intervalMs: number
@@ -335,7 +323,6 @@ export const throttleAction = <A extends unknown[], R>(
 	};
 };
 
-// Dispatch store action asynchronously
 export const dispatch = <T>(
 	store: Store<T>,
 	actionName: keyof T,
@@ -357,7 +344,6 @@ export const dispatch = <T>(
 	);
 };
 
-// Dispatch store action synchronously
 export const dispatchSync = <T>(
 	store: Store<T>,
 	actionName: keyof T,
@@ -372,7 +358,6 @@ export const dispatchSync = <T>(
 	return actionFn(...args);
 };
 
-// Attach external abort signal
 export const withAbortSignal = <A extends unknown[], R>(
 	fn: ActionFn<A, R>
 ): ((signal: AbortSignal, ...args: A) => Promise<R>) => {

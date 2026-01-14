@@ -31,6 +31,7 @@ import {
 	ParseResult,
 	Array as Arr,
 	Option,
+	Predicate,
 	pipe,
 } from 'effect';
 import { Data } from 'effect';
@@ -79,19 +80,15 @@ function required<T>(schema: Schema.Schema<T>): PropDefinition<T>;
 function required<T extends Record<string, unknown>>(
 	builder: PropSchemaBuilder<T>
 ): PropDefinition<T>;
-/* eslint-disable @typescript-eslint/no-unnecessary-condition, @typescript-eslint/no-unnecessary-type-assertion */
 function required<T>(
 	schemaOrBuilder: Schema.Schema<T> | PropSchemaBuilder<Record<string, unknown>>
 ): PropDefinition<T> {
 	if (
-		typeof schemaOrBuilder === 'object' &&
-		schemaOrBuilder !== null &&
-		'validate' in schemaOrBuilder &&
-		'schema' in schemaOrBuilder
+		Predicate.isObject(schemaOrBuilder) &&
+		Predicate.hasProperty(schemaOrBuilder, 'validate') &&
+		Predicate.hasProperty(schemaOrBuilder, 'schema')
 	) {
-		const builder = schemaOrBuilder as PropSchemaBuilder<
-			Record<string, unknown>
-		>;
+		const builder = schemaOrBuilder;
 		return {
 			schema: builder.schema as unknown as Schema.Schema<T>,
 			required: true,
@@ -99,7 +96,7 @@ function required<T>(
 		};
 	}
 	return {
-		schema: schemaOrBuilder as Schema.Schema<T>,
+		schema: schemaOrBuilder,
 		required: true,
 		_tag: 'PropDefinition',
 	};
@@ -113,7 +110,6 @@ function optional<T extends Record<string, unknown>>(
 	builder: PropSchemaBuilder<T>,
 	defaultValue?: T
 ): PropDefinition<T | undefined>;
-/* eslint-disable @typescript-eslint/no-unnecessary-condition, @typescript-eslint/no-unnecessary-type-assertion */
 function optional<T>(
 	schemaOrBuilder:
 		| Schema.Schema<T>
@@ -123,17 +119,14 @@ function optional<T>(
 	let baseSchema: Schema.Schema<T>;
 
 	if (
-		typeof schemaOrBuilder === 'object' &&
-		schemaOrBuilder !== null &&
-		'validate' in schemaOrBuilder &&
-		'schema' in schemaOrBuilder
+		Predicate.isObject(schemaOrBuilder) &&
+		Predicate.hasProperty(schemaOrBuilder, 'validate') &&
+		Predicate.hasProperty(schemaOrBuilder, 'schema')
 	) {
-		const builder = schemaOrBuilder as PropSchemaBuilder<
-			Record<string, unknown>
-		>;
+		const builder = schemaOrBuilder;
 		baseSchema = builder.schema as unknown as Schema.Schema<T>;
 	} else {
-		baseSchema = schemaOrBuilder as Schema.Schema<T>;
+		baseSchema = schemaOrBuilder;
 	}
 
 	const schema = (defaultValue !== undefined
@@ -170,7 +163,7 @@ const struct = <const D extends Record<string, PropDefinition<any>>>(
 		componentName?: string
 	): Effect.Effect<ResultType, PropsValidationError> =>
 		Effect.gen(function* () {
-			if (typeof props !== 'object' || props === null) {
+			if (!Predicate.isObject(props)) {
 				return yield* Effect.fail(
 					new PropsValidationError({
 						propName: 'props',

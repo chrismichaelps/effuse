@@ -28,9 +28,9 @@ import { getGlobalTracing } from './global.js';
 const formatValue = (v: unknown): string => {
 	if (v === null) return 'null';
 	if (v === undefined) return 'undefined';
-	if (typeof v === 'string') return `'${v}'`;
-	if (typeof v === 'object') return '{...}';
-	if (typeof v === 'number' || typeof v === 'boolean') return String(v);
+	if (Predicate.isString(v)) return `'${v}'`;
+	if (Predicate.isObject(v)) return '{...}';
+	if (Predicate.isNumber(v) || Predicate.isBoolean(v)) return String(v);
 	return 'unknown';
 };
 

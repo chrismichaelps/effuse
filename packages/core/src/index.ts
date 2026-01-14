@@ -77,15 +77,17 @@ export {
 	type BlueprintContext,
 	type Component,
 	isEffuseNode,
+	CreateElementNode,
+	CreateTextNode,
+	CreateFragmentNode,
+	CreateListNode,
+	CreateBlueprintNode,
+	matchEffuseNode,
 	render,
 	unmount,
 	el,
 	fragment,
 	toNode,
-	MountService,
-	PropService,
-	EventService,
-	DOMRendererLive,
 } from './render/index.js';
 
 export {
@@ -105,58 +107,7 @@ export {
 	type AwaitProps,
 } from './components/index.js';
 
-export {
-	SUSPEND_TOKEN,
-	type SuspendToken,
-	createSuspendToken,
-	isSuspendToken,
-	ResourceStatusSchema,
-	type ResourceStatus,
-	RetryConfigSchema,
-	type RetryConfig,
-	ResourceOptionsSchema,
-	type ResourceOptions,
-	ResourceStateSchema,
-	type ResourceState,
-	createPendingState,
-	createSuccessState,
-	createErrorState,
-	SuspenseService,
-	type SuspenseContext,
-	type SuspenseApi,
-	SuspenseLive,
-	makeSuspenseLayer,
-	suspenseApi,
-	createResource,
-	type Resource,
-	type ListResource,
-	createListResource,
-	type MultiResource,
-	createMultiResource,
-	Suspense,
-	type SuspenseProps,
-} from './suspense/index.js';
-
-export {
-	initSSRSuspense,
-	getSSRState,
-	clearSSRState,
-	serializeSSRData,
-	hydrateSSRData,
-	getHydratedData,
-	waitForAllResourcesAsync,
-	collectSSRData,
-	renderWithSuspense,
-	type SSRSuspenseState,
-	type SSRRenderResult,
-} from './suspense/ssr.js';
-
-export {
-	type EffectFetcher,
-	type PromiseFetcher,
-	type Fetcher,
-	isEffectFetcher,
-} from './suspense/fetchers.js';
+export { Suspense, type SuspenseProps } from './suspense/index.js';
 
 export { EFFUSE_NODE, FRAGMENT, NodeType } from './constants.js';
 
@@ -165,7 +116,6 @@ export {
 	define,
 	isBlueprint,
 	instantiateBlueprint,
-	view,
 	type BlueprintOptions,
 	type DefineOptions,
 	type DefineOptionsWithLayer,
@@ -183,8 +133,6 @@ export {
 	type PropSchemaBuilder,
 	type AnyPropSchemaBuilder,
 	type PropSchemaInfer,
-	PortalService,
-	PortalServiceLive,
 	Portal,
 	PortalOutlet,
 	createPortal,
@@ -192,21 +140,12 @@ export {
 	unregisterPortalOutlet,
 	getPortalOutlet,
 	renderToNamedPortal,
-	setGlobalPortalService,
-	getGlobalPortalService,
-	type PortalServiceInterface,
 	type PortalContainer,
 	type PortalProps,
 	type PortalInsertMode,
 	type PortalPriority,
 	PORTAL_PRIORITY,
 } from './blueprint/index.js';
-
-export {
-	createVirtualRange,
-	createAutoVirtualRange,
-} from './utils/virtualize.js';
-export { createDOMTransitions } from './utils/transitions.js';
 
 export {
 	canvas,
@@ -229,25 +168,7 @@ export {
 	type InferHookConfig,
 } from './hooks/index.js';
 
-export {
-	Renderer,
-	CanvasService,
-	BlueprintService,
-	Scheduler,
-	type RendererService,
-	type CanvasServiceInterface,
-	type BlueprintServiceInterface,
-	type SchedulerService,
-	SchedulerLive,
-	BlueprintLive,
-	EffuseLive,
-	RouterService,
-	makeRouterLayer,
-	type RouterApi,
-	StoreService,
-	makeStoreLayer,
-	type StoreApi,
-} from './services/index.js';
+export { type MountedNode } from './services/index.js';
 
 export { jsx, jsxs, jsxDEV, Fragment } from './jsx/index.js';
 
@@ -319,32 +240,10 @@ export {
 export {
 	getEffuseConfig,
 	isDebugEnabled,
-	isDevtoolsEnabled,
 	isStrictMode,
 	isSSRMode,
 	type EffuseConfigType,
 } from './config/index.js';
-
-export {
-	devtools,
-	logReactivity,
-	logRender,
-	logRouter,
-	logStore,
-	logEffect,
-	logLifecycle,
-	logInk,
-	DevTools,
-	DevToolsLive,
-	DevToolsConfig,
-	DevToolsStateSchema,
-	type DevToolsService,
-	type DevToolsCategory,
-	type LogLevel,
-	type LogEntry,
-	type DevToolsState,
-	type DevToolsConfigType,
-} from './devtools/index.js';
 
 export {
 	useForm,
@@ -400,4 +299,22 @@ export {
 	type ProviderProps,
 	type EffuseContext,
 } from './context/index.js';
-// force release
+export {
+	createRef,
+	isRefObject,
+	isRefCallback,
+	applyRef,
+	registerDirective,
+	getDirective,
+	hasDirective,
+	unregisterDirective,
+	applyDirective,
+	getDirectiveNames,
+	RefNotAttachedError,
+	DirectiveError,
+	type RefCallback,
+	type RefObject,
+	type Ref,
+	type Directive,
+	type RefOptions,
+} from './refs/index.js';

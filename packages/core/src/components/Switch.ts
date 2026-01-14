@@ -25,14 +25,12 @@
 import type { EffuseNode, EffuseChild } from '../render/node.js';
 import { createListNode } from '../render/node.js';
 import type { Signal } from '../types/index.js';
-import { NodeType, EFFUSE_NODE } from '../constants.js';
+import { EFFUSE_NODE, MATCH_MARKER } from '../constants.js';
 import { Option, pipe, Predicate } from 'effect';
-
-const MATCH_MARKER = Symbol('effuse.match');
 
 type MatchNode<T> = {
 	[EFFUSE_NODE]: true;
-	type: typeof NodeType.FRAGMENT;
+	_tag: 'Fragment';
 	_matchMarker: typeof MATCH_MARKER;
 	when: Signal<T> | (() => T) | T;
 	children: EffuseChild | ((item: NonNullable<T>) => EffuseChild);
@@ -64,16 +62,16 @@ const createMatch = <T>(props: {
 	children: EffuseChild | ((item: NonNullable<T>) => EffuseChild);
 }): MatchNode<T> => ({
 	[EFFUSE_NODE]: true,
-	type: NodeType.FRAGMENT,
+	_tag: 'Fragment',
 	_matchMarker: MATCH_MARKER,
 	when: props.when,
 	children: props.children,
 });
 
 const isMatchNode = (node: unknown): node is MatchNode<unknown> => {
-	if (typeof node !== 'object' || node === null) return false;
-	if (!('_matchMarker' in node)) return false;
-	return (node as MatchNode<unknown>)._matchMarker === MATCH_MARKER;
+	if (!Predicate.isObject(node)) return false;
+	if (!Predicate.hasProperty(node, '_matchMarker')) return false;
+	return node._matchMarker === MATCH_MARKER;
 };
 
 const createSwitchCache = (): SwitchCache => ({
@@ -82,10 +80,10 @@ const createSwitchCache = (): SwitchCache => ({
 });
 
 const isSignalLike = (val: unknown): val is Signal<unknown> =>
-	typeof val === 'object' && val !== null && 'value' in val;
+	Predicate.isObject(val) && Predicate.hasProperty(val, 'value');
 
 const isConditionFunction = (val: unknown): val is () => unknown =>
-	typeof val === 'function';
+	Predicate.isFunction(val);
 
 const resolveConditionValue = (condition: ConditionInput): unknown => {
 	if (isConditionFunction(condition)) {
@@ -122,7 +120,7 @@ const renderMatchChild = (
 	match: MatchNode<unknown>,
 	value: NonNullable<unknown>
 ): EffuseChild => {
-	if (typeof match.children === 'function') {
+	if (Predicate.isFunction(match.children)) {
 		return (match.children as (item: NonNullable<unknown>) => EffuseChild)(
 			value
 		);
@@ -137,7 +135,7 @@ const resolveFallback = (
 		return [];
 	}
 
-	if (typeof fallback === 'function') {
+	if (Predicate.isFunction(fallback)) {
 		return [fallback()];
 	}
 

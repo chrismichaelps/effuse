@@ -166,7 +166,7 @@ export const buildLayerEffect = (
 					},
 				});
 
-				if (typeof result === 'function') {
+				if (Predicate.isFunction(result)) {
 					cleanups.push(result);
 				}
 			}

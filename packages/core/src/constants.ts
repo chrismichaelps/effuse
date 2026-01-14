@@ -32,9 +32,16 @@ export const REACTIVE_MARKER = Symbol('effuse.reactive');
 
 export const READONLY_MARKER = Symbol('effuse.readonly');
 
+export const MATCH_MARKER = Symbol('effuse.match');
+
+export const SUSPEND_TOKEN = Symbol.for('effuse/SuspendToken');
+export const BOUNDARY_ID_PREFIX = 'suspense-boundary-';
+
+export const HYDRATION_SCRIPT_ID = '__EFFUSE_DATA__';
+
 export enum NodeType {
-	ELEMENT = 'element',
-	TEXT = 'text',
+	ELEMENT = 'Element',
+	TEXT = 'Text',
 	BLUEPRINT = 'Blueprint',
 	FRAGMENT = 'Fragment',
 	LIST = 'List',

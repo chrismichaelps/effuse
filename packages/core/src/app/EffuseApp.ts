@@ -30,6 +30,7 @@ import {
 	type LayerRuntime,
 	type LayerRuntimeOptions,
 } from '../layers/index.js';
+import { Predicate } from 'effect';
 import { mount as mountComponent } from '../canvas/canvas.js';
 
 export interface AppInstance {
@@ -51,7 +52,7 @@ export class EffuseApp {
 		layers: (AnyLayer | (() => Promise<AnyLayer>))[]
 	): Promise<this> {
 		const resolved = await Promise.all(
-			layers.map((l) => (typeof l === 'function' ? l() : Promise.resolve(l)))
+			layers.map((l) => (Predicate.isFunction(l) ? l() : Promise.resolve(l)))
 		);
 		this.layers = resolved;
 		return this;

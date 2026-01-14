@@ -22,14 +22,9 @@
  * SOFTWARE.
  */
 
-import { Effect, Scope, Exit } from 'effect';
-import type {
-	EffuseNode,
-	EffuseChild,
-	Component,
-	BlueprintDef,
-} from '../render/node.js';
-import { isEffuseNode, NodeType } from '../render/node.js';
+import { Effect, Predicate, Scope, Exit, pipe } from 'effect';
+import type { EffuseNode, Component, BlueprintDef } from '../render/node.js';
+import { isEffuseNode, matchEffuseNode } from '../render/node.js';
 import { isSignal } from '../reactivity/index.js';
 import type { HeadProps, RenderResult } from './types.js';
 import { RenderError } from './errors.js';
@@ -93,14 +88,14 @@ const renderNodeToString = (node: unknown): string => {
 		return '';
 	}
 
-	if (typeof node === 'string') {
+	if (Predicate.isString(node)) {
 		return escapeHtml(node);
 	}
-	if (typeof node === 'number') {
+	if (Predicate.isNumber(node)) {
 		return String(node);
 	}
 
-	if (typeof node === 'boolean') {
+	if (Predicate.isBoolean(node)) {
 		return '';
 	}
 
@@ -116,7 +111,7 @@ const renderNodeToString = (node: unknown): string => {
 		return renderEffuseNode(node);
 	}
 
-	if (typeof node === 'function') {
+	if (Predicate.isFunction(node)) {
 		try {
 			const result = (node as () => unknown)();
 			return renderNodeToString(result);
@@ -126,9 +121,9 @@ const renderNodeToString = (node: unknown): string => {
 	}
 
 	if (
-		typeof node === 'object' &&
-		'_tag' in node &&
-		(node as Record<string, unknown>)._tag === 'Blueprint'
+		Predicate.isObject(node) &&
+		Predicate.hasProperty(node, '_tag') &&
+		node._tag === 'Blueprint'
 	) {
 		return renderBlueprint(node as BlueprintDef, {});
 	}
@@ -137,62 +132,47 @@ const renderNodeToString = (node: unknown): string => {
 };
 
 const renderEffuseNode = (node: EffuseNode): string => {
-	switch (node.type) {
-		case NodeType.TEXT:
-			return escapeHtml(node.text);
+	return pipe(
+		node,
+		matchEffuseNode({
+			Text: (node) => escapeHtml(node.text),
+			Element: (node) => {
+				const tag = node.tag;
+				const props = node.props ?? {};
+				const children = node.children;
 
-		case NodeType.ELEMENT: {
-			const tag = node.tag;
-			const props = node.props ?? {};
-			const children =
-				(node as unknown as { children?: EffuseChild[] }).children ?? [];
+				const attrs = renderAttributes(props);
+				const attrStr = attrs ? ` ${attrs}` : '';
 
-			const attrs = renderAttributes(props);
-			const attrStr = attrs ? ` ${attrs}` : '';
+				const selfClosing = [
+					'area',
+					'base',
+					'br',
+					'col',
+					'embed',
+					'hr',
+					'img',
+					'input',
+					'link',
+					'meta',
+					'param',
+					'source',
+					'track',
+					'wbr',
+				];
 
-			const selfClosing = [
-				'area',
-				'base',
-				'br',
-				'col',
-				'embed',
-				'hr',
-				'img',
-				'input',
-				'link',
-				'meta',
-				'param',
-				'source',
-				'track',
-				'wbr',
-			];
+				if (selfClosing.includes(tag)) {
+					return `<${tag}${attrStr}>`;
+				}
 
-			if (selfClosing.includes(tag)) {
-				return `<${tag}${attrStr}>`;
-			}
-
-			const childHtml = children.map(renderNodeToString).join('');
-			return `<${tag}${attrStr}>${childHtml}</${tag}>`;
-		}
-
-		case NodeType.BLUEPRINT: {
-			const bp = node as unknown as {
-				blueprint: BlueprintDef;
-				props: Record<string, unknown>;
-			};
-			return renderBlueprint(bp.blueprint, bp.props);
-		}
-
-		case NodeType.FRAGMENT:
-		case NodeType.LIST: {
-			const children =
-				(node as unknown as { children?: EffuseChild[] }).children ?? [];
-			return children.map(renderNodeToString).join('');
-		}
-
-		default:
-			return '';
-	}
+				const childHtml = children.map(renderNodeToString).join('');
+				return `<${tag}${attrStr}>${childHtml}</${tag}>`;
+			},
+			Blueprint: (node) => renderBlueprint(node.blueprint, node.props),
+			Fragment: (node) => node.children.map(renderNodeToString).join(''),
+			List: (node) => node.children.map(renderNodeToString).join(''),
+		})
+	);
 };
 
 const renderBlueprint = (
@@ -219,7 +199,7 @@ const renderAttributes = (props: Record<string, unknown>): string => {
 			continue;
 		}
 
-		if (key.startsWith('on') && typeof value === 'function') {
+		if (key.startsWith('on') && Predicate.isFunction(value)) {
 			continue;
 		}
 
@@ -231,7 +211,7 @@ const renderAttributes = (props: Record<string, unknown>): string => {
 			? (value as { value: unknown }).value
 			: value;
 
-		if (typeof actualValue === 'boolean') {
+		if (Predicate.isBoolean(actualValue)) {
 			if (actualValue) {
 				parts.push(
 					escapeAttrName(key === 'className' ? 'class' : camelToKebab(key))
@@ -244,7 +224,7 @@ const renderAttributes = (props: Record<string, unknown>): string => {
 			key === 'className' ? 'class' : camelToKebab(key)
 		);
 
-		if (key === 'style' && typeof actualValue === 'object') {
+		if (key === 'style' && Predicate.isObject(actualValue)) {
 			const styleStr = Object.entries(
 				actualValue as Record<string, string | number>
 			)

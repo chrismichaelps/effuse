@@ -22,6 +22,7 @@
  * SOFTWARE.
  */
 
+import { Predicate } from 'effect';
 import type { Signal } from '../types/index.js';
 import type {
 	BlueprintDef,
@@ -79,10 +80,9 @@ export const blueprint = <
 // Verify blueprint definition
 export const isBlueprint = (value: unknown): value is BlueprintDef => {
 	return (
-		typeof value === 'object' &&
-		value !== null &&
-		'_tag' in value &&
-		(value as Record<string, unknown>)._tag === 'Blueprint'
+		Predicate.isObject(value) &&
+		Predicate.hasProperty(value, '_tag') &&
+		value._tag === 'Blueprint'
 	);
 };
 
@@ -111,10 +111,3 @@ export const instantiateBlueprint = <P extends Record<string, unknown>>(
 };
 
 // Build anonymous blueprint
-export const view = (
-	render: () => EffuseChild
-): BlueprintDef<Record<string, never>> => {
-	return blueprint({
-		view: render,
-	});
-};

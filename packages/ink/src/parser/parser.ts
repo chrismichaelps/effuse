@@ -25,25 +25,37 @@
 import { Effect } from 'effect';
 import type { Token, TokenType } from './tokenizer.js';
 import type { ParseError } from '../types/errors.js';
-import type {
-	BlockNode,
-	InlineNode,
-	DocumentNode,
-	HeadingNode,
-	ParagraphNode,
-	CodeBlockNode,
-	BlockquoteNode,
-	ListNode,
-	ListItemNode,
-	HorizontalRuleNode,
-	ComponentNode,
-	InlineCodeNode,
-	EmphasisNode,
-	LinkNode,
-	ImageNode,
-	TableNode,
-	TableRowNode,
-	TableCellNode,
+import {
+	type BlockNode,
+	type InlineNode,
+	type DocumentNode,
+	type HeadingNode,
+	type ParagraphNode,
+	type CodeBlockNode,
+	type BlockquoteNode,
+	type ListNode,
+	type ListItemNode,
+	type HorizontalRuleNode,
+	type TableNode,
+	type TableRowNode,
+	HeadingNode as CreateHeadingNode,
+	ParagraphNode as CreateParagraphNode,
+	CodeBlockNode as CreateCodeBlockNode,
+	BlockquoteNode as CreateBlockquoteNode,
+	ListNode as CreateListNode,
+	HorizontalRuleNode as CreateHorizontalRuleNode,
+	TableNode as CreateTableNode,
+	ComponentNode as CreateComponentNode,
+	TextNode as CreateTextNode,
+	InlineCodeNode as CreateInlineCodeNode,
+	EmphasisNode as CreateEmphasisNode,
+	LinkNode as CreateLinkNode,
+	ImageNode as CreateImageNode,
+	InlineComponentNode as CreateInlineComponentNode,
+	ListItemNode as CreateListItemNode,
+	TableRowNode as CreateTableRowNode,
+	TableCellNode as CreateTableCellNode,
+	DocumentNode as CreateDocumentNode,
 } from '../types/ast.js';
 
 interface ParserState {
@@ -166,15 +178,14 @@ const parseHeading = (state: ParserState): HeadingNode | null => {
 	const level = (token.meta?.level as 1 | 2 | 3 | 4 | 5 | 6 | undefined) ?? 1;
 	const inlineNodes = parseInlineContent(token.value);
 
-	return {
-		type: 'heading',
+	return CreateHeadingNode({
 		level,
 		children: inlineNodes,
 		position: {
 			start: token.position,
 			end: { ...token.position, offset: token.end },
 		},
-	};
+	});
 };
 
 const parseCodeBlock = (state: ParserState): CodeBlockNode | null => {
@@ -198,15 +209,14 @@ const parseCodeBlock = (state: ParserState): CodeBlockNode | null => {
 
 	const language = startToken.meta?.language as string | undefined;
 
-	return {
-		type: 'codeBlock',
+	return CreateCodeBlockNode({
 		...(language && { language }),
 		code: codeLines.join(''),
 		position: {
 			start: startToken.position,
 			end: peek(state)?.position ?? startToken.position,
 		},
-	};
+	});
 };
 
 const parseBlockquote = (state: ParserState): BlockquoteNode | null => {
@@ -222,20 +232,18 @@ const parseBlockquote = (state: ParserState): BlockquoteNode | null => {
 
 	const content = lines.join('\n');
 	const children: BlockNode[] = [
-		{
-			type: 'paragraph',
+		CreateParagraphNode({
 			children: parseInlineContent(content),
-		},
+		}),
 	];
 
-	return {
-		type: 'blockquote',
+	return CreateBlockquoteNode({
 		children,
 		position: {
 			start: token.position,
 			end: peek(state)?.position ?? token.position,
 		},
-	};
+	});
 };
 
 const parseList = (state: ParserState): ListNode | null => {
@@ -282,24 +290,21 @@ const parseList = (state: ParserState): ListNode | null => {
 			advance(state);
 
 			const checked = token.meta?.checked as boolean | undefined;
-			const itemNode: ListItemNode = {
-				type: 'listItem',
+			const itemNode = CreateListItemNode({
 				...(checked !== undefined && { checked }),
 				children: [
-					{
-						type: 'paragraph',
+					CreateParagraphNode({
 						children: parseInlineContent(token.value),
-					},
+					}),
 				],
-			};
+			});
 
 			items.push(itemNode);
 		}
 
 		if (items.length === 0) return null;
 
-		return {
-			type: 'list',
+		return CreateListNode({
 			ordered,
 			...(ordered && start !== undefined && start !== 1 && { start }),
 			children: items,
@@ -307,7 +312,7 @@ const parseList = (state: ParserState): ListNode | null => {
 				start: startToken.position,
 				end: peek(state)?.position ?? startToken.position,
 			},
-		};
+		});
 	};
 
 	const firstDepth = (firstToken.meta?.depth as number | undefined) ?? 0;
@@ -320,16 +325,15 @@ const parseHorizontalRule = (state: ParserState): HorizontalRuleNode | null => {
 
 	advance(state);
 
-	return {
-		type: 'horizontalRule',
+	return CreateHorizontalRuleNode({
 		position: {
 			start: token.position,
 			end: { ...token.position, offset: token.end },
 		},
-	};
+	});
 };
 
-const parseComponent = (state: ParserState): ComponentNode | null => {
+const parseComponent = (state: ParserState): BlockNode | null => {
 	const token = peek(state);
 	if (!token) return null;
 
@@ -345,8 +349,7 @@ const parseComponent = (state: ParserState): ComponentNode | null => {
 			? parseAttributeProps(propsStr)
 			: parsePropsString(propsStr);
 
-		return {
-			type: 'component',
+		return CreateComponentNode({
 			name,
 			props,
 			children: [],
@@ -356,7 +359,7 @@ const parseComponent = (state: ParserState): ComponentNode | null => {
 				start: token.position,
 				end: { ...token.position, offset: token.end },
 			},
-		};
+		});
 	}
 
 	if (token.type === 'componentBlockStart') {
@@ -397,8 +400,7 @@ const parseComponent = (state: ParserState): ComponentNode | null => {
 			advance(state);
 		}
 
-		return {
-			type: 'component',
+		return CreateComponentNode({
 			name,
 			props,
 			children,
@@ -408,7 +410,7 @@ const parseComponent = (state: ParserState): ComponentNode | null => {
 				start: token.position,
 				end: peek(state)?.position ?? token.position,
 			},
-		};
+		});
 	}
 
 	return null;
@@ -447,14 +449,13 @@ const parseParagraph = (state: ParserState): ParagraphNode | null => {
 	const content = textParts.join('');
 	const children = parseInlineContent(content);
 
-	return {
-		type: 'paragraph',
+	return CreateParagraphNode({
 		children,
 		position: {
 			start: firstToken.position,
 			end: peek(state)?.position ?? firstToken.position,
 		},
-	};
+	});
 };
 
 const parseInlineContent = (text: string): InlineNode[] => {
@@ -464,10 +465,12 @@ const parseInlineContent = (text: string): InlineNode[] => {
 	const pushText = (value: string) => {
 		if (value) {
 			const last = nodes[nodes.length - 1];
-			if (last?.type === 'text') {
-				(last as { value: string }).value += value;
+			if (last?._tag === 'Text') {
+				nodes[nodes.length - 1] = CreateTextNode({
+					value: (last as { value: string }).value + value,
+				});
 			} else {
-				nodes.push({ type: 'text', value });
+				nodes.push(CreateTextNode({ value }));
 			}
 		}
 	};
@@ -478,11 +481,11 @@ const parseInlineContent = (text: string): InlineNode[] => {
 		if (remaining.startsWith('`')) {
 			const endIdx = remaining.indexOf('`', 1);
 			if (endIdx !== -1) {
-				const node: InlineCodeNode = {
-					type: 'inlineCode',
-					value: remaining.slice(1, endIdx),
-				};
-				nodes.push(node);
+				nodes.push(
+					CreateInlineCodeNode({
+						value: remaining.slice(1, endIdx),
+					})
+				);
 				pos += endIdx + 1;
 				continue;
 			}
@@ -490,60 +493,60 @@ const parseInlineContent = (text: string): InlineNode[] => {
 
 		const boldMatch = remaining.match(/^(\*\*|__)(.+?)\1/);
 		if (boldMatch) {
-			const node: EmphasisNode = {
-				type: 'emphasis',
-				style: 'bold',
-				children: parseInlineContent(boldMatch[2] ?? ''),
-			};
-			nodes.push(node);
+			nodes.push(
+				CreateEmphasisNode({
+					style: 'bold',
+					children: parseInlineContent(boldMatch[2] ?? ''),
+				})
+			);
 			pos += boldMatch[0].length;
 			continue;
 		}
 
 		const italicMatch = remaining.match(/^(\*|_)([^*_]+?)\1/);
 		if (italicMatch) {
-			const node: EmphasisNode = {
-				type: 'emphasis',
-				style: 'italic',
-				children: parseInlineContent(italicMatch[2] ?? ''),
-			};
-			nodes.push(node);
+			nodes.push(
+				CreateEmphasisNode({
+					style: 'italic',
+					children: parseInlineContent(italicMatch[2] ?? ''),
+				})
+			);
 			pos += italicMatch[0].length;
 			continue;
 		}
 
 		const strikeMatch = remaining.match(/^~~(.+?)~~/);
 		if (strikeMatch) {
-			const node: EmphasisNode = {
-				type: 'emphasis',
-				style: 'strikethrough',
-				children: parseInlineContent(strikeMatch[1] ?? ''),
-			};
-			nodes.push(node);
+			nodes.push(
+				CreateEmphasisNode({
+					style: 'strikethrough',
+					children: parseInlineContent(strikeMatch[1] ?? ''),
+				})
+			);
 			pos += strikeMatch[0].length;
 			continue;
 		}
 
 		const imageMatch = remaining.match(/^!\[([^\]]*)\]\(([^)]+)\)/);
 		if (imageMatch) {
-			const node: ImageNode = {
-				type: 'image',
-				alt: imageMatch[1] ?? '',
-				url: imageMatch[2] ?? '',
-			};
-			nodes.push(node);
+			nodes.push(
+				CreateImageNode({
+					alt: imageMatch[1] ?? '',
+					url: imageMatch[2] ?? '',
+				})
+			);
 			pos += imageMatch[0].length;
 			continue;
 		}
 
 		const linkMatch = remaining.match(/^\[([^\]]+)\]\(([^)]+)\)/);
 		if (linkMatch) {
-			const node: LinkNode = {
-				type: 'link',
-				url: linkMatch[2] ?? '',
-				children: parseInlineContent(linkMatch[1] ?? ''),
-			};
-			nodes.push(node);
+			nodes.push(
+				CreateLinkNode({
+					url: linkMatch[2] ?? '',
+					children: parseInlineContent(linkMatch[1] ?? ''),
+				})
+			);
 			pos += linkMatch[0].length;
 			continue;
 		}
@@ -554,15 +557,15 @@ const parseInlineContent = (text: string): InlineNode[] => {
 			const propsStr = (componentMatch[2] ?? '').trim();
 			const props = parseAttributeProps(propsStr);
 
-			const node: ComponentNode = {
-				type: 'component',
-				name,
-				props,
-				children: [],
-				slots: {},
-				selfClosing: true,
-			};
-			nodes.push(node);
+			nodes.push(
+				CreateInlineComponentNode({
+					name,
+					props,
+					children: [],
+					slots: {},
+					selfClosing: true,
+				})
+			);
 			pos += componentMatch[0].length;
 			continue;
 		}
@@ -607,30 +610,26 @@ const parseTable = (state: ParserState): TableNode | null => {
 		if (!rowToken) break;
 
 		const cells = (rowToken.meta?.cells as string[] | undefined) ?? [];
-		const rowNode: TableRowNode = {
-			type: 'tableRow',
-			cells: cells.map(
-				(cellContent): TableCellNode => ({
-					type: 'tableCell',
-					children: parseInlineContent(cellContent),
-				})
-			),
-		};
-		rows.push(rowNode);
+		rows.push(
+			CreateTableRowNode({
+				cells: cells.map((cellContent) =>
+					CreateTableCellNode({
+						children: parseInlineContent(cellContent),
+					})
+				),
+			})
+		);
 	}
 
-	const header: TableRowNode = {
-		type: 'tableRow',
-		cells: headerCells.map(
-			(cellContent): TableCellNode => ({
-				type: 'tableCell',
+	const header = CreateTableRowNode({
+		cells: headerCells.map((cellContent) =>
+			CreateTableCellNode({
 				children: parseInlineContent(cellContent),
 			})
 		),
-	};
+	});
 
-	return {
-		type: 'table',
+	return CreateTableNode({
 		header,
 		rows,
 		alignments,
@@ -638,7 +637,7 @@ const parseTable = (state: ParserState): TableNode | null => {
 			start: firstToken.position,
 			end: peek(state)?.position ?? firstToken.position,
 		},
-	};
+	});
 };
 
 const parseBlock = (state: ParserState): BlockNode | null => {
@@ -668,7 +667,6 @@ const parseBlock = (state: ParserState): BlockNode | null => {
 	return null;
 };
 
-// Build document AST from token stream
 export const parseTokens = (
 	tokens: Token[]
 ): Effect.Effect<DocumentNode, ParseError> =>
@@ -683,8 +681,5 @@ export const parseTokens = (
 			}
 		}
 
-		return {
-			type: 'document' as const,
-			children,
-		};
+		return CreateDocumentNode({ children });
 	});

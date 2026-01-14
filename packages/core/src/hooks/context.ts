@@ -1,4 +1,4 @@
-import { Effect, Scope, Exit } from 'effect';
+import { Effect, Scope, Exit, Predicate } from 'effect';
 import { signal } from '../reactivity/signal.js';
 import { computed } from '../reactivity/computed.js';
 import { effect as reactiveEffect } from '../effects/effect.js';
@@ -64,7 +64,7 @@ export const createHookContext = <C>(
 
 			traceHookEffect(name, currentIndex, duration);
 
-			if (typeof result === 'function') {
+			if (Predicate.isFunction(result)) {
 				cleanups.push(() => {
 					traceHookCleanup(`${name}[${String(currentIndex)}]`);
 					result();

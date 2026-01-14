@@ -28,7 +28,7 @@ export {
 	createQueryClient,
 	invalidateQuery,
 	invalidateQueries,
-	invalidateAll,
+	invalidateAllQueries,
 	invalidateQueryAsync,
 	invalidateQueriesAsync,
 	invalidateAllAsync,

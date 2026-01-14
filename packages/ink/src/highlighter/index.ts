@@ -22,12 +22,7 @@
  * SOFTWARE.
  */
 
-import {
-	EFFUSE_NODE,
-	NodeType,
-	type EffuseChild,
-	type ElementNode,
-} from '@effuse/core';
+import { EFFUSE_NODE, CreateElementNode, type EffuseChild } from '@effuse/core';
 
 export type TokenType =
 	| 'keyword'
@@ -371,13 +366,12 @@ export const highlight = (code: string, language?: string): EffuseChild[] => {
 			return token.value;
 		}
 
-		return {
+		return CreateElementNode({
 			[EFFUSE_NODE]: true,
-			type: NodeType.ELEMENT,
 			tag: 'span',
 			props: { class: tokenToClass(token.type) },
 			children: [token.value],
-		} as ElementNode;
+		});
 	});
 };
 

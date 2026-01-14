@@ -22,7 +22,6 @@
  * SOFTWARE.
  */
 
-// Query client configuration
 export {
 	DEFAULT_STALE_TIME_MS,
 	DEFAULT_CACHE_TIME_MS,

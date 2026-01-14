@@ -22,14 +22,87 @@
  * SOFTWARE.
  */
 
+import { Predicate, Option } from 'effect';
 import { define } from '../blueprint/index.js';
 import { computed } from '../reactivity/index.js';
 import { effect } from '../effects/index.js';
-import type { EffuseChild, EffuseNode } from '../render/node.js';
-import { EFFUSE_NODE, NodeType } from '../constants.js';
-import { isSuspendToken, type SuspendToken } from './token.js';
-import { suspenseApi, type SuspenseContext } from './service.js';
+import { CreateFragmentNode, type EffuseChild } from '../render/node.js';
+import {
+	EFFUSE_NODE,
+	SUSPEND_TOKEN,
+	BOUNDARY_ID_PREFIX,
+} from '../constants.js';
 import type { Signal, ReadonlySignal } from '../types/index.js';
+
+export { SUSPEND_TOKEN };
+
+export const isSuspendToken = (value: unknown): value is SuspendToken =>
+	Predicate.isRecord(value) && Predicate.hasProperty(value, SUSPEND_TOKEN);
+
+export interface SuspendToken {
+	readonly [SUSPEND_TOKEN]: true;
+	readonly promise: Promise<void>;
+	readonly resourceId: string;
+}
+
+export interface SuspenseContext {
+	readonly id: string;
+	readonly pendingResources: Map<string, Promise<void>>;
+	readonly registerPending: (
+		resourceId: string,
+		promise: Promise<void>
+	) => void;
+	readonly unregisterPending: (resourceId: string) => void;
+	readonly hasPending: () => boolean;
+	readonly waitForAll: () => Promise<void>;
+}
+
+export interface SuspenseApi {
+	readonly createBoundary: () => SuspenseContext;
+	readonly getCurrentBoundary: () => Option.Option<SuspenseContext>;
+	readonly pushBoundary: (boundary: SuspenseContext) => void;
+	readonly popBoundary: () => void;
+}
+
+let boundaryIdCounter = 0;
+
+const generateBoundaryId = (prefix: string): string =>
+	`${prefix}${String(++boundaryIdCounter)}`;
+
+const boundaryStack: SuspenseContext[] = [];
+
+export const suspenseApi: SuspenseApi = {
+	createBoundary: (): SuspenseContext => {
+		const id = generateBoundaryId(BOUNDARY_ID_PREFIX);
+		const pendingResources = new Map<string, Promise<void>>();
+
+		return {
+			id,
+			pendingResources,
+			registerPending: (resourceId: string, promise: Promise<void>) => {
+				pendingResources.set(resourceId, promise);
+			},
+			unregisterPending: (resourceId: string) => {
+				pendingResources.delete(resourceId);
+			},
+			hasPending: () => pendingResources.size > 0,
+			waitForAll: async () => {
+				const promises = Array.from(pendingResources.values());
+				await Promise.all(promises);
+			},
+		};
+	},
+
+	getCurrentBoundary: () => Option.fromNullable(boundaryStack.at(-1)),
+
+	pushBoundary: (boundary: SuspenseContext) => {
+		boundaryStack.push(boundary);
+	},
+
+	popBoundary: () => {
+		boundaryStack.pop();
+	},
+};
 
 export interface SuspenseProps {
 	fallback: EffuseChild;
@@ -101,8 +174,9 @@ export const Suspense = define<SuspenseProps, SuspenseExposed>({
 				if (Array.isArray(children) && children.length === 1) {
 					childToRender = children[0];
 				}
-				const rendered =
-					typeof childToRender === 'function' ? childToRender() : childToRender;
+				const rendered = Predicate.isFunction(childToRender)
+					? childToRender()
+					: childToRender;
 				resolvedChildren.value = rendered;
 				shouldShowFallback.value = false;
 			} catch (error: unknown) {
@@ -131,10 +205,9 @@ export const Suspense = define<SuspenseProps, SuspenseExposed>({
 	},
 
 	template: (exposed) => {
-		return {
+		return CreateFragmentNode({
 			[EFFUSE_NODE]: true,
-			type: NodeType.FRAGMENT,
 			children: [exposed.currentContent],
-		} as EffuseNode;
+		});
 	},
 });

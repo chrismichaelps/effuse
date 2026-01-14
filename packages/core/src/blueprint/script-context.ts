@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-import { Effect } from 'effect';
+import { Effect, Predicate } from 'effect';
 import type { Scope } from 'effect';
 import type { Signal } from '../types/index.js';
 import { signal } from '../reactivity/index.js';
@@ -190,8 +190,9 @@ export const createScriptContext = <P, E extends ExposedValues>(
 			source: Signal<T> | (() => T),
 			callback: (value: T) => void
 		): void => {
-			const getValue =
-				typeof source === 'function' ? source : () => source.value;
+			const getValue = Predicate.isFunction(source)
+				? source
+				: () => source.value;
 
 			createEffect(() => {
 				const value = getValue();

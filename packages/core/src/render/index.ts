@@ -27,8 +27,6 @@ import type { EffuseChild } from './node.js';
 import {
 	DOMRendererLive,
 	MountService,
-	PropService,
-	EventService,
 	type MountedNode,
 } from '../services/dom-renderer/index.js';
 
@@ -46,6 +44,12 @@ export {
 	type BlueprintNode,
 	type Component,
 	isEffuseNode,
+	CreateElementNode,
+	CreateTextNode,
+	CreateFragmentNode,
+	CreateListNode,
+	CreateBlueprintNode,
+	matchEffuseNode,
 } from './node.js';
 
 export { el, fragment, toNode } from './element.js';
@@ -80,6 +84,3 @@ export const render = (child: EffuseChild, container: Element): CleanupFn => {
 export const unmount = (container: Element): void => {
 	container.innerHTML = '';
 };
-
-export { MountService, PropService, EventService };
-export { DOMRendererLive } from '../services/dom-renderer/index.js';

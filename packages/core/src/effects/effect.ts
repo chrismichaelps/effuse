@@ -31,7 +31,7 @@ import {
 	pauseTracking,
 } from '../reactivity/dep.js';
 import type { Dep } from '../reactivity/dep.js';
-import { isSuspendToken } from '../suspense/token.js';
+import { isSuspendToken } from '../suspense/Suspense.js';
 import type {
 	EffectHandle,
 	EffectOptions,

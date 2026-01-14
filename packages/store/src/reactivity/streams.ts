@@ -28,7 +28,6 @@ import {
 	type CancellationToken,
 } from '../actions/cancellation.js';
 
-// Store state change stream
 export interface StoreStream<T> {
 	subscribe: (handler: (value: T) => void) => () => void;
 	map: <R>(fn: (value: T) => R) => StoreStream<R>;
@@ -145,7 +144,6 @@ const createBaseStream = <T>(
 	};
 };
 
-// Build store property stream
 export const createStoreStream = <T, K extends keyof T>(
 	store: Store<T>,
 	key: K
@@ -172,7 +170,6 @@ export const createStoreStream = <T, K extends keyof T>(
 	});
 };
 
-// Observe entire store stream
 export const streamAll = <T>(
 	store: Store<T>
 ): StoreStream<ReturnType<Store<T>['getSnapshot']>> => {

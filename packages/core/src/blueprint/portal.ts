@@ -22,16 +22,7 @@
  * SOFTWARE.
  */
 
-import {
-	Context,
-	Effect,
-	Layer,
-	Match,
-	Option,
-	Predicate,
-	Ref,
-	pipe,
-} from 'effect';
+import { Match, Option, Predicate, pipe } from 'effect';
 import type { EffuseChild } from '../render/node.js';
 import { render } from '../render/index.js';
 import { define } from './define.js';
@@ -41,131 +32,6 @@ export interface PortalContainer {
 	readonly element: Element;
 	readonly cleanup: () => void;
 }
-
-export interface PortalServiceInterface {
-	readonly registerOutlet: (
-		id: string,
-		element: Element
-	) => Effect.Effect<void>;
-	readonly unregisterOutlet: (id: string) => Effect.Effect<void>;
-	readonly getOutlet: (id: string) => Effect.Effect<Element | undefined>;
-	readonly renderToPortal: (
-		id: string,
-		content: EffuseChild
-	) => Effect.Effect<() => void>;
-}
-
-export class PortalService extends Context.Tag('effuse/PortalService')<
-	PortalService,
-	PortalServiceInterface
->() {}
-
-const createPortalRegistry = () => {
-	const outlets = new Map<string, Element>();
-	const portals = new Map<string, PortalContainer>();
-
-	return {
-		outlets,
-		portals,
-	};
-};
-
-export const PortalServiceLive = Layer.effect(
-	PortalService,
-	Effect.gen(function* () {
-		const registryRef = yield* Ref.make(createPortalRegistry());
-
-		const registerOutlet = (
-			id: string,
-			element: Element
-		): Effect.Effect<void> =>
-			Ref.update(registryRef, (registry) => {
-				registry.outlets.set(id, element);
-				return registry;
-			});
-
-		const unregisterOutlet = (id: string): Effect.Effect<void> =>
-			Ref.update(registryRef, (registry) => {
-				registry.outlets.delete(id);
-				pipe(
-					Option.fromNullable(registry.portals.get(id)),
-					Option.map((portal) => {
-						portal.cleanup();
-						registry.portals.delete(id);
-					})
-				);
-				return registry;
-			});
-
-		const getOutlet = (id: string): Effect.Effect<Element | undefined> =>
-			Ref.get(registryRef).pipe(
-				Effect.map((registry) => registry.outlets.get(id))
-			);
-
-		const renderToPortal = (
-			id: string,
-			content: EffuseChild
-		): Effect.Effect<() => void> =>
-			Effect.gen(function* () {
-				const registry = yield* Ref.get(registryRef);
-				const outlet = registry.outlets.get(id);
-
-				if (!outlet) {
-					const placeholder = document.createComment(`portal:${id}`);
-					return () => {
-						placeholder.remove();
-					};
-				}
-
-				const existingPortal = registry.portals.get(id);
-				if (existingPortal) {
-					existingPortal.cleanup();
-				}
-
-				const cleanup = render(content, outlet);
-
-				const portalContainer: PortalContainer = {
-					id,
-					element: outlet,
-					cleanup,
-				};
-
-				yield* Ref.update(registryRef, (reg) => {
-					reg.portals.set(id, portalContainer);
-					return reg;
-				});
-
-				return () => {
-					cleanup();
-					Effect.runSync(
-						Ref.update(registryRef, (reg) => {
-							reg.portals.delete(id);
-							return reg;
-						})
-					);
-				};
-			});
-
-		return {
-			registerOutlet,
-			unregisterOutlet,
-			getOutlet,
-			renderToPortal,
-		};
-	})
-);
-
-let globalPortalService: PortalServiceInterface | null = null;
-
-export const setGlobalPortalService = (
-	service: PortalServiceInterface
-): void => {
-	globalPortalService = service;
-};
-
-export const getGlobalPortalService = (): PortalServiceInterface | null => {
-	return globalPortalService;
-};
 
 export const createPortal = (
 	content: EffuseChild,
@@ -263,8 +129,9 @@ export const Portal = define<PortalProps>({
 			}
 
 			const resolveTarget = (): Element | null => {
-				const target =
-					typeof props.target === 'function' ? props.target() : props.target;
+				const target = Predicate.isFunction(props.target)
+					? props.target()
+					: props.target;
 				if (!target) return null;
 				return typeof target === 'string'
 					? document.querySelector(target)

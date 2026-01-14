@@ -26,7 +26,6 @@ export {
 	blueprint,
 	isBlueprint,
 	instantiateBlueprint,
-	view,
 	type BlueprintOptions,
 	type PropsDef,
 } from './blueprint.js';
@@ -64,8 +63,6 @@ export {
 } from './props.js';
 
 export {
-	PortalService,
-	PortalServiceLive,
 	Portal,
 	PortalOutlet,
 	createPortal,
@@ -73,9 +70,6 @@ export {
 	unregisterPortalOutlet,
 	getPortalOutlet,
 	renderToNamedPortal,
-	setGlobalPortalService,
-	getGlobalPortalService,
-	type PortalServiceInterface,
 	type PortalContainer,
 	type PortalProps,
 	type PortalInsertMode,

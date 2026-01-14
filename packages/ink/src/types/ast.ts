@@ -22,6 +22,8 @@
  * SOFTWARE.
  */
 
+import { Data } from 'effect';
+
 export interface SourcePosition {
 	readonly line: number;
 	readonly column: number;
@@ -33,128 +35,152 @@ export interface SourceRange {
 	readonly end: SourcePosition;
 }
 
-interface BaseNode {
-	readonly type: string;
+interface BaseNodeFields {
 	readonly position?: SourceRange;
 }
 
-export interface HeadingNode extends BaseNode {
-	readonly type: 'heading';
-	readonly level: 1 | 2 | 3 | 4 | 5 | 6;
-	readonly children: InlineNode[];
-}
+export type InlineNode = Data.TaggedEnum<{
+	Text: BaseNodeFields & { readonly value: string };
+	InlineCode: BaseNodeFields & { readonly value: string };
+	Emphasis: BaseNodeFields & {
+		readonly style: 'italic' | 'bold' | 'strikethrough';
+		readonly children: InlineNode[];
+	};
+	Link: BaseNodeFields & {
+		readonly url: string;
+		readonly title?: string;
+		readonly children: InlineNode[];
+	};
+	Image: BaseNodeFields & {
+		readonly url: string;
+		readonly alt: string;
+		readonly title?: string;
+	};
+	LineBreak: BaseNodeFields;
+	InlineComponent: BaseNodeFields & {
+		readonly name: string;
+		readonly props: Record<string, unknown>;
+		readonly children: MarkdownNode[];
+		readonly slots: Record<string, MarkdownNode[]>;
+		readonly selfClosing: boolean;
+	};
+}>;
 
-export interface ParagraphNode extends BaseNode {
-	readonly type: 'paragraph';
-	readonly children: InlineNode[];
-}
+const InlineNodeEnum = Data.taggedEnum<InlineNode>();
 
-export interface CodeBlockNode extends BaseNode {
-	readonly type: 'codeBlock';
-	readonly language?: string;
-	readonly code: string;
-}
+export const {
+	Text: TextNode,
+	InlineCode: InlineCodeNode,
+	Emphasis: EmphasisNode,
+	Link: LinkNode,
+	Image: ImageNode,
+	LineBreak: LineBreakNode,
+	InlineComponent: InlineComponentNode,
+	$is: InlineNode$is,
+	$match: InlineNode$match,
+} = InlineNodeEnum;
 
-export interface BlockquoteNode extends BaseNode {
-	readonly type: 'blockquote';
-	readonly children: BlockNode[];
-}
+export type TextNode = Extract<InlineNode, { _tag: 'Text' }>;
+export type InlineCodeNode = Extract<InlineNode, { _tag: 'InlineCode' }>;
+export type EmphasisNode = Extract<InlineNode, { _tag: 'Emphasis' }>;
+export type LinkNode = Extract<InlineNode, { _tag: 'Link' }>;
+export type ImageNode = Extract<InlineNode, { _tag: 'Image' }>;
+export type LineBreakNode = Extract<InlineNode, { _tag: 'LineBreak' }>;
 
-export interface ListNode extends BaseNode {
-	readonly type: 'list';
-	readonly ordered: boolean;
-	readonly start?: number;
-	readonly children: ListItemNode[];
-}
-
-export interface ListItemNode extends BaseNode {
-	readonly type: 'listItem';
+export type ListItemNode = {
+	readonly _tag: 'ListItem';
+	readonly position?: SourceRange;
 	readonly checked?: boolean;
 	readonly children: BlockNode[];
-}
+};
 
-export interface HorizontalRuleNode extends BaseNode {
-	readonly type: 'horizontalRule';
-}
-
-export interface TableNode extends BaseNode {
-	readonly type: 'table';
-	readonly header: TableRowNode;
-	readonly rows: TableRowNode[];
-	readonly alignments: ('left' | 'center' | 'right' | null)[];
-}
-
-export interface TableRowNode extends BaseNode {
-	readonly type: 'tableRow';
+export type TableRowNode = {
+	readonly _tag: 'TableRow';
+	readonly position?: SourceRange;
 	readonly cells: TableCellNode[];
-}
+};
 
-export interface TableCellNode extends BaseNode {
-	readonly type: 'tableCell';
+export type TableCellNode = {
+	readonly _tag: 'TableCell';
+	readonly position?: SourceRange;
 	readonly children: InlineNode[];
-}
+};
 
-export interface ComponentNode extends BaseNode {
-	readonly type: 'component';
-	readonly name: string;
-	readonly props: Record<string, unknown>;
-	readonly children: MarkdownNode[];
-	readonly slots: Record<string, MarkdownNode[]>;
-	readonly selfClosing: boolean;
-}
+export const ListItemNode = (
+	args: Omit<ListItemNode, '_tag'>
+): ListItemNode => ({
+	_tag: 'ListItem',
+	...args,
+});
 
-export interface TextNode extends BaseNode {
-	readonly type: 'text';
-	readonly value: string;
-}
+export const TableRowNode = (
+	args: Omit<TableRowNode, '_tag'>
+): TableRowNode => ({
+	_tag: 'TableRow',
+	...args,
+});
 
-export interface InlineCodeNode extends BaseNode {
-	readonly type: 'inlineCode';
-	readonly value: string;
-}
+export const TableCellNode = (
+	args: Omit<TableCellNode, '_tag'>
+): TableCellNode => ({
+	_tag: 'TableCell',
+	...args,
+});
 
-export interface EmphasisNode extends BaseNode {
-	readonly type: 'emphasis';
-	readonly style: 'italic' | 'bold' | 'strikethrough';
-	readonly children: InlineNode[];
-}
+export type BlockNode = Data.TaggedEnum<{
+	Heading: BaseNodeFields & {
+		readonly level: 1 | 2 | 3 | 4 | 5 | 6;
+		readonly children: InlineNode[];
+	};
+	Paragraph: BaseNodeFields & { readonly children: InlineNode[] };
+	CodeBlock: BaseNodeFields & {
+		readonly language?: string;
+		readonly code: string;
+	};
+	Blockquote: BaseNodeFields & { readonly children: BlockNode[] };
+	List: BaseNodeFields & {
+		readonly ordered: boolean;
+		readonly start?: number;
+		readonly children: ListItemNode[];
+	};
+	HorizontalRule: BaseNodeFields;
+	Table: BaseNodeFields & {
+		readonly header: TableRowNode;
+		readonly rows: TableRowNode[];
+		readonly alignments: ('left' | 'center' | 'right' | null)[];
+	};
+	Component: BaseNodeFields & {
+		readonly name: string;
+		readonly props: Record<string, unknown>;
+		readonly children: MarkdownNode[];
+		readonly slots: Record<string, MarkdownNode[]>;
+		readonly selfClosing: boolean;
+	};
+}>;
 
-export interface LinkNode extends BaseNode {
-	readonly type: 'link';
-	readonly url: string;
-	readonly title?: string;
-	readonly children: InlineNode[];
-}
+const BlockNodeEnum = Data.taggedEnum<BlockNode>();
 
-export interface ImageNode extends BaseNode {
-	readonly type: 'image';
-	readonly url: string;
-	readonly alt: string;
-	readonly title?: string;
-}
+export const {
+	Heading: HeadingNode,
+	Paragraph: ParagraphNode,
+	CodeBlock: CodeBlockNode,
+	Blockquote: BlockquoteNode,
+	List: ListNode,
+	HorizontalRule: HorizontalRuleNode,
+	Table: TableNode,
+	Component: ComponentNode,
+	$is: BlockNode$is,
+	$match: BlockNode$match,
+} = BlockNodeEnum;
 
-export interface LineBreakNode extends BaseNode {
-	readonly type: 'lineBreak';
-}
-
-export type BlockNode =
-	| HeadingNode
-	| ParagraphNode
-	| CodeBlockNode
-	| BlockquoteNode
-	| ListNode
-	| HorizontalRuleNode
-	| TableNode
-	| ComponentNode;
-
-export type InlineNode =
-	| TextNode
-	| InlineCodeNode
-	| EmphasisNode
-	| LinkNode
-	| ImageNode
-	| LineBreakNode
-	| ComponentNode;
+export type HeadingNode = Extract<BlockNode, { _tag: 'Heading' }>;
+export type ParagraphNode = Extract<BlockNode, { _tag: 'Paragraph' }>;
+export type CodeBlockNode = Extract<BlockNode, { _tag: 'CodeBlock' }>;
+export type BlockquoteNode = Extract<BlockNode, { _tag: 'Blockquote' }>;
+export type ListNode = Extract<BlockNode, { _tag: 'List' }>;
+export type HorizontalRuleNode = Extract<BlockNode, { _tag: 'HorizontalRule' }>;
+export type TableNode = Extract<BlockNode, { _tag: 'Table' }>;
+export type ComponentNode = Extract<BlockNode, { _tag: 'Component' }>;
 
 export type MarkdownNode =
 	| BlockNode
@@ -163,10 +189,18 @@ export type MarkdownNode =
 	| TableRowNode
 	| TableCellNode;
 
-export interface DocumentNode extends BaseNode {
-	readonly type: 'document';
+export type DocumentNode = {
+	readonly _tag: 'Document';
+	readonly position?: SourceRange;
 	readonly children: BlockNode[];
-}
+};
+
+export const DocumentNode = (
+	args: Omit<DocumentNode, '_tag'>
+): DocumentNode => ({
+	_tag: 'Document',
+	...args,
+});
 
 export interface InkProps {
 	readonly [key: string]: unknown;

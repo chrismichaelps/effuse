@@ -24,7 +24,6 @@
 
 import { Data } from 'effect';
 
-// General query error
 export class QueryError extends Data.TaggedError('QueryError')<{
 	readonly message: string;
 	readonly queryKey: readonly unknown[];
@@ -35,7 +34,6 @@ export class QueryError extends Data.TaggedError('QueryError')<{
 	}
 }
 
-// Network request error
 export class NetworkError extends Data.TaggedError('NetworkError')<{
 	readonly message: string;
 	readonly status?: number | undefined;
@@ -46,7 +44,6 @@ export class NetworkError extends Data.TaggedError('NetworkError')<{
 	}
 }
 
-// Operation timeout error
 export class TimeoutError extends Data.TaggedError('TimeoutError')<{
 	readonly durationMs: number;
 	readonly queryKey?: readonly unknown[] | undefined;
@@ -56,7 +53,6 @@ export class TimeoutError extends Data.TaggedError('TimeoutError')<{
 	}
 }
 
-// Operation cancellation error
 export class CancellationError extends Data.TaggedError('CancellationError')<{
 	readonly reason: string;
 	readonly queryKey?: readonly unknown[];
@@ -66,7 +62,6 @@ export class CancellationError extends Data.TaggedError('CancellationError')<{
 	}
 }
 
-// Mutation operation error
 export class MutationError extends Data.TaggedError('MutationError')<{
 	readonly message: string;
 	readonly mutationKey?: readonly unknown[] | undefined;
@@ -77,7 +72,6 @@ export class MutationError extends Data.TaggedError('MutationError')<{
 	}
 }
 
-// Query fetch operation error
 export class QueryFetchError extends Data.TaggedError('QueryFetchError')<{
 	readonly message: string;
 	readonly cause?: unknown;
@@ -87,7 +81,6 @@ export class QueryFetchError extends Data.TaggedError('QueryFetchError')<{
 	}
 }
 
-// Infinite query operation error
 export class InfiniteQueryError extends Data.TaggedError('InfiniteQueryError')<{
 	readonly message: string;
 	readonly cause?: unknown;

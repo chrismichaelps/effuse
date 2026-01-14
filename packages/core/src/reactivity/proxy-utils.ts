@@ -76,7 +76,7 @@ export function setPropertyWithPrivateFieldSupport(
 	if (
 		found &&
 		Predicate.isNotNullable(descriptor) &&
-		typeof descriptor.set === 'function'
+		Predicate.isFunction(descriptor.set) // eslint-disable-line @typescript-eslint/unbound-method
 	) {
 		// eslint-disable-next-line @typescript-eslint/unbound-method
 		Reflect.apply(descriptor.set, target, [value]);
@@ -88,7 +88,7 @@ export function setPropertyWithPrivateFieldSupport(
 
 // Bind method to reactive target
 export function bindMethodToTarget<T>(method: T, target: object): T {
-	if (typeof method === 'function') {
+	if (Predicate.isFunction(method)) {
 		return method.bind(target) as T;
 	}
 	return method;

@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-import { Context, Effect, Layer, Ref, Option, pipe, HashMap } from 'effect';
+import { Effect, Ref, Option, pipe, HashMap } from 'effect';
 
 type ContextStack = HashMap.HashMap<string, readonly unknown[]>;
 
@@ -34,11 +34,6 @@ interface ContextRegistryService {
 	readonly getAll: () => Effect.Effect<readonly string[]>;
 	readonly clear: () => Effect.Effect<void>;
 }
-
-class ContextRegistry extends Context.Tag('effuse/ContextRegistry')<
-	ContextRegistry,
-	ContextRegistryService
->() {}
 
 const makeContextRegistry = Effect.gen(function* () {
 	const stackRef = yield* Ref.make<ContextStack>(HashMap.empty());
@@ -112,10 +107,7 @@ const makeContextRegistry = Effect.gen(function* () {
 	} satisfies ContextRegistryService;
 });
 
-export const ContextRegistryLive = Layer.effect(
-	ContextRegistry,
-	makeContextRegistry
-);
+export { makeContextRegistry };
 
 let globalRegistry: ContextRegistryService | null = null;
 

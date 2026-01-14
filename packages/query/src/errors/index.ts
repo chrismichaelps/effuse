@@ -22,7 +22,6 @@
  * SOFTWARE.
  */
 
-// Custom error classes
 export {
 	QueryError,
 	NetworkError,

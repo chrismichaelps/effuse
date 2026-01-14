@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-import { Effect, Option, pipe, Predicate } from 'effect';
+import { Effect, Option, pipe } from 'effect';
 import { signal, type Signal } from '@effuse/core';
 import type {
 	Store,
@@ -43,41 +43,23 @@ import {
 import {
 	createCancellationScope,
 	createCancellationToken,
-	type CancellationScope,
-	type CancellationToken,
 } from '../actions/cancellation.js';
+import {
+	setValue,
+	resetState,
+	batchUpdates,
+	updateState,
+	addSubscriber,
+	addKeySubscriber,
+	getSnapshot,
+	type StoreInternals,
+	type StoreHandlerDeps,
+} from '../handlers/index.js';
 
-interface StoreInternals {
-	signalMap: Map<string, Signal<unknown>>;
-	initialState: Record<string, unknown>;
-	actions: Record<string, (...args: unknown[]) => unknown>;
-	subscribers: Set<() => void>;
-	keySubscribers: Map<string, Set<(value: unknown) => void>>;
-	computedSelectors: Map<
-		(s: Record<string, unknown>) => unknown,
-		Signal<unknown>
-	>;
-	isBatching: boolean;
-	cancellationScope: CancellationScope;
-	pendingActions: Map<string, CancellationToken>;
-}
-
-const getSnapshot = (
-	signalMap: Map<string, Signal<unknown>>
-): Record<string, unknown> => {
-	const snapshot: Record<string, unknown> = {};
-	for (const [key, sig] of signalMap) {
-		snapshot[key] = sig.value;
-	}
-	return snapshot;
-};
-
-// Store configuration options
 export interface CreateStoreOptions extends StoreOptions {
 	storage?: StorageAdapter;
 }
 
-// Initialize reactive store
 export const createStore = <T extends object>(
 	name: string,
 	definition: StoreDefinition<T>,
@@ -106,6 +88,7 @@ export const createStore = <T extends object>(
 	);
 
 	if (config.debug) {
+		// eslint-disable-next-line no-console
 		console.log(`[store] Creating: ${name}`);
 	}
 
@@ -134,6 +117,19 @@ export const createStore = <T extends object>(
 
 	const atomicState = createAtomicState({ ...internals.initialState });
 
+	const handlerDeps: StoreHandlerDeps = {
+		internals,
+		atomicState,
+		middlewareManager,
+		config: {
+			name,
+			shouldPersist,
+			storageKey,
+			enableDevtools,
+			adapter,
+		},
+	};
+
 	if (shouldPersist) {
 		pipe(
 			runAdapter.getItem(adapter, storageKey),
@@ -158,31 +154,6 @@ export const createStore = <T extends object>(
 		);
 	}
 
-	const notifySubscribers = (): void => {
-		if (internals.isBatching) return;
-		for (const callback of internals.subscribers) callback();
-	};
-
-	const notifyKeySubscribers = (key: string, value: unknown): void => {
-		if (internals.isBatching) return;
-		const subs = internals.keySubscribers.get(key);
-		if (subs) for (const cb of subs) cb(value);
-	};
-
-	const persistState = (): void => {
-		if (!shouldPersist) return;
-		const snapshot = getSnapshot(internals.signalMap);
-		runAdapter.setItem(adapter, storageKey, JSON.stringify(snapshot));
-	};
-
-	const updateComputed = (): void => {
-		const snapshot = getSnapshot(internals.signalMap);
-		for (const [selector, sig] of internals.computedSelectors) {
-			const newValue = selector(snapshot);
-			if (sig.value !== newValue) sig.value = newValue;
-		}
-	};
-
 	const stateProxy = new Proxy({} as Record<string, unknown>, {
 		get(_, prop: string) {
 			const sig = internals.signalMap.get(prop);
@@ -192,48 +163,7 @@ export const createStore = <T extends object>(
 			return undefined;
 		},
 		set(_, prop: string, value: unknown) {
-			if (!internals.signalMap.has(prop)) return false;
-
-			const sig = internals.signalMap.get(prop);
-			if (!sig) return false;
-			const newState = middlewareManager.execute(
-				{ ...atomicState.get(), [prop]: value },
-				`set:${prop}`,
-				[value]
-			);
-
-			sig.value = newState[prop];
-			atomicState.update((s) => ({ ...s, [prop]: newState[prop] }));
-
-			if (enableDevtools) {
-				const time = new Date().toLocaleTimeString();
-				console.groupCollapsed(
-					`%caction %c${name}/set:${prop} %c@ ${time}`,
-					'color: gray; font-weight: lighter;',
-					'color: inherit; font-weight: bold;',
-					'color: gray; font-weight: lighter;'
-				);
-				console.log(
-					'%cprev state',
-					'color: #9E9E9E; font-weight: bold;',
-					atomicState.get()
-				);
-				console.log('%caction', 'color: #03A9F4; font-weight: bold;', {
-					type: `set:${prop}`,
-					payload: value,
-				});
-				console.log('%cnext state', 'color: #4CAF50; font-weight: bold;', {
-					...atomicState.get(),
-					[prop]: newState[prop],
-				});
-				console.groupEnd();
-			}
-
-			notifySubscribers();
-			notifyKeySubscribers(prop, newState[prop]);
-			persistState();
-			updateComputed();
-			return true;
+			return setValue(handlerDeps, { prop, value });
 		},
 	});
 
@@ -264,30 +194,35 @@ export const createStore = <T extends object>(
 
 							if (enableDevtools) {
 								const time = new Date().toLocaleTimeString();
+								// eslint-disable-next-line no-console
 								console.groupCollapsed(
 									`%caction %c${name}/${key} (async) %c@ ${time}`,
 									'color: gray; font-weight: lighter;',
 									'color: inherit; font-weight: bold;',
 									'color: gray; font-weight: lighter;'
 								);
+								// eslint-disable-next-line no-console
 								console.log(
 									'%cprev state',
 									'color: #9E9E9E; font-weight: bold;',
 									prevState
 								);
+								// eslint-disable-next-line no-console
 								console.log('%caction', 'color: #03A9F4; font-weight: bold;', {
 									type: `${name}/${key}`,
 									payload: args,
 								});
+								// eslint-disable-next-line no-console
 								console.log(
 									'%cnext state',
 									'color: #4CAF50; font-weight: bold;',
 									currentState
 								);
+								// eslint-disable-next-line no-console
 								console.groupEnd();
 							}
 
-							notifySubscribers();
+							for (const callback of internals.subscribers) callback();
 						}
 						return value;
 					})
@@ -302,30 +237,35 @@ export const createStore = <T extends object>(
 
 			if (enableDevtools) {
 				const time = new Date().toLocaleTimeString();
+				// eslint-disable-next-line no-console
 				console.groupCollapsed(
 					`%caction %c${name}/${key} %c@ ${time}`,
 					'color: gray; font-weight: lighter;',
 					'color: inherit; font-weight: bold;',
 					'color: gray; font-weight: lighter;'
 				);
+				// eslint-disable-next-line no-console
 				console.log(
 					'%cprev state',
 					'color: #9E9E9E; font-weight: bold;',
 					prevState
 				);
+				// eslint-disable-next-line no-console
 				console.log('%caction', 'color: #03A9F4; font-weight: bold;', {
 					type: `${name}/${key}`,
 					payload: args,
 				});
+				// eslint-disable-next-line no-console
 				console.log(
 					'%cnext state',
 					'color: #4CAF50; font-weight: bold;',
 					currentState
 				);
+				// eslint-disable-next-line no-console
 				console.groupEnd();
 			}
 
-			notifySubscribers();
+			for (const callback of internals.subscribers) callback();
 
 			return result;
 		};
@@ -340,28 +280,15 @@ export const createStore = <T extends object>(
 		name,
 		state: storeState as StoreState<T>,
 
-		subscribe: (callback) => {
-			internals.subscribers.add(callback);
-			return () => {
-				internals.subscribers.delete(callback);
-			};
-		},
+		subscribe: (callback) => addSubscriber(internals, { callback }),
 
 		subscribeToKey: (key, callback) => {
 			const keyStr = String(key);
-			let subs = internals.keySubscribers.get(keyStr);
-			if (!subs) {
-				subs = new Set();
-				internals.keySubscribers.set(keyStr, subs);
-			}
 			const typedCallback = callback as (value: unknown) => void;
-			subs.add(typedCallback);
-			return () => {
-				const subsSet = internals.keySubscribers.get(keyStr);
-				if (Predicate.isNotNullable(subsSet)) {
-					subsSet.delete(typedCallback);
-				}
-			};
+			return addKeySubscriber(internals, {
+				key: keyStr,
+				callback: typedCallback,
+			});
 		},
 
 		getSnapshot: () =>
@@ -381,23 +308,11 @@ export const createStore = <T extends object>(
 		},
 
 		batch: (updates) => {
-			internals.isBatching = true;
-			updates();
-			internals.isBatching = false;
-			notifySubscribers();
-			persistState();
-			updateComputed();
+			batchUpdates(handlerDeps, updates);
 		},
 
 		reset: () => {
-			for (const [key, value] of Object.entries(internals.initialState)) {
-				const sig = internals.signalMap.get(key);
-				if (sig) sig.value = value;
-			}
-			atomicState.set({ ...internals.initialState });
-			notifySubscribers();
-			persistState();
-			updateComputed();
+			resetState(handlerDeps);
 		},
 
 		use: (middleware: Middleware<Record<string, unknown>>) =>
@@ -407,27 +322,9 @@ export const createStore = <T extends object>(
 			getSnapshot(internals.signalMap) as ReturnType<Store<T>['getSnapshot']>,
 
 		update: (updater) => {
-			const draft = { ...getSnapshot(internals.signalMap) } as {
-				[K in keyof T]: T[K] extends (...args: unknown[]) => unknown
-					? never
-					: T[K];
-			};
-
-			updater(draft);
-
-			internals.isBatching = true;
-			for (const [key, val] of Object.entries(draft)) {
-				const sig = internals.signalMap.get(key);
-				if (sig && sig.value !== val) {
-					sig.value = val;
-					atomicState.update((s) => ({ ...s, [key]: val }));
-				}
-			}
-			internals.isBatching = false;
-
-			notifySubscribers();
-			persistState();
-			updateComputed();
+			updateState(handlerDeps, {
+				updater: updater as (d: Record<string, unknown>) => void,
+			});
 		},
 
 		select: <R>(
@@ -459,6 +356,13 @@ export const createStore = <T extends object>(
 			if (sig) return sig;
 			if (propStr in boundActions) return boundActions[propStr];
 			return undefined;
+		},
+		set(target, prop: string | symbol, value: unknown): boolean {
+			const propStr = String(prop);
+			if (propStr in target) {
+				return false;
+			}
+			return setValue(handlerDeps, { prop: propStr, value });
 		},
 	}) as Store<T> & StoreState<T>;
 
