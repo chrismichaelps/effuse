@@ -1,3 +1,18 @@
+## @effuse/i18n [1.0.4](https://github.com/chrismichaelps/effuse/compare/@effuse/i18n@1.0.3...@effuse/i18n@1.0.4) (2026-01-14)
+
+### Bug Fixes
+
+* **i18n:** enable strict interface support and improved type inference. ([d440778](https://github.com/chrismichaelps/effuse/commit/d4407789f68b158c1ea91cdd83b9d44fce64624c)), closes [#19](https://github.com/chrismichaelps/effuse/issues/19)
+
+### Code Refactoring
+
+* **router|i18n:** replace manual type guards with Predicate ([75d7550](https://github.com/chrismichaelps/effuse/commit/75d755089fa29c9dd4a4d8149b1500f2405d243e))
+
+
+### Dependencies
+
+* **@effuse/core:** upgraded to 1.1.0
+
 ## @effuse/i18n [1.0.3](https://github.com/chrismichaelps/effuse/compare/@effuse/i18n@1.0.2...@effuse/i18n@1.0.3) (2026-01-08)
 
 
