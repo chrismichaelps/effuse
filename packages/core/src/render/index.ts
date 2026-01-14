@@ -43,6 +43,7 @@ export {
 	type BlueprintContext,
 	type BlueprintNode,
 	type Component,
+	isEffuseNode,
 	matchEffuseNode,
 } from './node.js';
 
