@@ -1,3 +1,18 @@
+## @effuse/router [1.1.0](https://github.com/chrismichaelps/effuse/compare/@effuse/router@1.0.2...@effuse/router@1.1.0) (2026-01-14)
+
+### Features
+
+* **router:** update navigation and view components to new patterns ([9241583](https://github.com/chrismichaelps/effuse/commit/92415833afc877af1e3add72f0db3acd634b020d))
+
+### Code Refactoring
+
+* **router|i18n:** replace manual type guards with Predicate ([75d7550](https://github.com/chrismichaelps/effuse/commit/75d755089fa29c9dd4a4d8149b1500f2405d243e))
+
+
+### Dependencies
+
+* **@effuse/core:** upgraded to 1.1.0
+
 ## @effuse/router [1.0.2](https://github.com/chrismichaelps/effuse/compare/@effuse/router@1.0.1...@effuse/router@1.0.2) (2026-01-08)
 
 
