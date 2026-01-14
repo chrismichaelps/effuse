@@ -1,3 +1,18 @@
+## @effuse/store [1.0.3](https://github.com/chrismichaelps/effuse/compare/@effuse/store@1.0.2...@effuse/store@1.0.3) (2026-01-14)
+
+### Code Refactoring
+
+* **store:** migrate core logic to internal handler architecture ([92c83be](https://github.com/chrismichaelps/effuse/commit/92c83beac9233552604a0380dfe8d5b5f4498139))
+
+### Tests
+
+* **core:** add integration suites for store and query ([31aeb1a](https://github.com/chrismichaelps/effuse/commit/31aeb1ac271fc97cee6eb7f99e217717c502ef2d))
+
+
+### Dependencies
+
+* **@effuse/core:** upgraded to 1.1.0
+
 ## @effuse/store [1.0.2](https://github.com/chrismichaelps/effuse/compare/@effuse/store@1.0.1...@effuse/store@1.0.2) (2026-01-08)
 
 
