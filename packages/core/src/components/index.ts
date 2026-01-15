@@ -29,3 +29,53 @@ export { Dynamic, type DynamicProps } from './Dynamic.js';
 export { ErrorBoundary, type ErrorBoundaryProps } from './ErrorBoundary.js';
 export { Repeat, type RepeatProps } from './Repeat.js';
 export { Await, type AwaitProps } from './Await.js';
+export {
+	Transition,
+	useTransitionState,
+	isTransitionIdle,
+	isTransitionEntering,
+	isTransitionEntered,
+	isTransitionExiting,
+	isTransitionExited,
+	matchTransitionState,
+	type TransitionProps,
+	type TransitionMode,
+	type TransitionState,
+	type TransitionClasses,
+	type TransitionDurations,
+	type TransitionCallbacks,
+} from './Transition.js';
+export {
+	TransitionGroup,
+	useTransitionGroupState,
+	isGroupIdle,
+	isGroupAnimating,
+	matchGroupState,
+	isItemEntering,
+	isItemEntered,
+	isItemExiting,
+	isItemMoving,
+	type TransitionGroupProps,
+	type TransitionGroupState,
+	type TransitionGroupClasses,
+	type TransitionGroupCallbacks,
+	type ItemState,
+} from './TransitionGroup.js';
+export {
+	KeepAlive,
+	useKeepAliveContext,
+	type KeepAliveProps,
+} from './KeepAlive.js';
+export {
+	AsyncBoundary,
+	useAsyncBoundary,
+	AsyncBoundaryError,
+	isAsyncIdle,
+	isAsyncLoading,
+	isAsyncSuccess,
+	isAsyncError,
+	matchAsyncStatus,
+	type AsyncBoundaryProps,
+	type AsyncBoundaryStatus,
+} from './AsyncBoundary.js';
+export { Deferred, useDeferredState, type DeferredProps } from './Deferred.js';
