@@ -64,7 +64,10 @@ export {
 export {
 	KeepAlive,
 	useKeepAliveContext,
+	CacheMissError,
 	type KeepAliveProps,
+	type CachedComponent,
+	type KeepAliveNode,
 } from './KeepAlive.js';
 export {
 	AsyncBoundary,
