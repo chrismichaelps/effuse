@@ -67,15 +67,19 @@ export type AsyncStatusEnum<T = unknown, E = unknown> = Data.TaggedEnum<{
 	Error: { error: E };
 }>;
 
-const { Idle, Loading, Success, Error: ErrorState } =
-	Data.taggedEnum<AsyncStatusEnum>();
+const {
+	Idle,
+	Loading,
+	Success,
+	Error: ErrorState,
+} = Data.taggedEnum<AsyncStatusEnum>();
 
 export const AsyncStatusEnum = { Idle, Loading, Success, Error: ErrorState };
 
 export class AsyncBoundaryError extends Data.TaggedError('AsyncBoundaryError')<{
 	readonly cause: unknown;
 	readonly retryCount: number;
-}> { }
+}> {}
 
 export interface AsyncBoundaryProps {
 	loading?: EffuseChild | (() => EffuseChild);
@@ -236,10 +240,10 @@ export const useAsyncBoundary = (
 	return {
 		status: defaultStatus,
 		error: defaultError,
-		retry: () => { },
-		setLoading: () => { },
-		setSuccess: () => { },
-		setError: () => { },
+		retry: () => {},
+		setLoading: () => {},
+		setSuccess: () => {},
+		setError: () => {},
 		isIdle: () => true,
 		isLoading: () => false,
 		isSuccess: () => false,

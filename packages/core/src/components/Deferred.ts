@@ -31,7 +31,7 @@ import { Data, Option, Predicate } from 'effect';
 export class DeferredError extends Data.TaggedError('DeferredError')<{
 	readonly timeout: number;
 	readonly cause: unknown;
-}> { }
+}> {}
 
 export interface DeferredProps {
 	timeout?: number;
@@ -135,6 +135,6 @@ export const useDeferredState = (
 
 	return {
 		ready: signal<boolean>(true),
-		cancel: () => { },
+		cancel: () => {},
 	};
 };

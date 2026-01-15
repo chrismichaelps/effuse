@@ -37,7 +37,7 @@ export class TransitionError extends Data.TaggedError('TransitionError')<{
 	readonly phase: 'enter' | 'exit';
 	readonly element: Element | null;
 	readonly cause: unknown;
-}> { }
+}> {}
 
 export type TransitionStateEnum = Data.TaggedEnum<{
 	Idle: object;

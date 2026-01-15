@@ -33,7 +33,7 @@ export class KeepAliveError extends Data.TaggedError('KeepAliveError')<{
 	readonly key: string;
 	readonly action: 'cache' | 'prune' | 'restore';
 	readonly cause: unknown;
-}> { }
+}> {}
 
 export interface KeepAliveProps {
 	include?: string[] | RegExp;

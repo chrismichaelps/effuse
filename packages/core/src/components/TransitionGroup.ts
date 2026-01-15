@@ -39,7 +39,7 @@ export class TransitionGroupError extends Data.TaggedError(
 	readonly key: unknown;
 	readonly phase: 'enter' | 'exit' | 'move';
 	readonly cause: unknown;
-}> { }
+}> {}
 
 export type TransitionGroupState = 'idle' | 'animating';
 
