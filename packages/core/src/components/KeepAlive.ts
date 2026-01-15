@@ -26,7 +26,17 @@ import type { EffuseNode, EffuseChild } from '../render/node.js';
 import { createListNode } from '../render/node.js';
 import type { Signal } from '../types/index.js';
 import { signal } from '../reactivity/index.js';
-import { Data, Option, Predicate } from 'effect';
+import {
+	Cache,
+	Data,
+	Duration,
+	Effect,
+	Exit,
+	Match,
+	Option,
+	Predicate,
+	Scope,
+} from 'effect';
 import { CacheDefaults } from './constants.js';
 
 export class KeepAliveError extends Data.TaggedError('KeepAliveError')<{
@@ -35,6 +45,9 @@ export class KeepAliveError extends Data.TaggedError('KeepAliveError')<{
 	readonly cause: unknown;
 }> {}
 
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+export class CacheMissError extends Data.TaggedError('CacheMissError')<{}> {}
+
 export interface KeepAliveProps {
 	include?: string[] | RegExp;
 	exclude?: string[] | RegExp;
@@ -42,153 +55,127 @@ export interface KeepAliveProps {
 	children: EffuseChild | Signal<EffuseChild | null>;
 }
 
-type CachedComponent = {
-	key: string;
-	child: EffuseChild;
-	timestamp: number;
-	state: unknown;
-};
+export type CachedComponent = Data.TaggedEnum<{
+	Cached: {
+		readonly key: string;
+		readonly child: EffuseChild;
+		readonly timestamp: number;
+	};
+	Fresh: { readonly key: string; readonly child: EffuseChild };
+}>;
 
-type KeepAliveCache = {
-	components: Map<string, CachedComponent>;
-	currentKey: Option.Option<string>;
-};
+const { Cached, Fresh } = Data.taggedEnum<CachedComponent>();
+export const CachedComponent = { Cached, Fresh };
 
-const createCache = (): KeepAliveCache => ({
-	components: new Map(),
-	currentKey: Option.none(),
-});
+export interface KeepAliveNode extends ReturnType<typeof createListNode> {
+	readonly _cache: Cache.Cache<string, CachedComponent, CacheMissError>;
+	readonly _activeKey: Signal<string | null>;
+	readonly _cleanup: () => void;
+	readonly children: EffuseChild[];
+}
+
+const isSignal = <T>(value: unknown): value is Signal<T> =>
+	Predicate.isNotNullable(value) &&
+	typeof value === 'object' &&
+	Predicate.hasProperty(value, 'value');
+
+const hasType = (value: unknown): value is { type: unknown } =>
+	Predicate.isNotNullable(value) &&
+	typeof value === 'object' &&
+	Predicate.hasProperty(value, 'type');
 
 const matchesPattern = (
 	name: string,
 	pattern: string[] | RegExp | undefined
-): boolean => {
-	if (!Predicate.isNotNullable(pattern)) {
-		return false;
-	}
-
-	if (Array.isArray(pattern)) {
-		return pattern.includes(name);
-	}
-
-	return pattern.test(name);
-};
+): boolean =>
+	Predicate.isNotNullable(pattern) &&
+	(Array.isArray(pattern) ? pattern.includes(name) : pattern.test(name));
 
 const shouldCache = (
 	name: string,
 	include: string[] | RegExp | undefined,
 	exclude: string[] | RegExp | undefined
-): boolean => {
-	if (matchesPattern(name, exclude)) {
-		return false;
-	}
-
-	if (!Predicate.isNotNullable(include)) {
-		return true;
-	}
-
-	return matchesPattern(name, include);
-};
+): boolean =>
+	!matchesPattern(name, exclude) &&
+	(!Predicate.isNotNullable(include) || matchesPattern(name, include));
 
 const getComponentKey = (child: EffuseChild): string => {
-	if (!Predicate.isNotNullable(child)) {
-		return '';
+	if (!hasType(child)) return String(Date.now());
+	const { type } = child;
+	if (typeof type === 'string') return type;
+	if (
+		typeof type === 'object' &&
+		Predicate.isNotNullable(type) &&
+		Predicate.hasProperty(type, 'name')
+	) {
+		const name = (type as { name: unknown }).name;
+		if (typeof name === 'string') return name;
 	}
-
-	if (typeof child === 'object' && 'type' in child) {
-		const nodeType = child as { type?: string | { name?: string } };
-		if (typeof nodeType.type === 'string') {
-			return nodeType.type;
-		}
-		if (
-			typeof nodeType.type === 'object' &&
-			Predicate.isNotNullable(nodeType.type.name)
-		) {
-			return nodeType.type.name;
-		}
-	}
-
 	return String(Date.now());
-};
-
-const pruneCache = (cache: KeepAliveCache, max: number): void => {
-	while (cache.components.size > max) {
-		const firstKey = cache.components.keys().next().value;
-		if (Predicate.isNotNullable(firstKey)) {
-			cache.components.delete(firstKey);
-		}
-	}
 };
 
 const resolveChild = (
 	children: EffuseChild | Signal<EffuseChild | null>
-): EffuseChild | null => {
-	if (Predicate.isFunction(children) && 'value' in children) {
-		return (children as Signal<EffuseChild | null>).value;
-	}
-	return children as EffuseChild;
-};
+): Option.Option<EffuseChild> =>
+	isSignal<EffuseChild | null>(children)
+		? Option.fromNullable(children.value)
+		: Option.fromNullable(children);
 
 export const KeepAlive = (props: KeepAliveProps): EffuseNode => {
 	const { include, exclude, max = CacheDefaults.MAX_SIZE } = props;
 
-	const cache = createCache();
+	const scope = Effect.runSync(Scope.make());
+	const cache = Effect.runSync(
+		Cache.make<string, CachedComponent, CacheMissError>({
+			capacity: max,
+			timeToLive: Duration.infinity,
+			lookup: () => Effect.fail(new CacheMissError()),
+		}).pipe(Scope.extend(scope))
+	);
+
 	const activeKey = signal<string | null>(null);
+	const listNode = createListNode([]) as KeepAliveNode;
 
-	const listNode = createListNode([]) as ReturnType<typeof createListNode> & {
-		_cache: KeepAliveCache;
-		_activeKey: Signal<string | null>;
-	};
-
-	listNode._cache = cache;
-	listNode._activeKey = activeKey;
+	Object.assign(listNode, {
+		_cache: cache,
+		_activeKey: activeKey,
+		_cleanup: () => {
+			Effect.runSync(Scope.close(scope, Exit.void));
+		},
+	});
 
 	Object.defineProperty(listNode, 'children', {
 		enumerable: true,
 		configurable: true,
-		get() {
-			const child = resolveChild(props.children);
+		get(): EffuseChild[] {
+			return Option.match(resolveChild(props.children), {
+				onNone: () => {
+					activeKey.value = null;
+					return [];
+				},
+				onSome: (child) => {
+					const key = getComponentKey(child);
 
-			if (!Predicate.isNotNullable(child)) {
-				activeKey.value = null;
-				return [];
-			}
+					if (!shouldCache(key, include, exclude)) {
+						activeKey.value = null;
+						return [child];
+					}
 
-			const key = getComponentKey(child);
+					const exit = Effect.runSync(Effect.exit(cache.get(key)));
+					if (Exit.isSuccess(exit)) {
+						activeKey.value = key;
+						return Match.value(exit.value).pipe(
+							Match.tag('Cached', (c) => [c.child]),
+							Match.tag('Fresh', (f) => [f.child]),
+							Match.exhaustive
+						);
+					}
 
-			if (!shouldCache(key, include, exclude)) {
-				activeKey.value = null;
-				return [child];
-			}
-
-			const existingCached = cache.components.get(key);
-			if (Predicate.isNotNullable(existingCached)) {
-				existingCached.timestamp = Date.now();
-
-				cache.components.delete(key);
-				cache.components.set(key, existingCached);
-
-				activeKey.value = key;
-				cache.currentKey = Option.some(key);
-
-				return [existingCached.child];
-			}
-
-			const cachedComponent: CachedComponent = {
-				key,
-				child,
-				timestamp: Date.now(),
-				state: null,
-			};
-
-			cache.components.set(key, cachedComponent);
-
-			pruneCache(cache, max);
-
-			activeKey.value = key;
-			cache.currentKey = Option.some(key);
-
-			return [child];
+					Effect.runSync(cache.set(key, Fresh({ key, child })));
+					activeKey.value = key;
+					return [child];
+				},
+			});
 		},
 	});
 
@@ -198,10 +185,7 @@ export const KeepAlive = (props: KeepAliveProps): EffuseNode => {
 export const useKeepAliveContext = (
 	node: EffuseNode
 ): { activeKey: Signal<string | null>; cacheSize: () => number } => {
-	const cacheNode = node as unknown as {
-		_cache?: KeepAliveCache;
-		_activeKey?: Signal<string | null>;
-	};
+	const cacheNode = node as unknown as Partial<KeepAliveNode>;
 
 	if (
 		Predicate.isNotNullable(cacheNode._cache) &&
@@ -210,12 +194,9 @@ export const useKeepAliveContext = (
 		const nodeCache = cacheNode._cache;
 		return {
 			activeKey: cacheNode._activeKey,
-			cacheSize: () => nodeCache.components.size,
+			cacheSize: () => Effect.runSync(nodeCache.size),
 		};
 	}
 
-	return {
-		activeKey: signal<string | null>(null),
-		cacheSize: () => 0,
-	};
+	return { activeKey: signal<string | null>(null), cacheSize: () => 0 };
 };
