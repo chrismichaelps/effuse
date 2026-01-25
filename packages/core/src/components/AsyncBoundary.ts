@@ -28,24 +28,46 @@ import type { Signal } from '../types/index.js';
 import { signal } from '../reactivity/index.js';
 import { Data, Predicate } from 'effect';
 
-export type AsyncBoundaryStatus = 'idle' | 'loading' | 'success' | 'error';
+type AsyncStatusInternal = Data.TaggedEnum<{
+	Idle: object;
+	Loading: object;
+	Success: object;
+	Error: { readonly error: unknown };
+}>;
 
-export const isAsyncIdle = (s: AsyncBoundaryStatus): s is 'idle' =>
-	s === 'idle';
-export const isAsyncLoading = (s: AsyncBoundaryStatus): s is 'loading' =>
+const { Idle, Loading, Success, Error, $is } =
+	Data.taggedEnum<AsyncStatusInternal>();
+
+export type AsyncStatus = 'idle' | 'loading' | 'success' | 'error';
+export type AsyncBoundaryStatus = AsyncStatus;
+
+const isAsyncIdleInternal = (
+	s: AsyncStatusInternal
+): s is Extract<AsyncStatusInternal, { _tag: 'Idle' }> => $is('Idle')(s);
+const isAsyncLoadingInternal = (
+	s: AsyncStatusInternal
+): s is Extract<AsyncStatusInternal, { _tag: 'Loading' }> => $is('Loading')(s);
+const isAsyncSuccessInternal = (
+	s: AsyncStatusInternal
+): s is Extract<AsyncStatusInternal, { _tag: 'Success' }> => $is('Success')(s);
+const isAsyncErrorInternal = (
+	s: AsyncStatusInternal
+): s is Extract<AsyncStatusInternal, { _tag: 'Error' }> => $is('Error')(s);
+
+export const isAsyncIdle = (s: AsyncStatus): s is 'idle' => s === 'idle';
+export const isAsyncLoading = (s: AsyncStatus): s is 'loading' =>
 	s === 'loading';
-export const isAsyncSuccess = (s: AsyncBoundaryStatus): s is 'success' =>
+export const isAsyncSuccess = (s: AsyncStatus): s is 'success' =>
 	s === 'success';
-export const isAsyncError = (s: AsyncBoundaryStatus): s is 'error' =>
-	s === 'error';
+export const isAsyncError = (s: AsyncStatus): s is 'error' => s === 'error';
 
 export const matchAsyncStatus = <R>(
-	status: AsyncBoundaryStatus,
+	status: AsyncStatus,
 	handlers: {
 		onIdle: () => R;
 		onLoading: () => R;
 		onSuccess: () => R;
-		onError: () => R;
+		onError: (error: unknown) => R;
 	}
 ): R => {
 	switch (status) {
@@ -56,25 +78,9 @@ export const matchAsyncStatus = <R>(
 		case 'success':
 			return handlers.onSuccess();
 		case 'error':
-			return handlers.onError();
+			return handlers.onError(undefined);
 	}
 };
-
-export type AsyncStatusEnum<T = unknown, E = unknown> = Data.TaggedEnum<{
-	Idle: object;
-	Loading: object;
-	Success: { data: T };
-	Error: { error: E };
-}>;
-
-const {
-	Idle,
-	Loading,
-	Success,
-	Error: ErrorState,
-} = Data.taggedEnum<AsyncStatusEnum>();
-
-export const AsyncStatusEnum = { Idle, Loading, Success, Error: ErrorState };
 
 export class AsyncBoundaryError extends Data.TaggedError('AsyncBoundaryError')<{
 	readonly cause: unknown;
@@ -90,13 +96,13 @@ export interface AsyncBoundaryProps {
 }
 
 type AsyncBoundaryCache = {
-	status: Signal<AsyncBoundaryStatus>;
+	status: Signal<AsyncStatusInternal>;
 	error: Signal<unknown>;
 	retryCount: Signal<number>;
 };
 
 const createCache = (): AsyncBoundaryCache => ({
-	status: signal<AsyncBoundaryStatus>('idle'),
+	status: signal<AsyncStatusInternal>(Idle()),
 	error: signal<unknown>(null),
 	retryCount: signal<number>(0),
 });
@@ -139,14 +145,14 @@ export const AsyncBoundary = (props: AsyncBoundaryProps): EffuseNode => {
 
 	const retry = (): void => {
 		cache.error.value = null;
-		cache.status.value = 'idle';
+		cache.status.value = Idle();
 		cache.retryCount.value += 1;
 		props.onRetry?.();
 	};
 
 	const handleError = (error: unknown): void => {
 		cache.error.value = error;
-		cache.status.value = 'error';
+		cache.status.value = Error({ error });
 		props.onError?.(error);
 	};
 
@@ -166,22 +172,24 @@ export const AsyncBoundary = (props: AsyncBoundaryProps): EffuseNode => {
 		get() {
 			const status = cache.status.value;
 
-			return matchAsyncStatus(status, {
-				onIdle: () => [props.children],
-				onLoading: () => {
+			switch (status._tag) {
+				case 'Idle':
+					return [props.children];
+				case 'Loading': {
 					const loadingChild = resolveFallback(props.loading);
 					return Predicate.isNotNullable(loadingChild) ? [loadingChild] : [];
-				},
-				onSuccess: () => [props.children],
-				onError: () => {
+				}
+				case 'Success':
+					return [props.children];
+				case 'Error': {
 					const errorChild = resolveErrorFallback(
 						props.error,
-						cache.error.value,
+						status.error,
 						retry
 					);
 					return Predicate.isNotNullable(errorChild) ? [errorChild] : [];
-				},
-			});
+				}
+			}
 		},
 	});
 
@@ -191,8 +199,8 @@ export const AsyncBoundary = (props: AsyncBoundaryProps): EffuseNode => {
 export const useAsyncBoundary = (
 	node: EffuseNode
 ): {
-	status: Signal<AsyncBoundaryStatus>;
-	error: Signal<unknown>;
+	status: AsyncStatus;
+	error: unknown;
 	retry: () => void;
 	setLoading: () => void;
 	setSuccess: () => void;
@@ -215,31 +223,43 @@ export const useAsyncBoundary = (
 	) {
 		const cache = cacheNode._cache;
 		const handleErrorFn = cacheNode._handleError;
+
+		const getStatus = (): AsyncStatus => {
+			const s = cache.status.value;
+			if (isAsyncIdleInternal(s)) return 'idle';
+			if (isAsyncLoadingInternal(s)) return 'loading';
+			if (isAsyncSuccessInternal(s)) return 'success';
+			if (isAsyncErrorInternal(s)) return 'error';
+			return 'idle';
+		};
+
 		return {
-			status: cache.status,
-			error: cache.error,
+			get status() {
+				return getStatus();
+			},
+			get error() {
+				return cache.error.value;
+			},
 			retry: cacheNode._retry,
 			setLoading: () => {
-				cache.status.value = 'loading';
+				cache.status.value = Loading();
 			},
 			setSuccess: () => {
-				cache.status.value = 'success';
+				cache.status.value = Success();
 			},
 			setError: (error: unknown) => {
 				handleErrorFn(error);
 			},
-			isIdle: () => isAsyncIdle(cache.status.value),
-			isLoading: () => isAsyncLoading(cache.status.value),
-			isSuccess: () => isAsyncSuccess(cache.status.value),
-			isError: () => isAsyncError(cache.status.value),
+			isIdle: () => isAsyncIdleInternal(cache.status.value),
+			isLoading: () => isAsyncLoadingInternal(cache.status.value),
+			isSuccess: () => isAsyncSuccessInternal(cache.status.value),
+			isError: () => isAsyncErrorInternal(cache.status.value),
 		};
 	}
 
-	const defaultStatus = signal<AsyncBoundaryStatus>('idle');
-	const defaultError = signal<unknown>(null);
 	return {
-		status: defaultStatus,
-		error: defaultError,
+		status: 'idle',
+		error: null,
 		retry: () => {},
 		setLoading: () => {},
 		setSuccess: () => {},

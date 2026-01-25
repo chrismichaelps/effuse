@@ -39,61 +39,48 @@ export class TransitionError extends Data.TaggedError('TransitionError')<{
 	readonly cause: unknown;
 }> {}
 
-export type TransitionStateEnum = Data.TaggedEnum<{
+export type TransitionState = Data.TaggedEnum<{
 	Idle: object;
-	Entering: { element: Element };
-	Entered: { element: Element };
-	Exiting: { element: Element };
+	Entering: { readonly element: Element };
+	Entered: { readonly element: Element };
+	Exiting: { readonly element: Element };
 	Exited: object;
 }>;
 
-const { Idle, Entering, Entered, Exiting, Exited } =
-	Data.taggedEnum<TransitionStateEnum>();
+const { Idle, Entering, Entered, Exiting, Exited, $match, $is } =
+	Data.taggedEnum<TransitionState>();
 
-export const TransitionStateEnum = { Idle, Entering, Entered, Exiting, Exited };
+export const TransitionState = {
+	Idle,
+	Entering,
+	Entered,
+	Exiting,
+	Exited,
+	$match,
+	$is,
+};
 
-export type TransitionMode = 'default' | 'out-in' | 'in-out';
+export const isTransitionIdle = $is('Idle');
+export const isTransitionEntering = $is('Entering');
+export const isTransitionEntered = $is('Entered');
+export const isTransitionExiting = $is('Exiting');
+export const isTransitionExited = $is('Exited');
 
-export type TransitionState =
-	| 'idle'
-	| 'entering'
-	| 'entered'
-	| 'exiting'
-	| 'exited';
+export const matchTransitionState = $match;
 
-export const isTransitionIdle = (s: TransitionState): s is 'idle' =>
-	s === 'idle';
-export const isTransitionEntering = (s: TransitionState): s is 'entering' =>
-	s === 'entering';
-export const isTransitionEntered = (s: TransitionState): s is 'entered' =>
-	s === 'entered';
-export const isTransitionExiting = (s: TransitionState): s is 'exiting' =>
-	s === 'exiting';
-export const isTransitionExited = (s: TransitionState): s is 'exited' =>
-	s === 'exited';
+export type TransitionMode = Data.TaggedEnum<{
+	Default: object;
+	OutIn: object;
+	InOut: object;
+}>;
 
-export const matchTransitionState = <R>(
-	state: TransitionState,
-	handlers: {
-		onIdle: () => R;
-		onEntering: () => R;
-		onEntered: () => R;
-		onExiting: () => R;
-		onExited: () => R;
-	}
-): R => {
-	switch (state) {
-		case 'idle':
-			return handlers.onIdle();
-		case 'entering':
-			return handlers.onEntering();
-		case 'entered':
-			return handlers.onEntered();
-		case 'exiting':
-			return handlers.onExiting();
-		case 'exited':
-			return handlers.onExited();
-	}
+const transitionModeEnum = Data.taggedEnum<TransitionMode>();
+export const TransitionMode = {
+	Default: transitionModeEnum.Default,
+	OutIn: transitionModeEnum.OutIn,
+	InOut: transitionModeEnum.InOut,
+	$match: transitionModeEnum.$match,
+	$is: transitionModeEnum.$is,
 };
 
 export interface TransitionClasses {
@@ -202,7 +189,7 @@ const resolveChild = (
 };
 
 const createCache = (props: TransitionProps): TransitionCache => ({
-	state: signal<TransitionState>('idle'),
+	state: signal<TransitionState>(Idle()),
 	currentChild: Option.none(),
 	pendingChild: Option.none(),
 	classes: resolveClasses(props),
@@ -282,7 +269,8 @@ export const performExit = (
 };
 
 export const Transition = (props: TransitionProps): EffuseNode => {
-	const { mode = 'default', appear = false } = props;
+	const mode = props.mode ?? TransitionMode.Default();
+	const { appear = false } = props;
 
 	const cache = createCache(props);
 
@@ -307,11 +295,15 @@ export const Transition = (props: TransitionProps): EffuseNode => {
 				listNode._mounted = true;
 
 				if (hasNewChild && appear) {
-					cache.state.value = 'entering';
+					cache.state.value = Entering({
+						element: newChild as unknown as Element,
+					});
 					cache.currentChild = Option.some(newChild);
 				} else if (hasNewChild) {
 					cache.currentChild = Option.some(newChild);
-					cache.state.value = 'entered';
+					cache.state.value = Entered({
+						element: newChild as unknown as Element,
+					});
 				}
 
 				return Option.match(cache.currentChild, {
@@ -322,31 +314,42 @@ export const Transition = (props: TransitionProps): EffuseNode => {
 
 			if (hasNewChild && !hasCurrentChild) {
 				cache.currentChild = Option.some(newChild);
-				cache.state.value = 'entering';
+				cache.state.value = Entering({
+					element: newChild as unknown as Element,
+				});
 			}
 
 			if (!hasNewChild && hasCurrentChild && !isTransitionExiting(state)) {
-				cache.state.value = 'exiting';
+				const current = Option.getOrThrow(cache.currentChild);
+				cache.state.value = Exiting({ element: current as unknown as Element });
 			}
 
 			if (hasNewChild && hasCurrentChild) {
 				const current = Option.getOrThrow(cache.currentChild);
 				if (current !== newChild) {
-					if (mode === 'out-in') {
-						cache.pendingChild = Option.some(newChild);
-						cache.state.value = 'exiting';
-					} else if (mode === 'in-out') {
-						cache.pendingChild = Option.some(newChild);
-						cache.state.value = 'entering';
-					} else {
-						cache.currentChild = Option.some(newChild);
-					}
+					TransitionMode.$match(mode, {
+						OutIn: () => {
+							cache.pendingChild = Option.some(newChild);
+							cache.state.value = Exiting({
+								element: current as unknown as Element,
+							});
+						},
+						InOut: () => {
+							cache.pendingChild = Option.some(newChild);
+							cache.state.value = Entering({
+								element: newChild as unknown as Element,
+							});
+						},
+						Default: () => {
+							cache.currentChild = Option.some(newChild);
+						},
+					});
 				}
 			}
 
 			return Option.match(cache.currentChild, {
 				onNone: () => {
-					cache.state.value = 'idle';
+					cache.state.value = Idle();
 					return [] as EffuseChild[];
 				},
 				onSome: (child) => [child] as EffuseChild[],
@@ -364,5 +367,5 @@ export const useTransitionState = (
 	if (Predicate.isNotNullable(cacheNode._cache)) {
 		return cacheNode._cache.state;
 	}
-	return signal<TransitionState>('idle');
+	return signal<TransitionState>(Idle());
 };

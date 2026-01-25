@@ -22,16 +22,31 @@
  * SOFTWARE.
  */
 
-import { Predicate } from 'effect';
+import { Data, Predicate } from 'effect';
 import { getGlobalTracing } from './global.js';
 
-export type ResourceStatus = 'loading' | 'success' | 'error' | 'stale';
+export type ResourceStatus = Data.TaggedEnum<{
+	Loading: object;
+	Success: { readonly itemCount?: number };
+	Error: { readonly error: string };
+	Stale: object;
+}>;
+
+const { Loading, Success, Error, Stale, $match, $is } =
+	Data.taggedEnum<ResourceStatus>();
+
+export const ResourceStatus = { Loading, Success, Error, Stale, $match, $is };
+
+export const isResourceLoading = $is('Loading');
+export const isResourceSuccess = $is('Success');
+export const isResourceError = $is('Error');
+export const isResourceStale = $is('Stale');
+
+export const matchResourceStatus = $match;
 
 export interface ResourceTraceData {
 	readonly key: string;
 	readonly status: ResourceStatus;
-	readonly itemCount?: number;
-	readonly error?: string;
 }
 
 export const traceResourceLoading = (key: string): void => {
@@ -43,7 +58,7 @@ export const traceResourceLoading = (key: string): void => {
 		return;
 
 	tracing.log('suspense', 'resource', key, {
-		status: 'loading',
+		status: Loading(),
 	});
 };
 
@@ -59,15 +74,13 @@ export const traceResourceSuccess = (
 	)
 		return;
 
-	const data: Record<string, unknown> = {
-		status: 'success',
-	};
+	const status = Predicate.isNotNullable(itemCount)
+		? Success({ itemCount })
+		: Success({});
 
-	if (Predicate.isNotNullable(itemCount)) {
-		data['items'] = itemCount;
-	}
-
-	tracing.logWithDuration('suspense', 'resource', key, duration, data);
+	tracing.logWithDuration('suspense', 'resource', key, duration, {
+		status,
+	});
 };
 
 export const traceResourceError = (
@@ -83,14 +96,26 @@ export const traceResourceError = (
 		return;
 
 	tracing.logWithDuration('suspense', 'resource', key, duration, {
-		status: 'error',
-		error,
+		status: Error({ error }),
 	});
+};
+
+export type SuspenseBoundaryAction = Data.TaggedEnum<{
+	Suspend: object;
+	Resolve: object;
+}>;
+
+const boundaryActionEnum = Data.taggedEnum<SuspenseBoundaryAction>();
+export const SuspenseBoundaryAction = {
+	Suspend: boundaryActionEnum.Suspend,
+	Resolve: boundaryActionEnum.Resolve,
+	$match: boundaryActionEnum.$match,
+	$is: boundaryActionEnum.$is,
 };
 
 export const traceSuspenseBoundary = (
 	name: string,
-	action: 'suspend' | 'resolve'
+	action: SuspenseBoundaryAction
 ): void => {
 	const tracing = getGlobalTracing();
 	if (

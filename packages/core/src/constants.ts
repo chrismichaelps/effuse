@@ -22,6 +22,8 @@
  * SOFTWARE.
  */
 
+import { Data } from 'effect';
+
 export const EFFUSE_NODE = Symbol.for('effuse.node');
 
 export const FRAGMENT = Symbol.for('effuse.fragment');
@@ -39,10 +41,48 @@ export const BOUNDARY_ID_PREFIX = 'suspense-boundary-';
 
 export const HYDRATION_SCRIPT_ID = '__EFFUSE_DATA__';
 
-export enum NodeType {
-	ELEMENT = 'Element',
-	TEXT = 'Text',
-	BLUEPRINT = 'Blueprint',
-	FRAGMENT = 'Fragment',
-	LIST = 'List',
-}
+type NodeTypeInternal = Data.TaggedEnum<{
+	Element: object;
+	Text: object;
+	Blueprint: object;
+	Fragment: object;
+	List: object;
+}>;
+
+const { Element, Text, Blueprint, Fragment, List, $is } =
+	Data.taggedEnum<NodeTypeInternal>();
+
+export const NodeType = { Element, Text, Blueprint, Fragment, List };
+
+export const isNodeElement = (n: NodeTypeInternal): boolean =>
+	$is('Element')(n);
+export const isNodeText = (n: NodeTypeInternal): boolean => $is('Text')(n);
+export const isNodeBlueprint = (n: NodeTypeInternal): boolean =>
+	$is('Blueprint')(n);
+export const isNodeFragment = (n: NodeTypeInternal): boolean =>
+	$is('Fragment')(n);
+export const isNodeList = (n: NodeTypeInternal): boolean => $is('List')(n);
+
+export const matchNodeType = <R>(
+	nodeType: NodeTypeInternal,
+	handlers: {
+		onElement: () => R;
+		onText: () => R;
+		onBlueprint: () => R;
+		onFragment: () => R;
+		onList: () => R;
+	}
+): R => {
+	switch (nodeType._tag) {
+		case 'Element':
+			return handlers.onElement();
+		case 'Text':
+			return handlers.onText();
+		case 'Blueprint':
+			return handlers.onBlueprint();
+		case 'Fragment':
+			return handlers.onFragment();
+		case 'List':
+			return handlers.onList();
+	}
+};

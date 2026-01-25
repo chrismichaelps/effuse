@@ -41,44 +41,49 @@ export class TransitionGroupError extends Data.TaggedError(
 	readonly cause: unknown;
 }> {}
 
-export type TransitionGroupState = 'idle' | 'animating';
-
-export const isGroupIdle = (s: TransitionGroupState): s is 'idle' =>
-	s === 'idle';
-export const isGroupAnimating = (s: TransitionGroupState): s is 'animating' =>
-	s === 'animating';
-
-export const matchGroupState = <R>(
-	state: TransitionGroupState,
-	handlers: {
-		onIdle: () => R;
-		onAnimating: () => R;
-	}
-): R => {
-	switch (state) {
-		case 'idle':
-			return handlers.onIdle();
-		case 'animating':
-			return handlers.onAnimating();
-	}
-};
-
-export type TransitionGroupStateEnum = Data.TaggedEnum<{
+export type TransitionGroupState = Data.TaggedEnum<{
 	Idle: object;
-	Animating: { activeCount: number };
+	Animating: { readonly activeCount: number };
 }>;
 
-const { Idle, Animating } = Data.taggedEnum<TransitionGroupStateEnum>();
+const groupStateEnum = Data.taggedEnum<TransitionGroupState>();
+export const TransitionGroupState = {
+	Idle: groupStateEnum.Idle,
+	Animating: groupStateEnum.Animating,
+	$match: groupStateEnum.$match,
+	$is: groupStateEnum.$is,
+};
 
-export const TransitionGroupStateEnum = { Idle, Animating };
+export const isGroupIdle = groupStateEnum.$is('Idle');
+export const isGroupAnimating = groupStateEnum.$is('Animating');
 
-export type ItemState = 'entering' | 'entered' | 'exiting' | 'moving';
+export const matchGroupState = groupStateEnum.$match;
 
-export const isItemEntering = (s: ItemState): s is 'entering' =>
-	s === 'entering';
-export const isItemEntered = (s: ItemState): s is 'entered' => s === 'entered';
-export const isItemExiting = (s: ItemState): s is 'exiting' => s === 'exiting';
-export const isItemMoving = (s: ItemState): s is 'moving' => s === 'moving';
+export type ItemState = Data.TaggedEnum<{
+	Entering: { readonly element: Element };
+	Entered: { readonly element: Element };
+	Exiting: { readonly element: Element };
+	Moving: {
+		readonly element: Element;
+		readonly fromIndex: number;
+		readonly toIndex: number;
+	};
+}>;
+
+const itemStateEnum = Data.taggedEnum<ItemState>();
+export const ItemState = {
+	Entering: itemStateEnum.Entering,
+	Entered: itemStateEnum.Entered,
+	Exiting: itemStateEnum.Exiting,
+	Moving: itemStateEnum.Moving,
+	$match: itemStateEnum.$match,
+	$is: itemStateEnum.$is,
+};
+
+export const isItemEntering = itemStateEnum.$is('Entering');
+export const isItemEntered = itemStateEnum.$is('Entered');
+export const isItemExiting = itemStateEnum.$is('Exiting');
+export const isItemMoving = itemStateEnum.$is('Moving');
 
 export interface TransitionGroupClasses {
 	enter?: string;
@@ -129,7 +134,7 @@ type ItemMeta<T> = {
 	key: unknown;
 	itemSignal: Signal<T>;
 	indexSignal: Signal<number>;
-	state: ItemState;
+	state: ItemState | null;
 	rect?: DOMRect;
 };
 
@@ -210,7 +215,7 @@ const resolveFallback = (
 const createCache = <T>(
 	props: TransitionGroupProps<T>
 ): TransitionGroupCache<T> => ({
-	state: signal<TransitionGroupState>('idle'),
+	state: signal<TransitionGroupState>(TransitionGroupState.Idle()),
 	cachedChildren: [],
 	meta: new WeakMap(),
 	elementMap: new WeakMap(),
@@ -281,7 +286,14 @@ export const TransitionGroup = <T>(
 						meta.itemSignal.value = item;
 					}
 					if (meta.indexSignal.value !== i) {
-						meta.state = 'moving';
+						const el = cache.elementMap.get(existingNode);
+						if (Predicate.isNotNullable(el)) {
+							meta.state = ItemState.Moving({
+								element: el,
+								fromIndex: meta.indexSignal.value,
+								toIndex: i,
+							});
+						}
 						meta.indexSignal.value = i;
 						animatingCount++;
 					}
@@ -294,7 +306,7 @@ export const TransitionGroup = <T>(
 						key,
 						itemSignal,
 						indexSignal,
-						state: 'entering',
+						state: null,
 					};
 					cache.meta.set(node, meta);
 					animatingCount++;
@@ -306,12 +318,18 @@ export const TransitionGroup = <T>(
 				const meta = cache.meta.get(child);
 				if (!Predicate.isNotNullable(meta)) continue;
 				if (!seenKeys.has(meta.key)) {
-					meta.state = 'exiting';
+					const el = cache.elementMap.get(child);
+					if (Predicate.isNotNullable(el)) {
+						meta.state = ItemState.Exiting({ element: el });
+					}
 					animatingCount++;
 				}
 			}
 
-			cache.state.value = animatingCount > 0 ? 'animating' : 'idle';
+			cache.state.value =
+				animatingCount > 0
+					? TransitionGroupState.Animating({ activeCount: animatingCount })
+					: TransitionGroupState.Idle();
 			cache.cachedChildren = newChildren;
 			return newChildren;
 		},
@@ -338,7 +356,9 @@ export const useTransitionGroupState = (
 			isAnimating: () => isGroupAnimating(cache.state.value),
 		};
 	}
-	const defaultState = signal<TransitionGroupState>('idle');
+	const defaultState = signal<TransitionGroupState>(
+		TransitionGroupState.Idle()
+	);
 	return {
 		state: defaultState,
 		isIdle: () => true,
