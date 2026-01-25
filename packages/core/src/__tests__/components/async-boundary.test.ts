@@ -7,6 +7,7 @@ import {
 	isAsyncError,
 	matchAsyncStatus,
 	AsyncBoundaryError,
+	type AsyncStatus,
 	type AsyncBoundaryStatus,
 } from '../../components/AsyncBoundary.js';
 
@@ -107,17 +108,13 @@ describe('AsyncBoundary', () => {
 		});
 
 		it('should be exhaustive for all statuses', () => {
-			const statuses: AsyncBoundaryStatus[] = [
-				'idle',
-				'loading',
-				'success',
-				'error',
-			];
+			const statuses: AsyncStatus[] = ['idle', 'loading', 'success', 'error'];
 			const results: string[] = [];
 
 			for (const status of statuses) {
+				const currentStatus: AsyncStatus = status;
 				results.push(
-					matchAsyncStatus(status, {
+					matchAsyncStatus(currentStatus, {
 						onIdle: () => 'idle',
 						onLoading: () => 'loading',
 						onSuccess: () => 'success',

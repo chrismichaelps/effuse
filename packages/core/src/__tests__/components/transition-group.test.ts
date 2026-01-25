@@ -1,415 +1,562 @@
-// @vitest-environment node
-import { describe, it, expect, vi } from 'vitest';
+// @vitest-environment jsdom
+import { describe, it, expect } from 'vitest';
 import {
+	TransitionGroupState,
 	isGroupIdle,
 	isGroupAnimating,
 	matchGroupState,
+	ItemState,
 	isItemEntering,
 	isItemEntered,
 	isItemExiting,
 	isItemMoving,
-	type TransitionGroupState,
-	type ItemState,
+	TransitionGroupError,
 } from '../../components/TransitionGroup.js';
 
-describe('TransitionGroup', () => {
-	describe('Group State Type Guards', () => {
+describe('TransitionGroupState TaggedEnum', () => {
+	describe('Constructors', () => {
+		it('should create Idle state', () => {
+			const state = TransitionGroupState.Idle();
+			expect(state._tag).toBe('Idle');
+		});
+
+		it('should create Animating state with activeCount', () => {
+			const state = TransitionGroupState.Animating({ activeCount: 5 });
+			expect(state._tag).toBe('Animating');
+			expect(state.activeCount).toBe(5);
+		});
+
+		it('should create Animating state with zero activeCount', () => {
+			const state = TransitionGroupState.Animating({ activeCount: 0 });
+			expect(state._tag).toBe('Animating');
+			expect(state.activeCount).toBe(0);
+		});
+	});
+
+	describe('Type Guards', () => {
 		describe('isGroupIdle', () => {
-			it('should return true for idle state', () => {
-				expect(isGroupIdle('idle')).toBe(true);
+			it('should return true for Idle state', () => {
+				expect(isGroupIdle(TransitionGroupState.Idle())).toBe(true);
 			});
 
-			it('should return false for animating state', () => {
-				expect(isGroupIdle('animating')).toBe(false);
+			it('should return false for Animating state', () => {
+				expect(
+					isGroupIdle(TransitionGroupState.Animating({ activeCount: 1 }))
+				).toBe(false);
 			});
 		});
 
 		describe('isGroupAnimating', () => {
-			it('should return true for animating state', () => {
-				expect(isGroupAnimating('animating')).toBe(true);
+			it('should return true for Animating state', () => {
+				expect(
+					isGroupAnimating(TransitionGroupState.Animating({ activeCount: 3 }))
+				).toBe(true);
 			});
 
-			it('should return false for idle state', () => {
-				expect(isGroupAnimating('idle')).toBe(false);
+			it('should return false for Idle state', () => {
+				expect(isGroupAnimating(TransitionGroupState.Idle())).toBe(false);
 			});
 		});
 	});
 
-	describe('matchGroupState', () => {
-		it('should call onIdle handler for idle state', () => {
-			const result = matchGroupState('idle', {
-				onIdle: () => 'idle-result',
-				onAnimating: () => 'animating-result',
+	describe('matchGroupState ($match)', () => {
+		it('should call Idle handler', () => {
+			const result = matchGroupState(TransitionGroupState.Idle(), {
+				Idle: () => 'idle-result',
+				Animating: () => 'animating-result',
 			});
-
 			expect(result).toBe('idle-result');
 		});
 
-		it('should call onAnimating handler for animating state', () => {
-			const result = matchGroupState('animating', {
-				onIdle: () => 'idle-result',
-				onAnimating: () => 'animating-result',
-			});
-
-			expect(result).toBe('animating-result');
+		it('should call Animating handler with activeCount access', () => {
+			const result = matchGroupState(
+				TransitionGroupState.Animating({ activeCount: 7 }),
+				{
+					Idle: () => null,
+					Animating: ({ activeCount }) =>
+						`animating ${String(activeCount)} items`,
+				}
+			);
+			expect(result).toBe('animating 7 items');
 		});
 
-		it('should be exhaustive for all states', () => {
-			const states: TransitionGroupState[] = ['idle', 'animating'];
-			const results: string[] = [];
-
-			for (const state of states) {
-				results.push(
-					matchGroupState(state, {
-						onIdle: () => 'idle',
-						onAnimating: () => 'animating',
-					})
-				);
-			}
-
-			expect(results).toEqual(['idle', 'animating']);
-		});
-
-		it('should support generic return types', () => {
-			const result = matchGroupState('idle', {
-				onIdle: () => 0,
-				onAnimating: () => 1,
-			});
-
-			expect(typeof result).toBe('number');
-			expect(result).toBe(0);
-		});
-	});
-
-	describe('Item State Type Guards', () => {
-		describe('isItemEntering', () => {
-			it('should return true for entering state', () => {
-				expect(isItemEntering('entering')).toBe(true);
-			});
-
-			it('should return false for other states', () => {
-				expect(isItemEntering('entered')).toBe(false);
-				expect(isItemEntering('exiting')).toBe(false);
-				expect(isItemEntering('moving')).toBe(false);
-			});
-		});
-
-		describe('isItemEntered', () => {
-			it('should return true for entered state', () => {
-				expect(isItemEntered('entered')).toBe(true);
-			});
-
-			it('should return false for other states', () => {
-				expect(isItemEntered('entering')).toBe(false);
-				expect(isItemEntered('exiting')).toBe(false);
-				expect(isItemEntered('moving')).toBe(false);
-			});
-		});
-
-		describe('isItemExiting', () => {
-			it('should return true for exiting state', () => {
-				expect(isItemExiting('exiting')).toBe(true);
-			});
-
-			it('should return false for other states', () => {
-				expect(isItemExiting('entering')).toBe(false);
-				expect(isItemExiting('entered')).toBe(false);
-				expect(isItemExiting('moving')).toBe(false);
-			});
-		});
-
-		describe('isItemMoving', () => {
-			it('should return true for moving state', () => {
-				expect(isItemMoving('moving')).toBe(true);
-			});
-
-			it('should return false for other states', () => {
-				expect(isItemMoving('entering')).toBe(false);
-				expect(isItemMoving('entered')).toBe(false);
-				expect(isItemMoving('exiting')).toBe(false);
-			});
-		});
-	});
-
-	describe('State Combinations', () => {
-		it('should have exactly 2 group states', () => {
-			const groupStates: TransitionGroupState[] = ['idle', 'animating'];
-			expect(groupStates).toHaveLength(2);
-		});
-
-		it('should have exactly 4 item states', () => {
-			const itemStates: ItemState[] = [
-				'entering',
-				'entered',
-				'exiting',
-				'moving',
-			];
-			expect(itemStates).toHaveLength(4);
-		});
-
-		it('should correctly identify all group states', () => {
-			const states: TransitionGroupState[] = ['idle', 'animating'];
-
-			const idleCount = states.filter(isGroupIdle).length;
-			const animatingCount = states.filter(isGroupAnimating).length;
-
-			expect(idleCount).toBe(1);
-			expect(animatingCount).toBe(1);
-		});
-
-		it('should correctly identify all item states', () => {
-			const states: ItemState[] = ['entering', 'entered', 'exiting', 'moving'];
-
-			const enteringCount = states.filter(isItemEntering).length;
-			const enteredCount = states.filter(isItemEntered).length;
-			const exitingCount = states.filter(isItemExiting).length;
-			const movingCount = states.filter(isItemMoving).length;
-
-			expect(enteringCount).toBe(1);
-			expect(enteredCount).toBe(1);
-			expect(exitingCount).toBe(1);
-			expect(movingCount).toBe(1);
+		it('should support complex return types', () => {
+			const result = matchGroupState(
+				TransitionGroupState.Animating({ activeCount: 3 }),
+				{
+					Idle: () => ({ isActive: false, count: 0 }),
+					Animating: ({ activeCount }) => ({
+						isActive: true,
+						count: activeCount,
+					}),
+				}
+			);
+			expect(result).toEqual({ isActive: true, count: 3 });
 		});
 	});
 
 	describe('Edge Cases', () => {
-		describe('Group State Edge Cases', () => {
-			it('should handle rapid toggling between states', () => {
-				const sequence: TransitionGroupState[] = [
-					'idle',
-					'animating',
-					'idle',
-					'animating',
-					'idle',
-				];
+		it('should handle rapid state changes', () => {
+			let state:
+				| ReturnType<typeof TransitionGroupState.Idle>
+				| ReturnType<typeof TransitionGroupState.Animating> =
+				TransitionGroupState.Idle();
 
-				for (let i = 0; i < sequence.length; i++) {
-					const state = sequence[i];
-					if (i % 2 === 0) {
-						expect(isGroupIdle(state)).toBe(true);
-						expect(isGroupAnimating(state)).toBe(false);
-					} else {
-						expect(isGroupIdle(state)).toBe(false);
-						expect(isGroupAnimating(state)).toBe(true);
-					}
-				}
+			expect(isGroupIdle(state)).toBe(true);
+
+			state = TransitionGroupState.Animating({ activeCount: 2 });
+			expect(isGroupAnimating(state)).toBe(true);
+
+			state = TransitionGroupState.Idle();
+			expect(isGroupIdle(state)).toBe(true);
+		});
+
+		it('should handle large activeCount', () => {
+			const state = TransitionGroupState.Animating({ activeCount: 10000 });
+			expect(state.activeCount).toBe(10000);
+			expect(isGroupAnimating(state)).toBe(true);
+		});
+
+		it('should work in filtering scenarios', () => {
+			const states = [
+				TransitionGroupState.Idle(),
+				TransitionGroupState.Animating({ activeCount: 1 }),
+				TransitionGroupState.Idle(),
+				TransitionGroupState.Animating({ activeCount: 3 }),
+			];
+
+			const idleStates = states.filter(isGroupIdle);
+			const animatingStates = states.filter(isGroupAnimating);
+
+			expect(idleStates).toHaveLength(2);
+			expect(animatingStates).toHaveLength(2);
+		});
+	});
+});
+
+describe('ItemState TaggedEnum', () => {
+	describe('Constructors', () => {
+		it('should create Entering state with element', () => {
+			const el = document.createElement('div');
+			const state = ItemState.Entering({ element: el });
+			expect(state._tag).toBe('Entering');
+			expect(state.element).toBe(el);
+		});
+
+		it('should create Entered state with element', () => {
+			const el = document.createElement('span');
+			const state = ItemState.Entered({ element: el });
+			expect(state._tag).toBe('Entered');
+			expect(state.element).toBe(el);
+		});
+
+		it('should create Exiting state with element', () => {
+			const el = document.createElement('div');
+			const state = ItemState.Exiting({ element: el });
+			expect(state._tag).toBe('Exiting');
+			expect(state.element).toBe(el);
+		});
+
+		it('should create Moving state with element and indices', () => {
+			const el = document.createElement('li');
+			const state = ItemState.Moving({ element: el, fromIndex: 0, toIndex: 2 });
+			expect(state._tag).toBe('Moving');
+			expect(state.element).toBe(el);
+			expect(state.fromIndex).toBe(0);
+			expect(state.toIndex).toBe(2);
+		});
+	});
+
+	describe('Type Guards', () => {
+		describe('isItemEntering', () => {
+			it('should return true for Entering state', () => {
+				const el = document.createElement('div');
+				expect(isItemEntering(ItemState.Entering({ element: el }))).toBe(true);
 			});
 
-			it('should work with state stored in object', () => {
-				const group = {
-					state: 'animating' as TransitionGroupState,
-					items: [],
-				};
-
-				expect(isGroupAnimating(group.state)).toBe(true);
-				group.state = 'idle';
-				expect(isGroupIdle(group.state)).toBe(true);
-			});
-
-			it('should correctly narrow types in switch-like pattern', () => {
-				const getStateDescription = (state: TransitionGroupState): string => {
-					if (isGroupIdle(state)) {
-						return 'No animations running';
-					}
-					if (isGroupAnimating(state)) {
-						return 'Animations in progress';
-					}
-					return 'Unknown';
-				};
-
-				expect(getStateDescription('idle')).toBe('No animations running');
-				expect(getStateDescription('animating')).toBe('Animations in progress');
+			it('should return false for other states', () => {
+				const el = document.createElement('div');
+				expect(isItemEntering(ItemState.Entered({ element: el }))).toBe(false);
+				expect(isItemEntering(ItemState.Exiting({ element: el }))).toBe(false);
+				expect(
+					isItemEntering(
+						ItemState.Moving({ element: el, fromIndex: 0, toIndex: 1 })
+					)
+				).toBe(false);
 			});
 		});
 
-		describe('Item State Edge Cases', () => {
-			it('should handle all item lifecycle states', () => {
-				const lifecycle: ItemState[] = [
-					'entering',
-					'entered',
-					'moving',
-					'exiting',
-				];
-
-				for (const state of lifecycle) {
-					const guards = [
-						isItemEntering,
-						isItemEntered,
-						isItemExiting,
-						isItemMoving,
-					];
-					const matchCount = guards.filter((g) => g(state)).length;
-					expect(matchCount).toBe(1);
-				}
+		describe('isItemEntered', () => {
+			it('should return true for Entered state', () => {
+				const el = document.createElement('div');
+				expect(isItemEntered(ItemState.Entered({ element: el }))).toBe(true);
 			});
 
-			it('should handle items in different states simultaneously', () => {
-				const items: { id: number; state: ItemState }[] = [
-					{ id: 1, state: 'entering' },
-					{ id: 2, state: 'entered' },
-					{ id: 3, state: 'moving' },
-					{ id: 4, state: 'exiting' },
-				];
-
-				const entering = items.filter((i) => isItemEntering(i.state));
-				const entered = items.filter((i) => isItemEntered(i.state));
-				const moving = items.filter((i) => isItemMoving(i.state));
-				const exiting = items.filter((i) => isItemExiting(i.state));
-
-				expect(entering).toHaveLength(1);
-				expect(entered).toHaveLength(1);
-				expect(moving).toHaveLength(1);
-				expect(exiting).toHaveLength(1);
-			});
-
-			it('should handle empty item list', () => {
-				const items: { state: ItemState }[] = [];
-
-				const anyEntering = items.some((i) => isItemEntering(i.state));
-				expect(anyEntering).toBe(false);
-			});
-
-			it('should handle large item list efficiently', () => {
-				const items: { state: ItemState }[] = Array.from(
-					{ length: 1000 },
-					(_, i) => ({
-						state: (['entering', 'entered', 'moving', 'exiting'] as const)[
-							i % 4
-						],
-					})
-				);
-
-				const enteringCount = items.filter((i) =>
-					isItemEntering(i.state)
-				).length;
-				const enteredCount = items.filter((i) => isItemEntered(i.state)).length;
-				const movingCount = items.filter((i) => isItemMoving(i.state)).length;
-				const exitingCount = items.filter((i) => isItemExiting(i.state)).length;
-
-				expect(enteringCount).toBe(250);
-				expect(enteredCount).toBe(250);
-				expect(movingCount).toBe(250);
-				expect(exitingCount).toBe(250);
+			it('should return false for other states', () => {
+				const el = document.createElement('div');
+				expect(isItemEntered(ItemState.Entering({ element: el }))).toBe(false);
+				expect(isItemEntered(ItemState.Exiting({ element: el }))).toBe(false);
+				expect(
+					isItemEntered(
+						ItemState.Moving({ element: el, fromIndex: 0, toIndex: 1 })
+					)
+				).toBe(false);
 			});
 		});
 
-		describe('Match Function Edge Cases', () => {
-			it('should only call matching handler once', () => {
-				const handlers = {
-					onIdle: vi.fn(() => 'idle'),
-					onAnimating: vi.fn(() => 'animating'),
-				};
-
-				matchGroupState('animating', handlers);
-
-				expect(handlers.onIdle).not.toHaveBeenCalled();
-				expect(handlers.onAnimating).toHaveBeenCalledTimes(1);
+		describe('isItemExiting', () => {
+			it('should return true for Exiting state', () => {
+				const el = document.createElement('div');
+				expect(isItemExiting(ItemState.Exiting({ element: el }))).toBe(true);
 			});
 
-			it('should handle handlers returning complex objects', () => {
-				const result = matchGroupState('idle', {
-					onIdle: () => ({
-						canStart: true,
-						pendingItems: [],
-						config: { duration: 300 },
+			it('should return false for other states', () => {
+				const el = document.createElement('div');
+				expect(isItemExiting(ItemState.Entering({ element: el }))).toBe(false);
+				expect(isItemExiting(ItemState.Entered({ element: el }))).toBe(false);
+				expect(
+					isItemExiting(
+						ItemState.Moving({ element: el, fromIndex: 0, toIndex: 1 })
+					)
+				).toBe(false);
+			});
+		});
+
+		describe('isItemMoving', () => {
+			it('should return true for Moving state', () => {
+				const el = document.createElement('div');
+				expect(
+					isItemMoving(
+						ItemState.Moving({ element: el, fromIndex: 0, toIndex: 1 })
+					)
+				).toBe(true);
+			});
+
+			it('should return false for other states', () => {
+				const el = document.createElement('div');
+				expect(isItemMoving(ItemState.Entering({ element: el }))).toBe(false);
+				expect(isItemMoving(ItemState.Entered({ element: el }))).toBe(false);
+				expect(isItemMoving(ItemState.Exiting({ element: el }))).toBe(false);
+			});
+		});
+	});
+
+	describe('$match pattern matching', () => {
+		it('should match Entering state', () => {
+			const el = document.createElement('div');
+			const result = ItemState.$match(ItemState.Entering({ element: el }), {
+				Entering: () => 'entering',
+				Entered: () => 'entered',
+				Exiting: () => 'exiting',
+				Moving: () => 'moving',
+			});
+			expect(result).toBe('entering');
+		});
+
+		it('should match Entered state with element access', () => {
+			const el = document.createElement('div');
+			el.id = 'test-item';
+			const result = ItemState.$match(ItemState.Entered({ element: el }), {
+				Entering: () => null,
+				Entered: ({ element }) => element.id,
+				Exiting: () => null,
+				Moving: () => null,
+			});
+			expect(result).toBe('test-item');
+		});
+
+		it('should match Exiting state', () => {
+			const el = document.createElement('div');
+			const result = ItemState.$match(ItemState.Exiting({ element: el }), {
+				Entering: () => 'entering',
+				Entered: () => 'entered',
+				Exiting: () => 'exiting',
+				Moving: () => 'moving',
+			});
+			expect(result).toBe('exiting');
+		});
+
+		it('should match Moving state with index access', () => {
+			const el = document.createElement('div');
+			const result = ItemState.$match(
+				ItemState.Moving({ element: el, fromIndex: 2, toIndex: 5 }),
+				{
+					Entering: () => null,
+					Entered: () => null,
+					Exiting: () => null,
+					Moving: ({ fromIndex, toIndex }) =>
+						`moved from ${String(fromIndex)} to ${String(toIndex)}`,
+				}
+			);
+			expect(result).toBe('moved from 2 to 5');
+		});
+
+		it('should support complex return types', () => {
+			const el = document.createElement('div');
+			const result = ItemState.$match(
+				ItemState.Moving({ element: el, fromIndex: 1, toIndex: 3 }),
+				{
+					Entering: () => ({ animationType: 'fade-in', duration: 200 }),
+					Entered: () => ({ animationType: 'none', duration: 0 }),
+					Exiting: () => ({ animationType: 'fade-out', duration: 200 }),
+					Moving: ({ fromIndex, toIndex }) => ({
+						animationType: 'slide',
+						duration: 300,
+						delta: toIndex - fromIndex,
 					}),
-					onAnimating: () => ({
-						canStart: false,
-						pendingItems: [1, 2, 3],
-						config: { duration: 300 },
-					}),
-				});
-
-				expect(result).toEqual({
-					canStart: true,
-					pendingItems: [],
-					config: { duration: 300 },
-				});
-			});
-
-			it('should handle handlers that throw', () => {
-				expect(() => {
-					matchGroupState('idle', {
-						onIdle: () => {
-							throw new Error('Idle handler error');
-						},
-						onAnimating: () => 'ok',
-					});
-				}).toThrow('Idle handler error');
-			});
-
-			it('should handle async handlers', async () => {
-				const result = matchGroupState('animating', {
-					onIdle: () => Promise.resolve('idle'),
-					onAnimating: () => Promise.resolve('animating'),
-				});
-
-				expect(result).toBeInstanceOf(Promise);
-				const resolved = await result;
-				expect(resolved).toBe('animating');
-			});
-
-			it('should handle null and undefined returns', () => {
-				const nullResult = matchGroupState('idle', {
-					onIdle: () => null,
-					onAnimating: () => 'animating',
-				});
-
-				const undefinedResult = matchGroupState('animating', {
-					onIdle: () => 'idle',
-					onAnimating: () => undefined,
-				});
-
-				expect(nullResult).toBeNull();
-				expect(undefinedResult).toBeUndefined();
-			});
-		});
-
-		describe('Combined State Scenarios', () => {
-			it('should handle group state determining item behavior', () => {
-				const groupState: TransitionGroupState = 'animating';
-				const itemStates: ItemState[] = ['entering', 'entered', 'exiting'];
-
-				const shouldAnimate = isGroupAnimating(groupState);
-				expect(shouldAnimate).toBe(true);
-
-				if (shouldAnimate) {
-					const activeItems = itemStates.filter(
-						(s) => isItemEntering(s) || isItemExiting(s) || isItemMoving(s)
-					);
-					expect(activeItems).toHaveLength(2);
 				}
-			});
-
-			it('should handle state transitions with callbacks', () => {
-				const callbacks: string[] = [];
-
-				const processGroupState = (state: TransitionGroupState): void => {
-					matchGroupState(state, {
-						onIdle: () => callbacks.push('group-idle'),
-						onAnimating: () => callbacks.push('group-animating'),
-					});
-				};
-
-				const processItemState = (state: ItemState): void => {
-					if (isItemEntering(state)) callbacks.push('item-entering');
-					if (isItemEntered(state)) callbacks.push('item-entered');
-					if (isItemExiting(state)) callbacks.push('item-exiting');
-					if (isItemMoving(state)) callbacks.push('item-moving');
-				};
-
-				processGroupState('animating');
-				processItemState('entering');
-				processItemState('entered');
-				processGroupState('idle');
-
-				expect(callbacks).toEqual([
-					'group-animating',
-					'item-entering',
-					'item-entered',
-					'group-idle',
-				]);
+			);
+			expect(result).toEqual({
+				animationType: 'slide',
+				duration: 300,
+				delta: 2,
 			});
 		});
+	});
+
+	describe('Edge Cases', () => {
+		it('should handle same fromIndex and toIndex in Moving', () => {
+			const el = document.createElement('div');
+			const state = ItemState.Moving({ element: el, fromIndex: 5, toIndex: 5 });
+			expect(state.fromIndex).toBe(5);
+			expect(state.toIndex).toBe(5);
+		});
+
+		it('should handle negative indices in Moving', () => {
+			const el = document.createElement('div');
+			const state = ItemState.Moving({
+				element: el,
+				fromIndex: -1,
+				toIndex: 0,
+			});
+			expect(state.fromIndex).toBe(-1);
+			expect(state.toIndex).toBe(0);
+		});
+
+		it('should handle state filtering with mixed states', () => {
+			const el = document.createElement('div');
+			const states = [
+				ItemState.Entering({ element: el }),
+				ItemState.Entered({ element: el }),
+				ItemState.Moving({ element: el, fromIndex: 0, toIndex: 1 }),
+				ItemState.Exiting({ element: el }),
+				ItemState.Entering({ element: el }),
+			];
+
+			const entering = states.filter(isItemEntering);
+			const entered = states.filter(isItemEntered);
+			const moving = states.filter(isItemMoving);
+			const exiting = states.filter(isItemExiting);
+
+			expect(entering).toHaveLength(2);
+			expect(entered).toHaveLength(1);
+			expect(moving).toHaveLength(1);
+			expect(exiting).toHaveLength(1);
+		});
+
+		it('should handle item lifecycle transitions', () => {
+			const el = document.createElement('div');
+			type ItemStateType =
+				| ReturnType<typeof ItemState.Entering>
+				| ReturnType<typeof ItemState.Entered>
+				| ReturnType<typeof ItemState.Exiting>
+				| ReturnType<typeof ItemState.Moving>;
+
+			let state: ItemStateType = ItemState.Entering({ element: el });
+			expect(isItemEntering(state)).toBe(true);
+
+			state = ItemState.Entered({ element: el });
+			expect(isItemEntered(state)).toBe(true);
+
+			state = ItemState.Moving({ element: el, fromIndex: 0, toIndex: 2 });
+			expect(isItemMoving(state)).toBe(true);
+
+			state = ItemState.Entered({ element: el });
+			expect(isItemEntered(state)).toBe(true);
+
+			state = ItemState.Exiting({ element: el });
+			expect(isItemExiting(state)).toBe(true);
+		});
+	});
+});
+
+describe('TransitionGroupError', () => {
+	it('should be an instance of Error', () => {
+		const error = new TransitionGroupError({
+			key: 'item-1',
+			phase: 'enter',
+			cause: new Error('Animation failed'),
+		});
+		expect(error).toBeInstanceOf(Error);
+	});
+
+	it('should have _tag property', () => {
+		const error = new TransitionGroupError({
+			key: 'item-2',
+			phase: 'exit',
+			cause: 'Timeout',
+		});
+		expect(error._tag).toBe('TransitionGroupError');
+	});
+
+	it('should store key property', () => {
+		const error = new TransitionGroupError({
+			key: 'unique-key-123',
+			phase: 'enter',
+			cause: null,
+		});
+		expect(error.key).toBe('unique-key-123');
+	});
+
+	it('should store various key types', () => {
+		const keys = ['string-key', 123, Symbol('sym'), { id: 1 }];
+		for (const key of keys) {
+			const error = new TransitionGroupError({
+				key,
+				phase: 'enter',
+				cause: null,
+			});
+			expect(error.key).toBe(key);
+		}
+	});
+
+	it('should store phase property', () => {
+		const enterError = new TransitionGroupError({
+			key: 'k1',
+			phase: 'enter',
+			cause: null,
+		});
+		const exitError = new TransitionGroupError({
+			key: 'k2',
+			phase: 'exit',
+			cause: null,
+		});
+		const moveError = new TransitionGroupError({
+			key: 'k3',
+			phase: 'move',
+			cause: null,
+		});
+
+		expect(enterError.phase).toBe('enter');
+		expect(exitError.phase).toBe('exit');
+		expect(moveError.phase).toBe('move');
+	});
+
+	it('should store cause property', () => {
+		const cause = new Error('Original error');
+		const error = new TransitionGroupError({
+			key: 'item',
+			phase: 'exit',
+			cause,
+		});
+		expect(error.cause).toBe(cause);
+	});
+
+	it('should support various cause types', () => {
+		const causes = ['string error', 42, { code: 'ANIM_FAIL' }, null, undefined];
+		for (const cause of causes) {
+			const error = new TransitionGroupError({
+				key: 'k',
+				phase: 'enter',
+				cause,
+			});
+			expect(error.cause).toBe(cause);
+		}
+	});
+
+	it('should be usable in error handling patterns', () => {
+		const handleError = (err: unknown): string => {
+			if (err instanceof TransitionGroupError) {
+				return `TransitionGroup ${err.phase} failed for key: ${String(err.key)}`;
+			}
+			return 'Unknown error';
+		};
+
+		const error = new TransitionGroupError({
+			key: 'item-5',
+			phase: 'move',
+			cause: 'test',
+		});
+		expect(handleError(error)).toBe(
+			'TransitionGroup move failed for key: item-5'
+		);
+		expect(handleError(new Error('other'))).toBe('Unknown error');
+	});
+});
+
+describe('Combined Group and Item State Scenarios', () => {
+	it('should track group state based on active items', () => {
+		const el = document.createElement('div');
+		const items = [
+			ItemState.Entering({ element: el }),
+			ItemState.Entered({ element: el }),
+			ItemState.Exiting({ element: el }),
+		];
+
+		const activeCount = items.filter(
+			(s) => isItemEntering(s) || isItemExiting(s) || isItemMoving(s)
+		).length;
+
+		const groupState =
+			activeCount > 0
+				? TransitionGroupState.Animating({ activeCount })
+				: TransitionGroupState.Idle();
+
+		expect(isGroupAnimating(groupState)).toBe(true);
+		expect(
+			(groupState as ReturnType<typeof TransitionGroupState.Animating>)
+				.activeCount
+		).toBe(2);
+	});
+
+	it('should transition to idle when all items are entered', () => {
+		const el = document.createElement('div');
+		const items = [
+			ItemState.Entered({ element: el }),
+			ItemState.Entered({ element: el }),
+			ItemState.Entered({ element: el }),
+		];
+
+		const activeCount = items.filter(
+			(s) => isItemEntering(s) || isItemExiting(s) || isItemMoving(s)
+		).length;
+
+		const groupState =
+			activeCount > 0
+				? TransitionGroupState.Animating({ activeCount })
+				: TransitionGroupState.Idle();
+
+		expect(isGroupIdle(groupState)).toBe(true);
+	});
+
+	it('should handle match callbacks with group context', () => {
+		const el = document.createElement('div');
+		const groupState = TransitionGroupState.Animating({ activeCount: 3 });
+		const itemState = ItemState.Moving({
+			element: el,
+			fromIndex: 1,
+			toIndex: 4,
+		});
+
+		const groupInfo = matchGroupState(groupState, {
+			Idle: () => ({ canAddItems: true, activeAnimations: 0 }),
+			Animating: ({ activeCount }) => ({
+				canAddItems: false,
+				activeAnimations: activeCount,
+			}),
+		});
+
+		const itemInfo = ItemState.$match(itemState, {
+			Entering: () => ({ animation: 'fade-in' }),
+			Entered: () => ({ animation: 'none' }),
+			Exiting: () => ({ animation: 'fade-out' }),
+			Moving: ({ fromIndex, toIndex }) => ({
+				animation: 'slide',
+				distance: Math.abs(toIndex - fromIndex),
+			}),
+		});
+
+		expect(groupInfo).toEqual({ canAddItems: false, activeAnimations: 3 });
+		expect(itemInfo).toEqual({ animation: 'slide', distance: 3 });
 	});
 });

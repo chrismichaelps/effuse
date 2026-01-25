@@ -1,435 +1,489 @@
-// @vitest-environment node
-import { describe, it, expect, vi } from 'vitest';
+// @vitest-environment jsdom
+import { describe, it, expect } from 'vitest';
 import {
+	TransitionState,
 	isTransitionIdle,
 	isTransitionEntering,
 	isTransitionEntered,
 	isTransitionExiting,
 	isTransitionExited,
 	matchTransitionState,
-	type TransitionState,
+	TransitionMode,
+	TransitionError,
 } from '../../components/Transition.js';
 
-describe('Transition', () => {
+describe('TransitionState TaggedEnum', () => {
+	describe('Constructors', () => {
+		it('should create Idle state', () => {
+			const state = TransitionState.Idle();
+			expect(state._tag).toBe('Idle');
+		});
+
+		it('should create Entering state with element', () => {
+			const element = document.createElement('div');
+			const state = TransitionState.Entering({ element });
+			expect(state._tag).toBe('Entering');
+			expect(state.element).toBe(element);
+		});
+
+		it('should create Entered state with element', () => {
+			const element = document.createElement('span');
+			const state = TransitionState.Entered({ element });
+			expect(state._tag).toBe('Entered');
+			expect(state.element).toBe(element);
+		});
+
+		it('should create Exiting state with element', () => {
+			const element = document.createElement('div');
+			const state = TransitionState.Exiting({ element });
+			expect(state._tag).toBe('Exiting');
+			expect(state.element).toBe(element);
+		});
+
+		it('should create Exited state', () => {
+			const state = TransitionState.Exited();
+			expect(state._tag).toBe('Exited');
+		});
+	});
+
 	describe('Type Guards', () => {
 		describe('isTransitionIdle', () => {
-			it('should return true for idle state', () => {
-				expect(isTransitionIdle('idle')).toBe(true);
+			it('should return true for Idle state', () => {
+				expect(isTransitionIdle(TransitionState.Idle())).toBe(true);
 			});
 
 			it('should return false for other states', () => {
-				expect(isTransitionIdle('entering')).toBe(false);
-				expect(isTransitionIdle('entered')).toBe(false);
-				expect(isTransitionIdle('exiting')).toBe(false);
-				expect(isTransitionIdle('exited')).toBe(false);
+				const el = document.createElement('div');
+				expect(
+					isTransitionIdle(TransitionState.Entering({ element: el }))
+				).toBe(false);
+				expect(isTransitionIdle(TransitionState.Entered({ element: el }))).toBe(
+					false
+				);
+				expect(isTransitionIdle(TransitionState.Exiting({ element: el }))).toBe(
+					false
+				);
+				expect(isTransitionIdle(TransitionState.Exited())).toBe(false);
 			});
 		});
 
 		describe('isTransitionEntering', () => {
-			it('should return true for entering state', () => {
-				expect(isTransitionEntering('entering')).toBe(true);
+			it('should return true for Entering state', () => {
+				const el = document.createElement('div');
+				expect(
+					isTransitionEntering(TransitionState.Entering({ element: el }))
+				).toBe(true);
 			});
 
 			it('should return false for other states', () => {
-				expect(isTransitionEntering('idle')).toBe(false);
-				expect(isTransitionEntering('entered')).toBe(false);
-				expect(isTransitionEntering('exiting')).toBe(false);
-				expect(isTransitionEntering('exited')).toBe(false);
+				const el = document.createElement('div');
+				expect(isTransitionEntering(TransitionState.Idle())).toBe(false);
+				expect(
+					isTransitionEntering(TransitionState.Entered({ element: el }))
+				).toBe(false);
+				expect(
+					isTransitionEntering(TransitionState.Exiting({ element: el }))
+				).toBe(false);
+				expect(isTransitionEntering(TransitionState.Exited())).toBe(false);
 			});
 		});
 
 		describe('isTransitionEntered', () => {
-			it('should return true for entered state', () => {
-				expect(isTransitionEntered('entered')).toBe(true);
+			it('should return true for Entered state', () => {
+				const el = document.createElement('div');
+				expect(
+					isTransitionEntered(TransitionState.Entered({ element: el }))
+				).toBe(true);
 			});
 
 			it('should return false for other states', () => {
-				expect(isTransitionEntered('idle')).toBe(false);
-				expect(isTransitionEntered('entering')).toBe(false);
-				expect(isTransitionEntered('exiting')).toBe(false);
-				expect(isTransitionEntered('exited')).toBe(false);
+				const el = document.createElement('div');
+				expect(isTransitionEntered(TransitionState.Idle())).toBe(false);
+				expect(
+					isTransitionEntered(TransitionState.Entering({ element: el }))
+				).toBe(false);
+				expect(
+					isTransitionEntered(TransitionState.Exiting({ element: el }))
+				).toBe(false);
+				expect(isTransitionEntered(TransitionState.Exited())).toBe(false);
 			});
 		});
 
 		describe('isTransitionExiting', () => {
-			it('should return true for exiting state', () => {
-				expect(isTransitionExiting('exiting')).toBe(true);
+			it('should return true for Exiting state', () => {
+				const el = document.createElement('div');
+				expect(
+					isTransitionExiting(TransitionState.Exiting({ element: el }))
+				).toBe(true);
 			});
 
 			it('should return false for other states', () => {
-				expect(isTransitionExiting('idle')).toBe(false);
-				expect(isTransitionExiting('entering')).toBe(false);
-				expect(isTransitionExiting('entered')).toBe(false);
-				expect(isTransitionExiting('exited')).toBe(false);
+				const el = document.createElement('div');
+				expect(isTransitionExiting(TransitionState.Idle())).toBe(false);
+				expect(
+					isTransitionExiting(TransitionState.Entering({ element: el }))
+				).toBe(false);
+				expect(
+					isTransitionExiting(TransitionState.Entered({ element: el }))
+				).toBe(false);
+				expect(isTransitionExiting(TransitionState.Exited())).toBe(false);
 			});
 		});
 
 		describe('isTransitionExited', () => {
-			it('should return true for exited state', () => {
-				expect(isTransitionExited('exited')).toBe(true);
+			it('should return true for Exited state', () => {
+				expect(isTransitionExited(TransitionState.Exited())).toBe(true);
 			});
 
 			it('should return false for other states', () => {
-				expect(isTransitionExited('idle')).toBe(false);
-				expect(isTransitionExited('entering')).toBe(false);
-				expect(isTransitionExited('entered')).toBe(false);
-				expect(isTransitionExited('exiting')).toBe(false);
+				const el = document.createElement('div');
+				expect(isTransitionExited(TransitionState.Idle())).toBe(false);
+				expect(
+					isTransitionExited(TransitionState.Entering({ element: el }))
+				).toBe(false);
+				expect(
+					isTransitionExited(TransitionState.Entered({ element: el }))
+				).toBe(false);
+				expect(
+					isTransitionExited(TransitionState.Exiting({ element: el }))
+				).toBe(false);
 			});
 		});
 	});
 
-	describe('matchTransitionState', () => {
-		it('should call onIdle handler for idle state', () => {
-			const result = matchTransitionState('idle', {
-				onIdle: () => 'idle-result',
-				onEntering: () => 'entering-result',
-				onEntered: () => 'entered-result',
-				onExiting: () => 'exiting-result',
-				onExited: () => 'exited-result',
+	describe('matchTransitionState ($match)', () => {
+		it('should call Idle handler', () => {
+			const result = matchTransitionState(TransitionState.Idle(), {
+				Idle: () => 'idle-result',
+				Entering: () => 'entering-result',
+				Entered: () => 'entered-result',
+				Exiting: () => 'exiting-result',
+				Exited: () => 'exited-result',
 			});
-
 			expect(result).toBe('idle-result');
 		});
 
-		it('should call onEntering handler for entering state', () => {
-			const result = matchTransitionState('entering', {
-				onIdle: () => 'idle-result',
-				onEntering: () => 'entering-result',
-				onEntered: () => 'entered-result',
-				onExiting: () => 'exiting-result',
-				onExited: () => 'exited-result',
-			});
-
-			expect(result).toBe('entering-result');
+		it('should call Entering handler with element access', () => {
+			const el = document.createElement('div');
+			el.id = 'test-element';
+			const result = matchTransitionState(
+				TransitionState.Entering({ element: el }),
+				{
+					Idle: () => null,
+					Entering: ({ element }) => element.id,
+					Entered: () => null,
+					Exiting: () => null,
+					Exited: () => null,
+				}
+			);
+			expect(result).toBe('test-element');
 		});
 
-		it('should call onEntered handler for entered state', () => {
-			const result = matchTransitionState('entered', {
-				onIdle: () => 'idle-result',
-				onEntering: () => 'entering-result',
-				onEntered: () => 'entered-result',
-				onExiting: () => 'exiting-result',
-				onExited: () => 'exited-result',
-			});
-
-			expect(result).toBe('entered-result');
+		it('should call Entered handler with element access', () => {
+			const el = document.createElement('span');
+			el.className = 'active';
+			const result = matchTransitionState(
+				TransitionState.Entered({ element: el }),
+				{
+					Idle: () => null,
+					Entering: () => null,
+					Entered: ({ element }) => element.className,
+					Exiting: () => null,
+					Exited: () => null,
+				}
+			);
+			expect(result).toBe('active');
 		});
 
-		it('should call onExiting handler for exiting state', () => {
-			const result = matchTransitionState('exiting', {
-				onIdle: () => 'idle-result',
-				onEntering: () => 'entering-result',
-				onEntered: () => 'entered-result',
-				onExiting: () => 'exiting-result',
-				onExited: () => 'exited-result',
-			});
-
-			expect(result).toBe('exiting-result');
+		it('should call Exiting handler', () => {
+			const el = document.createElement('div');
+			const result = matchTransitionState(
+				TransitionState.Exiting({ element: el }),
+				{
+					Idle: () => 'idle',
+					Entering: () => 'entering',
+					Entered: () => 'entered',
+					Exiting: () => 'exiting',
+					Exited: () => 'exited',
+				}
+			);
+			expect(result).toBe('exiting');
 		});
 
-		it('should call onExited handler for exited state', () => {
-			const result = matchTransitionState('exited', {
-				onIdle: () => 'idle-result',
-				onEntering: () => 'entering-result',
-				onEntered: () => 'entered-result',
-				onExiting: () => 'exiting-result',
-				onExited: () => 'exited-result',
+		it('should call Exited handler', () => {
+			const result = matchTransitionState(TransitionState.Exited(), {
+				Idle: () => 'idle',
+				Entering: () => 'entering',
+				Entered: () => 'entered',
+				Exiting: () => 'exiting',
+				Exited: () => 'exited',
 			});
-
-			expect(result).toBe('exited-result');
+			expect(result).toBe('exited');
 		});
 
-		it('should be exhaustive for all states', () => {
-			const states: TransitionState[] = [
-				'idle',
-				'entering',
-				'entered',
-				'exiting',
-				'exited',
-			];
-			const results: string[] = [];
-
-			for (const state of states) {
-				results.push(
-					matchTransitionState(state, {
-						onIdle: () => 'idle',
-						onEntering: () => 'entering',
-						onEntered: () => 'entered',
-						onExiting: () => 'exiting',
-						onExited: () => 'exited',
-					})
-				);
-			}
-
-			expect(results).toEqual([
-				'idle',
-				'entering',
-				'entered',
-				'exiting',
-				'exited',
-			]);
-		});
-
-		it('should support generic return types', () => {
-			const numberResult = matchTransitionState('idle', {
-				onIdle: () => 1,
-				onEntering: () => 2,
-				onEntered: () => 3,
-				onExiting: () => 4,
-				onExited: () => 5,
-			});
-
-			expect(typeof numberResult).toBe('number');
-			expect(numberResult).toBe(1);
-		});
-
-		it('should support object return types', () => {
-			const result = matchTransitionState('entering', {
-				onIdle: () => ({ status: 'idle' }),
-				onEntering: () => ({ status: 'entering', active: true }),
-				onEntered: () => ({ status: 'entered' }),
-				onExiting: () => ({ status: 'exiting' }),
-				onExited: () => ({ status: 'exited' }),
-			});
-
-			expect(result).toEqual({ status: 'entering', active: true });
+		it('should support complex return types', () => {
+			const el = document.createElement('div');
+			const result = matchTransitionState(
+				TransitionState.Entering({ element: el }),
+				{
+					Idle: () => ({ phase: 'idle', progress: 0 }),
+					Entering: () => ({ phase: 'entering', progress: 0.5 }),
+					Entered: () => ({ phase: 'entered', progress: 1 }),
+					Exiting: () => ({ phase: 'exiting', progress: 0.5 }),
+					Exited: () => ({ phase: 'exited', progress: 0 }),
+				}
+			);
+			expect(result).toEqual({ phase: 'entering', progress: 0.5 });
 		});
 	});
 
 	describe('Edge Cases', () => {
-		describe('Type Guard Edge Cases', () => {
-			it('should handle rapid state transitions', () => {
-				const states: TransitionState[] = [
-					'idle',
-					'entering',
-					'entered',
-					'exiting',
-					'exited',
-					'idle',
-				];
-				const guards = [
-					isTransitionIdle,
-					isTransitionEntering,
-					isTransitionEntered,
-					isTransitionExiting,
-					isTransitionExited,
-				];
+		it('should handle state filtering', () => {
+			const el = document.createElement('div');
+			const states = [
+				TransitionState.Idle(),
+				TransitionState.Entering({ element: el }),
+				TransitionState.Entered({ element: el }),
+				TransitionState.Exiting({ element: el }),
+				TransitionState.Exited(),
+			];
 
-				for (const state of states) {
-					const matchCount = guards.filter((guard) => guard(state)).length;
-					expect(matchCount).toBe(1);
-				}
-			});
-
-			it('should work with state stored in variables', () => {
-				let currentState: TransitionState = 'idle';
-				expect(isTransitionIdle(currentState)).toBe(true);
-
-				currentState = 'entering';
-				expect(isTransitionEntering(currentState)).toBe(true);
-
-				currentState = 'entered';
-				expect(isTransitionEntered(currentState)).toBe(true);
-			});
-
-			it('should work with state from array', () => {
-				const stateHistory: TransitionState[] = ['idle', 'entering', 'entered'];
-				expect(isTransitionIdle(stateHistory[0])).toBe(true);
-				expect(isTransitionEntering(stateHistory[1])).toBe(true);
-				expect(isTransitionEntered(stateHistory[2])).toBe(true);
-			});
-
-			it('should work with state from object property', () => {
-				const component = { state: 'exiting' as TransitionState };
-				expect(isTransitionExiting(component.state)).toBe(true);
-			});
-
-			it('should correctly type narrow in conditionals', () => {
-				const state: TransitionState = 'entering';
-				let result = '';
-
-				if (isTransitionIdle(state)) {
-					result = 'idle';
-				} else if (isTransitionEntering(state)) {
-					result = 'entering';
-				}
-
-				expect(result).toBe('entering');
-			});
+			const activeStates = states.filter(
+				(s) => isTransitionEntering(s) || isTransitionExiting(s)
+			);
+			expect(activeStates).toHaveLength(2);
 		});
 
-		describe('Match Function Edge Cases', () => {
-			it('should handle handlers that return undefined', () => {
-				let called = false;
-				matchTransitionState('idle', {
-					onIdle: () => {
-						called = true;
-						return undefined;
-					},
-					onEntering: () => undefined,
-					onEntered: () => undefined,
-					onExiting: () => undefined,
-					onExited: () => undefined,
-				});
+		it('should handle state machine transitions', () => {
+			const el = document.createElement('div');
+			let state:
+				| ReturnType<typeof TransitionState.Idle>
+				| ReturnType<typeof TransitionState.Entering>
+				| ReturnType<typeof TransitionState.Entered>
+				| ReturnType<typeof TransitionState.Exiting>
+				| ReturnType<typeof TransitionState.Exited> = TransitionState.Idle();
 
-				expect(called).toBe(true);
-			});
+			expect(isTransitionIdle(state)).toBe(true);
 
-			it('should handle handlers that return null', () => {
-				const result = matchTransitionState('entering', {
-					onIdle: () => null,
-					onEntering: () => null,
-					onEntered: () => null,
-					onExiting: () => null,
-					onExited: () => null,
-				});
+			state = TransitionState.Entering({ element: el });
+			expect(isTransitionEntering(state)).toBe(true);
 
-				expect(result).toBeNull();
-			});
+			state = TransitionState.Entered({ element: el });
+			expect(isTransitionEntered(state)).toBe(true);
 
-			it('should handle handlers that return arrays', () => {
-				const result = matchTransitionState('entered', {
-					onIdle: () => [],
-					onEntering: () => [1],
-					onEntered: () => [1, 2, 3],
-					onExiting: () => [1, 2],
-					onExited: () => [],
-				});
+			state = TransitionState.Exiting({ element: el });
+			expect(isTransitionExiting(state)).toBe(true);
 
-				expect(result).toEqual([1, 2, 3]);
-			});
-
-			it('should handle handlers that return functions', () => {
-				const fn = () => 'test';
-				const result = matchTransitionState('exiting', {
-					onIdle: () => fn,
-					onEntering: () => fn,
-					onEntered: () => fn,
-					onExiting: () => fn,
-					onExited: () => fn,
-				});
-
-				expect(typeof result).toBe('function');
-				expect(result()).toBe('test');
-			});
-
-			it('should handle handlers that throw errors', () => {
-				expect(() => {
-					matchTransitionState('idle', {
-						onIdle: () => {
-							throw new Error('Test error');
-						},
-						onEntering: () => 'ok',
-						onEntered: () => 'ok',
-						onExiting: () => 'ok',
-						onExited: () => 'ok',
-					});
-				}).toThrow('Test error');
-			});
-
-			it('should only call the matching handler once', () => {
-				const handlers = {
-					onIdle: vi.fn(() => 'idle'),
-					onEntering: vi.fn(() => 'entering'),
-					onEntered: vi.fn(() => 'entered'),
-					onExiting: vi.fn(() => 'exiting'),
-					onExited: vi.fn(() => 'exited'),
-				};
-
-				matchTransitionState('entering', handlers);
-
-				expect(handlers.onIdle).not.toHaveBeenCalled();
-				expect(handlers.onEntering).toHaveBeenCalledTimes(1);
-				expect(handlers.onEntered).not.toHaveBeenCalled();
-				expect(handlers.onExiting).not.toHaveBeenCalled();
-				expect(handlers.onExited).not.toHaveBeenCalled();
-			});
-
-			it('should handle deeply nested return objects', () => {
-				const result = matchTransitionState('entered', {
-					onIdle: () => ({ a: { b: { c: 1 } } }),
-					onEntering: () => ({ a: { b: { c: 2 } } }),
-					onEntered: () => ({ a: { b: { c: 3, d: [4, 5] } } }),
-					onExiting: () => ({ a: { b: { c: 4 } } }),
-					onExited: () => ({ a: { b: { c: 5 } } }),
-				});
-
-				expect(result).toEqual({ a: { b: { c: 3, d: [4, 5] } } });
-			});
-
-			it('should handle Promise return types', async () => {
-				const result = matchTransitionState('exited', {
-					onIdle: () => Promise.resolve('idle'),
-					onEntering: () => Promise.resolve('entering'),
-					onEntered: () => Promise.resolve('entered'),
-					onExiting: () => Promise.resolve('exiting'),
-					onExited: () => Promise.resolve('exited'),
-				});
-
-				expect(result).toBeInstanceOf(Promise);
-				const resolved = await result;
-				expect(resolved).toBe('exited');
-			});
+			state = TransitionState.Exited();
+			expect(isTransitionExited(state)).toBe(true);
 		});
 
-		describe('State Lifecycle Edge Cases', () => {
-			it('should handle full lifecycle sequence', () => {
-				const lifecycle: TransitionState[] = [
-					'idle',
-					'entering',
-					'entered',
-					'exiting',
-					'exited',
-				];
-				const results: boolean[] = [];
+		it('should handle rapid type checks', () => {
+			const el = document.createElement('div');
+			const state = TransitionState.Entering({ element: el });
 
-				for (let i = 0; i < lifecycle.length; i++) {
-					const state = lifecycle[i];
-					results.push(
-						i === 0 ? isTransitionIdle(state) : false,
-						i === 1 ? isTransitionEntering(state) : false,
-						i === 2 ? isTransitionEntered(state) : false,
-						i === 3 ? isTransitionExiting(state) : false,
-						i === 4 ? isTransitionExited(state) : false
-					);
-				}
-
-				expect(results.filter(Boolean)).toHaveLength(5);
-			});
-
-			it('should handle repeated state checks', () => {
-				const state: TransitionState = 'idle';
-
-				for (let i = 0; i < 1000; i++) {
-					expect(isTransitionIdle(state)).toBe(true);
-				}
-			});
-
-			it('should work with state machine pattern', () => {
-				const transitions: Record<TransitionState, TransitionState | null> = {
-					idle: 'entering',
-					entering: 'entered',
-					entered: 'exiting',
-					exiting: 'exited',
-					exited: null,
-				};
-
-				let current: TransitionState = 'idle';
-				const visited: TransitionState[] = [current];
-
-				while (transitions[current] !== null) {
-					current = transitions[current] as TransitionState;
-					visited.push(current);
-				}
-
-				expect(visited).toEqual([
-					'idle',
-					'entering',
-					'entered',
-					'exiting',
-					'exited',
-				]);
-			});
+			for (let i = 0; i < 1000; i++) {
+				expect(isTransitionEntering(state)).toBe(true);
+				expect(isTransitionIdle(state)).toBe(false);
+			}
 		});
+	});
+});
+
+describe('TransitionMode TaggedEnum', () => {
+	describe('Constructors', () => {
+		it('should create Default mode', () => {
+			const mode = TransitionMode.Default();
+			expect(mode._tag).toBe('Default');
+		});
+
+		it('should create OutIn mode', () => {
+			const mode = TransitionMode.OutIn();
+			expect(mode._tag).toBe('OutIn');
+		});
+
+		it('should create InOut mode', () => {
+			const mode = TransitionMode.InOut();
+			expect(mode._tag).toBe('InOut');
+		});
+	});
+
+	describe('$is type guards', () => {
+		it('should identify Default mode', () => {
+			const mode = TransitionMode.Default();
+			expect(TransitionMode.$is('Default')(mode)).toBe(true);
+			expect(TransitionMode.$is('OutIn')(mode)).toBe(false);
+			expect(TransitionMode.$is('InOut')(mode)).toBe(false);
+		});
+
+		it('should identify OutIn mode', () => {
+			const mode = TransitionMode.OutIn();
+			expect(TransitionMode.$is('OutIn')(mode)).toBe(true);
+			expect(TransitionMode.$is('Default')(mode)).toBe(false);
+			expect(TransitionMode.$is('InOut')(mode)).toBe(false);
+		});
+
+		it('should identify InOut mode', () => {
+			const mode = TransitionMode.InOut();
+			expect(TransitionMode.$is('InOut')(mode)).toBe(true);
+			expect(TransitionMode.$is('Default')(mode)).toBe(false);
+			expect(TransitionMode.$is('OutIn')(mode)).toBe(false);
+		});
+	});
+
+	describe('$match pattern matching', () => {
+		it('should match Default mode', () => {
+			const result = TransitionMode.$match(TransitionMode.Default(), {
+				Default: () => 'default-behavior',
+				OutIn: () => 'out-in-behavior',
+				InOut: () => 'in-out-behavior',
+			});
+			expect(result).toBe('default-behavior');
+		});
+
+		it('should match OutIn mode', () => {
+			const result = TransitionMode.$match(TransitionMode.OutIn(), {
+				Default: () => 'default-behavior',
+				OutIn: () => 'out-in-behavior',
+				InOut: () => 'in-out-behavior',
+			});
+			expect(result).toBe('out-in-behavior');
+		});
+
+		it('should match InOut mode', () => {
+			const result = TransitionMode.$match(TransitionMode.InOut(), {
+				Default: () => 'default-behavior',
+				OutIn: () => 'out-in-behavior',
+				InOut: () => 'in-out-behavior',
+			});
+			expect(result).toBe('in-out-behavior');
+		});
+
+		it('should support complex handlers', () => {
+			const mode = TransitionMode.OutIn();
+			const result = TransitionMode.$match(mode, {
+				Default: () => ({ sequence: ['replace'] }),
+				OutIn: () => ({ sequence: ['exit-current', 'enter-new'] }),
+				InOut: () => ({ sequence: ['enter-new', 'exit-current'] }),
+			});
+			expect(result).toEqual({ sequence: ['exit-current', 'enter-new'] });
+		});
+	});
+
+	describe('Edge Cases', () => {
+		it('should work in conditional logic', () => {
+			const modes = [
+				TransitionMode.Default(),
+				TransitionMode.OutIn(),
+				TransitionMode.InOut(),
+			];
+
+			const descriptions = modes.map((mode) =>
+				TransitionMode.$match(mode, {
+					Default: () => 'Instant replacement',
+					OutIn: () => 'Exit first, then enter',
+					InOut: () => 'Enter first, then exit',
+				})
+			);
+
+			expect(descriptions).toEqual([
+				'Instant replacement',
+				'Exit first, then enter',
+				'Enter first, then exit',
+			]);
+		});
+	});
+});
+
+describe('TransitionError', () => {
+	it('should be an instance of Error', () => {
+		const error = new TransitionError({
+			phase: 'enter',
+			element: null,
+			cause: new Error('Animation failed'),
+		});
+		expect(error).toBeInstanceOf(Error);
+	});
+
+	it('should have _tag property', () => {
+		const error = new TransitionError({
+			phase: 'exit',
+			element: null,
+			cause: 'Timeout',
+		});
+		expect(error._tag).toBe('TransitionError');
+	});
+
+	it('should store phase property', () => {
+		const enterError = new TransitionError({
+			phase: 'enter',
+			element: null,
+			cause: null,
+		});
+		const exitError = new TransitionError({
+			phase: 'exit',
+			element: null,
+			cause: null,
+		});
+		expect(enterError.phase).toBe('enter');
+		expect(exitError.phase).toBe('exit');
+	});
+
+	it('should store element property', () => {
+		const el = document.createElement('div');
+		const error = new TransitionError({
+			phase: 'enter',
+			element: el,
+			cause: null,
+		});
+		expect(error.element).toBe(el);
+	});
+
+	it('should store null element', () => {
+		const error = new TransitionError({
+			phase: 'enter',
+			element: null,
+			cause: null,
+		});
+		expect(error.element).toBeNull();
+	});
+
+	it('should store cause property', () => {
+		const cause = new Error('Original error');
+		const error = new TransitionError({
+			phase: 'exit',
+			element: null,
+			cause,
+		});
+		expect(error.cause).toBe(cause);
+	});
+
+	it('should support various cause types', () => {
+		const causes = ['string error', 42, { code: 'ANIM_FAIL' }, null];
+		for (const cause of causes) {
+			const error = new TransitionError({
+				phase: 'enter',
+				element: null,
+				cause,
+			});
+			expect(error.cause).toBe(cause);
+		}
+	});
+
+	it('should be usable in error handling patterns', () => {
+		const handleError = (err: unknown): string => {
+			if (err instanceof TransitionError) {
+				return `Transition ${err.phase} failed`;
+			}
+			return 'Unknown error';
+		};
+
+		const error = new TransitionError({
+			phase: 'enter',
+			element: null,
+			cause: 'test',
+		});
+		expect(handleError(error)).toBe('Transition enter failed');
+		expect(handleError(new Error('other'))).toBe('Unknown error');
 	});
 });
