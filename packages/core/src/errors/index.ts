@@ -22,4 +22,21 @@
  * SOFTWARE.
  */
 
+export {
+	UnknownJSXTypeError,
+	DuplicateKeysError,
+	ResourcePendingError,
+	PropValidationError,
+	ScriptContextError,
+	StoreGetterNotConfiguredError,
+	CauseExtractionError,
+	ResourceFetchError,
+	LayerExecutionError,
+} from '../errors.js';
+
+export { RenderError } from './internal.js';
+export { MountError } from './internal.js';
+export { BlueprintError } from './internal.js';
+
 export { TaggedError, isTaggedError, hasTag } from './tagged.js';
+export type { TaggedErrorLike } from './tagged.js';
