@@ -22,6 +22,7 @@
  * SOFTWARE.
  */
 
+import { Predicate } from 'effect';
 import type {
 	BlueprintDef,
 	BlueprintContext,
@@ -31,14 +32,9 @@ import type {
 import type { ScriptContext, ExposedValues } from './script-context.js';
 import { createScriptContext, runMountCallbacks } from './script-context.js';
 import type { ComponentLifecycle } from './lifecycle.js';
-import type { AnyPropSchemaBuilder } from './props.js';
 import type { EffuseLayerRegistry, LayerPropsOf } from '../layers/types.js';
 import type { LayerContext } from '../layers/context.js';
 import { getLayerContext, isLayerRuntimeReady } from '../layers/context.js';
-
-export interface PropsSchema<P> {
-	Type: P;
-}
 
 interface PropsWithChildren {
 	readonly children?: EffuseChild;
@@ -56,9 +52,26 @@ export interface LayerScriptContext<
 	readonly layer: LayerContext<LayerPropsOf<K>>;
 }
 
+export interface DefineOptionsWithInferredProps<P, E extends ExposedValues> {
+	props: P;
+	layer?: undefined;
+	script: (ctx: ScriptContext<P>) => E | undefined;
+	template: (exposed: TemplateArgs<E>, props: Readonly<P>) => EffuseChild;
+}
+
+export interface DefineOptionsWithInferredPropsAndLayer<
+	P,
+	E extends ExposedValues,
+	K extends keyof EffuseLayerRegistry,
+> {
+	props: P;
+	layer: K;
+	script: (ctx: LayerScriptContext<P, K>) => E | undefined;
+	template: (exposed: TemplateArgs<E>, props: Readonly<P>) => EffuseChild;
+}
+
 export interface DefineOptions<P, E extends ExposedValues> {
-	props?: PropsSchema<P>;
-	propsSchema?: AnyPropSchemaBuilder;
+	props?: undefined;
 	layer?: undefined;
 	script: (ctx: ScriptContext<P>) => E | undefined;
 	template: (exposed: TemplateArgs<E>, props: Readonly<P>) => EffuseChild;
@@ -69,8 +82,7 @@ export interface DefineOptionsWithLayer<
 	E extends ExposedValues,
 	K extends keyof EffuseLayerRegistry,
 > {
-	props?: PropsSchema<P>;
-	propsSchema?: AnyPropSchemaBuilder;
+	props?: undefined;
 	layer: K;
 	script: (ctx: LayerScriptContext<P, K>) => E | undefined;
 	template: (exposed: TemplateArgs<E>, props: Readonly<P>) => EffuseChild;
@@ -80,46 +92,52 @@ interface DefineState<E extends ExposedValues> {
 	exposed: E;
 	lifecycle: ComponentLifecycle;
 	_template: (exposed: TemplateArgs<E>, props: unknown) => EffuseChild;
-
 	[key: string]: unknown;
 }
 
 export function define<
 	P = Record<string, unknown>,
 	E extends ExposedValues = ExposedValues,
->(options: DefineOptions<P, E>): Component<P>;
+>(
+	options: DefineOptions<P, E> | DefineOptionsWithInferredProps<P, E>
+): Component<P>;
 
 export function define<
 	K extends keyof EffuseLayerRegistry,
 	P = Record<string, unknown>,
 	E extends ExposedValues = ExposedValues,
->(options: DefineOptionsWithLayer<P, E, K>): Component<P>;
+>(
+	options:
+		| DefineOptionsWithLayer<P, E, K>
+		| DefineOptionsWithInferredPropsAndLayer<P, E, K>
+): Component<P>;
 
 export function define<
 	P = Record<string, unknown>,
 	E extends ExposedValues = ExposedValues,
 	K extends keyof EffuseLayerRegistry = never,
 >(
-	options: DefineOptions<P, E> | DefineOptionsWithLayer<P, E, K>
+	options:
+		| DefineOptions<P, E>
+		| DefineOptionsWithLayer<P, E, K>
+		| DefineOptionsWithInferredProps<P, E>
+		| DefineOptionsWithInferredPropsAndLayer<P, E, K>
 ): Component<P> {
 	const blueprint: BlueprintDef<P> = {
 		_tag: 'Blueprint',
 
 		state: (props: P) => {
-			let validatedProps = props;
-			if (options.propsSchema) {
-				validatedProps = options.propsSchema.validateSync(props) as P;
-			}
-
-			const { context, state } = createScriptContext<P, E>(validatedProps);
+			const { context, state } = createScriptContext<P, E>(props);
 
 			let scriptResult: E | undefined;
 
-			if ('layer' in options) {
+			const layerName = (options as { layer?: string }).layer;
+
+			if (Predicate.isString(layerName)) {
 				if (isLayerRuntimeReady()) {
-					const layerContext = getLayerContext(
-						options.layer as string
-					) as LayerContext<LayerPropsOf<K>>;
+					const layerContext = getLayerContext(layerName) as LayerContext<
+						LayerPropsOf<K>
+					>;
 
 					const extendedContext: LayerScriptContext<P, K> = {
 						...context,
@@ -127,21 +145,23 @@ export function define<
 						layer: layerContext,
 					};
 
-					scriptResult = (options as DefineOptionsWithLayer<P, E, K>).script(
-						extendedContext
-					);
+					scriptResult = (
+						options as unknown as DefineOptionsWithLayer<P, E, K>
+					).script(extendedContext);
 				} else {
-					scriptResult = (options as DefineOptionsWithLayer<P, E, K>).script({
+					scriptResult = (
+						options as unknown as DefineOptionsWithLayer<P, E, K>
+					).script({
 						...context,
 						layerProps: {} as LayerPropsOf<K>,
 						layer: {} as LayerContext<LayerPropsOf<K>>,
 					});
 				}
 			} else {
-				scriptResult = options.script(context);
+				scriptResult = (options as DefineOptions<P, E>).script(context);
 			}
 
-			if (scriptResult) {
+			if (Predicate.isNotNullable(scriptResult)) {
 				Object.assign(state.exposed, scriptResult);
 			}
 
@@ -176,7 +196,11 @@ export type InferExposed<D> =
 	D extends DefineOptions<unknown, infer E> ? E : never;
 
 export type InferProps<D> =
-	D extends DefineOptions<infer P, ExposedValues> ? P : never;
+	D extends DefineOptionsWithInferredProps<infer P, ExposedValues>
+		? P
+		: D extends DefineOptions<infer P, ExposedValues>
+			? P
+			: never;
 
 export type LayerPropsFor<K extends keyof EffuseLayerRegistry> =
 	LayerPropsOf<K>;
