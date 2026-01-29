@@ -25,12 +25,12 @@
 import { Data } from 'effect';
 
 export type ThrottleState<T> = Data.TaggedEnum<{
-  readonly Ready: { readonly value: T };
-  readonly Throttled: { readonly value: T; readonly lastValue: T };
+	readonly Ready: { readonly value: T };
+	readonly Throttled: { readonly value: T; readonly lastValue: T };
 }>;
 
 interface ThrottleStateDefinition extends Data.TaggedEnum.WithGenerics<1> {
-  readonly taggedEnum: ThrottleState<this['A']>;
+	readonly taggedEnum: ThrottleState<this['A']>;
 }
 
 export const ThrottleState = Data.taggedEnum<ThrottleStateDefinition>();
@@ -43,9 +43,9 @@ export const matchThrottleState = ThrottleState.$match;
 export const getCurrentValue = <T>(state: ThrottleState<T>): T => state.value;
 
 export const getLastValue = <T>(state: ThrottleState<T>): T | undefined => {
-  if (isThrottled(state)) return state.lastValue;
-  return undefined;
+	if (isThrottled(state)) return state.lastValue;
+	return undefined;
 };
 
 export const getIsThrottled = <T>(state: ThrottleState<T>): boolean =>
-  isThrottled(state);
+	isThrottled(state);

@@ -52,4 +52,3 @@ export const getTargetName = (
 	}
 	return 'unknown';
 };
-

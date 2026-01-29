@@ -19,19 +19,19 @@ const { value: throttledScroll, isThrottled } = useThrottle({
 
 ## Configuration
 
-| Option     | Type        | Default    | Description                         |
-| :--------- | :---------- | :--------- | :---------------------------------- |
-| `value`    | `Signal<T>` | _required_ | Signal to throttle                  |
-| `interval` | `number`    | `200`      | Throttle interval in ms             |
-| `leading`  | `boolean`   | `true`     | Update immediately on first change  |
-| `trailing` | `boolean`   | `true`     | Apply last value after cooldown     |
+| Option     | Type        | Default    | Description                        |
+| :--------- | :---------- | :--------- | :--------------------------------- |
+| `value`    | `Signal<T>` | _required_ | Signal to throttle                 |
+| `interval` | `number`    | `200`      | Throttle interval in ms            |
+| `leading`  | `boolean`   | `true`     | Update immediately on first change |
+| `trailing` | `boolean`   | `true`     | Apply last value after cooldown    |
 
 ## Returns
 
-| Property      | Type                      | Description                      |
-| :------------ | :------------------------ | :------------------------------- |
-| `value`       | `ReadonlySignal<T>`       | Throttled value                  |
-| `isThrottled` | `ReadonlySignal<boolean>` | Whether currently in cooldown    |
+| Property      | Type                      | Description                   |
+| :------------ | :------------------------ | :---------------------------- |
+| `value`       | `ReadonlySignal<T>`       | Throttled value               |
+| `isThrottled` | `ReadonlySignal<boolean>` | Whether currently in cooldown |
 
 ## Examples
 

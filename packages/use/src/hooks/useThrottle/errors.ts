@@ -25,5 +25,5 @@
 import { Data } from 'effect';
 
 export class ThrottleError extends Data.TaggedError('ThrottleError')<{
-  readonly reason: string;
-}> { }
+	readonly reason: string;
+}> {}

@@ -27,21 +27,21 @@ import { startSpan, recordEvent } from '../../internal/telemetry.js';
 const HOOK_NAME = 'useThrottle' as const;
 
 export const traceThrottleInit = (
-  interval: number
+	interval: number
 ): ReturnType<typeof startSpan> => {
-  return startSpan(HOOK_NAME, 'init', {
-    'throttle.interval': interval,
-  });
+	return startSpan(HOOK_NAME, 'init', {
+		'throttle.interval': interval,
+	});
 };
 
 export const traceThrottleUpdate = (): void => {
-  recordEvent(HOOK_NAME, 'update');
+	recordEvent(HOOK_NAME, 'update');
 };
 
 export const traceThrottleSkip = (): void => {
-  recordEvent(HOOK_NAME, 'skip');
+	recordEvent(HOOK_NAME, 'skip');
 };
 
 export const traceThrottleCooldownEnd = (): void => {
-  recordEvent(HOOK_NAME, 'cooldown_end');
+	recordEvent(HOOK_NAME, 'cooldown_end');
 };

@@ -25,4 +25,4 @@
 import { MIN_THROTTLE_MS } from './constants.js';
 
 export const clampInterval = (interval: number): number =>
-  Math.max(MIN_THROTTLE_MS, Math.floor(interval));
+	Math.max(MIN_THROTTLE_MS, Math.floor(interval));
