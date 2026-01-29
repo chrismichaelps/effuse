@@ -71,6 +71,13 @@ export {
 	type UseDebounceReturn,
 } from './hooks/useDebounce/index.js';
 
+export {
+	useThrottle,
+	ThrottleError,
+	type UseThrottleConfig,
+	type UseThrottleReturn,
+} from './hooks/useThrottle/index.js';
+
 export { WindowSizeState } from './hooks/useWindowSize/state.js';
 export { StorageState } from './hooks/useLocalStorage/state.js';
 export { ListenerState } from './hooks/useEventListener/state.js';
@@ -78,6 +85,7 @@ export { MediaQueryState } from './hooks/useMediaQuery/state.js';
 export { NetworkState } from './hooks/useOnline/state.js';
 export { IntervalState } from './hooks/useInterval/state.js';
 export { DebounceState } from './hooks/useDebounce/state.js';
+export { ThrottleState } from './hooks/useThrottle/state.js';
 
 export type {
 	Cleanup,

@@ -37,7 +37,8 @@ export type UseHooksCategory =
 	| 'useMediaQuery'
 	| 'useOnline'
 	| 'useInterval'
-	| 'useDebounce';
+	| 'useDebounce'
+	| 'useThrottle';
 
 export interface UseHooksCategories {
 	readonly useWindowSize: boolean;
@@ -47,6 +48,7 @@ export interface UseHooksCategories {
 	readonly useOnline: boolean;
 	readonly useInterval: boolean;
 	readonly useDebounce: boolean;
+	readonly useThrottle: boolean;
 }
 
 export const defaultUseHooksCategories: UseHooksCategories = {
@@ -57,6 +59,7 @@ export const defaultUseHooksCategories: UseHooksCategories = {
 	useOnline: true,
 	useInterval: true,
 	useDebounce: true,
+	useThrottle: true,
 };
 
 let enabledCategories: UseHooksCategories = { ...defaultUseHooksCategories };
