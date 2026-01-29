@@ -98,5 +98,10 @@ export {
 	TracingService,
 	createTracingService,
 	withTracing,
+	getGlobalTracing,
+	setGlobalTracing,
+	clearGlobalTracing,
 	type TracingConfig,
+	type UseHooksCategories,
+	defaultUseHooksCategories,
 } from './tracing/index.js';
