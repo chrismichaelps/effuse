@@ -28,6 +28,11 @@ import { isClient } from '../../internal/utils.js';
 import { CHANGE_EVENT } from './constants.js';
 import { createMediaQuery, getInitialMatch } from './utils.js';
 import {
+	traceMediaQueryInit,
+	traceMediaQueryChange,
+	traceMediaQueryCleanup,
+} from './telemetry.js';
+import {
 	type MediaQueryState,
 	MediaQueryState as MQS,
 	getMatches,
@@ -75,7 +80,10 @@ export const useMediaQuery = defineHook<
 			});
 		};
 
-		const internalState = ctx.signal<MediaQueryState>(createInitialState());
+		const initialState = createInitialState();
+		traceMediaQueryInit(query, getMatches(initialState));
+
+		const internalState = ctx.signal<MediaQueryState>(initialState);
 
 		const matches = ctx.computed(() => getMatches(internalState.value));
 
@@ -93,12 +101,14 @@ export const useMediaQuery = defineHook<
 					internalState.value = mql.matches ? MQS.Matched() : MQS.Unmatched();
 
 					const handler = (e: MediaQueryListEvent): void => {
+						traceMediaQueryChange(query, e.matches);
 						internalState.value = e.matches ? MQS.Matched() : MQS.Unmatched();
 					};
 
 					mql.addEventListener(CHANGE_EVENT, handler);
 
 					return () => {
+						traceMediaQueryCleanup(query);
 						mql.removeEventListener(CHANGE_EVENT, handler);
 					};
 				},
