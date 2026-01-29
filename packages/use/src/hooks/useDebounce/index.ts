@@ -26,6 +26,12 @@ import { defineHook, type ReadonlySignal, type Signal } from '@effuse/core';
 import { DEFAULT_DEBOUNCE_MS } from './constants.js';
 import { clampDelay } from './utils.js';
 import {
+	traceDebounceInit,
+	traceDebounceSchedule,
+	traceDebounceFlush,
+	traceDebounceCancel,
+} from './telemetry.js';
+import {
 	type DebounceState,
 	DebounceState as DS,
 	isPending,
@@ -57,11 +63,14 @@ export const useDebounce = defineHook<
 		const { value: sourceSignal, delay = DEFAULT_DEBOUNCE_MS } = ctx.config;
 		const clampedDelay = clampDelay(delay);
 
+		traceDebounceInit(clampedDelay);
+
 		const internalState = ctx.signal<DebounceState<unknown>>(
 			DS.Idle({ value: sourceSignal.value })
 		);
 
 		let timeoutId: ReturnType<typeof setTimeout> | null = null;
+		let lastSourceValue: unknown = sourceSignal.value;
 
 		const clearPendingTimeout = (): void => {
 			if (timeoutId !== null) {
@@ -76,38 +85,56 @@ export const useDebounce = defineHook<
 
 		const pending = ctx.computed(() => getIsPending(internalState.value));
 
+		let isCancelled = false;
+
 		const cancel = (): void => {
+			traceDebounceCancel();
+			isCancelled = true;
 			clearPendingTimeout();
+			lastSourceValue = sourceSignal.value;
 			const currentValue = getCurrentValue(internalState.value);
 			internalState.value = DS.Idle({ value: currentValue });
 		};
 
 		const flush = (): void => {
+			traceDebounceFlush();
 			clearPendingTimeout();
 			const state = internalState.value;
 			if (isPending(state)) {
+				lastSourceValue = state.pendingValue;
 				internalState.value = DS.Idle({ value: state.pendingValue });
 			}
 		};
 
 		ctx.effect(() => {
 			const newValue = sourceSignal.value;
-			const currentState = internalState.value;
-			const currentValue = getCurrentValue(currentState);
 
-			if (currentValue === newValue && !isPending(currentState)) {
+			if (isCancelled) {
+				if (newValue !== lastSourceValue) {
+					isCancelled = false;
+				} else {
+					return undefined;
+				}
+			}
+
+			if (newValue === lastSourceValue) {
 				return undefined;
 			}
 
 			clearPendingTimeout();
 
+			traceDebounceSchedule();
 			internalState.value = DS.Pending({
-				value: currentValue,
+				value: getCurrentValue(internalState.value),
 				pendingValue: newValue,
 			});
 
 			timeoutId = setTimeout(() => {
-				internalState.value = DS.Idle({ value: newValue });
+				const state = internalState.value;
+				if (isPending(state)) {
+					lastSourceValue = state.pendingValue;
+					internalState.value = DS.Idle({ value: state.pendingValue });
+				}
 				timeoutId = null;
 			}, clampedDelay);
 
