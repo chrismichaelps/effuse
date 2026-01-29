@@ -119,9 +119,16 @@ export const useLocalStorage = defineHook<
 
 		const value = ctx.signal<unknown>(getValue(internalState.value));
 
+		let isExternalUpdate = false;
+
 		ctx.effect(() => {
 			const current = value.value;
 			if (!isClient()) return undefined;
+
+			if (isExternalUpdate) {
+				isExternalUpdate = false;
+				return undefined;
+			}
 
 			const serialized = serializer(current);
 			if (serialized !== null) {
@@ -146,6 +153,8 @@ export const useLocalStorage = defineHook<
 
 			const handleStorage = (event: StorageEvent): void => {
 				if (event.key !== key) return;
+
+				isExternalUpdate = true;
 
 				if (event.newValue === null) {
 					value.value = defaultValue;
