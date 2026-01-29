@@ -108,9 +108,7 @@ export {
 export { BREAKPOINTS } from './hooks/useMediaQuery/constants.js';
 
 export {
-	configureUseHooksTracing,
 	isUseHookEnabled,
-	resetUseHooksTracing,
 	type UseHooksCategories,
 	type UseHooksCategory,
 } from './internal/telemetry.js';

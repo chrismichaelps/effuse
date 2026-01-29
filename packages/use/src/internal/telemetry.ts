@@ -29,40 +29,15 @@ import {
 	SpanStatusCode,
 } from '@opentelemetry/api';
 import { Either } from 'effect';
+import {
+	getGlobalTracing,
+	defaultUseHooksCategories,
+	type UseHooksCategories,
+} from '@effuse/core';
 
-export type UseHooksCategory =
-	| 'useWindowSize'
-	| 'useLocalStorage'
-	| 'useEventListener'
-	| 'useMediaQuery'
-	| 'useOnline'
-	| 'useInterval'
-	| 'useDebounce'
-	| 'useThrottle';
+export type UseHooksCategory = keyof UseHooksCategories;
 
-export interface UseHooksCategories {
-	readonly useWindowSize: boolean;
-	readonly useLocalStorage: boolean;
-	readonly useEventListener: boolean;
-	readonly useMediaQuery: boolean;
-	readonly useOnline: boolean;
-	readonly useInterval: boolean;
-	readonly useDebounce: boolean;
-	readonly useThrottle: boolean;
-}
-
-export const defaultUseHooksCategories: UseHooksCategories = {
-	useWindowSize: true,
-	useLocalStorage: true,
-	useEventListener: true,
-	useMediaQuery: true,
-	useOnline: true,
-	useInterval: true,
-	useDebounce: true,
-	useThrottle: true,
-};
-
-let enabledCategories: UseHooksCategories = { ...defaultUseHooksCategories };
+export type { UseHooksCategories };
 
 const TRACER_NAME = '@effuse/use';
 
@@ -75,17 +50,17 @@ export const getTracer = (): Tracer => {
 	return cachedTracer;
 };
 
-export const configureUseHooksTracing = (
-	categories: Partial<UseHooksCategories>
-): void => {
-	enabledCategories = { ...enabledCategories, ...categories };
-};
+export const isUseHookEnabled = (category: UseHooksCategory): boolean => {
+	const globalTracing = getGlobalTracing();
+	if (!globalTracing) return false;
+	if (!globalTracing.isEnabled()) return false;
+	if (!globalTracing.isCategoryEnabled('hooks')) return false;
 
-export const isUseHookEnabled = (category: UseHooksCategory): boolean =>
-	enabledCategories[category];
-
-export const resetUseHooksTracing = (): void => {
-	enabledCategories = { ...defaultUseHooksCategories };
+	const useHooksConfig = globalTracing.config.categories?.useHooks;
+	if (!useHooksConfig) return defaultUseHooksCategories[category];
+	const categoryEnabled =
+		useHooksConfig[category as keyof typeof useHooksConfig];
+	return categoryEnabled ?? defaultUseHooksCategories[category];
 };
 
 export const startSpan = (
@@ -96,9 +71,9 @@ export const startSpan = (
 	if (!isUseHookEnabled(hookName)) return null;
 
 	const tracer = getTracer();
-	const span = tracer.startSpan(`${hookName}.${operationName}`, {
+	const span = tracer.startSpan(`${String(hookName)}.${operationName}`, {
 		attributes: {
-			'hook.name': hookName,
+			'hook.name': String(hookName),
 			'hook.operation': operationName,
 			...attributes,
 		},
@@ -149,9 +124,9 @@ export const recordEvent = (
 	if (!isUseHookEnabled(hookName)) return;
 
 	const tracer = getTracer();
-	const span = tracer.startSpan(`${hookName}.${eventName}`, {
+	const span = tracer.startSpan(`${String(hookName)}.${eventName}`, {
 		attributes: {
-			'hook.name': hookName,
+			'hook.name': String(hookName),
 			'hook.event': eventName,
 			...attributes,
 		},
