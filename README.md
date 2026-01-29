@@ -23,6 +23,7 @@ It's designed to be intuitive and minimalist, helping you build fast, interactiv
 - **@effuse/query**: A reactive data fetching library with built-in reliability.
 - **@effuse/i18n**: A reactive internationalization library.
 - **@effuse/compiler**: An optimized JSX/TSX transformer that automatically handles reactive signal access, reducing boilerplate without impacting performance.
+- **@effuse/use**: A collection of hooks for common use cases.
 
 ---
 

@@ -36,7 +36,9 @@ export { withLayerSpan, withRuntimeSpan, logDependencyGraph } from './spans.js';
 export {
 	type TracingCategory,
 	type TracingCategories,
+	type UseHooksCategories,
 	defaultCategories,
+	defaultUseHooksCategories,
 	isCategoryEnabled,
 } from './categories.js';
 

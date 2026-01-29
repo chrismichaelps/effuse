@@ -34,6 +34,28 @@ export type TracingCategory =
 	| 'fibers'
 	| 'hooks';
 
+export interface UseHooksCategories {
+	readonly useWindowSize: boolean;
+	readonly useLocalStorage: boolean;
+	readonly useEventListener: boolean;
+	readonly useMediaQuery: boolean;
+	readonly useOnline: boolean;
+	readonly useInterval: boolean;
+	readonly useDebounce: boolean;
+	readonly useThrottle: boolean;
+}
+
+export const defaultUseHooksCategories: UseHooksCategories = {
+	useWindowSize: true,
+	useLocalStorage: true,
+	useEventListener: true,
+	useMediaQuery: true,
+	useOnline: true,
+	useInterval: true,
+	useDebounce: true,
+	useThrottle: true,
+};
+
 export interface TracingCategories {
 	readonly layers: boolean;
 	readonly router: boolean;
@@ -45,6 +67,7 @@ export interface TracingCategories {
 	readonly store: boolean;
 	readonly fibers: boolean;
 	readonly hooks: boolean;
+	readonly useHooks?: Partial<UseHooksCategories>;
 }
 
 export const defaultCategories: TracingCategories = {
@@ -58,6 +81,7 @@ export const defaultCategories: TracingCategories = {
 	store: true,
 	fibers: true,
 	hooks: true,
+	useHooks: defaultUseHooksCategories,
 };
 
 export const isCategoryEnabled = (
