@@ -27,6 +27,13 @@ import { isClient } from '../../internal/utils.js';
 import { DEFAULT_INTERVAL_MS } from './constants.js';
 import { clampInterval } from './utils.js';
 import {
+	traceIntervalInit,
+	traceIntervalStart,
+	traceIntervalTick,
+	traceIntervalPause,
+	traceIntervalStop,
+} from './telemetry.js';
+import {
 	type IntervalState,
 	IntervalState as IS,
 	isRunning,
@@ -69,6 +76,8 @@ export const useInterval = defineHook<UseIntervalConfig, UseIntervalReturn>({
 
 		const clampedDelay = clampInterval(delay);
 
+		traceIntervalInit(clampedDelay, immediate);
+
 		const internalState = ctx.signal<IntervalState>(
 			immediate ? IS.Running({ count: 0 }) : IS.Stopped()
 		);
@@ -93,34 +102,40 @@ export const useInterval = defineHook<UseIntervalConfig, UseIntervalReturn>({
 				? getCount(internalState.value)
 				: 0;
 
+			traceIntervalStart(clampedDelay);
 			internalState.value = IS.Running({ count: currentCount });
 
 			intervalId = setInterval(() => {
 				const state = internalState.value;
 				if (isRunning(state)) {
+					const newCount = getCount(state) + 1;
+					traceIntervalTick(newCount);
 					callback();
-					internalState.value = IS.Running({
-						count: getCount(state) + 1,
-					});
+					internalState.value = IS.Running({ count: newCount });
 				}
 			}, clampedDelay);
 		};
 
 		const pause = (): void => {
+			traceIntervalPause();
 			clearCurrentInterval();
 			const currentCount = getCount(internalState.value);
 			internalState.value = IS.Paused({ count: currentCount });
 		};
 
 		const stop = (): void => {
+			traceIntervalStop();
 			clearCurrentInterval();
 			internalState.value = IS.Stopped();
 		};
 
+		let isInitialized = false;
+
 		ctx.effect(() => {
 			if (!isClient()) return undefined;
 
-			if (immediate) {
+			if (!isInitialized && immediate) {
+				isInitialized = true;
 				start();
 			}
 
