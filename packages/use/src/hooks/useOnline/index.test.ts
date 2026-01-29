@@ -109,21 +109,81 @@ describe('useOnline', () => {
 			expect(result.isOnline).toHaveProperty('value');
 			expect(result.isOffline).toHaveProperty('value');
 		});
-		describe('event listeners', () => {
-			it('should attach online/offline listeners', () => {
-				vi.stubGlobal('navigator', { onLine: true });
-				const addEventListener = vi.fn();
-				vi.stubGlobal('window', {
-					addEventListener,
-					removeEventListener: vi.fn(),
-				});
+	});
 
-				useOnline({});
-
-				expect(addEventListener).toHaveBeenCalledWith('online', expect.any(Function));
-				expect(addEventListener).toHaveBeenCalledWith('offline', expect.any(Function));
+	describe('event listeners', () => {
+		it('should attach online/offline listeners', () => {
+			vi.stubGlobal('navigator', { onLine: true });
+			const addEventListener = vi.fn();
+			vi.stubGlobal('window', {
+				addEventListener,
+				removeEventListener: vi.fn(),
 			});
+
+			useOnline({});
+
+			expect(addEventListener).toHaveBeenCalledWith(
+				'online',
+				expect.any(Function)
+			);
+			expect(addEventListener).toHaveBeenCalledWith(
+				'offline',
+				expect.any(Function)
+			);
+		});
+	});
+
+	describe('online/offline transitions', () => {
+		it('should update state when going offline', () => {
+			vi.stubGlobal('navigator', { onLine: true });
+			let offlineHandler: (() => void) | null = null;
+			const addEventListener = vi.fn((event, handler) => {
+				if (event === 'offline') {
+					offlineHandler = handler as () => void;
+				}
+			});
+			vi.stubGlobal('window', {
+				addEventListener,
+				removeEventListener: vi.fn(),
+			});
+
+			const { isOnline, isOffline } = useOnline({});
+
+			expect(isOnline.value).toBe(true);
+			expect(isOffline.value).toBe(false);
+
+			if (offlineHandler) {
+				(offlineHandler as () => void)();
+			}
+
+			expect(isOnline.value).toBe(false);
+			expect(isOffline.value).toBe(true);
+		});
+
+		it('should update state when going online', () => {
+			vi.stubGlobal('navigator', { onLine: false });
+			let onlineHandler: (() => void) | null = null;
+			const addEventListener = vi.fn((event, handler) => {
+				if (event === 'online') {
+					onlineHandler = handler as () => void;
+				}
+			});
+			vi.stubGlobal('window', {
+				addEventListener,
+				removeEventListener: vi.fn(),
+			});
+
+			const { isOnline, isOffline } = useOnline({});
+
+			expect(isOnline.value).toBe(false);
+			expect(isOffline.value).toBe(true);
+
+			if (onlineHandler) {
+				(onlineHandler as () => void)();
+			}
+
+			expect(isOnline.value).toBe(true);
+			expect(isOffline.value).toBe(false);
 		});
 	});
 });
-

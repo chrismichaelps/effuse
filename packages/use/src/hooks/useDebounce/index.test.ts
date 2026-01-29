@@ -155,4 +155,90 @@ describe('useDebounce', () => {
 			expect(value.value).toEqual([1, 2, 3]);
 		});
 	});
+
+	describe('timing behavior', () => {
+		it('should not update value before delay expires', () => {
+			const source = signal('initial');
+			const { value, isPending } = useDebounce({ value: source, delay: 100 });
+
+			source.value = 'updated';
+			vi.advanceTimersByTime(50);
+
+			expect(value.value).toBe('initial');
+			expect(isPending.value).toBe(true);
+		});
+
+		it('should update value after delay expires', () => {
+			const source = signal('initial');
+			const { value, isPending } = useDebounce({ value: source, delay: 100 });
+
+			source.value = 'updated';
+			vi.advanceTimersByTime(100);
+
+			expect(value.value).toBe('updated');
+			expect(isPending.value).toBe(false);
+		});
+
+		it('should reset timer on rapid changes', () => {
+			const source = signal('initial');
+			const { value } = useDebounce({ value: source, delay: 100 });
+
+			source.value = 'first';
+			vi.advanceTimersByTime(50);
+
+			source.value = 'second';
+			vi.advanceTimersByTime(50);
+
+			expect(value.value).toBe('initial');
+
+			vi.advanceTimersByTime(50);
+			expect(value.value).toBe('second');
+		});
+	});
+
+	describe('flush behavior', () => {
+		it('should immediately apply pending value on flush', () => {
+			const source = signal('initial');
+			const { value, flush, isPending } = useDebounce({
+				value: source,
+				delay: 100,
+			});
+
+			source.value = 'updated';
+			vi.advanceTimersByTime(50);
+			expect(isPending.value).toBe(true);
+
+			flush();
+
+			expect(value.value).toBe('updated');
+			expect(isPending.value).toBe(false);
+		});
+
+		it('should do nothing when flushing without pending value', () => {
+			const source = signal('initial');
+			const { value, flush } = useDebounce({ value: source, delay: 100 });
+
+			flush();
+
+			expect(value.value).toBe('initial');
+		});
+	});
+
+	describe('cancel behavior', () => {
+		it('should discard pending value on cancel', () => {
+			const source = signal('initial');
+			const { value, cancel } = useDebounce({
+				value: source,
+				delay: 100,
+			});
+
+			source.value = 'updated';
+			vi.advanceTimersByTime(50);
+
+			cancel();
+
+			vi.advanceTimersByTime(100);
+			expect(value.value).toBe('initial');
+		});
+	});
 });

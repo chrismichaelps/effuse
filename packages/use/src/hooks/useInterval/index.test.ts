@@ -186,4 +186,44 @@ describe('useInterval', () => {
 			expect(() => pause()).not.toThrow();
 		});
 	});
+
+	describe('tick behavior', () => {
+		it('should not call callback when not running', () => {
+			const callback = vi.fn();
+			useInterval({ callback, delay: 100, immediate: false });
+
+			vi.advanceTimersByTime(300);
+			expect(callback).not.toHaveBeenCalled();
+		});
+	});
+
+	describe('pause behavior', () => {
+		it('should set isRunning to false on pause', () => {
+			const callback = vi.fn();
+			const { pause, isRunning } = useInterval({ callback, delay: 100 });
+
+			expect(isRunning.value).toBe(true);
+			pause();
+			expect(isRunning.value).toBe(false);
+		});
+	});
+
+	describe('stop behavior', () => {
+		it('should reset count on stop', () => {
+			const callback = vi.fn();
+			const { count, stop } = useInterval({ callback, delay: 100 });
+
+			stop();
+			expect(count.value).toBe(0);
+		});
+
+		it('should set isRunning to false on stop', () => {
+			const callback = vi.fn();
+			const { stop, isRunning } = useInterval({ callback, delay: 100 });
+
+			expect(isRunning.value).toBe(true);
+			stop();
+			expect(isRunning.value).toBe(false);
+		});
+	});
 });

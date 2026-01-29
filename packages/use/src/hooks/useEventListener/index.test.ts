@@ -81,6 +81,7 @@ describe('useEventListener', () => {
 	describe('custom target', () => {
 		it('should attach to custom element', () => {
 			const element = {
+				tagName: 'DIV',
 				addEventListener: vi.fn(),
 				removeEventListener: vi.fn(),
 			};
@@ -100,6 +101,7 @@ describe('useEventListener', () => {
 
 		it('should accept getter function for target', () => {
 			const element = {
+				tagName: 'BUTTON',
 				addEventListener: vi.fn(),
 				removeEventListener: vi.fn(),
 			};
@@ -187,6 +189,41 @@ describe('useEventListener', () => {
 			useEventListener({ event: 'click', handler: handler2 });
 
 			expect(mockAddEventListener).toHaveBeenCalledTimes(2);
+		});
+	});
+
+	describe('handler invocation', () => {
+		it('should invoke handler when event is dispatched', () => {
+			const handler = vi.fn();
+			let capturedHandler: ((e: Event) => void) | null = null;
+
+			mockAddEventListener.mockImplementation((_event, fn) => {
+				capturedHandler = fn as (e: Event) => void;
+			});
+
+			useEventListener({ event: 'click', handler });
+
+			expect(capturedHandler).not.toBeNull();
+
+			const mockEvent = new Event('click');
+			if (capturedHandler) {
+				(capturedHandler as (e: Event) => void)(mockEvent);
+			}
+
+			expect(handler).toHaveBeenCalledWith(mockEvent);
+		});
+
+		it('should not invoke handler after stop is called', () => {
+			const handler = vi.fn();
+
+			const result = useEventListener({ event: 'click', handler });
+
+			expect(result.isActive).toBe(true);
+
+			result.stop();
+
+			expect(result.isActive).toBe(false);
+			expect(mockRemoveEventListener).toHaveBeenCalled();
 		});
 	});
 });

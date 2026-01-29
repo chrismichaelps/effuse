@@ -134,4 +134,63 @@ describe('useMediaQuery', () => {
 			expect(addListener).toHaveBeenCalled();
 		});
 	});
+
+	describe('change behavior', () => {
+		it('should update matches when media query changes', () => {
+			let changeHandler: ((e: { matches: boolean }) => void) | null = null;
+			const mockMatchMedia = vi.fn(() => ({
+				matches: false,
+				media: '(min-width: 768px)',
+				addEventListener: vi.fn((_event, handler) => {
+					changeHandler = handler as (e: { matches: boolean }) => void;
+				}),
+				removeEventListener: vi.fn(),
+				addListener: vi.fn(),
+				removeListener: vi.fn(),
+				onchange: null,
+				dispatchEvent: vi.fn(),
+			}));
+			vi.stubGlobal('window', { matchMedia: mockMatchMedia });
+
+			const { matches } = useMediaQuery({ query: '(min-width: 768px)' });
+
+			expect(matches.value).toBe(false);
+
+			if (changeHandler) {
+				(changeHandler as (e: { matches: boolean }) => void)({ matches: true });
+			}
+
+			expect(matches.value).toBe(true);
+		});
+
+		it('should handle multiple transitions', () => {
+			let changeHandler: ((e: { matches: boolean }) => void) | null = null;
+			const mockMatchMedia = vi.fn(() => ({
+				matches: true,
+				media: '',
+				addEventListener: vi.fn((_event, handler) => {
+					changeHandler = handler as (e: { matches: boolean }) => void;
+				}),
+				removeEventListener: vi.fn(),
+				addListener: vi.fn(),
+				removeListener: vi.fn(),
+				onchange: null,
+				dispatchEvent: vi.fn(),
+			}));
+			vi.stubGlobal('window', { matchMedia: mockMatchMedia });
+
+			const { matches } = useMediaQuery({ query: '(min-width: 768px)' });
+
+			expect(matches.value).toBe(true);
+
+			if (changeHandler) {
+				const handler = changeHandler as (e: { matches: boolean }) => void;
+				handler({ matches: false });
+				expect(matches.value).toBe(false);
+
+				handler({ matches: true });
+				expect(matches.value).toBe(true);
+			}
+		});
+	});
 });

@@ -164,4 +164,77 @@ describe('useWindowSize', () => {
 			expect(height.value).toBeGreaterThanOrEqual(0);
 		});
 	});
+
+	describe('resize behavior', () => {
+		it('should update dimensions on resize event', () => {
+			let resizeHandler: (() => void) | null = null;
+			const addEventListener = vi.fn((event, handler) => {
+				if (event === 'resize') {
+					resizeHandler = handler as () => void;
+				}
+			});
+
+			vi.stubGlobal('window', {
+				innerWidth: 1024,
+				innerHeight: 768,
+				addEventListener,
+				removeEventListener: vi.fn(),
+			});
+
+			const { width, height } = useWindowSize({});
+
+			expect(width.value).toBe(1024);
+			expect(height.value).toBe(768);
+
+			vi.stubGlobal('window', {
+				innerWidth: 1920,
+				innerHeight: 1080,
+				addEventListener,
+				removeEventListener: vi.fn(),
+			});
+
+			if (resizeHandler) {
+				(resizeHandler as () => void)();
+			}
+
+			expect(width.value).toBe(1920);
+			expect(height.value).toBe(1080);
+		});
+
+		it('should attach resize listener', () => {
+			const addEventListener = vi.fn();
+			vi.stubGlobal('window', {
+				innerWidth: 1024,
+				innerHeight: 768,
+				addEventListener,
+				removeEventListener: vi.fn(),
+			});
+
+			useWindowSize({});
+
+			expect(addEventListener).toHaveBeenCalledWith(
+				'resize',
+				expect.any(Function),
+				expect.any(Object)
+			);
+		});
+
+		it('should attach orientation change listener when enabled', () => {
+			const addEventListener = vi.fn();
+			vi.stubGlobal('window', {
+				innerWidth: 1024,
+				innerHeight: 768,
+				addEventListener,
+				removeEventListener: vi.fn(),
+			});
+
+			useWindowSize({ listenOrientation: true });
+
+			expect(addEventListener).toHaveBeenCalledWith(
+				'orientationchange',
+				expect.any(Function),
+				expect.any(Object)
+			);
+		});
+	});
 });
