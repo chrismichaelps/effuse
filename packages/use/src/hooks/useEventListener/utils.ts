@@ -40,3 +40,16 @@ export const isEventTarget = (
 	target !== undefined &&
 	typeof (target as EventTarget & { addEventListener?: unknown })
 		.addEventListener === 'function';
+
+export const getTargetName = (
+	target: Window | Document | HTMLElement | Element
+): string => {
+	if (target === window) return 'window';
+	if (target === document) return 'document';
+	if ('tagName' in target && typeof target.tagName === 'string') {
+		const id = 'id' in target && target.id ? `#${target.id}` : '';
+		return `${target.tagName.toLowerCase()}${id}`;
+	}
+	return 'unknown';
+};
+
