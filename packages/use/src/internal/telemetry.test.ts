@@ -24,19 +24,39 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import {
-	configureUseHooksTracing,
-	isUseHookEnabled,
-	resetUseHooksTracing,
-	type UseHooksCategory,
-} from './telemetry.js';
+	setGlobalTracing,
+	clearGlobalTracing,
+	createTracingService,
+} from '@effuse/core';
+import { isUseHookEnabled, type UseHooksCategory } from './telemetry.js';
 
 describe('internal/telemetry', () => {
-	afterEach(() => {
-		resetUseHooksTracing();
+	beforeEach(() => {
+		clearGlobalTracing();
 	});
 
-	describe('default configuration', () => {
-		it('should have all hooks enabled by default', () => {
+	afterEach(() => {
+		clearGlobalTracing();
+	});
+
+	describe('default configuration (no global tracing)', () => {
+		it('should return false if no global tracing is set', () => {
+			expect(isUseHookEnabled('useWindowSize')).toBe(false);
+		});
+	});
+
+	describe('global tracing enabled', () => {
+		beforeEach(() => {
+			const tracing = createTracingService({
+				enabled: true,
+				categories: {
+					hooks: true,
+				},
+			});
+			setGlobalTracing(tracing);
+		});
+
+		it('should have all hooks enabled by default when hooks category is enabled', () => {
 			const categories: UseHooksCategory[] = [
 				'useWindowSize',
 				'useLocalStorage',
@@ -51,74 +71,46 @@ describe('internal/telemetry', () => {
 				expect(isUseHookEnabled(category)).toBe(true);
 			});
 		});
-	});
 
-	describe('configureUseHooksTracing', () => {
-		it('should disable specific hook tracing', () => {
-			configureUseHooksTracing({ useWindowSize: false });
+		it('should disable specific hook if configured in useHooks', () => {
+			const tracing = createTracingService({
+				enabled: true,
+				categories: {
+					hooks: true,
+					useHooks: {
+						useWindowSize: false,
+					},
+				},
+			});
+			setGlobalTracing(tracing);
 
 			expect(isUseHookEnabled('useWindowSize')).toBe(false);
 			expect(isUseHookEnabled('useLocalStorage')).toBe(true);
 		});
 
-		it('should enable specific hook tracing', () => {
-			configureUseHooksTracing({ useWindowSize: false });
-			configureUseHooksTracing({ useWindowSize: true });
-
-			expect(isUseHookEnabled('useWindowSize')).toBe(true);
-		});
-
-		it('should handle multiple configurations', () => {
-			configureUseHooksTracing({
-				useWindowSize: false,
-				useLocalStorage: false,
-				useOnline: false,
+		it('should return false if hooks category is disabled', () => {
+			const tracing = createTracingService({
+				enabled: true,
+				categories: {
+					hooks: false,
+				},
 			});
+			setGlobalTracing(tracing);
 
 			expect(isUseHookEnabled('useWindowSize')).toBe(false);
-			expect(isUseHookEnabled('useLocalStorage')).toBe(false);
-			expect(isUseHookEnabled('useOnline')).toBe(false);
-			expect(isUseHookEnabled('useMediaQuery')).toBe(true);
-		});
-	});
-
-	describe('resetUseHooksTracing', () => {
-		it('should reset all hooks to enabled', () => {
-			configureUseHooksTracing({
-				useWindowSize: false,
-				useLocalStorage: false,
-				useEventListener: false,
-				useMediaQuery: false,
-				useOnline: false,
-				useInterval: false,
-				useDebounce: false,
-			});
-
-			resetUseHooksTracing();
-
-			expect(isUseHookEnabled('useWindowSize')).toBe(true);
-			expect(isUseHookEnabled('useLocalStorage')).toBe(true);
-			expect(isUseHookEnabled('useEventListener')).toBe(true);
-			expect(isUseHookEnabled('useMediaQuery')).toBe(true);
-			expect(isUseHookEnabled('useOnline')).toBe(true);
-			expect(isUseHookEnabled('useInterval')).toBe(true);
-			expect(isUseHookEnabled('useDebounce')).toBe(true);
 		});
 	});
 
 	describe('isUseHookEnabled', () => {
 		it('should return boolean for valid category', () => {
+			const tracing = createTracingService({
+				enabled: true,
+				categories: {
+					hooks: true,
+				},
+			});
+			setGlobalTracing(tracing);
 			expect(typeof isUseHookEnabled('useWindowSize')).toBe('boolean');
-		});
-
-		it('should correctly reflect configuration changes', () => {
-			expect(isUseHookEnabled('useDebounce')).toBe(true);
-
-			configureUseHooksTracing({ useDebounce: false });
-			expect(isUseHookEnabled('useDebounce')).toBe(false);
-
-			configureUseHooksTracing({ useDebounce: true });
-			expect(isUseHookEnabled('useDebounce')).toBe(true);
 		});
 	});
 });
