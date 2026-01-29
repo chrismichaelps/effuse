@@ -26,7 +26,11 @@ import { Option } from 'effect';
 import { defineHook } from '@effuse/core';
 import { isClient } from '../../internal/utils.js';
 import { DEFAULT_LISTENER_OPTIONS } from './constants.js';
-import { resolveTarget, type EventTarget } from './utils.js';
+import { resolveTarget, type EventTarget, getTargetName } from './utils.js';
+import {
+	traceEventListenerAdd,
+	traceEventListenerRemove,
+} from './telemetry.js';
 import { type ListenerState, ListenerState as LS, isActive } from './state.js';
 
 export { ListenerState, isActive, isInactive, isError } from './state.js';
@@ -64,14 +68,17 @@ export const useEventListener = defineHook<
 		const internalState = ctx.signal<ListenerState>(LS.Inactive());
 		let cleanup: (() => void) | null = null;
 
+		let isStopped = false;
+
 		const stop = (): void => {
+			isStopped = true;
 			cleanup?.();
 			cleanup = null;
 			internalState.value = LS.Inactive();
 		};
 
 		ctx.effect(() => {
-			if (!isClient()) return undefined;
+			if (!isClient() || isStopped) return undefined;
 
 			const maybeTarget = resolveTarget(target);
 
@@ -82,10 +89,13 @@ export const useEventListener = defineHook<
 					});
 				},
 				onSome: (el) => {
+					const targetName = getTargetName(el);
+					traceEventListenerAdd(event, targetName);
 					el.addEventListener(event, handler as EventListener, options);
 					internalState.value = LS.Active({ eventName: event });
 
 					cleanup = () => {
+						traceEventListenerRemove(event, targetName);
 						el.removeEventListener(event, handler as EventListener, options);
 					};
 				},
