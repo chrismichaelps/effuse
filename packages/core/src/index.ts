@@ -201,6 +201,7 @@ export {
 	type LayerProps,
 	type AnyLayer,
 	type AnyResolvedLayer,
+	type EffuseLayerRegistry,
 	type LayerRuntime,
 	type LayerRuntimeOptions,
 } from './layers/index.js';
@@ -304,7 +305,6 @@ export {
 	type ProviderProps,
 	type EffuseContext,
 } from './context/index.js';
-
 export {
 	createRef,
 	isRefObject,

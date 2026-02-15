@@ -25,7 +25,6 @@
 		{ "path": "./packages/i18n" },
 		{ "path": "./packages/ink" },
 		{ "path": "./packages/query" },
-		{ "path": "./packages/compiler" },
-		{ "path": "./app" }
+		{ "path": "./packages/compiler" }
 	]
 }

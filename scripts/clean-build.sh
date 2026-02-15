@@ -21,6 +21,6 @@ rm -rf .turbo
 find . -name "*.tsbuildinfo" -delete 2>/dev/null || true
 
 echo "Building all packages..."
-pnpm -r run build
+pnpm -r --workspace-concurrency=1 run build
 
 echo "Clean build complete!"
