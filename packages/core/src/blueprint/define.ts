@@ -35,6 +35,7 @@ import type { ComponentLifecycle } from './lifecycle.js';
 import type { EffuseLayerRegistry, LayerPropsOf } from '../layers/types.js';
 import type { LayerContext } from '../layers/context.js';
 import { getLayerContext, isLayerRuntimeReady } from '../layers/context.js';
+import { LayerRuntimeNotReadyError } from '../layers/errors.js';
 
 interface PropsWithChildren {
 	readonly children?: EffuseChild;
@@ -149,12 +150,8 @@ export function define<
 						options as unknown as DefineOptionsWithLayer<P, E, K>
 					).script(extendedContext);
 				} else {
-					scriptResult = (
-						options as unknown as DefineOptionsWithLayer<P, E, K>
-					).script({
-						...context,
-						layerProps: {} as LayerPropsOf<K>,
-						layer: {} as LayerContext<LayerPropsOf<K>>,
+					throw new LayerRuntimeNotReadyError({
+						layerName: layerName,
 					});
 				}
 			} else {

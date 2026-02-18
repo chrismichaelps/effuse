@@ -214,11 +214,85 @@ function extractProvidesType(
 			ts.isShorthandPropertyAssignment(prop)
 		) {
 			const propName = prop.name.getText(sourceFile);
-			provides.push(`${propName}: unknown`);
+
+			if (ts.isPropertyAssignment(prop)) {
+				const returnType = inferFactoryReturnType(prop.initializer, sourceFile);
+				provides.push(`${propName}: ${returnType}`);
+			} else {
+				provides.push(`${propName}: unknown`);
+			}
 		}
 	}
 
 	return provides.length > 0 ? `{ ${provides.join('; ')} }` : '{}';
+}
+
+function inferFactoryReturnType(
+	node: ts.Node,
+	sourceFile: ts.SourceFile
+): string {
+	if (ts.isArrowFunction(node) || ts.isFunctionExpression(node)) {
+		const body = node.body;
+
+		if (ts.isBlock(body)) {
+			const returnStatements = findReturnStatements(body);
+			if (returnStatements.length === 1 && returnStatements[0]?.expression) {
+				return inferExpressionType(returnStatements[0].expression, sourceFile);
+			}
+			return 'unknown';
+		}
+
+		return inferExpressionType(body, sourceFile);
+	}
+
+	return 'unknown';
+}
+
+function findReturnStatements(block: ts.Block): ts.ReturnStatement[] {
+	const returns: ts.ReturnStatement[] = [];
+	const visit = (node: ts.Node) => {
+		if (ts.isReturnStatement(node)) {
+			returns.push(node);
+		}
+		if (!ts.isFunctionDeclaration(node) && !ts.isArrowFunction(node)) {
+			ts.forEachChild(node, visit);
+		}
+	};
+	ts.forEachChild(block, visit);
+	return returns;
+}
+
+function inferExpressionType(
+	expr: ts.Expression,
+	sourceFile: ts.SourceFile
+): string {
+	if (ts.isParenthesizedExpression(expr)) {
+		return inferExpressionType(expr.expression, sourceFile);
+	}
+
+	if (ts.isCallExpression(expr)) {
+		const funcText = expr.expression.getText(sourceFile);
+		return `ReturnType<typeof ${funcText}>`;
+	}
+
+	if (ts.isNewExpression(expr)) {
+		const className = expr.expression.getText(sourceFile);
+		return className;
+	}
+
+	if (ts.isObjectLiteralExpression(expr)) {
+		const props: string[] = [];
+		for (const p of expr.properties) {
+			if (ts.isPropertyAssignment(p)) {
+				const key = p.name.getText(sourceFile);
+				const valueType = inferTypeFromNode(p.initializer, sourceFile);
+				props.push(`${key}: ${valueType}`);
+			}
+		}
+		return props.length > 0 ? `{ ${props.join('; ')} }` : 'object';
+	}
+
+	return inferTypeFromNode(expr, sourceFile);
 }
 
 function inferTypeFromNode(node: ts.Node, _sourceFile: ts.SourceFile): string {

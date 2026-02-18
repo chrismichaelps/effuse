@@ -1506,3 +1506,20 @@ describe('define function - props type inference', () => {
 		});
 	});
 });
+
+describe('define function - layer option error handling', () => {
+	it('should throw when layer option is used but runtime is not ready', () => {
+		expect(() => {
+			const LayerComponent = define({
+				layer: 'nonExistentLayer' as never,
+				script: () => {
+					return { value: 'test' };
+				},
+				template: () => null,
+			});
+
+			const blueprint = extractBlueprint(LayerComponent);
+			blueprint.state({});
+		}).toThrow();
+	});
+});
