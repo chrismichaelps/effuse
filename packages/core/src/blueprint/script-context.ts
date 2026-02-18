@@ -97,6 +97,10 @@ export interface ScriptContext<P> {
 		name: K
 	) => LayerPropsOf<K> | undefined;
 
+	/**
+	 * @deprecated Use `useLayer(name).provides` for all layer providers,
+	 * or `useService(key)` for individual services. Will be removed in a future release.
+	 */
 	useLayerProvider: <K extends keyof EffuseLayerRegistry>(
 		name: K
 	) => LayerProvidesOf<K> | undefined;
@@ -251,11 +255,8 @@ export const createScriptContext = <P, E extends ExposedValues>(
 				return undefined;
 			}
 			const providers: Record<string, unknown> = {};
-			const providesEntries = Object.entries(layerContext.provides) as Array<
-				[string, () => unknown]
-			>;
-			for (const [key, factory] of providesEntries) {
-				providers[key] = factory();
+			for (const key of Object.keys(layerContext.provides)) {
+				providers[key] = getLayerService(key);
 			}
 			return providers as LayerProvidesOf<K>;
 		}) as ScriptContext<P>['useLayerProvider'],
