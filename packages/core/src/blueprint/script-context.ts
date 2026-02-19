@@ -28,11 +28,18 @@ import type {
 	Signal,
 	ReadonlySignal,
 	WatchOptions,
+	EffectOptions,
+	EffectHandle,
 	OnCleanup,
 } from '../types/index.js';
+import type { Component } from '../render/node.js';
 import { signal } from '../reactivity/index.js';
 import { computed } from '../reactivity/computed.js';
-import { watch as standaloneWatch } from '../effects/index.js';
+import {
+	watch as standaloneWatch,
+	watchMultiple as standaloneWatchMultiple,
+} from '../effects/index.js';
+import { effect as standaloneEffect } from '../effects/effect.js';
 import {
 	createComponentLifecycleSync,
 	type ComponentLifecycle,
@@ -40,6 +47,7 @@ import {
 import { useCallback, useMemo } from './hooks.js';
 import {
 	getLayerContext,
+	getLayerComponent,
 	getLayerService,
 	isLayerRuntimeReady,
 	type LayerContext,
@@ -48,6 +56,7 @@ import {
 import type {
 	EffuseLayerRegistry,
 	EffuseServiceRegistry,
+	EffuseComponentRegistry,
 	LayerPropsOf,
 	LayerProvidesOf,
 } from '../layers/types.js';
@@ -95,6 +104,33 @@ export interface ScriptContext<P> {
 		options?: WatchOptions
 	) => void;
 
+	watchMultiple: <T extends readonly (Signal<unknown> | (() => unknown))[]>(
+		sources: T,
+		callback: (
+			newValues: {
+				[K in keyof T]: T[K] extends Signal<infer V>
+					? V
+					: T[K] extends () => infer V
+						? V
+						: never;
+			},
+			oldValues: {
+				[K in keyof T]: T[K] extends Signal<infer V>
+					? V | undefined
+					: T[K] extends () => infer V
+						? V | undefined
+						: never;
+			},
+			onCleanup: OnCleanup
+		) => void,
+		options?: WatchOptions
+	) => void;
+
+	effect: (
+		fn: (onCleanup: OnCleanup) => void | Promise<void>,
+		options?: EffectOptions
+	) => EffectHandle;
+
 	useCallback: typeof useCallback;
 
 	useMemo: typeof useMemo;
@@ -124,6 +160,13 @@ export interface ScriptContext<P> {
 	useLayerProvider: <K extends keyof EffuseLayerRegistry>(
 		name: K
 	) => LayerProvidesOf<K> | undefined;
+
+	useComponent: {
+		<K extends keyof EffuseComponentRegistry>(
+			name: K
+		): EffuseComponentRegistry[K];
+		(name: string): Component | undefined;
+	};
 }
 
 export interface ScriptState<E extends ExposedValues> {
@@ -225,6 +268,25 @@ export const createScriptContext = <P, E extends ExposedValues>(
 			lifecycle.onUnmount(() => handle.stop());
 		},
 
+		watchMultiple: (sources, callback, options): void => {
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any -- bridge ScriptContext types with WatchSource
+			const handle = standaloneWatchMultiple(
+				sources as any,
+				callback as any,
+				options
+			);
+			lifecycle.onUnmount(() => handle.stop());
+		},
+
+		effect: (
+			fn: (onCleanup: OnCleanup) => void | Promise<void>,
+			options?: EffectOptions
+		): EffectHandle => {
+			const handle = standaloneEffect(fn, options);
+			lifecycle.onUnmount(() => handle.stop());
+			return handle;
+		},
+
 		useCallback,
 
 		useMemo,
@@ -281,6 +343,13 @@ export const createScriptContext = <P, E extends ExposedValues>(
 			}
 			return providers as LayerProvidesOf<K>;
 		}) as ScriptContext<P>['useLayerProvider'],
+
+		useComponent: (name: string): Component | undefined => {
+			if (!isLayerRuntimeReady()) {
+				return undefined;
+			}
+			return getLayerComponent(name) as Component | undefined;
+		},
 	};
 
 	return { context, state };
