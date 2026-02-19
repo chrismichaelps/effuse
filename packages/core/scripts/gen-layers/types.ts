@@ -22,9 +22,15 @@
  * SOFTWARE.
  */
 
+export interface ServiceEntry {
+	readonly key: string;
+	readonly type: string;
+}
+
 export interface LayerInfo {
 	readonly name: string;
 	readonly propsType: string | null;
 	readonly providesType: string | null;
+	readonly serviceEntries: readonly ServiceEntry[];
 	readonly sourceFile: string;
 }
