@@ -1,3 +1,43 @@
+## @effuse/core [1.2.0](https://github.com/chrismichaelps/effuse/compare/@effuse/core@1.1.0...@effuse/core@1.2.0) (2026-02-19)
+
+### Features
+
+* apply minor formatting adjustments to core components. ([5fdd37f](https://github.com/chrismichaelps/effuse/commit/5fdd37f6dad1bd45f40aab97424542705cd12637))
+* **codegen:** extract component names for registry augmentation ([8930e25](https://github.com/chrismichaelps/effuse/commit/8930e2590ad21aa67ae9d9ed03aafc0ac0df5a6c))
+* **codegen:** infer precise provider types ([12e03b7](https://github.com/chrismichaelps/effuse/commit/12e03b750149e152f96854c7ad341a32a8d93ee6))
+* **codegen:** support typed service registry ([7a4752a](https://github.com/chrismichaelps/effuse/commit/7a4752ac7dcfc2719f86bc64dfa3b96bcedbd800))
+* **core:** add AsyncBoundary component ([e0b0a17](https://github.com/chrismichaelps/effuse/commit/e0b0a173cbd85a518a22ccf985af66e11690f1f0))
+* **core:** add auto-scoped effect and watchMultiple to ScriptContext ([d0f3957](https://github.com/chrismichaelps/effuse/commit/d0f39579b4e0701341cb8ab875daa628260d502d))
+* **core:** add component constants ([b5d55f1](https://github.com/chrismichaelps/effuse/commit/b5d55f1099557950696599413c576a2a049a76a2))
+* **core:** add Deferred component ([62f573a](https://github.com/chrismichaelps/effuse/commit/62f573a5c5a45e627ddfe5a03f0660b036e69639))
+* **core:** add KeepAlive with O(1) LRU cache ([52f3540](https://github.com/chrismichaelps/effuse/commit/52f3540b5250c660fe05de9ab3da41c057952614))
+* **core:** add Transition component with effect-data ([01f4a77](https://github.com/chrismichaelps/effuse/commit/01f4a77015f1cee048295c3715c04d567f52252b))
+* **core:** add TransitionGroup component ([88d7c15](https://github.com/chrismichaelps/effuse/commit/88d7c156b6712cbaffc390b23f77fdccbde23c80))
+* **core:** add UseHooksCategories and global tracing exports for hook telemetry. Ref: [#21](https://github.com/chrismichaelps/effuse/issues/21) ([45f5bb2](https://github.com/chrismichaelps/effuse/commit/45f5bb2ce6f9e4ba2d65fdb0bd14af66e0528196))
+* **core:** consolidate error exports in errors module ([0fda513](https://github.com/chrismichaelps/effuse/commit/0fda51320dc01f7c4b940859be7115467987fff9))
+* **core:** export KeepAliveNode and CachedComponent types ([5dba437](https://github.com/chrismichaelps/effuse/commit/5dba43733f7d792664d763b78dd41932ae68d927))
+* **core:** export new components from index ([ced3904](https://github.com/chrismichaelps/effuse/commit/ced3904208e39322b2aa00671f6101e27dd9f598))
+* **core:** implement EffuseComponentRegistry and typed useComponent hook ([daaa31f](https://github.com/chrismichaelps/effuse/commit/daaa31f249fb6e0550268b1665291e37943e1c0b))
+* **core:** improve hooks and service typing ([867c0d9](https://github.com/chrismichaelps/effuse/commit/867c0d97da2722b81950c85398e4b8f30004ee20))
+
+### Bug Fixes
+
+* **core:** retrieve cached services in HookContext layerProvider ([895dde2](https://github.com/chrismichaelps/effuse/commit/895dde20e37ae792979074eee0475fd2970cd7b0))
+* **layers:** cache useLayerProvider singletons ([0d33255](https://github.com/chrismichaelps/effuse/commit/0d33255d81f41ab2836182d172721fb0159cf5c3))
+
+### Code Refactoring
+
+* **core:** adopt Effect TaggedEnum internally and resolve build issues ([fa72397](https://github.com/chrismichaelps/effuse/commit/fa72397d9c35573769a7b4fdb6eb4fe6e1fc2460))
+* **core:** remove props schema and use direct inference ([ce31e46](https://github.com/chrismichaelps/effuse/commit/ce31e4630cf0ef3a6cd570322e0ceaa95da7ac31))
+* **core:** senior-level KeepAlive with Effect.Cache and TaggedEnum ([f76df6d](https://github.com/chrismichaelps/effuse/commit/f76df6d2c24a3fec35838d7491cc59b1387ea484))
+
+### Tests
+
+* **core:** add 24 production-ready KeepAlive tests ([fd442a2](https://github.com/chrismichaelps/effuse/commit/fd442a24552309f63fe054c2d2ba17dc60e27bde))
+* **core:** add comprehensive component tests ([49259cc](https://github.com/chrismichaelps/effuse/commit/49259ccfb5b6dc5e1b5e9720be39ad04385cc381))
+* **core:** add comprehensive tests and fix tracing cleanup ([7889500](https://github.com/chrismichaelps/effuse/commit/7889500914ce7b9b751cf2e146a65cd532fc2cca))
+* **core:** add coverage for component DI and auto-scoped reactivity ([986adb2](https://github.com/chrismichaelps/effuse/commit/986adb257831cfe8104690343b2d1d6f2fa0d219))
+
 ## @effuse/core [1.1.0](https://github.com/chrismichaelps/effuse/compare/@effuse/core@1.0.3...@effuse/core@1.1.0) (2026-01-14)
 
 ### Features
