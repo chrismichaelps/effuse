@@ -32,5 +32,6 @@ export interface LayerInfo {
 	readonly propsType: string | null;
 	readonly providesType: string | null;
 	readonly serviceEntries: readonly ServiceEntry[];
+	readonly componentNames: readonly string[];
 	readonly sourceFile: string;
 }
