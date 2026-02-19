@@ -1,6 +1,6 @@
 {
 	"name": "@effuse/store",
-	"version": "1.0.3",
+	"version": "1.0.4",
 	"description": "A functional state management system built on Effect-ts. It offers typed, robust global state handling designed to scale with your application's logic.",
 	"author": "Chris M. Pérez",
 	"license": "MIT",
@@ -48,7 +48,7 @@
 		"node": ">=22.14.0"
 	},
 	"peerDependencies": {
-		"@effuse/core": "1.1.0"
+		"@effuse/core": "1.2.0"
 	},
 	"dependencies": {
 		"effect": "^3.19.17"
@@ -56,7 +56,7 @@
 	"devDependencies": {
 		"@effect/eslint-plugin": "^0.3.2",
 		"@types/node": "^25.2.3",
-		"@effuse/core": "1.1.0",
+		"@effuse/core": "1.2.0",
 		"eslint": "^10.0.0",
 		"tsup": "^8.5.1",
 		"typescript": "^5.9.3",
