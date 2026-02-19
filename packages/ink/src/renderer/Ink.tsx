@@ -24,12 +24,12 @@
 
 import { define, computed, type ReadonlySignal } from '@effuse/core';
 import { parseSync } from '../parser/index.js';
-import { transformDocument, type ComponentMap } from './transformer.js';
+import { transformDocument, type InkComponents } from './transformer.js';
 import type { InkProps, DocumentNode } from '../types/ast.js';
 
 interface InkExposed {
 	ast: ReadonlySignal<DocumentNode>;
-	componentMap: ComponentMap;
+	componentMap: InkComponents;
 	className: string;
 	renderedContent: ReadonlySignal<ReturnType<typeof transformDocument>>;
 }
@@ -46,7 +46,7 @@ export const Ink = define<InkProps, InkExposed>({
 			return parseSync(content);
 		});
 
-		const componentMap = (props.components ?? {}) as ComponentMap;
+		const componentMap = (props.components ?? {}) as InkComponents;
 		const className = props.class ?? '';
 
 		const renderedContent = computed(() => {

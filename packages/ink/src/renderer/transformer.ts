@@ -27,7 +27,6 @@ import {
 	EFFUSE_NODE,
 	CreateElementNode,
 	type EffuseChild,
-	type ElementNode,
 } from '@effuse/core';
 import type {
 	BlockNode,
@@ -50,22 +49,74 @@ import type {
 } from '../types/ast.js';
 import { highlight } from '../highlighter/index.js';
 
-export type ComponentMap = Record<string, unknown>;
+export type InkComponents = {
+	readonly h1?: unknown;
+	readonly h2?: unknown;
+	readonly h3?: unknown;
+	readonly h4?: unknown;
+	readonly h5?: unknown;
+	readonly h6?: unknown;
+	readonly p?: unknown;
+	readonly a?: unknown;
+	readonly img?: unknown;
+	readonly pre?: unknown;
+	readonly code?: unknown;
+	readonly blockquote?: unknown;
+	readonly ul?: unknown;
+	readonly ol?: unknown;
+	readonly li?: unknown;
+	readonly hr?: unknown;
+	readonly table?: unknown;
+	readonly thead?: unknown;
+	readonly tbody?: unknown;
+	readonly tr?: unknown;
+	readonly th?: unknown;
+	readonly td?: unknown;
+	readonly strong?: unknown;
+	readonly em?: unknown;
+	readonly del?: unknown;
+	readonly br?: unknown;
+	readonly [key: string]: unknown;
+};
+
+/** @deprecated Use `InkComponents` */
+export type ComponentMap = InkComponents;
+
+const resolveElement = (
+	tag: string,
+	props: Record<string, unknown>,
+	children: EffuseChild[],
+	components: InkComponents
+): EffuseChild => {
+	const override = components[tag];
+	if (override) {
+		return jsx(override as string, { ...props, children });
+	}
+	return CreateElementNode({
+		[EFFUSE_NODE]: true,
+		tag,
+		props,
+		children,
+	});
+};
 
 const transformText = (node: TextNode): string => node.value;
 
-const transformInlineCode = (node: InlineCodeNode): ElementNode =>
-	CreateElementNode({
-		[EFFUSE_NODE]: true,
-		tag: 'code',
-		props: { class: 'ink-inline-code' },
-		children: [node.value],
-	});
+const transformInlineCode = (
+	node: InlineCodeNode,
+	components: InkComponents
+): EffuseChild =>
+	resolveElement(
+		'code',
+		{ class: 'ink-inline-code' },
+		[node.value],
+		components
+	);
 
 const transformEmphasis = (
 	node: EmphasisNode,
-	components: ComponentMap
-): ElementNode => {
+	components: InkComponents
+): EffuseChild => {
 	const tag =
 		node.style === 'bold'
 			? 'strong'
@@ -73,61 +124,62 @@ const transformEmphasis = (
 				? 'del'
 				: 'em';
 
-	return CreateElementNode({
-		[EFFUSE_NODE]: true,
+	return resolveElement(
 		tag,
-		props: {},
-		children: node.children.map((child) => transformInline(child, components)),
-	});
+		{},
+		node.children.map((child) => transformInline(child, components)),
+		components
+	);
 };
 
-const transformLink = (node: LinkNode, components: ComponentMap): ElementNode =>
-	CreateElementNode({
-		[EFFUSE_NODE]: true,
-		tag: 'a',
-		props: {
+const transformLink = (
+	node: LinkNode,
+	components: InkComponents
+): EffuseChild =>
+	resolveElement(
+		'a',
+		{
 			href: node.url,
 			title: node.title,
 			class: 'ink-link',
 		},
-		children: node.children.map((child) => transformInline(child, components)),
-	});
+		node.children.map((child) => transformInline(child, components)),
+		components
+	);
 
-const transformImage = (node: ImageNode): ElementNode =>
-	CreateElementNode({
-		[EFFUSE_NODE]: true,
-		tag: 'img',
-		props: {
+const transformImage = (
+	node: ImageNode,
+	components: InkComponents
+): EffuseChild =>
+	resolveElement(
+		'img',
+		{
 			src: node.url,
 			alt: node.alt,
 			title: node.title,
 			class: 'ink-image',
 		},
-		children: [],
-	});
+		[],
+		components
+	);
 
 const transformInline = (
 	node: InlineNode,
-	components: ComponentMap
+	components: InkComponents
 ): EffuseChild => {
 	switch (node._tag) {
 		case 'Text':
 			return transformText(node);
 		case 'InlineCode':
-			return transformInlineCode(node);
+			return transformInlineCode(node, components);
 		case 'Emphasis':
 			return transformEmphasis(node, components);
 		case 'Link':
 			return transformLink(node, components);
 		case 'Image':
-			return transformImage(node);
+			return transformImage(node, components);
 		case 'LineBreak':
-			return CreateElementNode({
-				[EFFUSE_NODE]: true,
-				tag: 'br',
-				props: {},
-				children: [],
-			});
+			return resolveElement('br', {}, [], components);
 		case 'InlineComponent':
 			return transformComponent(node as unknown as ComponentNode, components);
 		default:
@@ -173,62 +225,73 @@ const getHeadingText = (children: InlineNode[]): string => {
 
 const transformHeading = (
 	node: HeadingNode,
-	components: ComponentMap
-): ElementNode => {
+	components: InkComponents
+): EffuseChild => {
 	const text = getHeadingText(node.children);
 	const id = generateHeadingId(text);
+	const tag = `h${String(node.level)}` as
+		| 'h1'
+		| 'h2'
+		| 'h3'
+		| 'h4'
+		| 'h5'
+		| 'h6';
 
-	return CreateElementNode({
-		[EFFUSE_NODE]: true,
-		tag: `h${String(node.level)}`,
-		props: { class: `ink-h${String(node.level)}`, id },
-		children: node.children.map((child) => transformInline(child, components)),
-	});
+	return resolveElement(
+		tag,
+		{ class: `ink-${tag}`, id },
+		node.children.map((child) => transformInline(child, components)),
+		components
+	);
 };
 
 const transformParagraph = (
 	node: ParagraphNode,
-	components: ComponentMap
-): ElementNode =>
-	CreateElementNode({
-		[EFFUSE_NODE]: true,
-		tag: 'p',
-		props: { class: 'ink-p' },
-		children: node.children.map((child) => transformInline(child, components)),
-	});
+	components: InkComponents
+): EffuseChild =>
+	resolveElement(
+		'p',
+		{ class: 'ink-p' },
+		node.children.map((child) => transformInline(child, components)),
+		components
+	);
 
-const transformCodeBlock = (node: CodeBlockNode): ElementNode =>
-	CreateElementNode({
-		[EFFUSE_NODE]: true,
-		tag: 'pre',
-		props: {
+const transformCodeBlock = (
+	node: CodeBlockNode,
+	components: InkComponents
+): EffuseChild => {
+	const codeChild = resolveElement(
+		'code',
+		node.language ? { 'data-language': node.language } : {},
+		highlight(node.code, node.language),
+		components
+	);
+
+	return resolveElement(
+		'pre',
+		{
 			class: `ink-code-block${node.language ? ` language-${node.language}` : ''}`,
 		},
-		children: [
-			CreateElementNode({
-				[EFFUSE_NODE]: true,
-				tag: 'code',
-				props: node.language ? { 'data-language': node.language } : {},
-				children: highlight(node.code, node.language),
-			}),
-		],
-	});
+		[codeChild],
+		components
+	);
+};
 
 const transformBlockquote = (
 	node: BlockquoteNode,
-	components: ComponentMap
-): ElementNode =>
-	CreateElementNode({
-		[EFFUSE_NODE]: true,
-		tag: 'blockquote',
-		props: { class: 'ink-blockquote' },
-		children: node.children.map((child) => transformBlock(child, components)),
-	});
+	components: InkComponents
+): EffuseChild =>
+	resolveElement(
+		'blockquote',
+		{ class: 'ink-blockquote' },
+		node.children.map((child) => transformBlock(child, components)),
+		components
+	);
 
 const transformListItem = (
 	node: ListItemNode,
-	components: ComponentMap
-): ElementNode => {
+	components: InkComponents
+): EffuseChild => {
 	const isTaskItem = node.checked !== undefined;
 
 	let children: EffuseChild[];
@@ -246,59 +309,57 @@ const transformListItem = (
 	}
 
 	if (isTaskItem) {
-		const checkbox: ElementNode = CreateElementNode({
-			[EFFUSE_NODE]: true,
-			tag: 'input',
-			props: {
+		const checkbox = resolveElement(
+			'input',
+			{
 				type: 'checkbox',
 				checked: node.checked,
 				disabled: true,
 				class: 'ink-task-checkbox',
 			},
-			children: [],
-		});
+			[],
+			components
+		);
 
-		const textSpan: ElementNode = CreateElementNode({
-			[EFFUSE_NODE]: true,
-			tag: 'span',
-			props: { class: 'ink-task-text' },
+		const textSpan = resolveElement(
+			'span',
+			{ class: 'ink-task-text' },
 			children,
-		});
+			components
+		);
 		children = [checkbox, textSpan];
 	}
 
-	return CreateElementNode({
-		[EFFUSE_NODE]: true,
-		tag: 'li',
-		props: {
-			class: isTaskItem ? 'ink-task-item' : 'ink-list-item',
-		},
+	return resolveElement(
+		'li',
+		{ class: isTaskItem ? 'ink-task-item' : 'ink-list-item' },
 		children,
-	});
+		components
+	);
 };
 
-const transformList = (node: ListNode, components: ComponentMap): ElementNode =>
-	CreateElementNode({
-		[EFFUSE_NODE]: true,
-		tag: node.ordered ? 'ol' : 'ul',
-		props: {
+const transformList = (
+	node: ListNode,
+	components: InkComponents
+): EffuseChild =>
+	resolveElement(
+		node.ordered ? 'ol' : 'ul',
+		{
 			class: node.ordered ? 'ink-ol' : 'ink-ul',
 			start: node.ordered && node.start !== 1 ? node.start : undefined,
 		},
-		children: node.children.map((item) => transformListItem(item, components)),
-	});
+		node.children.map((item) => transformListItem(item, components)),
+		components
+	);
 
-const transformHorizontalRule = (_node: HorizontalRuleNode): ElementNode =>
-	CreateElementNode({
-		[EFFUSE_NODE]: true,
-		tag: 'hr',
-		props: { class: 'ink-hr' },
-		children: [],
-	});
+const transformHorizontalRule = (
+	_node: HorizontalRuleNode,
+	components: InkComponents
+): EffuseChild => resolveElement('hr', { class: 'ink-hr' }, [], components);
 
 const transformComponent = (
 	node: ComponentNode,
-	components: ComponentMap
+	components: InkComponents
 ): EffuseChild => {
 	const Component = components[node.name];
 
@@ -336,77 +397,58 @@ const transformComponent = (
 
 const transformTable = (
 	node: TableNode,
-	components: ComponentMap
-): ElementNode => {
+	components: InkComponents
+): EffuseChild => {
 	const headerCells = node.header.cells.map((cell, i) => {
 		const align = node.alignments[i];
-		return CreateElementNode({
-			[EFFUSE_NODE]: true,
-			tag: 'th',
-			props: {
+		return resolveElement(
+			'th',
+			{
 				class: 'ink-th',
 				style: align ? { textAlign: align } : undefined,
 			},
-			children: cell.children.map((child) =>
-				transformInline(child, components)
-			),
-		});
+			cell.children.map((child) => transformInline(child, components)),
+			components
+		);
 	});
 
-	const headerRow: ElementNode = CreateElementNode({
-		[EFFUSE_NODE]: true,
-		tag: 'tr',
-		props: { class: 'ink-tr' },
-		children: headerCells,
-	});
+	const headerRow = resolveElement(
+		'tr',
+		{ class: 'ink-tr' },
+		headerCells,
+		components
+	);
 
 	const bodyRows = node.rows.map((row) => {
 		const cells = row.cells.map((cell, i) => {
 			const align = node.alignments[i];
-			return CreateElementNode({
-				[EFFUSE_NODE]: true,
-				tag: 'td',
-				props: {
+			return resolveElement(
+				'td',
+				{
 					class: 'ink-td',
 					style: align ? { textAlign: align } : undefined,
 				},
-				children: cell.children.map((child) =>
-					transformInline(child, components)
-				),
-			});
+				cell.children.map((child) => transformInline(child, components)),
+				components
+			);
 		});
-		return CreateElementNode({
-			[EFFUSE_NODE]: true,
-			tag: 'tr',
-			props: { class: 'ink-tr' },
-			children: cells,
-		});
+		return resolveElement('tr', { class: 'ink-tr' }, cells, components);
 	});
 
-	return CreateElementNode({
-		[EFFUSE_NODE]: true,
-		tag: 'table',
-		props: { class: 'ink-table' },
-		children: [
-			CreateElementNode({
-				[EFFUSE_NODE]: true,
-				tag: 'thead',
-				props: { class: 'ink-thead' },
-				children: [headerRow],
-			}),
-			CreateElementNode({
-				[EFFUSE_NODE]: true,
-				tag: 'tbody',
-				props: { class: 'ink-tbody' },
-				children: bodyRows,
-			}),
+	return resolveElement(
+		'table',
+		{ class: 'ink-table' },
+		[
+			resolveElement('thead', { class: 'ink-thead' }, [headerRow], components),
+			resolveElement('tbody', { class: 'ink-tbody' }, bodyRows, components),
 		],
-	});
+		components
+	);
 };
 
 const transformBlock = (
 	node: BlockNode,
-	components: ComponentMap
+	components: InkComponents
 ): EffuseChild => {
 	switch (node._tag) {
 		case 'Heading':
@@ -414,13 +456,13 @@ const transformBlock = (
 		case 'Paragraph':
 			return transformParagraph(node, components);
 		case 'CodeBlock':
-			return transformCodeBlock(node);
+			return transformCodeBlock(node, components);
 		case 'Blockquote':
 			return transformBlockquote(node, components);
 		case 'List':
 			return transformList(node, components);
 		case 'HorizontalRule':
-			return transformHorizontalRule(node);
+			return transformHorizontalRule(node, components);
 		case 'Table':
 			return transformTable(node, components);
 		case 'Component':
@@ -430,10 +472,9 @@ const transformBlock = (
 	}
 };
 
-// Build reactive nodes from document AST
 export const transformDocument = (
 	doc: DocumentNode,
-	components: ComponentMap = {}
+	components: InkComponents = {}
 ): EffuseChild[] => {
 	resetHeadingIds();
 	return doc.children.map((node) => transformBlock(node, components));

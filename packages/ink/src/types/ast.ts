@@ -23,6 +23,7 @@
  */
 
 import { Data } from 'effect';
+import type { InkComponents } from '../renderer/transformer.js';
 
 export interface SourcePosition {
 	readonly line: number;
@@ -205,6 +206,6 @@ export const DocumentNode = (
 export interface InkProps {
 	readonly [key: string]: unknown;
 	readonly content: string | { readonly value: string };
-	readonly components?: Record<string, unknown>;
+	readonly components?: InkComponents;
 	readonly class?: string;
 }
