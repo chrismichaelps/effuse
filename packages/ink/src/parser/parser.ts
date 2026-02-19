@@ -416,38 +416,88 @@ const parseComponent = (state: ParserState): BlockNode | null => {
 	return null;
 };
 
+const isBlockBreak = (tokenType: TokenType | undefined): boolean =>
+	tokenType === 'heading' ||
+	tokenType === 'codeBlockStart' ||
+	tokenType === 'blockquote' ||
+	tokenType === 'listItem' ||
+	tokenType === 'horizontalRule' ||
+	tokenType === 'componentBlockStart' ||
+	tokenType === 'componentBlockEnd' ||
+	tokenType === 'slotMarker' ||
+	tokenType === 'blankLine';
+
+const tokenToInlineNode = (token: Token): InlineNode | null => {
+	switch (token.type) {
+		case 'text':
+			return CreateTextNode({ value: token.value });
+		case 'bold':
+			return CreateEmphasisNode({
+				style: 'bold',
+				children: parseInlineContent(token.value),
+			});
+		case 'italic':
+			return CreateEmphasisNode({
+				style: 'italic',
+				children: parseInlineContent(token.value),
+			});
+		case 'strikethrough':
+			return CreateEmphasisNode({
+				style: 'strikethrough',
+				children: parseInlineContent(token.value),
+			});
+		case 'inlineCode':
+			return CreateInlineCodeNode({ value: token.value });
+		case 'link':
+			return CreateLinkNode({
+				url: (token.meta?.url as string) ?? '',
+				children: parseInlineContent(token.value),
+			});
+		case 'image':
+			return CreateImageNode({
+				url: (token.meta?.url as string) ?? '',
+				alt: (token.meta?.alt as string) ?? token.value,
+			});
+		case 'lineBreak':
+			return { _tag: 'LineBreak' } as InlineNode;
+		case 'componentInline': {
+			const name = (token.meta?.name as string) ?? token.value;
+			const propsStr = (token.meta?.propsString as string) ?? '';
+			const props = parseAttributeProps(propsStr);
+			return CreateInlineComponentNode({
+				name,
+				props,
+				children: [],
+				slots: {},
+				selfClosing: true,
+			});
+		}
+		default:
+			return null;
+	}
+};
+
 const parseParagraph = (state: ParserState): ParagraphNode | null => {
 	const firstToken = peek(state);
 	if (!firstToken) return null;
 
-	const textParts: string[] = [];
+	const children: InlineNode[] = [];
 
 	while (!isAtEnd(state)) {
-		const tokenType = peekType(state);
-		if (
-			tokenType === 'heading' ||
-			tokenType === 'codeBlockStart' ||
-			tokenType === 'blockquote' ||
-			tokenType === 'listItem' ||
-			tokenType === 'horizontalRule' ||
-			tokenType === 'componentBlockStart' ||
-			tokenType === 'componentBlockEnd' ||
-			tokenType === 'slotMarker' ||
-			tokenType === 'blankLine'
-		) {
+		if (isBlockBreak(peekType(state))) {
 			break;
 		}
 
 		const token = advance(state);
 		if (token) {
-			textParts.push(token.value);
+			const node = tokenToInlineNode(token);
+			if (node) {
+				children.push(node);
+			}
 		}
 	}
 
-	if (textParts.length === 0) return null;
-
-	const content = textParts.join('');
-	const children = parseInlineContent(content);
+	if (children.length === 0) return null;
 
 	return CreateParagraphNode({
 		children,
