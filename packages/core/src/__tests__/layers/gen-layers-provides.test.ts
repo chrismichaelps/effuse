@@ -277,3 +277,107 @@ describe('gen-layers provides type inference', () => {
 		expect(result).toBeNull();
 	});
 });
+
+function parseComponents(code: string): string[] | null {
+	const sourceFile = ts.createSourceFile(
+		'test.ts',
+		code,
+		ts.ScriptTarget.Latest,
+		true,
+		ts.ScriptKind.TS
+	);
+
+	let componentNames: string[] | null = null;
+
+	const visit = (node: ts.Node) => {
+		if (
+			ts.isCallExpression(node) &&
+			ts.isIdentifier(node.expression) &&
+			node.expression.text === 'defineLayer'
+		) {
+			const arg = node.arguments[0];
+			if (arg && ts.isObjectLiteralExpression(arg)) {
+				for (const prop of arg.properties) {
+					if (!ts.isPropertyAssignment(prop)) continue;
+					const propName = prop.name.getText(sourceFile);
+					if (
+						propName === 'components' &&
+						ts.isObjectLiteralExpression(prop.initializer)
+					) {
+						componentNames = prop.initializer.properties
+							.filter(ts.isPropertyAssignment)
+							.map((p) => p.name.getText(sourceFile))
+							.concat(
+								prop.initializer.properties
+									.filter(ts.isShorthandPropertyAssignment)
+									.map((p) => p.name.getText(sourceFile))
+							);
+					}
+				}
+			}
+		}
+		ts.forEachChild(node, visit);
+	};
+
+	visit(sourceFile);
+	return componentNames;
+}
+
+describe('gen-layers component name extraction', () => {
+	it('should extract shorthand component names', () => {
+		const result = parseComponents(`
+			const UILayer = defineLayer({
+				name: 'ui',
+				components: { Header, Footer, Sidebar },
+			});
+		`);
+
+		expect(result).toEqual(['Header', 'Footer', 'Sidebar']);
+	});
+
+	it('should extract property assignment component names', () => {
+		const result = parseComponents(`
+			const UILayer = defineLayer({
+				name: 'ui',
+				components: { MyHeader: HeaderComponent, MyFooter: FooterComponent },
+			});
+		`);
+
+		expect(result).toEqual(['MyHeader', 'MyFooter']);
+	});
+
+	it('should return empty array for empty components', () => {
+		const result = parseComponents(`
+			const UILayer = defineLayer({
+				name: 'ui',
+				components: {},
+			});
+		`);
+
+		expect(result).toEqual([]);
+	});
+
+	it('should return null when no components field exists', () => {
+		const result = parseComponents(`
+			const UILayer = defineLayer({
+				name: 'noComponents',
+			});
+		`);
+
+		expect(result).toBeNull();
+	});
+
+	it('should handle layers with both provides and components', () => {
+		const result = parseComponents(`
+			const UILayer = defineLayer({
+				name: 'ui',
+				provides: {
+					themeService: () => createThemeService(),
+				},
+				components: { Header, Footer },
+			});
+		`);
+
+		expect(result).toEqual(['Header', 'Footer']);
+	});
+});

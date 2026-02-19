@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
+import { Effect } from 'effect';
 import { createScriptContext } from '../../blueprint/script-context.js';
 import {
 	initGlobalLayerContext,
@@ -405,6 +406,259 @@ describe('ScriptContext - Layer Hooks', () => {
 				(val as { value: number }).value = 99;
 			}).toThrow();
 			expect(val.value).toBe(42);
+		});
+	});
+
+	describe('effect (auto-scoped)', () => {
+		it('should create an auto-tracked effect that runs immediately', async () => {
+			const { context } = createScriptContext({});
+			const count = signal(0);
+			const calls: number[] = [];
+
+			context.effect(() => {
+				calls.push(count.value);
+			});
+
+			await new Promise((r) => setTimeout(r, 10));
+			expect(calls).toContain(0);
+
+			count.value = 5;
+			await new Promise((r) => setTimeout(r, 10));
+			expect(calls).toContain(5);
+		});
+
+		it('should return an EffectHandle with stop/pause/resume', async () => {
+			const { context } = createScriptContext({});
+			const count = signal(0);
+			const calls: number[] = [];
+
+			const handle = context.effect(() => {
+				calls.push(count.value);
+			});
+
+			expect(handle).toBeDefined();
+			expect(typeof handle.stop).toBe('function');
+			expect(typeof handle.pause).toBe('function');
+			expect(typeof handle.resume).toBe('function');
+
+			await new Promise((r) => setTimeout(r, 10));
+			handle.pause();
+
+			count.value = 10;
+			await new Promise((r) => setTimeout(r, 10));
+			expect(calls).not.toContain(10);
+
+			handle.resume();
+			await new Promise((r) => setTimeout(r, 10));
+			expect(calls).toContain(10);
+		});
+
+		it('should auto-stop when component unmounts', async () => {
+			const { context, state } = createScriptContext({});
+			const count = signal(0);
+			const calls: number[] = [];
+
+			context.effect(() => {
+				calls.push(count.value);
+			});
+
+			await new Promise((r) => setTimeout(r, 10));
+			expect(calls).toContain(0);
+
+			Effect.runSync(state.lifecycle.runCleanup());
+			const callsAfterUnmount = calls.length;
+
+			count.value = 99;
+			await new Promise((r) => setTimeout(r, 10));
+
+			expect(calls.length).toBe(callsAfterUnmount);
+		});
+	});
+
+	describe('watchMultiple (auto-scoped)', () => {
+		it('should watch multiple signals and fire callback with all values', async () => {
+			const { context } = createScriptContext({});
+			const first = signal('John');
+			const last = signal('Doe');
+			const captured: { newVals: unknown[]; oldVals: unknown[] }[] = [];
+
+			context.watchMultiple(
+				[first, last] as const,
+				(newValues, oldValues) => {
+					captured.push({
+						newVals: [...newValues],
+						oldVals: [...oldValues],
+					});
+				},
+				{ immediate: true }
+			);
+
+			await new Promise((r) => setTimeout(r, 10));
+
+			expect(captured.length).toBeGreaterThanOrEqual(1);
+			expect(captured[0].newVals).toEqual(['John', 'Doe']);
+		});
+
+		it('should provide oldValues when sources change', async () => {
+			const { context } = createScriptContext({});
+			const a = signal(1);
+			const b = signal(2);
+			const captured: { newVals: unknown[]; oldVals: unknown[] }[] = [];
+
+			context.watchMultiple(
+				[a, b] as const,
+				(newValues, oldValues) => {
+					captured.push({
+						newVals: [...newValues],
+						oldVals: [...oldValues],
+					});
+				},
+				{ immediate: true }
+			);
+
+			await new Promise((r) => setTimeout(r, 10));
+
+			a.value = 10;
+			await new Promise((r) => setTimeout(r, 10));
+
+			expect(captured.length).toBeGreaterThanOrEqual(2);
+			const lastCapture = captured[captured.length - 1];
+			expect(lastCapture.newVals[0]).toBe(10);
+			expect(lastCapture.oldVals[0]).toBe(1);
+		});
+
+		it('should auto-stop when component unmounts', async () => {
+			const { context, state } = createScriptContext({});
+			const a = signal(1);
+			const calls: unknown[][] = [];
+
+			context.watchMultiple(
+				[a] as const,
+				(newValues) => {
+					calls.push([...newValues]);
+				},
+				{ immediate: true }
+			);
+
+			await new Promise((r) => setTimeout(r, 10));
+			expect(calls.length).toBeGreaterThanOrEqual(1);
+
+			Effect.runSync(state.lifecycle.runCleanup());
+			const callsAfterUnmount = calls.length;
+
+			a.value = 99;
+			await new Promise((r) => setTimeout(r, 10));
+
+			expect(calls.length).toBe(callsAfterUnmount);
+		});
+	});
+
+	describe('useComponent', () => {
+		it('should return undefined when runtime is not ready', () => {
+			const { context } = createScriptContext({});
+			const result = context.useComponent('Header');
+			expect(result).toBeUndefined();
+		});
+
+		it('should return a registered component when runtime is ready', () => {
+			const mockComponent = (() => null) as unknown as Component;
+
+			const layer = createResolvedLayer({
+				name: 'uiLayer',
+			});
+
+			const propsRegistry = createMockPropsRegistry({
+				uiLayer: {},
+			});
+			const layerRegistry = createMockLayerRegistry(
+				{ uiLayer: layer },
+				{},
+				{ Header: mockComponent }
+			);
+
+			initGlobalLayerContext(propsRegistry, layerRegistry, [layer]);
+
+			const { context } = createScriptContext({});
+			const result = context.useComponent('Header');
+
+			expect(result).toBe(mockComponent);
+		});
+
+		it('should return undefined for unregistered component name', () => {
+			const layer = createResolvedLayer({
+				name: 'uiLayer',
+			});
+
+			const propsRegistry = createMockPropsRegistry({
+				uiLayer: {},
+			});
+			const layerRegistry = createMockLayerRegistry(
+				{ uiLayer: layer },
+				{},
+				{ Header: (() => null) as unknown as Component }
+			);
+
+			initGlobalLayerContext(propsRegistry, layerRegistry, [layer]);
+
+			const { context } = createScriptContext({});
+			const result = context.useComponent('NonExistent');
+
+			expect(result).toBeUndefined();
+		});
+
+		it('should resolve aliased component names (MyHeader: HeaderComponent)', () => {
+			const HeaderComponent = (() => 'header') as unknown as Component;
+			const FooterComponent = (() => 'footer') as unknown as Component;
+
+			const layer = createResolvedLayer({
+				name: 'uiLayer',
+			});
+
+			const propsRegistry = createMockPropsRegistry({
+				uiLayer: {},
+			});
+			const layerRegistry = createMockLayerRegistry(
+				{ uiLayer: layer },
+				{},
+				{ MyHeader: HeaderComponent, MyFooter: FooterComponent }
+			);
+
+			initGlobalLayerContext(propsRegistry, layerRegistry, [layer]);
+
+			const { context } = createScriptContext({});
+
+			expect(context.useComponent('MyHeader')).toBe(HeaderComponent);
+			expect(context.useComponent('MyFooter')).toBe(FooterComponent);
+
+			expect(context.useComponent('HeaderComponent')).toBeUndefined();
+			expect(context.useComponent('FooterComponent')).toBeUndefined();
+		});
+	});
+
+	describe('watch auto-stop on unmount', () => {
+		it('should stop watching after component unmounts', async () => {
+			const { context, state } = createScriptContext({});
+			const count = signal(0);
+			const calls: number[] = [];
+
+			context.watch(
+				count,
+				(newValue) => {
+					calls.push(newValue);
+				},
+				{ immediate: true }
+			);
+
+			await new Promise((r) => setTimeout(r, 10));
+			expect(calls).toContain(0);
+
+			Effect.runSync(state.lifecycle.runCleanup());
+			const callsAfterUnmount = calls.length;
+
+			count.value = 42;
+			await new Promise((r) => setTimeout(r, 10));
+
+			expect(calls.length).toBe(callsAfterUnmount);
 		});
 	});
 });
