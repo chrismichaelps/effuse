@@ -116,7 +116,7 @@ importers:
         specifier: ^0.3.2
         version: 0.3.2
       '@effuse/core':
-        specifier: 1.1.0
+        specifier: 1.2.0
         version: link:../core
       '@types/node':
         specifier: ^25.2.3
@@ -144,7 +144,7 @@ importers:
         specifier: ^0.3.2
         version: 0.3.2
       '@effuse/core':
-        specifier: 1.1.0
+        specifier: 1.2.0
         version: link:../core
       '@types/node':
         specifier: ^25.2.3
@@ -172,7 +172,7 @@ importers:
         specifier: ^0.3.2
         version: 0.3.2
       '@effuse/core':
-        specifier: 1.1.0
+        specifier: 1.2.0
         version: link:../core
       '@types/node':
         specifier: ^25.2.3
@@ -200,7 +200,7 @@ importers:
         specifier: ^0.3.2
         version: 0.3.2
       '@effuse/core':
-        specifier: 1.1.0
+        specifier: 1.2.0
         version: link:../core
       '@types/node':
         specifier: ^25.2.3
@@ -228,7 +228,7 @@ importers:
         specifier: ^0.3.2
         version: 0.3.2
       '@effuse/core':
-        specifier: 1.1.0
+        specifier: 1.2.0
         version: link:../core
       '@types/node':
         specifier: ^25.2.3
@@ -259,7 +259,7 @@ importers:
         specifier: ^0.3.2
         version: 0.3.2
       '@effuse/core':
-        specifier: workspace:*
+        specifier: 1.2.0
         version: link:../core
       '@types/node':
         specifier: ^25.2.3
