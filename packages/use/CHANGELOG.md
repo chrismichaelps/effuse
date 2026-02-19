@@ -1,3 +1,9 @@
+## @effuse/use [1.1.0](https://github.com/chrismichaelps/effuse/compare/@effuse/use@1.0.0...@effuse/use@1.1.0) (2026-02-19)
+
+### Features
+
+* add .releaserc.json to extend base release configuration ([34ebd38](https://github.com/chrismichaelps/effuse/commit/34ebd38451bcf39dbda3f40868f8763b22f2b709))
+
 ## @effuse/use 1.0.0 (2026-02-19)
 
 ### Features
