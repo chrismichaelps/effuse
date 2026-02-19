@@ -2,7 +2,11 @@ import { Effect, Scope, Exit, Predicate } from 'effect';
 import { signal } from '../reactivity/signal.js';
 import { computed } from '../reactivity/computed.js';
 import { effect as reactiveEffect } from '../effects/effect.js';
-import { getLayerContext, isLayerRuntimeReady } from '../layers/context.js';
+import {
+	getLayerContext,
+	getLayerService,
+	isLayerRuntimeReady,
+} from '../layers/context.js';
 import {
 	traceHookEffect,
 	traceHookCleanup,
@@ -104,8 +108,8 @@ export const createHookContext = <C>(
 			return {} as LayerProvidesOf<K>;
 		}
 		const providers: Record<string, unknown> = {};
-		for (const [key, factory] of Object.entries(layerCtx.provides)) {
-			providers[key] = (factory as () => unknown)();
+		for (const key of Object.keys(layerCtx.provides)) {
+			providers[key] = getLayerService(key);
 		}
 		return providers as LayerProvidesOf<K>;
 	};
