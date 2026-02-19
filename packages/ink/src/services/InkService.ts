@@ -24,7 +24,7 @@
 
 import { Effect, Context, Layer, pipe } from 'effect';
 import type { EffuseChild } from '@effuse/core';
-import type { ComponentMap } from '../renderer/transformer.js';
+import type { InkComponents } from '../renderer/transformer.js';
 import type { DocumentNode } from '../types/ast.js';
 import type {
 	ParseError,
@@ -45,11 +45,11 @@ export interface InkServiceInterface {
 	) => Effect.Effect<DocumentNode, ParseError | SanitizationError>;
 	readonly transform: (
 		doc: DocumentNode,
-		components: ComponentMap
+		components: InkComponents
 	) => Effect.Effect<EffuseChild[], TransformError>;
 	readonly render: (
 		input: string,
-		components: ComponentMap
+		components: InkComponents
 	) => Effect.Effect<EffuseChild[], InkError>;
 }
 
@@ -70,10 +70,10 @@ const make = Effect.gen(function* () {
 				Effect.flatMap((clean) => parser.parseMarkdown(clean))
 			),
 
-		transform: (doc: DocumentNode, components: ComponentMap) =>
+		transform: (doc: DocumentNode, components: InkComponents) =>
 			transformer.transform(doc, components),
 
-		render: (input: string, components: ComponentMap) =>
+		render: (input: string, components: InkComponents) =>
 			pipe(
 				sanitizer.sanitize(input),
 				Effect.flatMap((clean) => parser.parseMarkdown(clean)),
@@ -92,7 +92,7 @@ export const InkServiceLive = Layer.effect(InkService, make).pipe(
 
 export const renderMarkdown = (
 	input: string,
-	components: ComponentMap = {}
+	components: InkComponents = {}
 ): Effect.Effect<EffuseChild[], InkError, InkService> =>
 	Effect.gen(function* () {
 		const ink = yield* InkService;

@@ -25,11 +25,15 @@
 import { Effect } from 'effect';
 import type { EffuseChild } from '@effuse/core';
 import { InkLive, renderMarkdown } from './services/index.js';
-import type { ComponentMap } from './renderer/transformer.js';
+import type { InkComponents } from './renderer/transformer.js';
 import { parseSync as parseSyncInternal } from './parser/index.js';
 
 export { Ink } from './renderer/index.js';
-export { transformDocument, type ComponentMap } from './renderer/index.js';
+export {
+	transformDocument,
+	type InkComponents,
+	type ComponentMap,
+} from './renderer/index.js';
 export { InkLayer, injectInkStyles } from './styles/index.js';
 
 export type {
@@ -80,7 +84,7 @@ export const parseSync = parseSyncInternal;
 
 export const render = (
 	input: string,
-	components: ComponentMap = {}
+	components: InkComponents = {}
 ): EffuseChild[] => {
 	const program = renderMarkdown(input, components).pipe(
 		Effect.provide(InkLive),

@@ -26,7 +26,7 @@ import { Effect, Context, Layer } from 'effect';
 import type { EffuseChild } from '@effuse/core';
 import {
 	transformDocument,
-	type ComponentMap,
+	type InkComponents,
 } from '../renderer/transformer.js';
 import { TransformError } from '../types/errors.js';
 import type { DocumentNode } from '../types/ast.js';
@@ -34,7 +34,7 @@ import type { DocumentNode } from '../types/ast.js';
 export interface TransformerServiceInterface {
 	readonly transform: (
 		doc: DocumentNode,
-		components: ComponentMap
+		components: InkComponents
 	) => Effect.Effect<EffuseChild[], TransformError>;
 }
 
@@ -44,7 +44,7 @@ export class TransformerService extends Context.Tag('ink/TransformerService')<
 >() {}
 
 const make: TransformerServiceInterface = {
-	transform: (doc: DocumentNode, components: ComponentMap) =>
+	transform: (doc: DocumentNode, components: InkComponents) =>
 		Effect.try({
 			try: () => transformDocument(doc, components),
 			catch: (error) =>
@@ -60,7 +60,7 @@ export const TransformerServiceLive = Layer.succeed(TransformerService, make);
 
 export const transformMarkdown = (
 	doc: DocumentNode,
-	components: ComponentMap = {}
+	components: InkComponents = {}
 ): Effect.Effect<EffuseChild[], TransformError, TransformerService> =>
 	Effect.gen(function* () {
 		const transformer = yield* TransformerService;

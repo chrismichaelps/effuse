@@ -23,4 +23,8 @@
  */
 
 export { Ink } from './Ink.js';
-export { transformDocument, type ComponentMap } from './transformer.js';
+export {
+	transformDocument,
+	type InkComponents,
+	type ComponentMap,
+} from './transformer.js';
