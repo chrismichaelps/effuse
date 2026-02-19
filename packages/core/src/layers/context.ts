@@ -23,10 +23,12 @@
  */
 
 import { Option, pipe, Predicate } from 'effect';
+import type { Component } from '../render/node.js';
 import type {
 	LayerProps,
 	AnyResolvedLayer,
 	EffuseLayerRegistry,
+	EffuseComponentRegistry,
 	LayerPropsOf,
 } from './types.js';
 import type { PropsRegistry } from './services/PropsService.js';
@@ -139,3 +141,14 @@ export const getLayerService = (key: string): unknown => {
 	}
 	return globalState.layerRegistry.getService(key);
 };
+
+export function getLayerComponent<K extends keyof EffuseComponentRegistry>(
+	name: K
+): EffuseComponentRegistry[K];
+export function getLayerComponent(name: string): Component | undefined;
+export function getLayerComponent(name: string): Component | undefined {
+	if (!globalState.layerRegistry) {
+		return undefined;
+	}
+	return globalState.layerRegistry.getComponent(name);
+}

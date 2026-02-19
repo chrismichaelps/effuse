@@ -186,6 +186,9 @@ export interface EffuseLayerRegistry {}
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface EffuseServiceRegistry {}
 
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+export interface EffuseComponentRegistry {}
+
 export type LayerPropsOf<K extends keyof EffuseLayerRegistry> =
 	EffuseLayerRegistry[K] extends { props: infer P extends LayerProps }
 		? P
