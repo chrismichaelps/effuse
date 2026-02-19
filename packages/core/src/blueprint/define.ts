@@ -54,6 +54,7 @@ export interface LayerScriptContext<
 }
 
 export interface DefineOptionsWithInferredProps<P, E extends ExposedValues> {
+	name?: string;
 	props: P;
 	layer?: undefined;
 	script: (ctx: ScriptContext<P>) => E | undefined;
@@ -65,6 +66,7 @@ export interface DefineOptionsWithInferredPropsAndLayer<
 	E extends ExposedValues,
 	K extends keyof EffuseLayerRegistry,
 > {
+	name?: string;
 	props: P;
 	layer: K;
 	script: (ctx: LayerScriptContext<P, K>) => E | undefined;
@@ -72,6 +74,7 @@ export interface DefineOptionsWithInferredPropsAndLayer<
 }
 
 export interface DefineOptions<P, E extends ExposedValues> {
+	name?: string;
 	props?: undefined;
 	layer?: undefined;
 	script: (ctx: ScriptContext<P>) => E | undefined;
@@ -83,6 +86,7 @@ export interface DefineOptionsWithLayer<
 	E extends ExposedValues,
 	K extends keyof EffuseLayerRegistry,
 > {
+	name?: string;
 	props?: undefined;
 	layer: K;
 	script: (ctx: LayerScriptContext<P, K>) => E | undefined;
@@ -126,6 +130,7 @@ export function define<
 ): Component<P> {
 	const blueprint: BlueprintDef<P> = {
 		_tag: 'Blueprint',
+		name: (options as { name?: string }).name,
 
 		state: (props: P) => {
 			const { context, state } = createScriptContext<P, E>(props);

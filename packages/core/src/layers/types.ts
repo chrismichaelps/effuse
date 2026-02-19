@@ -183,6 +183,9 @@ export type AnyResolvedLayer = ResolvedLayer<any, any, any>;
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface EffuseLayerRegistry {}
 
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+export interface EffuseServiceRegistry {}
+
 export type LayerPropsOf<K extends keyof EffuseLayerRegistry> =
 	EffuseLayerRegistry[K] extends { props: infer P extends LayerProps }
 		? P

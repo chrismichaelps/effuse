@@ -296,4 +296,115 @@ describe('ScriptContext - Layer Hooks', () => {
 			expect(result).toBe(cachedStore);
 		});
 	});
+
+	describe('watch (enhanced)', () => {
+		it('should provide oldValue in callback', async () => {
+			const { context } = createScriptContext({});
+			const count = signal(0);
+			const captured: { newVal: number; oldVal: number | undefined }[] = [];
+
+			context.watch(
+				count,
+				(newValue, oldValue) => {
+					captured.push({ newVal: newValue, oldVal: oldValue });
+				},
+				{ immediate: true }
+			);
+
+			await new Promise((r) => setTimeout(r, 10));
+
+			count.value = 1;
+			await new Promise((r) => setTimeout(r, 10));
+
+			count.value = 2;
+			await new Promise((r) => setTimeout(r, 10));
+
+			expect(captured.length).toBeGreaterThanOrEqual(2);
+
+			expect(captured[0].oldVal).toBeUndefined();
+			expect(captured[0].newVal).toBe(0);
+
+			expect(captured[1].oldVal).toBe(0);
+			expect(captured[1].newVal).toBe(1);
+		});
+
+		it('should support once option', async () => {
+			const { context } = createScriptContext({});
+			const count = signal(0);
+			const calls: number[] = [];
+
+			context.watch(
+				count,
+				(newValue) => {
+					calls.push(newValue);
+				},
+				{ immediate: true, once: true }
+			);
+
+			await new Promise((r) => setTimeout(r, 10));
+
+			count.value = 1;
+			await new Promise((r) => setTimeout(r, 10));
+
+			count.value = 2;
+			await new Promise((r) => setTimeout(r, 10));
+
+			expect(calls.length).toBe(2);
+		});
+
+		it('should provide onCleanup to callback', async () => {
+			const { context } = createScriptContext({});
+			const count = signal(0);
+			const cleanupSpy = vi.fn();
+
+			context.watch(
+				count,
+				(_newValue, _oldValue, onCleanup) => {
+					onCleanup(cleanupSpy);
+				},
+				{ immediate: true }
+			);
+
+			await new Promise((r) => setTimeout(r, 10));
+
+			count.value = 1;
+			await new Promise((r) => setTimeout(r, 10));
+
+			expect(cleanupSpy).toHaveBeenCalled();
+		});
+	});
+
+	describe('computed', () => {
+		it('should create a reactive computed value', () => {
+			const { context } = createScriptContext({});
+			const first = signal('John');
+			const last = signal('Doe');
+
+			const fullName = context.computed(() => `${first.value} ${last.value}`);
+
+			expect(fullName.value).toBe('John Doe');
+		});
+
+		it('should update when dependencies change', () => {
+			const { context } = createScriptContext({});
+			const count = signal(2);
+			const doubled = context.computed(() => count.value * 2);
+
+			expect(doubled.value).toBe(4);
+
+			count.value = 5;
+			expect(doubled.value).toBe(10);
+		});
+
+		it('should return a readonly signal (no setter)', () => {
+			const { context } = createScriptContext({});
+			const val = context.computed(() => 42);
+
+			expect(val.value).toBe(42);
+			expect(() => {
+				(val as { value: number }).value = 99;
+			}).toThrow();
+			expect(val.value).toBe(42);
+		});
+	});
 });

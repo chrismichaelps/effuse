@@ -22,11 +22,17 @@
  * SOFTWARE.
  */
 
-import { Effect, Predicate } from 'effect';
+import { Effect } from 'effect';
 import type { Scope } from 'effect';
-import type { Signal } from '../types/index.js';
+import type {
+	Signal,
+	ReadonlySignal,
+	WatchOptions,
+	OnCleanup,
+} from '../types/index.js';
 import { signal } from '../reactivity/index.js';
-import { effect as createEffect } from '../effects/index.js';
+import { computed } from '../reactivity/computed.js';
+import { watch as standaloneWatch } from '../effects/index.js';
 import {
 	createComponentLifecycleSync,
 	type ComponentLifecycle,
@@ -41,6 +47,7 @@ import {
 } from '../layers/context.js';
 import type {
 	EffuseLayerRegistry,
+	EffuseServiceRegistry,
 	LayerPropsOf,
 	LayerProvidesOf,
 } from '../layers/types.js';
@@ -64,6 +71,8 @@ export interface ScriptContext<P> {
 
 	signal: typeof signal;
 
+	computed: <T>(getter: () => T) => ReadonlySignal<T>;
+
 	store: (name: string) => unknown;
 
 	router: RouterType;
@@ -78,7 +87,12 @@ export interface ScriptContext<P> {
 
 	watch: <T>(
 		source: Signal<T> | (() => T),
-		callback: (value: T) => void
+		callback: (
+			newValue: T,
+			oldValue: T | undefined,
+			onCleanup: OnCleanup
+		) => void,
+		options?: WatchOptions
 	) => void;
 
 	useCallback: typeof useCallback;
@@ -89,9 +103,15 @@ export interface ScriptContext<P> {
 		name: K
 	) => TypedLayerContext<K>;
 
-	useStore: (key: string) => unknown;
+	useStore: {
+		<K extends keyof EffuseServiceRegistry>(key: K): EffuseServiceRegistry[K];
+		(key: string): unknown;
+	};
 
-	useService: (key: string) => unknown;
+	useService: {
+		<K extends keyof EffuseServiceRegistry>(key: K): EffuseServiceRegistry[K];
+		(key: string): unknown;
+	};
 
 	useLayerProps: <K extends keyof EffuseLayerRegistry>(
 		name: K
@@ -148,6 +168,8 @@ export const createScriptContext = <P, E extends ExposedValues>(
 
 		signal,
 
+		computed,
+
 		store: (name: string): unknown => {
 			if (isLayerRuntimeReady()) {
 				const layerService = getLayerService(name);
@@ -192,16 +214,15 @@ export const createScriptContext = <P, E extends ExposedValues>(
 
 		watch: <T>(
 			source: Signal<T> | (() => T),
-			callback: (value: T) => void
+			callback: (
+				newValue: T,
+				oldValue: T | undefined,
+				onCleanup: OnCleanup
+			) => void,
+			options?: WatchOptions
 		): void => {
-			const getValue = Predicate.isFunction(source)
-				? source
-				: () => source.value;
-
-			createEffect(() => {
-				const value = getValue();
-				callback(value);
-			});
+			const handle = standaloneWatch(source, callback, options);
+			lifecycle.onUnmount(() => handle.stop());
 		},
 
 		useCallback,
