@@ -1,3 +1,26 @@
+## @effuse/ink [1.1.0](https://github.com/chrismichaelps/effuse/compare/@effuse/ink@1.0.4...@effuse/ink@1.1.0) (2026-02-19)
+
+### Features
+
+* **ink:** implement tag-to-component mapping for element overrides ([658d47b](https://github.com/chrismichaelps/effuse/commit/658d47b11a8b1c5ae6faa905612ec3e267f65a59))
+
+### Bug Fixes
+
+* **ink:** resolve double-parsing bug in parseParagraph to preserve inline nodes ([c219e9a](https://github.com/chrismichaelps/effuse/commit/c219e9a77e5c2ca272930b03fb71a60383651b3c))
+
+### Code Refactoring
+
+* **ink:** standardize InkComponents naming and update service layer types ([d601da3](https://github.com/chrismichaelps/effuse/commit/d601da34bbc9b08968e511e54f003dfd060dcec4))
+
+### Tests
+
+* **ink:** add comprehensive element override tests including blueprints ([a698947](https://github.com/chrismichaelps/effuse/commit/a698947662470cb3ecf7730b38d75fd26becc5ac))
+
+
+### Dependencies
+
+* **@effuse/core:** upgraded to 1.2.0
+
 ## @effuse/ink [1.0.4](https://github.com/chrismichaelps/effuse/compare/@effuse/ink@1.0.3...@effuse/ink@1.0.4) (2026-01-14)
 
 ### Code Refactoring
