@@ -5,11 +5,16 @@ import {
 	resetHeadingIds,
 } from '../../renderer/transformer.js';
 import { parseSync } from '../../parser/index.js';
-import type { EffuseChild, ElementNode } from '@effuse/core';
+import { define } from '@effuse/core';
+import type { EffuseChild, ElementNode, BlueprintNode } from '@effuse/core';
 
 const isElementNode = Predicate.isTagged('Element') as (
 	node: EffuseChild
 ) => node is ElementNode;
+
+const isBlueprintNode = Predicate.isTagged('Blueprint') as (
+	node: EffuseChild
+) => node is BlueprintNode;
 
 describe('Transformer', () => {
 	beforeEach(() => {
@@ -396,6 +401,218 @@ More text`;
 
 			if (isElementNode(result1[0]) && isElementNode(result2[0])) {
 				expect(result1[0].props?.id).toBe(result2[0].props?.id);
+			}
+		});
+	});
+
+	describe('element overrides', () => {
+		it('should use custom heading component when h1 is overridden', () => {
+			const calls: Record<string, unknown>[] = [];
+			const CustomH1 = (props: Record<string, unknown>) => {
+				calls.push(props);
+				return null;
+			};
+
+			const doc = parseSync('# Hello World');
+			transformDocument(doc, { h1: CustomH1 });
+
+			expect(calls.length).toBe(1);
+			expect(calls[0]).toHaveProperty('class', 'ink-h1');
+			expect(calls[0]).toHaveProperty('id', 'hello-world');
+		});
+
+		it('should use custom paragraph component when p is overridden', () => {
+			const calls: Record<string, unknown>[] = [];
+			const CustomP = (props: Record<string, unknown>) => {
+				calls.push(props);
+				return null;
+			};
+
+			const doc = parseSync('Some text content');
+			transformDocument(doc, { p: CustomP });
+
+			expect(calls.length).toBe(1);
+			expect(calls[0]).toHaveProperty('class', 'ink-p');
+		});
+
+		it('should use custom link component when a is overridden', () => {
+			const calls: Record<string, unknown>[] = [];
+			const CustomLink = (props: Record<string, unknown>) => {
+				calls.push(props);
+				return null;
+			};
+
+			const doc = parseSync('[click here](https://example.com)');
+			transformDocument(doc, { a: CustomLink });
+
+			expect(calls.length).toBe(1);
+			expect(calls[0]).toHaveProperty('href', 'https://example.com');
+			expect(calls[0]).toHaveProperty('class', 'ink-link');
+		});
+
+		it('should use custom code block components when pre/code are overridden', () => {
+			const preCalls: Record<string, unknown>[] = [];
+			const codeCalls: Record<string, unknown>[] = [];
+			const CustomPre = (props: Record<string, unknown>) => {
+				preCalls.push(props);
+				return null;
+			};
+			const CustomCode = (props: Record<string, unknown>) => {
+				codeCalls.push(props);
+				return null;
+			};
+
+			const doc = parseSync('```ts\nconst x = 1;\n```');
+			transformDocument(doc, { pre: CustomPre, code: CustomCode });
+
+			expect(preCalls.length).toBe(1);
+			expect(preCalls[0]).toHaveProperty('class');
+			expect(codeCalls.length).toBe(1);
+			expect(codeCalls[0]).toHaveProperty('data-language', 'ts');
+		});
+
+		it('should use custom blockquote component', () => {
+			const calls: Record<string, unknown>[] = [];
+			const CustomBlockquote = (props: Record<string, unknown>) => {
+				calls.push(props);
+				return null;
+			};
+
+			const doc = parseSync('> A wise quote');
+			transformDocument(doc, { blockquote: CustomBlockquote });
+
+			expect(calls.length).toBe(1);
+			expect(calls[0]).toHaveProperty('class', 'ink-blockquote');
+		});
+
+		it('should use custom list components when ul/li are overridden', () => {
+			const ulCalls: Record<string, unknown>[] = [];
+			const liCalls: Record<string, unknown>[] = [];
+			const CustomUl = (props: Record<string, unknown>) => {
+				ulCalls.push(props);
+				return null;
+			};
+			const CustomLi = (props: Record<string, unknown>) => {
+				liCalls.push(props);
+				return null;
+			};
+
+			const doc = parseSync('- Apple\n- Banana');
+			transformDocument(doc, { ul: CustomUl, li: CustomLi });
+
+			expect(ulCalls.length).toBe(1);
+			expect(liCalls.length).toBe(2);
+		});
+
+		it('should use custom hr component', () => {
+			const calls: Record<string, unknown>[] = [];
+			const CustomHr = (props: Record<string, unknown>) => {
+				calls.push(props);
+				return null;
+			};
+
+			const doc = parseSync('---');
+			transformDocument(doc, { hr: CustomHr });
+
+			expect(calls.length).toBe(1);
+			expect(calls[0]).toHaveProperty('class', 'ink-hr');
+		});
+
+		it('should use custom strong/em components for emphasis', () => {
+			const strongCalls: Record<string, unknown>[] = [];
+			const emCalls: Record<string, unknown>[] = [];
+			const CustomStrong = (props: Record<string, unknown>) => {
+				strongCalls.push(props);
+				return null;
+			};
+			const CustomEm = (props: Record<string, unknown>) => {
+				emCalls.push(props);
+				return null;
+			};
+
+			const doc = parseSync('**bold** and *italic*');
+			transformDocument(doc, { strong: CustomStrong, em: CustomEm });
+
+			expect(strongCalls.length).toBe(1);
+			expect(emCalls.length).toBe(1);
+		});
+
+		it('should mix element overrides with custom components', () => {
+			const h1Calls: Record<string, unknown>[] = [];
+			const CustomH1 = (props: Record<string, unknown>) => {
+				h1Calls.push(props);
+				return null;
+			};
+
+			const doc = parseSync('# Heading\n\nRegular paragraph');
+			const result = transformDocument(doc, { h1: CustomH1 });
+
+			expect(h1Calls.length).toBe(1);
+			const pElement = result[1];
+			if (isElementNode(pElement)) {
+				expect(pElement.tag).toBe('p');
+			}
+		});
+
+		it('should fall back to default elements when no override is provided', () => {
+			const doc = parseSync('# Default Heading\n\nDefault paragraph');
+			const result = transformDocument(doc, {});
+
+			const h1 = result[0];
+			const p = result[1];
+			if (isElementNode(h1)) {
+				expect(h1.tag).toBe('h1');
+			}
+			if (isElementNode(p)) {
+				expect(p.tag).toBe('p');
+			}
+		});
+
+		it('should override table elements', () => {
+			const thCalls: Record<string, unknown>[] = [];
+			const CustomTh = (props: Record<string, unknown>) => {
+				thCalls.push(props);
+				return null;
+			};
+
+			const markdown = '| Col1 | Col2 |\n|------|------|\n| A | B |';
+			const doc = parseSync(markdown);
+			transformDocument(doc, { th: CustomTh });
+
+			expect(thCalls.length).toBe(2);
+		});
+
+		it('should override image element', () => {
+			const calls: Record<string, unknown>[] = [];
+			const CustomImg = (props: Record<string, unknown>) => {
+				calls.push(props);
+				return null;
+			};
+
+			const doc = parseSync('![alt text](https://example.com/img.png)');
+			transformDocument(doc, { img: CustomImg });
+
+			expect(calls.length).toBe(1);
+			expect(calls[0]).toHaveProperty('src', 'https://example.com/img.png');
+			expect(calls[0]).toHaveProperty('alt', 'alt text');
+		});
+
+		it('should support define() blueprint components as overrides', () => {
+			const CustomHeading = define<{ class?: string; id?: string }>({
+				name: 'CustomHeading',
+				script: () => ({}),
+				template: () => null,
+			});
+
+			const doc = parseSync('# Hello World');
+			const result = transformDocument(doc, { h1: CustomHeading });
+
+			expect(result.length).toBe(1);
+			const node = result[0];
+			expect(isBlueprintNode(node)).toBe(true);
+			if (isBlueprintNode(node)) {
+				expect(node.props).toHaveProperty('class', 'ink-h1');
+				expect(node.props).toHaveProperty('id', 'hello-world');
 			}
 		});
 	});
