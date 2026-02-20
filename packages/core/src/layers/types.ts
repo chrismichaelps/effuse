@@ -195,4 +195,6 @@ export type LayerPropsOf<K extends keyof EffuseLayerRegistry> =
 		: LayerProps;
 
 export type LayerProvidesOf<K extends keyof EffuseLayerRegistry> =
-	EffuseLayerRegistry[K] extends { provides: infer S } ? S : unknown;
+	EffuseLayerRegistry[K] extends { provides: infer S extends LayerProvides }
+		? S
+		: LayerProvides;

@@ -209,6 +209,47 @@ describe('ScriptContext - Layer Hooks', () => {
 			expect(layerCtx.name).toBe('uiLayer');
 			expect(layerCtx.provides).toBeDefined();
 		});
+
+		it('should return typed provides when EffuseLayerRegistry is augmented', () => {
+			type SidebarProvides = {
+				docsUI: () => { title: string; isOpen: boolean };
+				toggle: () => void;
+			};
+
+			const sidebarProvides: SidebarProvides = {
+				docsUI: () => ({ title: 'Docs', isOpen: true }),
+				toggle: () => {},
+			};
+
+			const layer = createResolvedLayer({
+				name: 'sidebar',
+				provides: sidebarProvides,
+			});
+
+			const propsRegistry = createMockPropsRegistry({
+				sidebar: {},
+			});
+			const layerRegistry = createMockLayerRegistry({ sidebar: layer }, {});
+
+			initGlobalLayerContext(propsRegistry, layerRegistry, [layer]);
+
+			const { context } = createScriptContext({});
+			const layerCtx = (context.useLayer as (name: string) => unknown)(
+				'sidebar'
+			) as { provides: SidebarProvides };
+
+			expect(layerCtx.provides).toBeDefined();
+			expect(layerCtx.provides.docsUI()).toEqual({
+				title: 'Docs',
+				isOpen: true,
+			});
+
+			const docsStore = layerCtx.provides.docsUI();
+			expect(docsStore.title).toBe('Docs');
+			expect(docsStore.isOpen).toBe(true);
+
+			expect(typeof layerCtx.provides.toggle).toBe('function');
+		});
 	});
 
 	describe('useLayerProps', () => {

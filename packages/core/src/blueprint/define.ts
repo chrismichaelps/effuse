@@ -32,7 +32,11 @@ import type {
 import type { ScriptContext, ExposedValues } from './script-context.js';
 import { createScriptContext, runMountCallbacks } from './script-context.js';
 import type { ComponentLifecycle } from './lifecycle.js';
-import type { EffuseLayerRegistry, LayerPropsOf } from '../layers/types.js';
+import type {
+	EffuseLayerRegistry,
+	LayerPropsOf,
+	LayerProvidesOf,
+} from '../layers/types.js';
 import type { LayerContext } from '../layers/context.js';
 import { getLayerContext, isLayerRuntimeReady } from '../layers/context.js';
 import { LayerRuntimeNotReadyError } from '../layers/errors.js';
@@ -50,7 +54,7 @@ export interface LayerScriptContext<
 	K extends keyof EffuseLayerRegistry,
 > extends ScriptContext<P> {
 	readonly layerProps: LayerPropsOf<K>;
-	readonly layer: LayerContext<LayerPropsOf<K>>;
+	readonly layer: LayerContext<LayerPropsOf<K>, LayerProvidesOf<K>>;
 }
 
 export interface DefineOptionsWithInferredProps<P, E extends ExposedValues> {
@@ -142,7 +146,8 @@ export function define<
 			if (Predicate.isString(layerName)) {
 				if (isLayerRuntimeReady()) {
 					const layerContext = getLayerContext(layerName) as LayerContext<
-						LayerPropsOf<K>
+						LayerPropsOf<K>,
+						LayerProvidesOf<K>
 					>;
 
 					const extendedContext: LayerScriptContext<P, K> = {

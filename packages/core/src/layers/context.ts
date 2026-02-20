@@ -26,10 +26,12 @@ import { Option, pipe, Predicate } from 'effect';
 import type { Component } from '../render/node.js';
 import type {
 	LayerProps,
+	LayerProvides,
 	AnyResolvedLayer,
 	EffuseLayerRegistry,
 	EffuseComponentRegistry,
 	LayerPropsOf,
+	LayerProvidesOf,
 } from './types.js';
 import type { PropsRegistry } from './services/PropsService.js';
 import type { LayerRegistry } from './services/RegistryService.js';
@@ -38,17 +40,20 @@ import {
 	LayerRuntimeNotInitializedError,
 } from './errors.js';
 
-export interface LayerContext<P extends LayerProps = LayerProps> {
+export interface LayerContext<
+	P extends LayerProps = LayerProps,
+	S extends LayerProvides = LayerProvides,
+> {
 	readonly name: string;
 	readonly props: P;
-	readonly provides?: Record<string, () => unknown>;
+	readonly provides?: S;
 	readonly deps: Record<string, LayerContext>;
 	getService: (key: string) => unknown;
 	getComponent: (name: string) => unknown;
 }
 
 export type TypedLayerContext<K extends keyof EffuseLayerRegistry> =
-	LayerContext<LayerPropsOf<K>>;
+	LayerContext<LayerPropsOf<K>, LayerProvidesOf<K>>;
 
 interface GlobalLayerState {
 	propsRegistry: PropsRegistry | null;
