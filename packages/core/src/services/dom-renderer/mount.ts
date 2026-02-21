@@ -60,7 +60,7 @@ export interface MountServiceInterface {
 export class MountService extends Context.Tag('effuse/MountService')<
 	MountService,
 	MountServiceInterface
->() {}
+>() { }
 
 type CleanupFn = () => void;
 
@@ -480,6 +480,7 @@ const mountNode = (
 
 			if (stateWithLifecycle.lifecycle) {
 				const lifecycle = stateWithLifecycle.lifecycle;
+				// Track component unmount for resource cleanup
 				cleanups.push(() => {
 					Effect.runSync(lifecycle.runCleanup());
 				});
