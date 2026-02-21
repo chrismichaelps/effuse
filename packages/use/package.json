@@ -1,6 +1,6 @@
 {
 	"name": "@effuse/use",
-	"version": "1.1.0",
+	"version": "1.1.1",
 	"description": "The essential collection of reactive hooks for Effuse. Simple, type-safe, and designed to help you build better applications faster.",
 	"author": "Chris M. Pérez",
 	"license": "MIT",
@@ -48,7 +48,7 @@
 		"node": ">=22.14.0"
 	},
 	"peerDependencies": {
-		"@effuse/core": "1.2.0"
+		"@effuse/core": "1.2.1"
 	},
 	"dependencies": {
 		"@opentelemetry/api": "^1.9.0",
@@ -57,7 +57,7 @@
 	"devDependencies": {
 		"@effect/eslint-plugin": "^0.3.2",
 		"@types/node": "^25.2.3",
-		"@effuse/core": "1.2.0",
+		"@effuse/core": "1.2.1",
 		"eslint": "^10.0.0",
 		"tsup": "^8.5.1",
 		"typescript": "^5.9.3",
