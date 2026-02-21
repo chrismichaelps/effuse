@@ -1,6 +1,6 @@
 {
 	"name": "@effuse/router",
-	"version": "1.1.1",
+	"version": "1.1.2",
 	"description": "A simple, type-safe router for Single Page Applications (SPA). It manages URL state and navigation seamlessly for Effuse applications.",
 	"author": "Chris M. Pérez",
 	"license": "MIT",
@@ -54,7 +54,7 @@
 		"node": ">=22.14.0"
 	},
 	"peerDependencies": {
-		"@effuse/core": "1.2.0"
+		"@effuse/core": "1.2.1"
 	},
 	"dependencies": {
 		"effect": "^3.19.17"
@@ -62,7 +62,7 @@
 	"devDependencies": {
 		"@effect/eslint-plugin": "^0.3.2",
 		"@types/node": "^25.2.3",
-		"@effuse/core": "1.2.0",
+		"@effuse/core": "1.2.1",
 		"eslint": "^10.0.0",
 		"tsup": "^8.5.1",
 		"typescript": "^5.9.3",
