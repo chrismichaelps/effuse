@@ -39,7 +39,6 @@ import {
 	type EventBindingResult,
 } from './events.js';
 import { instantiateBlueprint } from '../../blueprint/blueprint.js';
-import type { BlueprintContext } from '../../schema/node.js';
 import { isSuspendToken } from '../../suspense/Suspense.js';
 import { isEffuseNode } from '../../render/index.js';
 
@@ -468,25 +467,98 @@ const mountNode = (
 			return Effect.succeed([anchor]);
 		}
 		case 'Blueprint': {
-			const context = instantiateBlueprint(
-				node.blueprint,
-				node.props,
-				node.portals ?? {}
-			);
+			const anchor = document.createComment('blueprint');
+			let currentNodes: Node[] = [];
+			const blueprintCleanups: CleanupFn[] = [];
+			let effectHandle: EffectHandle | null = null;
 
-			const stateWithLifecycle = context.state as unknown as {
-				lifecycle?: { runCleanup: () => Effect.Effect<void> };
-			};
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			let context: any = null;
+			let initError: Error | null = null;
 
-			if (stateWithLifecycle.lifecycle) {
-				const lifecycle = stateWithLifecycle.lifecycle;
-				cleanups.push(() => {
-					Effect.runSync(lifecycle.runCleanup());
-				});
+			try {
+				context = instantiateBlueprint(
+					node.blueprint,
+					node.props,
+					node.portals ?? {}
+				);
+
+				const stateWithLifecycle = context.state as unknown as {
+					lifecycle?: { runCleanup: () => Effect.Effect<void> };
+				};
+
+				if (stateWithLifecycle.lifecycle) {
+					const lifecycle = stateWithLifecycle.lifecycle;
+					cleanups.push(() => {
+						Effect.runSync(lifecycle.runCleanup());
+					});
+				}
+			} catch (err) {
+				initError = err instanceof Error ? err : new Error(String(err));
+				console.error('[Effuse] Blueprint initialization error:', initError);
 			}
 
-			const childView = node.blueprint.view(context as BlueprintContext);
-			return mountChild(childView, cleanups);
+			const runBlueprintEffect = () => {
+				if (!context || initError) {
+					return;
+				}
+
+				effectHandle = effect(
+					() => {
+						for (const node of currentNodes) {
+							if (Predicate.isNotNullable(node.parentNode)) {
+								node.parentNode.removeChild(node);
+							}
+						}
+
+						for (const cleanup of blueprintCleanups) {
+							cleanup();
+						}
+						blueprintCleanups.length = 0;
+
+						const childView = node.blueprint.view(context);
+
+						const childCleanups: CleanupFn[] = [];
+
+						let mountResult: Node[];
+						try {
+							mountResult = Effect.runSync(
+								pipe(
+									mountChild(childView, childCleanups),
+									Effect.provide(PropServiceLive),
+									Effect.provide(EventServiceLive)
+								)
+							);
+						} catch {
+							currentNodes = [];
+							return;
+						}
+
+						const insertPoint: Node | null = anchor.nextSibling;
+						for (const node of mountResult) {
+							if (anchor.parentNode) {
+								anchor.parentNode.insertBefore(node, insertPoint);
+							}
+						}
+						currentNodes = mountResult;
+						blueprintCleanups.push(...childCleanups);
+					},
+					{ immediate: true }
+				);
+			};
+
+			queueMicrotask(runBlueprintEffect);
+
+			cleanups.push(() => {
+				if (Predicate.isNotNullable(effectHandle)) {
+					effectHandle.stop();
+				}
+				for (const cleanup of blueprintCleanups) {
+					cleanup();
+				}
+			});
+
+			return Effect.succeed([anchor]);
 		}
 		default: {
 			let tag: unknown = 'unknown';
