@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-import { Effect } from 'effect';
+import { Effect, pipe } from 'effect';
 import type { Scope } from 'effect';
 import type {
 	Signal,
@@ -39,7 +39,7 @@ import {
 	watch as standaloneWatch,
 	watchMultiple as standaloneWatchMultiple,
 } from '../effects/index.js';
-import { effect as standaloneEffect } from '../effects/effect.js';
+import { watchEffect as standaloneEffect } from '../effects/effect.js';
 import {
 	createComponentLifecycleSync,
 	type ComponentLifecycle,
@@ -64,7 +64,7 @@ import {
 	LayerRuntimeNotReadyError,
 	RouterNotConfiguredError,
 } from '../layers/errors.js';
-import { StoreGetterNotConfiguredError } from '../errors.js';
+import { StoreGetterNotConfiguredError, mapEffuseErrors } from '../errors.js';
 
 export type ExposedValues = object;
 
@@ -230,9 +230,7 @@ export const createScriptContext = <P, E extends ExposedValues>(
 			if (!globalRouter) {
 				return new Proxy({} as object, {
 					get: () => {
-						throw new RouterNotConfiguredError({
-							_tag: 'RouterNotConfiguredError',
-						});
+						throw new RouterNotConfiguredError();
 					},
 				}) as RouterType;
 			}
@@ -364,7 +362,7 @@ export const runMountCallbacks = <E extends ExposedValues>(
 export const runUnmountCallbacks = <E extends ExposedValues>(
 	state: ScriptState<E>
 ): void => {
-	Effect.runSync(state.lifecycle.runCleanup());
+	Effect.runSync(pipe(state.lifecycle.runCleanup(), mapEffuseErrors));
 };
 
 export type { LayerContext };

@@ -1,7 +1,7 @@
 import { Effect, Scope, Exit, Predicate } from 'effect';
 import { signal } from '../reactivity/signal.js';
 import { computed } from '../reactivity/computed.js';
-import { effect as reactiveEffect } from '../effects/effect.js';
+import { watchEffect as reactiveEffect } from '../effects/effect.js';
 import {
 	getLayerContext,
 	getLayerService,

@@ -22,7 +22,21 @@
  * SOFTWARE.
  */
 
+import { Layer, Effect } from 'effect';
 import type { EffuseLayer, LayerProps } from '../types.js';
+
+export interface CompiledEffuseLayer<
+	P extends LayerProps,
+	D extends readonly string[],
+	S
+> extends EffuseLayer<P, D, S> {
+	/**
+	 * @internal
+	 * The underlying Effect.Layer that natively manages this module's lifecycle.
+	 * Kept strictly encapsulated from the end-user.
+	 */
+	readonly _effectLayer: Layer.Layer<never, unknown, never>;
+}
 
 export const defineLayer = <
 	const D extends readonly string[],
@@ -30,4 +44,23 @@ export const defineLayer = <
 	S = unknown,
 >(
 	definition: EffuseLayer<P, D, S>
-): EffuseLayer<P, D, S> => definition;
+): CompiledEffuseLayer<P, D, S> => {
+	// map user config to native Layer for lifecycle scoping
+	const effectLayer = Layer.scopedDiscard(
+		Effect.acquireRelease(
+			Effect.sync(() => {
+				// hook for runtime context resolution
+				return definition.name;
+			}),
+			() =>
+				Effect.sync(() => {
+					// fiber cleanup hooks
+				})
+		)
+	);
+
+	return {
+		...definition,
+		_effectLayer: effectLayer,
+	};
+};

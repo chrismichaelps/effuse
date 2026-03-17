@@ -123,3 +123,6 @@ app
 
 # Ignore the master seed file
 FMCF-MASTER-SEED.md
+
+# Ignore internal docs
+docs

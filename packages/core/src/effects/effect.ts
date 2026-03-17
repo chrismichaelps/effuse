@@ -40,7 +40,7 @@ import type {
 } from '../types/index.js';
 
 // Initialize reactive effect
-export function effect(
+export function watchEffect(
 	fn: (onCleanup: OnCleanup) => void | Promise<void>,
 	options: EffectOptions = {}
 ): EffectHandle {
@@ -199,7 +199,7 @@ export function effect(
 
 // Execute effect once and stop
 export function effectOnce(fn: () => void): void {
-	const handle = effect(() => {
+	const handle = watchEffect(() => {
 		fn();
 		handle.stop();
 	});

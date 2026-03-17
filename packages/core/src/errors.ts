@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-import { Data } from 'effect';
+import { Data, Effect, Predicate } from 'effect';
 
 export class UnknownJSXTypeError extends Data.TaggedError(
 	'UnknownJSXTypeError'
@@ -71,3 +71,20 @@ export class LayerExecutionError extends Data.TaggedError(
 	readonly message: string;
 	readonly cause?: unknown;
 }> {}
+
+export const mapEffuseErrors = <A, E>(
+	effect: Effect.Effect<A, E>
+): Effect.Effect<A, Error> =>
+	Effect.catchAll(effect, (e) => {
+		if (e instanceof Error && !('_tag' in e)) {
+			return Effect.fail(e);
+		}
+		if (Predicate.isObject(e) && Predicate.hasProperty(e, '_tag')) {
+			const tag = e._tag;
+			const msg = Predicate.hasProperty(e, 'message')
+				? e.message
+				: String(e);
+			return Effect.fail(new Error(`[Effuse] ${String(tag)}: ${String(msg)}`));
+		}
+		return Effect.fail(new Error(String(e)));
+	});
