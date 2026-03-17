@@ -25,7 +25,7 @@
 import { Predicate, Option, pipe } from 'effect';
 import { signal } from '../reactivity/signal.js';
 import { computed } from '../reactivity/computed.js';
-import { effect } from '../effects/effect.js';
+import { watchEffect } from '../effects/effect.js';
 import { validateForm, hasErrors } from './validation.js';
 import type {
 	FormOptions,
@@ -109,7 +109,7 @@ export function useForm<T extends Record<string, unknown>>(
 		const effectOptions =
 			debounceMs > 0 ? { debounce: { wait: debounceMs } } : {};
 
-		effect(() => {
+		watchEffect(() => {
 			const values = getValues();
 
 			const newErrors = validateForm(validators, values);

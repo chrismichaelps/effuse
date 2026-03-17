@@ -154,7 +154,7 @@ export const hydrateStores = (serialized: string): Effect.Effect<void> =>
 				);
 			}
 		},
-		catch: () => new HydrationError({}),
+		catch: () => new HydrationError(),
 	}).pipe(Effect.catchAll(() => Effect.void));
 
 // Hydrate stores synchronously

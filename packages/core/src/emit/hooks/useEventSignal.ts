@@ -23,7 +23,7 @@
  */
 
 import { signal } from '../../reactivity/signal.js';
-import { effect } from '../../effects/effect.js';
+import { watchEffect } from '../../effects/effect.js';
 import type { Signal } from '../../types/index.js';
 import type {
 	EmitContextData,
@@ -63,7 +63,7 @@ export function useEventSignal<T extends EventMap, P>(
 	let hasFired = false;
 	const source = sourceSig;
 
-	effect(() => {
+	watchEffect(() => {
 		const value = source.value;
 		if (value === undefined) return;
 

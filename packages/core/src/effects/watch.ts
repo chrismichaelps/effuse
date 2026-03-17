@@ -33,7 +33,7 @@ import type {
 	Signal,
 	ReadonlySignal,
 } from '../types/index.js';
-import { effect } from './effect.js';
+import { watchEffect } from './effect.js';
 
 export type WatchSource<T> =
 	| Signal<T>
@@ -119,7 +119,7 @@ export function watch<T>(
 	const once = getOnceOption(options);
 	const getter = createGetter(source, deep);
 
-	const handle = effect(
+	const handle = watchEffect(
 		() => {
 			const newValue = getter();
 
@@ -218,7 +218,7 @@ export const watchMultiple = <T extends readonly WatchSource<unknown>[]>(
 	let hasRun = false;
 	const cleanup = createCleanupRunner();
 
-	const handle = effect(
+	const handle = watchEffect(
 		() => {
 			const newValues = Arr.map(getters, (getter) => getter());
 

@@ -22,12 +22,13 @@
  * SOFTWARE.
  */
 
-import { Effect } from 'effect';
+import { Effect, pipe } from 'effect';
 import type { Component } from '../render/node.js';
 import type { EffuseLayer } from '../layers/types.js';
 import type { HeadProps, RenderResult, ServerAppOptions } from './types.js';
 import { renderToString } from './render.js';
 import { RenderError, createErrorHtml } from './errors.js';
+import { mapEffuseErrors } from '../errors.js';
 
 export interface ServerApp {
 	useLayers(layers: readonly EffuseLayer[]): ServerApp;
@@ -58,7 +59,7 @@ export const createServerApp = (root: Component): ServerApp => {
 			const layerHeads = collectLayerHeads(layers);
 
 			const effect = renderToString(root, url, layerHeads);
-			const result = await Effect.runPromise(effect);
+			const result = await Effect.runPromise(pipe(effect, mapEffuseErrors));
 
 			return result;
 		},

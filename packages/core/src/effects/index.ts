@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-export { effect, effectOnce, batch } from './effect.js';
+export { watchEffect, effectOnce, batch } from './effect.js';
 
 export {
 	watch,

@@ -22,8 +22,6 @@
  * SOFTWARE.
  */
 
-export { TaggedError, isTaggedError, hasTag } from './errors/index.js';
-
 export type {
 	Signal,
 	ReadonlySignal,
@@ -55,7 +53,7 @@ export {
 } from './reactivity/index.js';
 
 export {
-	effect,
+	watchEffect,
 	effectOnce,
 	watch,
 	watchMultiple,

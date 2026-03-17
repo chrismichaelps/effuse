@@ -25,7 +25,7 @@
 import { Context, Effect, Layer, Predicate } from 'effect';
 import type { Signal } from '../../reactivity/signal.js';
 import { isSignal } from '../../reactivity/signal.js';
-import { effect } from '../../effects/effect.js';
+import { watchEffect } from '../../effects/effect.js';
 import type { EffectHandle } from '../../types/index.js';
 import { applyRef, isRefCallback, isRefObject } from '../../refs/ref.js';
 import { applyDirective } from '../../refs/directive.js';
@@ -133,7 +133,7 @@ const bindFormControlImpl = (
 	const inputType = inputEl.type ? inputEl.type.toLowerCase() : '';
 
 	if (inputType === 'checkbox' || inputType === 'radio') {
-		const handle: EffectHandle = effect(() => {
+		const handle: EffectHandle = watchEffect(() => {
 			const newVal = Boolean(getValue(source));
 			if (inputEl.checked !== newVal) {
 				inputEl.checked = newVal;
@@ -141,7 +141,7 @@ const bindFormControlImpl = (
 		});
 		cleanups.push(handle.stop);
 	} else if (tagName === 'select') {
-		const handle: EffectHandle = effect(() => {
+		const handle: EffectHandle = watchEffect(() => {
 			const newVal = String(getValue(source));
 			if (element.value !== newVal) {
 				element.value = newVal;
@@ -150,7 +150,7 @@ const bindFormControlImpl = (
 		cleanups.push(handle.stop);
 	} else {
 		const textEl = element as HTMLInputElement | HTMLTextAreaElement;
-		const handle: EffectHandle = effect(() => {
+		const handle: EffectHandle = watchEffect(() => {
 			const newVal = String(getValue(source));
 			if (textEl.value !== newVal) {
 				textEl.value = newVal;
@@ -215,7 +215,7 @@ export const PropServiceLive = Layer.succeed(PropService, {
 
 			if (isSignal(value)) {
 				const sig = value;
-				const handle: EffectHandle = effect(() => {
+				const handle: EffectHandle = watchEffect(() => {
 					setElementProp(element, key, sig.value);
 				});
 				return { cleanup: handle.stop };
@@ -223,7 +223,7 @@ export const PropServiceLive = Layer.succeed(PropService, {
 
 			if (isCompilerGetter(value)) {
 				const getter = value;
-				const handle: EffectHandle = effect(() => {
+				const handle: EffectHandle = watchEffect(() => {
 					const computedValue = getter();
 					setElementProp(element, key, computedValue);
 				});
