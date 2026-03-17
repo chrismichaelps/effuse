@@ -60,15 +60,15 @@
 		"@effuse/core": "1.2.0"
 	},
 	"dependencies": {
-		"effect": "^3.19.17"
+		"effect": "^3.20.0"
 	},
 	"devDependencies": {
 		"@effect/eslint-plugin": "^0.3.2",
-		"@types/node": "^25.2.3",
-		"@effuse/core": "1.2.0",
-		"eslint": "^10.0.0",
+		"@types/node": "^25.5.0",
+		"@effuse/core": "1.2.1",
+		"eslint": "^10.0.3",
 		"tsup": "^8.5.1",
 		"typescript": "^5.9.3",
-		"vitest": "^4.0.18"
+		"vitest": "^4.1.0"
 	}
 }
