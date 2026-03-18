@@ -135,7 +135,7 @@ export const createHookContext = <C>(
 		config,
 		signal,
 		computed,
-		effect: wrappedEffect,
+		watchEffect: wrappedEffect,
 		onMount,
 		scope,
 		layer,

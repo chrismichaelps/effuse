@@ -39,7 +39,7 @@ console.log(`Window: ${width.value}x${height.value}`);
 const { width, height } = useWindowSize();
 
 // Reactive: updates automatically on resize
-effect(() => {
+watchEffect(() => {
 	console.log(`Window resized to ${width.value}x${height.value}`);
 });
 ```

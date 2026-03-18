@@ -30,7 +30,7 @@ import {
 	type ElementNode,
 	type EffuseChild,
 	type Signal,
-	effect,
+	watchEffect,
 	computed,
 } from '@effuse/core';
 import { getGlobalRouter } from '../core/router.js';
@@ -87,7 +87,7 @@ export const Link = define<LinkProps, LinkState>({
 
 			const routeSignal = getRouteSignal();
 			if (routeSignal) {
-				const h = effect(() => {
+				const h = watchEffect(() => {
 					updateActiveState(routeSignal.value);
 				});
 				stopWatch = h.stop;

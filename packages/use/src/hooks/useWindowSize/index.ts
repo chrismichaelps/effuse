@@ -124,7 +124,7 @@ export const useWindowSize = defineHook<
 			});
 		};
 
-		ctx.effect(() => {
+		ctx.watchEffect(() => {
 			if (!isClient()) return undefined;
 
 			const handler =
