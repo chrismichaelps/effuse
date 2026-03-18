@@ -1,3 +1,10 @@
+## @effuse/router [1.1.2](https://github.com/chrismichaelps/effuse/compare/@effuse/router@1.1.1...@effuse/router@1.1.2) (2026-02-21)
+
+
+### Dependencies
+
+* **@effuse/core:** upgraded to 1.2.1
+
 ## @effuse/router [1.1.1](https://github.com/chrismichaelps/effuse/compare/@effuse/router@1.1.0...@effuse/router@1.1.1) (2026-02-19)
 
 

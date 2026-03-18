@@ -1,3 +1,14 @@
+## @effuse/use [1.1.1](https://github.com/chrismichaelps/effuse/compare/@effuse/use@1.1.0...@effuse/use@1.1.1) (2026-02-21)
+
+### Bug Fixes
+
+* **core:** restore publishConfig to @effuse/use and refine mount logic for release ([292c2cf](https://github.com/chrismichaelps/effuse/commit/292c2cfda960968501675fc1e4366920fdf87619))
+
+
+### Dependencies
+
+* **@effuse/core:** upgraded to 1.2.1
+
 ## @effuse/use [1.1.0](https://github.com/chrismichaelps/effuse/compare/@effuse/use@1.0.0...@effuse/use@1.1.0) (2026-02-19)
 
 ### Features
