@@ -1,3 +1,14 @@
+## @effuse/use [1.1.3](https://github.com/chrismichaelps/effuse/compare/@effuse/use@1.1.2...@effuse/use@1.1.3) (2026-03-18)
+
+### Code Refactoring
+
+* **core:** finalize watchEffect standardization across back-end packages ([c43a851](https://github.com/chrismichaelps/effuse/commit/c43a851cd745f969beab6a0273443164d85964fb))
+
+
+### Dependencies
+
+* **@effuse/core:** upgraded to 1.2.3
+
 ## @effuse/use [1.1.2](https://github.com/chrismichaelps/effuse/compare/@effuse/use@1.1.1...@effuse/use@1.1.2) (2026-03-18)
 
 ### Build System
