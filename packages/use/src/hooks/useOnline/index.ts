@@ -75,7 +75,7 @@ export const useOnline = defineHook<
 		const online = ctx.computed(() => getIsOnline(internalState.value));
 		const offline = ctx.computed(() => getIsOffline(internalState.value));
 
-		ctx.effect(() => {
+		ctx.watchEffect(() => {
 			if (!isClient()) return undefined;
 
 			const handleOnline = (): void => {

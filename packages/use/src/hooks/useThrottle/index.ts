@@ -125,7 +125,7 @@ export const useThrottle = defineHook<
 			}, clampedInterval);
 		};
 
-		ctx.effect(() => {
+		ctx.watchEffect(() => {
 			const newValue = sourceSignal.value;
 
 			if (

@@ -37,7 +37,7 @@ if (isOnline.value) {
 ```typescript
 const { isOnline } = useOnline();
 
-effect(() => {
+watchEffect(() => {
 	if (!isOnline.value) {
 		showOfflineNotification();
 	}

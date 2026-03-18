@@ -131,7 +131,7 @@ export const useInterval = defineHook<UseIntervalConfig, UseIntervalReturn>({
 
 		let isInitialized = false;
 
-		ctx.effect(() => {
+		ctx.watchEffect(() => {
 			if (!isClient()) return undefined;
 
 			if (!isInitialized && immediate) {

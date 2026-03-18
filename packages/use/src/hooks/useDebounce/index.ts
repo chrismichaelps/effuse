@@ -106,7 +106,7 @@ export const useDebounce = defineHook<
 			}
 		};
 
-		ctx.effect(() => {
+		ctx.watchEffect(() => {
 			const newValue = sourceSignal.value;
 
 			if (isCancelled) {

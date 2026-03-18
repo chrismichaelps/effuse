@@ -77,7 +77,7 @@ export const useEventListener = defineHook<
 			internalState.value = LS.Inactive();
 		};
 
-		ctx.effect(() => {
+		ctx.watchEffect(() => {
 			if (!isClient() || isStopped) return undefined;
 
 			const maybeTarget = resolveTarget(target);

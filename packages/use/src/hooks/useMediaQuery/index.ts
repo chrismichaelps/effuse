@@ -87,7 +87,7 @@ export const useMediaQuery = defineHook<
 
 		const matches = ctx.computed(() => getMatches(internalState.value));
 
-		ctx.effect(() => {
+		ctx.watchEffect(() => {
 			if (!isClient()) return undefined;
 
 			const maybeMql = createMediaQuery(query);
