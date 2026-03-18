@@ -24,9 +24,12 @@
 
 import { Array as Arr, Option, pipe } from 'effect';
 import type { Effect } from 'effect';
+import type { Component } from '@effuse/core';
 import { RouteNotFoundError } from '../errors.js';
 
-export type RouteComponent = (props?: Record<string, unknown>) => unknown;
+export type RouteComponent =
+	| ((props?: Record<string, unknown>) => unknown)
+	| Component<any>;
 export type LazyRouteComponent = () => Promise<{ default: RouteComponent }>;
 
 export interface RouteRecord {
