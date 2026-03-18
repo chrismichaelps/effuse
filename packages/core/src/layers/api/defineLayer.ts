@@ -34,7 +34,7 @@ export type EffuseServices<T extends EffuseLayer> =
 		? { [K in keyof P]: ResultOf<P[K]> }
 		: {};
 
-export interface CompiledLayer<T extends EffuseLayer> {
+export interface CompiledLayer<T extends EffuseLayer> extends EffuseLayer {
 	readonly effectLayer: Layer.Layer<EffuseServices<T>, never, Scope.Scope>;
 	readonly tags: {
 		readonly [K in keyof EffuseServices<T>]: Context.Tag<
@@ -42,6 +42,7 @@ export interface CompiledLayer<T extends EffuseLayer> {
 			EffuseServices<T>[K]
 		>;
 	};
+	readonly _resolved: true;
 }
 
 export function defineLayer<T extends EffuseLayer>(
@@ -58,6 +59,7 @@ export function defineLayer<T extends EffuseLayer>(
 			Scope.Scope
 		>;
 		return {
+			name: definition.name,
 			effectLayer: emptyLayer,
 			tags: {} as {
 				readonly [K in keyof EffuseServices<T>]: Context.Tag<
@@ -65,6 +67,7 @@ export function defineLayer<T extends EffuseLayer>(
 					EffuseServices<T>[K]
 				>;
 			},
+			_resolved: true as const,
 		};
 	}
 
@@ -111,8 +114,10 @@ export function defineLayer<T extends EffuseLayer>(
 	);
 
 	return {
+		...definition,
 		effectLayer: final as Layer.Layer<EffuseServices<T>, never, Scope.Scope>,
 		tags: tagMap,
+		_resolved: true as const,
 	};
 }
 
