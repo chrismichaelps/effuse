@@ -1,3 +1,14 @@
+## @effuse/router [1.1.3](https://github.com/chrismichaelps/effuse/compare/@effuse/router@1.1.2...@effuse/router@1.1.3) (2026-03-18)
+
+### Build System
+
+* **deps:** update dependencies and pnpm version ([fd5e0c5](https://github.com/chrismichaelps/effuse/commit/fd5e0c57b883a4c5946c38d1e073218b8dd62120))
+
+
+### Dependencies
+
+* **@effuse/core:** upgraded to 1.2.2
+
 ## @effuse/router [1.1.2](https://github.com/chrismichaelps/effuse/compare/@effuse/router@1.1.1...@effuse/router@1.1.2) (2026-02-21)
 
 
