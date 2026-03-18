@@ -1,3 +1,10 @@
+## @effuse/i18n [1.0.9](https://github.com/chrismichaelps/effuse/compare/@effuse/i18n@1.0.8...@effuse/i18n@1.0.9) (2026-03-18)
+
+
+### Dependencies
+
+* **@effuse/core:** upgraded to 1.2.4
+
 ## @effuse/i18n [1.0.8](https://github.com/chrismichaelps/effuse/compare/@effuse/i18n@1.0.7...@effuse/i18n@1.0.8) (2026-03-18)
 
 
