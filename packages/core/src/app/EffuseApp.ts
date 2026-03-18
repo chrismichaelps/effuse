@@ -23,9 +23,10 @@
  */
 
 import type { Component } from '../render/node.js';
-import type { AnyLayer } from '../layers/types.js';
+import type { AnyLayer, AnyResolvedLayer } from '../layers/types.js';
 import {
-	combineLayers,
+	defineLayer,
+	type CompiledLayer,
 	createLayerRuntime,
 	type LayerRuntime,
 	type LayerRuntimeOptions,
@@ -40,7 +41,7 @@ export interface AppInstance {
 export type MountOptions = LayerRuntimeOptions;
 
 export class EffuseApp {
-	private layers: AnyLayer[] = [];
+	private layers: Array<AnyLayer | CompiledLayer<any>> = [];
 	private rootComponent: Component;
 	private layerRuntime: LayerRuntime | null = null;
 
@@ -49,7 +50,7 @@ export class EffuseApp {
 	}
 
 	async useLayers(
-		layers: (AnyLayer | (() => Promise<AnyLayer>))[]
+		layers: (AnyLayer | CompiledLayer<any> | (() => Promise<AnyLayer | CompiledLayer<any>>))[]
 	): Promise<this> {
 		const resolved = await Promise.all(
 			layers.map((l) => (Predicate.isFunction(l) ? l() : Promise.resolve(l)))
@@ -62,9 +63,14 @@ export class EffuseApp {
 		selector: string,
 		options: MountOptions = {}
 	): Promise<AppInstance> {
-		const combined = combineLayers(...this.layers);
+		this.layers.map((l) =>
+			'effectLayer' in l && 'tags' in l ? l : defineLayer(l as AnyLayer)
+		);
 
-		this.layerRuntime = await createLayerRuntime(combined.layers, options);
+		this.layerRuntime = await createLayerRuntime(
+			this.layers as AnyResolvedLayer[],
+			options
+		);
 
 		mountComponent(this.rootComponent, selector);
 

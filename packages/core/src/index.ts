@@ -22,8 +22,6 @@
  * SOFTWARE.
  */
 
-export { TaggedError, isTaggedError, hasTag } from './errors/index.js';
-
 export type {
 	Signal,
 	ReadonlySignal,
@@ -55,7 +53,7 @@ export {
 } from './reactivity/index.js';
 
 export {
-	effect,
+	watchEffect,
 	effectOnce,
 	watch,
 	watchMultiple,
@@ -174,7 +172,10 @@ export { jsx, jsxs, jsxDEV, Fragment } from './jsx/index.js';
 
 export {
 	defineLayer,
+	type EffuseServices,
+	type CompiledLayer,
 	combineLayers,
+	type MergeServices,
 	resolveLayerOrder,
 	mergeLayerConfigs,
 	createLayerRuntime,
@@ -194,7 +195,6 @@ export {
 	type MaybePromise,
 	type LayerRestriction,
 	type MergedConfig,
-	type CombinedLayerResult,
 	type LayerProvides,
 	type SetupContext,
 	type LayerSetupFn,

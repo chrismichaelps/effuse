@@ -24,7 +24,7 @@
 
 import { Effect, Duration, Schedule } from 'effect';
 import type { Store } from '../core/types.js';
-import { createCancellationToken } from './cancellation.js';
+
 import { runWithAbortSignal } from './cancellation.js';
 import {
 	DEFAULT_RETRY_INITIAL_DELAY_MS,
@@ -33,7 +33,6 @@ import {
 } from '../config/constants.js';
 import {
 	ActionNotFoundError,
-	CancellationError,
 	TimeoutError,
 } from '../errors.js';
 
@@ -195,133 +194,7 @@ export const withRetry = <A extends unknown[], R>(
 	};
 };
 
-export const takeLatest = <A extends unknown[], R>(
-	fn: ActionFn<A, R>
-): CancellableAction<A, R> => {
-	let pending = false;
-	let currentToken = createCancellationToken();
-	let callId = 0;
 
-	const action = async (...args: A): Promise<R> => {
-		currentToken.cancel();
-		currentToken = createCancellationToken();
-		const myToken = currentToken;
-		const myCallId = ++callId;
-
-		pending = true;
-
-		try {
-			const result = await fn(...args);
-
-			if (myToken.isCancelled || myCallId !== callId) {
-				throw new CancellationError({ message: 'Superseded by newer call' });
-			}
-
-			return result;
-		} finally {
-			if (myCallId === callId) {
-				pending = false;
-			}
-		}
-	};
-
-	Object.defineProperty(action, 'pending', {
-		get: () => pending,
-		enumerable: true,
-	});
-
-	Object.defineProperty(action, 'cancel', {
-		value: () => {
-			currentToken.cancel();
-			pending = false;
-		},
-		enumerable: true,
-	});
-
-	return action as CancellableAction<A, R>;
-};
-
-export const takeFirst = <A extends unknown[], R>(
-	fn: ActionFn<A, R>
-): AsyncAction<A, R | undefined> => {
-	let pending = false;
-
-	const action = async (...args: A): Promise<R | undefined> => {
-		if (pending) {
-			return undefined;
-		}
-
-		pending = true;
-		try {
-			return await fn(...args);
-		} finally {
-			pending = false;
-		}
-	};
-
-	Object.defineProperty(action, 'pending', {
-		get: () => pending,
-		enumerable: true,
-	});
-
-	return action as AsyncAction<A, R | undefined>;
-};
-
-export const debounceAction = <A extends unknown[], R>(
-	fn: ActionFn<A, R>,
-	delayMs: number
-): ((...args: A) => Promise<R>) => {
-	let timeout: ReturnType<typeof setTimeout> | null = null;
-	let currentToken = createCancellationToken();
-
-	return (...args: A): Promise<R> => {
-		if (timeout) {
-			clearTimeout(timeout);
-			currentToken.cancel();
-		}
-
-		currentToken = createCancellationToken();
-		const myToken = currentToken;
-
-		return new Promise((resolve, reject) => {
-			timeout = setTimeout(() => {
-				if (myToken.isCancelled) return;
-
-				Promise.resolve(fn(...args))
-					.then((result) => {
-						if (!myToken.isCancelled) resolve(result);
-					})
-					.catch((error: unknown) => {
-						if (!myToken.isCancelled) reject(error as Error);
-					});
-			}, delayMs);
-		});
-	};
-};
-
-export const throttleAction = <A extends unknown[], R>(
-	fn: ActionFn<A, R>,
-	intervalMs: number
-): ((...args: A) => Promise<R | undefined>) => {
-	let lastCallTime = 0;
-	let pending = false;
-
-	return async (...args: A): Promise<R | undefined> => {
-		const now = Date.now();
-		if (now - lastCallTime < intervalMs || pending) {
-			return undefined;
-		}
-
-		lastCallTime = now;
-		pending = true;
-
-		try {
-			return await fn(...args);
-		} finally {
-			pending = false;
-		}
-	};
-};
 
 export const dispatch = <T>(
 	store: Store<T>,

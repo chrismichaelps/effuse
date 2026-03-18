@@ -30,10 +30,7 @@ export {
 	withTimeout,
 	withRetry,
 	withAbortSignal,
-	takeLatest,
-	takeFirst,
-	debounceAction,
-	throttleAction,
+
 	type ActionResult,
 	type AsyncAction,
 	type CancellableAction,
@@ -46,3 +43,9 @@ export {
 	type CancellationToken,
 	type CancellationScope,
 } from './cancellation.js';
+
+export {
+	useConcurrency,
+	type ConcurrencyStrategy,
+	type ConcurrencyOptions,
+} from './useConcurrency.js';

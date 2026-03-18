@@ -75,10 +75,6 @@ export {
 	withTimeout,
 	withRetry,
 	withAbortSignal,
-	takeLatest,
-	takeFirst,
-	debounceAction,
-	throttleAction,
 	createCancellationToken,
 	createCancellationScope,
 	type ActionResult,
@@ -87,6 +83,9 @@ export {
 	type RetryConfig,
 	type CancellationToken,
 	type CancellationScope,
+	useConcurrency,
+	type ConcurrencyStrategy,
+	type ConcurrencyOptions,
 } from './actions/index.js';
 
 export {

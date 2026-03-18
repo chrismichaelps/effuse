@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-import { Effect, Option, pipe, Predicate } from 'effect';
+import { Effect, Option, pipe, Predicate, Context } from 'effect';
 import type { EffuseChild } from '../render/node.js';
 import { define } from '../blueprint/define.js';
 import { pushContext, popContext, getContext } from './registry.js';
@@ -45,6 +45,7 @@ export interface EffuseContext<T> {
 	readonly Provider: ReturnType<typeof define>;
 	readonly defaultValue: T | undefined;
 	readonly hasDefault: boolean;
+	readonly _effectTag: Context.Tag<string, T>;
 	readonly _tag: 'EffuseContext';
 }
 
@@ -86,6 +87,7 @@ export function createContext<T>(options: ContextOptions<T>): EffuseContext<T> {
 		Provider: Provider as ReturnType<typeof define>,
 		defaultValue: resolvedDefault,
 		hasDefault: defaultValue !== undefined,
+		_effectTag: Context.GenericTag<string, T>(id),
 		_tag: 'EffuseContext',
 	};
 
@@ -98,6 +100,13 @@ const getContextValue = <T>(
 	context: EffuseContext<T>
 ): Effect.Effect<T, ContextNotFoundError> =>
 	Effect.gen(function* () {
+		// effect context
+		const inEffectContext = yield* Effect.serviceOption(context._effectTag);
+		if (Option.isSome(inEffectContext)) {
+			return inEffectContext.value;
+		}
+
+		// fallback to UI context
 		const value = getContext<T>(context.id);
 
 		return yield* pipe(
@@ -122,9 +131,9 @@ export function useContext<T>(
 			Effect.mapError((error) =>
 				componentName
 					? new ContextNotFoundError({
-							contextId: error.contextId,
-							componentName,
-						})
+						contextId: error.contextId,
+						componentName,
+					})
 					: error
 			)
 		)

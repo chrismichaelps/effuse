@@ -25,7 +25,7 @@
 import { Context, Effect, Layer, pipe, Predicate } from 'effect';
 import type { Signal } from '../../reactivity/signal.js';
 import { untrack, isSignal } from '../../reactivity/index.js';
-import { effect } from '../../effects/effect.js';
+import { watchEffect } from '../../effects/effect.js';
 import type { EffectHandle } from '../../types/index.js';
 import { type EffuseChild, type EffuseNode } from '../../render/node.js';
 import {
@@ -42,6 +42,7 @@ import { instantiateBlueprint } from '../../blueprint/blueprint.js';
 import type { BlueprintContext } from '../../schema/node.js';
 import { isSuspendToken } from '../../suspense/Suspense.js';
 import { isEffuseNode } from '../../render/index.js';
+import { mapEffuseErrors } from '../../errors.js';
 
 export interface MountedNode {
 	nodes: Node[];
@@ -89,7 +90,7 @@ const mountChild = (
 		let effectHandle: EffectHandle | null = null;
 
 		const runEffect = () => {
-			effectHandle = effect(() => {
+			effectHandle = watchEffect(() => {
 				const value = fn();
 
 				for (const node of currentNodes) {
@@ -131,7 +132,8 @@ const mountChild = (
 							pipe(
 								mountChild(value as EffuseChild, childCleanups),
 								Effect.provide(PropServiceLive),
-								Effect.provide(EventServiceLive)
+								Effect.provide(EventServiceLive),
+								mapEffuseErrors
 							)
 						);
 					} catch (err) {
@@ -186,7 +188,7 @@ const mountChild = (
 		let effectHandle: EffectHandle | null = null;
 
 		const runEffect = () => {
-			effectHandle = effect(() => {
+			effectHandle = watchEffect(() => {
 				const value = sig.value;
 
 				for (const node of currentNodes) {
@@ -223,7 +225,8 @@ const mountChild = (
 							pipe(
 								mountChild(value, childCleanups),
 								Effect.provide(PropServiceLive),
-								Effect.provide(EventServiceLive)
+								Effect.provide(EventServiceLive),
+								mapEffuseErrors
 							)
 						);
 					} catch (err) {
@@ -370,12 +373,12 @@ const mountNode = (
 					}
 
 					for (const propEffect of propEffects) {
-						const result = Effect.runSync(propEffect);
+						const result = Effect.runSync(pipe(propEffect, mapEffuseErrors));
 						bindingCleanups.push(result.cleanup);
 					}
 
 					for (const eventEffect of eventEffects) {
-						const result = Effect.runSync(eventEffect);
+						const result = Effect.runSync(pipe(eventEffect, mapEffuseErrors));
 						bindingCleanups.push(result.cleanup);
 					}
 
@@ -410,7 +413,7 @@ const mountNode = (
 			let effectHandle: { stop: () => void } | null = null;
 
 			const runEffect = () => {
-				effectHandle = effect(() => {
+				effectHandle = watchEffect(() => {
 					const children = node.children;
 
 					for (const n of currentNodes) {
@@ -435,7 +438,8 @@ const mountNode = (
 								Effect.all(children.map((c) => mountChild(c, childCleanups))),
 								Effect.map((results) => results.flat()),
 								Effect.provide(PropServiceLive),
-								Effect.provide(EventServiceLive)
+								Effect.provide(EventServiceLive),
+								mapEffuseErrors
 							)
 						);
 

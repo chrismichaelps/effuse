@@ -25,7 +25,7 @@
 import { Predicate, Option } from 'effect';
 import { define } from '../blueprint/index.js';
 import { computed } from '../reactivity/index.js';
-import { effect } from '../effects/index.js';
+import { watchEffect } from '../effects/index.js';
 import { CreateFragmentNode, type EffuseChild } from '../render/node.js';
 import {
 	EFFUSE_NODE,
@@ -190,7 +190,7 @@ export const Suspense = define<SuspenseProps, SuspenseExposed>({
 			}
 		};
 
-		effect(() => {
+		watchEffect(() => {
 			tryRenderChildren(props.children, props.fallback);
 		});
 
