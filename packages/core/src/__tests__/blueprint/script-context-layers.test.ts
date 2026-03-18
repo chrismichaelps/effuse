@@ -7,19 +7,28 @@ import {
 } from '../../layers/context.js';
 import type { PropsRegistry } from '../../layers/services/PropsService.js';
 import type { LayerRegistry } from '../../layers/services/RegistryService.js';
-import type { AnyResolvedLayer } from '../../layers/types.js';
+import type { AnyResolvedLayer, LayerProps } from '../../layers/types.js';
 import type { Component } from '../../render/node.js';
 import { signal } from '../../reactivity/signal.js';
 
 const createMockPropsRegistry = (
 	propsMap: Record<string, Record<string, unknown>> = {}
-): PropsRegistry => ({
-	get: (name: string) => propsMap[name],
-	set: vi.fn(),
-	has: (name: string) => name in propsMap,
-	getAll: () => new Map(Object.entries(propsMap)),
-	clear: vi.fn(),
-});
+): PropsRegistry => {
+	const props = new Map<string, LayerProps>(
+		Object.entries(propsMap).map(([k, v]) => [
+			k,
+			Object.fromEntries(
+				Object.entries(v).map(([key, value]) => [key, value])
+			) as LayerProps,
+		])
+	);
+	return {
+		props,
+		get: (name: string) => props.get(name),
+		set: vi.fn(),
+		has: (name: string) => props.has(name),
+	};
+};
 
 const createMockLayerRegistry = (
 	layers: Record<string, AnyResolvedLayer> = {},
@@ -409,13 +418,13 @@ describe('ScriptContext - Layer Hooks', () => {
 		});
 	});
 
-	describe('effect (auto-scoped)', () => {
+	describe('watchEffect (auto-scoped)', () => {
 		it('should create an auto-tracked effect that runs immediately', async () => {
 			const { context } = createScriptContext({});
 			const count = signal(0);
 			const calls: number[] = [];
 
-			context.effect(() => {
+			context.watchEffect(() => {
 				calls.push(count.value);
 			});
 
@@ -432,7 +441,7 @@ describe('ScriptContext - Layer Hooks', () => {
 			const count = signal(0);
 			const calls: number[] = [];
 
-			const handle = context.effect(() => {
+			const handle = context.watchEffect(() => {
 				calls.push(count.value);
 			});
 
@@ -458,7 +467,7 @@ describe('ScriptContext - Layer Hooks', () => {
 			const count = signal(0);
 			const calls: number[] = [];
 
-			context.effect(() => {
+			context.watchEffect(() => {
 				calls.push(count.value);
 			});
 
