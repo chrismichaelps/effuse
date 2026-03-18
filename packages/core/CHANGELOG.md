@@ -1,3 +1,9 @@
+## @effuse/core [1.2.4](https://github.com/chrismichaelps/effuse/compare/@effuse/core@1.2.3...@effuse/core@1.2.4) (2026-03-18)
+
+### Bug Fixes
+
+* resolve RouterNotInstalledError and preserve layer metadata ([#36](https://github.com/chrismichaelps/effuse/issues/36)) ([4c1383e](https://github.com/chrismichaelps/effuse/commit/4c1383e9f21b78351356c77107c0ac5259b9a64b))
+
 ## @effuse/core [1.2.3](https://github.com/chrismichaelps/effuse/compare/@effuse/core@1.2.2...@effuse/core@1.2.3) (2026-03-18)
 
 ### Code Refactoring
