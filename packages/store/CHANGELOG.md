@@ -1,3 +1,18 @@
+## @effuse/store [1.0.6](https://github.com/chrismichaelps/effuse/compare/@effuse/store@1.0.5...@effuse/store@1.0.6) (2026-03-18)
+
+### Code Refactoring
+
+* consolidate architectural improvements and error abstraction ([69af1b1](https://github.com/chrismichaelps/effuse/commit/69af1b1fe3efc8f5c2d74b51a6c2fb3b4b6ab30a)), closes [#23](https://github.com/chrismichaelps/effuse/issues/23) [#24](https://github.com/chrismichaelps/effuse/issues/24) [#25](https://github.com/chrismichaelps/effuse/issues/25)
+
+### Build System
+
+* **deps:** update dependencies and pnpm version ([fd5e0c5](https://github.com/chrismichaelps/effuse/commit/fd5e0c57b883a4c5946c38d1e073218b8dd62120))
+
+
+### Dependencies
+
+* **@effuse/core:** upgraded to 1.2.2
+
 ## @effuse/store [1.0.5](https://github.com/chrismichaelps/effuse/compare/@effuse/store@1.0.4...@effuse/store@1.0.5) (2026-02-21)
 
 
