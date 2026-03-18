@@ -1,3 +1,10 @@
+## @effuse/ink [1.1.3](https://github.com/chrismichaelps/effuse/compare/@effuse/ink@1.1.2...@effuse/ink@1.1.3) (2026-03-18)
+
+
+### Dependencies
+
+* **@effuse/core:** upgraded to 1.2.3
+
 ## @effuse/ink [1.1.2](https://github.com/chrismichaelps/effuse/compare/@effuse/ink@1.1.1...@effuse/ink@1.1.2) (2026-03-18)
 
 ### Build System
