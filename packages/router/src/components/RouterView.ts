@@ -25,7 +25,7 @@
 import { Predicate } from 'effect';
 import {
 	define,
-	effect,
+	watchEffect,
 	type EffuseChild,
 	type BlueprintDef,
 	EFFUSE_NODE,
@@ -193,7 +193,7 @@ export const RouterView = define({
 			}
 		};
 
-		effect(checkRouteChange);
+		watchEffect(checkRouteChange);
 
 		return {
 			viewName,

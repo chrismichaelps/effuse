@@ -121,7 +121,7 @@ export const useLocalStorage = defineHook<
 
 		let isExternalUpdate = false;
 
-		ctx.effect(() => {
+		ctx.watchEffect(() => {
 			const current = value.value;
 			if (!isClient()) return undefined;
 
@@ -148,7 +148,7 @@ export const useLocalStorage = defineHook<
 			return undefined;
 		});
 
-		ctx.effect(() => {
+		ctx.watchEffect(() => {
 			if (!isClient() || !syncTabs) return undefined;
 
 			const handleStorage = (event: StorageEvent): void => {

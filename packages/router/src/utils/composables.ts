@@ -23,7 +23,7 @@
  */
 
 import { Predicate } from 'effect';
-import { markRaw, effect } from '@effuse/core';
+import { markRaw, watchEffect } from '@effuse/core';
 import { getGlobalRouter, type RouterInstance } from '../core/router.js';
 import type { Route, RouteLocation } from '../core/route.js';
 import type { NavigationFailure } from '../navigation/errors.js';
@@ -72,7 +72,7 @@ export const onRouteChange = (
 
 	let lastFullPath = routeSignal.value.fullPath;
 
-	const { stop } = effect(() => {
+	const { stop } = watchEffect(() => {
 		const route = routeSignal.value;
 		const currentFullPath = route.fullPath;
 

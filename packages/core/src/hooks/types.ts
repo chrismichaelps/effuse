@@ -20,7 +20,7 @@ export interface HookContext<C = unknown> {
 	readonly config: C;
 	readonly signal: <T>(initial: T) => Signal<T>;
 	readonly computed: <T>(fn: () => T) => ReadonlySignal<T>;
-	readonly effect: (fn: EffectCallback) => void;
+	readonly watchEffect: (fn: EffectCallback) => void;
 	readonly onMount: (fn: EffectCallback) => void;
 	readonly scope: HookScope;
 	readonly layer: <K extends keyof EffuseLayerRegistry>(
