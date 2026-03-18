@@ -63,7 +63,7 @@ export class EffuseApp {
 		selector: string,
 		options: MountOptions = {}
 	): Promise<AppInstance> {
-		this.layers.map((l) =>
+		this.layers = this.layers.map((l) =>
 			'effectLayer' in l && 'tags' in l ? l : defineLayer(l as AnyLayer)
 		);
 
