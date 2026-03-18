@@ -1,3 +1,14 @@
+## @effuse/router [1.1.5](https://github.com/chrismichaelps/effuse/compare/@effuse/router@1.1.4...@effuse/router@1.1.5) (2026-03-18)
+
+### Bug Fixes
+
+* resolve RouterNotInstalledError and preserve layer metadata ([#36](https://github.com/chrismichaelps/effuse/issues/36)) ([4c1383e](https://github.com/chrismichaelps/effuse/commit/4c1383e9f21b78351356c77107c0ac5259b9a64b))
+
+
+### Dependencies
+
+* **@effuse/core:** upgraded to 1.2.4
+
 ## @effuse/router [1.1.4](https://github.com/chrismichaelps/effuse/compare/@effuse/router@1.1.3...@effuse/router@1.1.4) (2026-03-18)
 
 ### Code Refactoring
