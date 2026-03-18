@@ -28,4 +28,4 @@ export { RegistryService, type LayerRegistry } from './RegistryService.js';
 import type { PropsService } from './PropsService.js';
 import type { RegistryService } from './RegistryService.js';
 
-export type LayerServices = PropsService | RegistryService;
+export type LayerRuntimeServices = PropsService | RegistryService;

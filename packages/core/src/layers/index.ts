@@ -54,7 +54,7 @@ export {
 	RegistryService,
 	type PropsRegistry,
 	type LayerRegistry,
-	type LayerServices,
+	type LayerRuntimeServices,
 } from './services/index.js';
 
 export {
@@ -65,8 +65,12 @@ export {
 
 export {
 	defineLayer,
+	type EffuseServices,
+	type CompiledLayer,
 	combineLayers,
-	type CombinedLayerResult,
+	type MergeServices,
+	type LayerServicesFrom,
+	type ExtractServices,
 } from './api/index.js';
 
 export {

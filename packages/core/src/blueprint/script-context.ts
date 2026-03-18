@@ -126,7 +126,7 @@ export interface ScriptContext<P> {
 		options?: WatchOptions
 	) => void;
 
-	effect: (
+	watchEffect: (
 		fn: (onCleanup: OnCleanup) => void | Promise<void>,
 		options?: EffectOptions
 	) => EffectHandle;
@@ -276,7 +276,7 @@ export const createScriptContext = <P, E extends ExposedValues>(
 			lifecycle.onUnmount(() => handle.stop());
 		},
 
-		effect: (
+		watchEffect: (
 			fn: (onCleanup: OnCleanup) => void | Promise<void>,
 			options?: EffectOptions
 		): EffectHandle => {

@@ -22,5 +22,12 @@
  * SOFTWARE.
  */
 
-export { defineLayer } from './defineLayer.js';
-export { combineLayers, type CombinedLayerResult } from './combineLayers.js';
+export {
+	defineLayer,
+	type EffuseServices,
+	type CompiledLayer,
+	combineLayers,
+	type MergeServices,
+	type LayerServicesFrom,
+	type ExtractServices,
+} from './defineLayer.js';

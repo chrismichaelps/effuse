@@ -22,45 +22,133 @@
  * SOFTWARE.
  */
 
-import { Layer, Effect } from 'effect';
-import type { EffuseLayer, LayerProps } from '../types.js';
+import { Layer, Effect, Context, Scope } from 'effect';
+import type { EffuseLayer, LayerProvides } from '../types.js';
 
-export interface CompiledEffuseLayer<
-	P extends LayerProps,
-	D extends readonly string[],
-	S
-> extends EffuseLayer<P, D, S> {
-	/**
-	 * @internal
-	 * The underlying Effect.Layer that natively manages this module's lifecycle.
-	 * Kept strictly encapsulated from the end-user.
-	 */
-	readonly _effectLayer: Layer.Layer<never, unknown, never>;
+const TAG_NS = 'effuse/layer/';
+
+type ResultOf<T> = T extends () => infer R ? R : never;
+
+export type EffuseServices<T extends EffuseLayer> =
+	T['provides'] extends infer P extends LayerProvides
+		? { [K in keyof P]: ResultOf<P[K]> }
+		: {};
+
+export interface CompiledLayer<T extends EffuseLayer> {
+	readonly effectLayer: Layer.Layer<EffuseServices<T>, never, Scope.Scope>;
+	readonly tags: {
+		readonly [K in keyof EffuseServices<T>]: Context.Tag<
+			string,
+			EffuseServices<T>[K]
+		>;
+	};
 }
 
-export const defineLayer = <
-	const D extends readonly string[],
-	P extends LayerProps = LayerProps,
-	S = unknown,
->(
-	definition: EffuseLayer<P, D, S>
-): CompiledEffuseLayer<P, D, S> => {
-	// map user config to native Layer for lifecycle scoping
-	const effectLayer = Layer.scopedDiscard(
-		Effect.acquireRelease(
-			Effect.sync(() => {
-				// hook for runtime context resolution
-				return definition.name;
-			}),
-			() =>
-				Effect.sync(() => {
-					// fiber cleanup hooks
-				})
-		)
+export function defineLayer<T extends EffuseLayer>(
+	definition: T
+): CompiledLayer<T> {
+	const provides = definition.provides ?? ({} as LayerProvides);
+	const keys = Object.keys(provides) as (keyof LayerProvides)[];
+
+	if (keys.length === 0) {
+		const emptyCtx = Context.empty() as Context.Context<{}>;
+		const emptyLayer = Layer.succeedContext(emptyCtx) as unknown as Layer.Layer<
+			EffuseServices<T>,
+			never,
+			Scope.Scope
+		>;
+		return {
+			effectLayer: emptyLayer,
+			tags: {} as {
+				readonly [K in keyof EffuseServices<T>]: Context.Tag<
+					string,
+					EffuseServices<T>[K]
+				>;
+			},
+		};
+	}
+
+	const entries = keys.map((k) => ({
+		key: k as string,
+		tag: Context.GenericTag<unknown>(
+			`${TAG_NS}${definition.name}/${String(k)}`
+		) as Context.Tag<string, unknown>,
+		factory: provides[k]!,
+	}));
+
+	const layers = entries.map((e) =>
+		Layer.scoped(e.tag, Effect.sync(e.factory))
+	);
+
+	let merged: Layer.Layer<any, never, any> = layers[0]!;
+	for (let i = 1; i < layers.length; i++) {
+		const next = layers[i]!;
+		merged = Layer.merge(merged, next);
+	}
+
+	const build = Effect.flatMap(Layer.build(merged), (ctx) => {
+		const obj: Record<string, unknown> = {};
+		for (const e of entries) {
+			obj[e.key] = Context.get(ctx, e.tag);
+		}
+		let c = Context.empty() as Context.Context<typeof obj>;
+		for (const [k, v] of Object.entries(obj)) {
+			c = Context.add(c, k as any, v);
+		}
+		return Effect.succeed(c);
+	});
+
+	const final = Layer.scopedContext(build);
+
+	const tagMap = entries.reduce(
+		(acc, e) => Object.assign(acc, { [e.key]: e.tag }),
+		{} as {
+			readonly [K in keyof EffuseServices<T>]: Context.Tag<
+				string,
+				EffuseServices<T>[K]
+			>;
+		}
 	);
 
 	return {
-		...definition,
-		_effectLayer: effectLayer,
+		effectLayer: final as Layer.Layer<EffuseServices<T>, never, Scope.Scope>,
+		tags: tagMap,
 	};
-};
+}
+
+export type MergeServices<Layers extends readonly CompiledLayer<any>[]> =
+	Layers extends readonly [infer L, ...infer R]
+		? L extends CompiledLayer<infer T>
+			? EffuseServices<T> &
+					(R extends readonly CompiledLayer<any>[] ? MergeServices<R> : {})
+			: never
+		: {};
+
+export function combineLayers<Layers extends readonly CompiledLayer<any>[]>(
+	...layers: Layers
+): Layer.Layer<MergeServices<Layers>, never, Scope.Scope> {
+	if (layers.length === 0) {
+		return Layer.succeedContext(Context.empty()) as unknown as Layer.Layer<
+			{},
+			never,
+			Scope.Scope
+		>;
+	}
+
+	const first = layers[0]!.effectLayer;
+	if (layers.length === 1) {
+		return Layer.merge(first, Layer.scope);
+	}
+
+	let m = first;
+	for (let i = 1; i < layers.length; i++) {
+		m = Layer.merge(m, layers[i]!.effectLayer);
+	}
+	return Layer.merge(m, Layer.scope);
+}
+
+export type LayerServicesFrom<T extends CompiledLayer<any>> =
+	T extends CompiledLayer<infer L> ? EffuseServices<L> : never;
+
+export type ExtractServices<T> =
+	T extends CompiledLayer<infer L> ? EffuseServices<L> : never;
