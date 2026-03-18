@@ -1,3 +1,14 @@
+## @effuse/core [1.2.2](https://github.com/chrismichaelps/effuse/compare/@effuse/core@1.2.1...@effuse/core@1.2.2) (2026-03-18)
+
+### Code Refactoring
+
+* consolidate architectural improvements and error abstraction ([69af1b1](https://github.com/chrismichaelps/effuse/commit/69af1b1fe3efc8f5c2d74b51a6c2fb3b4b6ab30a)), closes [#23](https://github.com/chrismichaelps/effuse/issues/23) [#24](https://github.com/chrismichaelps/effuse/issues/24) [#25](https://github.com/chrismichaelps/effuse/issues/25)
+* **core:** internalize effect layer api and normalize runtime hooks ([2567c7a](https://github.com/chrismichaelps/effuse/commit/2567c7a99c39f502df7771699342f2b9935ab78d)), closes [#28](https://github.com/chrismichaelps/effuse/issues/28)
+
+### Build System
+
+* **deps:** update dependencies and pnpm version ([fd5e0c5](https://github.com/chrismichaelps/effuse/commit/fd5e0c57b883a4c5946c38d1e073218b8dd62120))
+
 ## @effuse/core [1.2.1](https://github.com/chrismichaelps/effuse/compare/@effuse/core@1.2.0...@effuse/core@1.2.1) (2026-02-21)
 
 ### Bug Fixes
