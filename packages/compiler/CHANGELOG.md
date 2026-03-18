@@ -1,3 +1,9 @@
+## @effuse/compiler [1.0.4](https://github.com/chrismichaelps/effuse/compare/@effuse/compiler@1.0.3...@effuse/compiler@1.0.4) (2026-03-18)
+
+### Build System
+
+* **deps:** update dependencies and pnpm version ([fd5e0c5](https://github.com/chrismichaelps/effuse/commit/fd5e0c57b883a4c5946c38d1e073218b8dd62120))
+
 ## @effuse/compiler [1.0.3](https://github.com/chrismichaelps/effuse/compare/@effuse/compiler@1.0.2...@effuse/compiler@1.0.3) (2026-01-08)
 
 ### Bug Fixes
