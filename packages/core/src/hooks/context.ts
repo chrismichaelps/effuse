@@ -1,19 +1,37 @@
+/**
+ * MIT License
+ *
+ * Copyright (c) 2025 Chris M. Perez
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
 import { Effect, Scope, Exit, Predicate } from 'effect';
 import { signal } from '../reactivity/signal.js';
 import { computed } from '../reactivity/computed.js';
 import { watchEffect as reactiveEffect } from '../effects/effect.js';
-import {
-	getLayerContext,
-	getLayerService,
-	isLayerRuntimeReady,
-} from '../layers/context.js';
 import {
 	traceHookEffect,
 	traceHookCleanup,
 	traceHookDispose,
 } from '../layers/tracing/hooks.js';
 import { getActiveLifecycle } from '../blueprint/lifecycle.js';
-import { HookLayerNotReadyError } from './errors.js';
 import type {
 	HookContext,
 	HookCleanup,
@@ -21,17 +39,17 @@ import type {
 	HookFinalizer,
 	EffectCallback,
 } from './types.js';
-import type {
-	LayerPropsOf,
-	LayerProvidesOf,
-	EffuseLayerRegistry,
-} from '../layers/types.js';
+import type { CompiledLayer } from '../layers/api/defineLayer.js';
+import {
+	resolveLayersAccessor,
+	type LayersAccessor,
+} from '../layers/api/layersAccessor.js';
 
-const createHookScope = (): { scope: HookScope } => {
+const createHookScope = (): HookScope => {
 	const internalScope = Effect.runSync(Scope.make());
 	const finalizers: HookFinalizer[] = [];
 
-	const scope: HookScope = {
+	return {
 		addFinalizer: (fn: HookFinalizer) => {
 			finalizers.push(fn);
 		},
@@ -42,19 +60,21 @@ const createHookScope = (): { scope: HookScope } => {
 			Effect.runSync(Scope.close(internalScope, Exit.void));
 		},
 	};
-
-	return { scope };
 };
 
-export const createHookContext = <C>(
+export const createHookContext = <
+	C,
+	L extends readonly CompiledLayer<any>[] = readonly never[],
+>(
 	config: C,
+	layers: L,
 	hookName?: string
 ): {
-	ctx: HookContext<C>;
+	ctx: HookContext<C, L>;
 	dispose: () => Promise<void>;
 } => {
 	const cleanups: HookCleanup[] = [];
-	const { scope } = createHookScope();
+	const scope = createHookScope();
 	const name = hookName ?? 'anonymous';
 	let effectIndex = 0;
 
@@ -83,39 +103,6 @@ export const createHookContext = <C>(
 		}
 	};
 
-	const layer = <K extends keyof EffuseLayerRegistry>(
-		name: K
-	): LayerPropsOf<K> => {
-		if (!isLayerRuntimeReady()) {
-			throw new HookLayerNotReadyError({
-				hookContext: 'layer',
-				layerName: name as string,
-			});
-		}
-		const layerCtx = getLayerContext(name as string);
-		return layerCtx.props as LayerPropsOf<K>;
-	};
-
-	const layerProvider = <K extends keyof EffuseLayerRegistry>(
-		name: K
-	): LayerProvidesOf<K> => {
-		if (!isLayerRuntimeReady()) {
-			throw new HookLayerNotReadyError({
-				hookContext: 'layerProvider',
-				layerName: name as string,
-			});
-		}
-		const layerCtx = getLayerContext(name as string);
-		if (!layerCtx.provides) {
-			return {} as LayerProvidesOf<K>;
-		}
-		const providers: Record<string, unknown> = {};
-		for (const key of Object.keys(layerCtx.provides)) {
-			providers[key] = getLayerService(key);
-		}
-		return providers as LayerProvidesOf<K>;
-	};
-
 	const use = <R>(hook: () => R): R => hook();
 
 	const runAsync = async <T>(fn: () => Promise<T>): Promise<T> => fn();
@@ -133,15 +120,14 @@ export const createHookContext = <C>(
 		traceHookDispose(name, duration, cleanupCount);
 	};
 
-	const ctx: HookContext<C> = {
+	const ctx: HookContext<C, L> = {
 		config,
 		signal,
 		computed,
 		watchEffect: wrappedEffect,
 		onMount,
 		scope,
-		layer,
-		layerProvider,
+		layers: resolveLayersAccessor(layers) as LayersAccessor<L>,
 		use,
 		runAsync,
 	};
