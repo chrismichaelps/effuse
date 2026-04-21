@@ -31,3 +31,9 @@ export {
 	type LayerServicesFrom,
 	type ExtractServices,
 } from './defineLayer.js';
+
+export {
+	resolveLayersAccessor,
+	type LayersAccessor,
+	type LayerEntry,
+} from './layersAccessor.js';
