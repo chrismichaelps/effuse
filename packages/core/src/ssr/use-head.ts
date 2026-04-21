@@ -24,26 +24,49 @@
 
 import type { HeadProps } from './types.js';
 import { Predicate } from 'effect';
+import { AsyncLocalStorage } from 'node:async_hooks';
 
-let ssrContext: { push: (head: HeadProps) => void } | null = null;
+export interface SSRHeadContext {
+	push: (head: HeadProps) => void;
+}
 
-export const setSSRContext = (
-	ctx: { push: (head: HeadProps) => void } | null
-): void => {
-	ssrContext = ctx;
+/**
+ * AsyncLocalStorage-based SSR context for request isolation.
+ *
+ * Each concurrent SSR render gets its own head context via the
+ * AsyncLocalStorage store, preventing cross-request contamination.
+ */
+const ssrStorage = new AsyncLocalStorage<SSRHeadContext>();
+
+/**
+ * Run a function within an SSR head context.
+ * This is the only way to establish an SSR context — there is no
+ * module-global fallback.
+ */
+export const runWithSSRContext = <T>(
+	ctx: SSRHeadContext,
+	fn: () => T
+): T => {
+	return ssrStorage.run(ctx, fn);
 };
 
-export const getSSRContext = (): { push: (head: HeadProps) => void } | null => {
-	return ssrContext;
+/**
+ * Get the current SSR context, if any.
+ * Returns null when called outside of `runWithSSRContext`.
+ */
+export const getSSRContext = (): SSRHeadContext | null => {
+	return ssrStorage.getStore() ?? null;
 };
 
 export const isServer = (): boolean => {
-	return Predicate.isNotNullable(ssrContext);
+	return Predicate.isNotNullable(getSSRContext());
 };
 
 export const useHead = (head: HeadProps): void => {
-	if (ssrContext) {
-		ssrContext.push(head);
+	const ctx = getSSRContext();
+
+	if (ctx) {
+		ctx.push(head);
 	} else if (typeof document !== 'undefined') {
 		updateClientHead(head);
 	}

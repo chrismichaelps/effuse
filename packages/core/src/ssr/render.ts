@@ -22,66 +22,101 @@
  * SOFTWARE.
  */
 
-import { Effect, Predicate, Scope, Exit, pipe } from 'effect';
+import { Predicate, pipe } from 'effect';
 import type { EffuseNode, Component, BlueprintDef } from '../render/node.js';
 import { isEffuseNode, matchEffuseNode } from '../render/node.js';
 import { isSignal } from '../reactivity/index.js';
 import type { HeadProps, RenderResult } from './types.js';
 import { RenderError } from './errors.js';
-import { headToHtml, mergeLayerHeads } from './head-registry.js';
-import { setSSRContext } from './use-head.js';
+import { headToHtml } from './head-registry.js';
+import { runWithSSRContext } from './use-head.js';
+import { serializeHydrationData, type HydrationData } from './hydration.js';
+import type { SSRRuntime } from './runtime.js';
 
+/**
+ * Render a component tree to a full HTML string using the SSRRuntime.
+ *
+ * The runtime must have been initialized via `createSSRRuntime` so that
+ * layer services and props are available during rendering.
+ *
+ * Uses `runWithSSRContext` (AsyncLocalStorage) to scope `useHead()` calls
+ * to this render pass — no module globals, safe for concurrent requests.
+ */
 export const renderToString = (
 	root: Component | EffuseNode,
 	url: string,
-	layerHeads: HeadProps[] = []
-): Effect.Effect<RenderResult, RenderError> =>
-	Effect.gen(function* () {
-		const startTime = Date.now();
+	ssrRuntime: SSRRuntime
+): RenderResult => {
+	const startTime = Date.now();
 
-		const scope = yield* Scope.make();
-
-		const baseHead = mergeLayerHeads(layerHeads);
-
-		const headStack: HeadProps[] = [baseHead];
-
-		setSSRContext({
+	// Run the entire render inside the AsyncLocalStorage SSR context
+	return runWithSSRContext(
+		{
 			push: (head: HeadProps) => {
-				headStack.push(head);
+				ssrRuntime.headStack.push(head);
 			},
-		});
+		},
+		() => {
+			try {
+				const html = renderNodeToString(root);
 
-		try {
-			const html = yield* Effect.try({
-				try: () => renderNodeToString(root),
-				catch: (error) =>
-					new RenderError({
-						message: `Render failed: ${String(error)}`,
-						url,
-						cause: error,
-					}),
-			});
+				// Merge all collected heads (layer heads + useHead() calls)
+				const mergedHead = ssrRuntime.headStack.reduce<HeadProps>(
+					(acc, head) => ({ ...acc, ...head }),
+					{}
+				);
 
-			const mergedHead = headStack.reduce<HeadProps>(
-				(acc, head) => ({ ...acc, ...head }),
-				{}
-			);
+				// Serialize state for hydration
+				const serializedState: Record<string, unknown> = {};
+				for (const [key, value] of ssrRuntime.state) {
+					serializedState[key] = value;
+				}
 
-			const fullHtml = generateFullHtml(html, mergedHead, {});
+				const hydrationData: HydrationData = {
+					head: mergedHead,
+					state: serializedState,
+					url,
+					timestamp: Date.now(),
+				};
 
-			const timing = Date.now() - startTime;
+				const fullHtml = generateFullHtml(html, mergedHead, hydrationData);
 
-			return {
-				html: fullHtml,
-				head: mergedHead,
-				state: {},
-				timing,
-			};
-		} finally {
-			setSSRContext(null);
-			yield* Scope.close(scope, Exit.succeed(undefined));
+				const timing = Date.now() - startTime;
+
+				return {
+					html: fullHtml,
+					head: mergedHead,
+					state: serializedState,
+					timing,
+				};
+			} catch (error) {
+				throw new RenderError({
+					message: `Render failed: ${String(error)}`,
+					url,
+					cause: error,
+				});
+			}
 		}
-	});
+	);
+};
+
+/**
+ * Render a component tree to an HTML body fragment (no full document).
+ * Useful when you want to control the outer shell yourself.
+ */
+export const renderToFragment = (
+	root: Component | EffuseNode,
+	ssrRuntime: SSRRuntime
+): string => {
+	return runWithSSRContext(
+		{
+			push: (head: HeadProps) => {
+				ssrRuntime.headStack.push(head);
+			},
+		},
+		() => renderNodeToString(root)
+	);
+};
 
 const renderNodeToString = (node: unknown): string => {
 	if (node == null) {
@@ -243,14 +278,11 @@ const renderAttributes = (props: Record<string, unknown>): string => {
 const generateFullHtml = (
 	bodyHtml: string,
 	head: HeadProps,
-	state: Record<string, unknown>
+	hydrationData: HydrationData
 ): string => {
 	const headHtml = headToHtml(head);
 	const lang = head.lang ?? 'en';
-	const stateScript =
-		Object.keys(state).length > 0
-			? `<script id="__EFFUSE_DATA__" type="application/json">${JSON.stringify(state)}</script>`
-			: '';
+	const hydrationScript = serializeHydrationData(hydrationData);
 
 	return `<!DOCTYPE html>
 <html lang="${lang}">
@@ -259,7 +291,7 @@ const generateFullHtml = (
 </head>
 <body>
 	<div id="app">${bodyHtml}</div>
-	${stateScript}
+	${hydrationScript}
 </body>
 </html>`;
 };
