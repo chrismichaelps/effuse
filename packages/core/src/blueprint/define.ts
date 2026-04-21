@@ -32,11 +32,8 @@ import type {
 import type { ScriptContext, ExposedValues } from './script-context.js';
 import { createScriptContext, runMountCallbacks } from './script-context.js';
 import type { ComponentLifecycle } from './lifecycle.js';
-import type { EffuseLayerRegistry, LayerPropsOf } from '../layers/types.js';
-import type { LayerContext } from '../layers/context.js';
-import { getLayerContext, isLayerRuntimeReady } from '../layers/context.js';
 import { withActiveLifecycle } from './lifecycle.js';
-import { LayerRuntimeNotReadyError } from '../layers/errors.js';
+import type { CompiledLayer } from '../layers/api/defineLayer.js';
 
 interface PropsWithChildren {
 	readonly children?: EffuseChild;
@@ -46,51 +43,29 @@ export type TemplateArgs<E extends ExposedValues> = E & {
 	readonly children?: EffuseChild;
 };
 
-export interface LayerScriptContext<
-	P,
-	K extends keyof EffuseLayerRegistry,
-> extends ScriptContext<P> {
-	readonly layerProps: LayerPropsOf<K>;
-	readonly layer: LayerContext<LayerPropsOf<K>>;
-}
-
-export interface DefineOptionsWithInferredProps<P, E extends ExposedValues> {
-	name?: string;
-	props: P;
-	layer?: undefined;
-	script: (ctx: ScriptContext<P>) => E | undefined;
-	template: (exposed: TemplateArgs<E>, props: Readonly<P>) => EffuseChild;
-}
-
-export interface DefineOptionsWithInferredPropsAndLayer<
+export interface DefineOptionsWithInferredProps<
 	P,
 	E extends ExposedValues,
-	K extends keyof EffuseLayerRegistry,
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	L extends readonly CompiledLayer<any>[] = [],
 > {
 	name?: string;
 	props: P;
-	layer: K;
-	script: (ctx: LayerScriptContext<P, K>) => E | undefined;
+	layers?: L;
+	script: (ctx: ScriptContext<P, L>) => E | undefined;
 	template: (exposed: TemplateArgs<E>, props: Readonly<P>) => EffuseChild;
 }
 
-export interface DefineOptions<P, E extends ExposedValues> {
-	name?: string;
-	props?: undefined;
-	layer?: undefined;
-	script: (ctx: ScriptContext<P>) => E | undefined;
-	template: (exposed: TemplateArgs<E>, props: Readonly<P>) => EffuseChild;
-}
-
-export interface DefineOptionsWithLayer<
+export interface DefineOptions<
 	P,
 	E extends ExposedValues,
-	K extends keyof EffuseLayerRegistry,
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	L extends readonly CompiledLayer<any>[] = [],
 > {
 	name?: string;
 	props?: undefined;
-	layer: K;
-	script: (ctx: LayerScriptContext<P, K>) => E | undefined;
+	layers?: L;
+	script: (ctx: ScriptContext<P, L>) => E | undefined;
 	template: (exposed: TemplateArgs<E>, props: Readonly<P>) => EffuseChild;
 }
 
@@ -104,69 +79,26 @@ interface DefineState<E extends ExposedValues> {
 export function define<
 	P = Record<string, unknown>,
 	E extends ExposedValues = ExposedValues,
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	L extends readonly CompiledLayer<any>[] = [],
 >(
-	options: DefineOptions<P, E> | DefineOptionsWithInferredProps<P, E>
-): Component<P>;
-
-export function define<
-	K extends keyof EffuseLayerRegistry,
-	P = Record<string, unknown>,
-	E extends ExposedValues = ExposedValues,
->(
-	options:
-		| DefineOptionsWithLayer<P, E, K>
-		| DefineOptionsWithInferredPropsAndLayer<P, E, K>
-): Component<P>;
-
-export function define<
-	P = Record<string, unknown>,
-	E extends ExposedValues = ExposedValues,
-	K extends keyof EffuseLayerRegistry = never,
->(
-	options:
-		| DefineOptions<P, E>
-		| DefineOptionsWithLayer<P, E, K>
-		| DefineOptionsWithInferredProps<P, E>
-		| DefineOptionsWithInferredPropsAndLayer<P, E, K>
+	options: DefineOptions<P, E, L> | DefineOptionsWithInferredProps<P, E, L>
 ): Component<P> {
 	const blueprint: BlueprintDef<P> = {
 		_tag: 'Blueprint',
 		name: (options as { name?: string }).name,
 
 		state: (props: P) => {
-			const { context, state } = createScriptContext<P, E>(props);
+			const layers = (options as { layers?: L }).layers;
+			const { context, state } = createScriptContext<P, E, L>(
+				props,
+				undefined,
+				layers
+			);
 
-			let scriptResult: E | undefined;
-
-			const layerName = (options as { layer?: string }).layer;
-
-			if (Predicate.isString(layerName)) {
-				if (isLayerRuntimeReady()) {
-					const layerContext = getLayerContext(layerName) as LayerContext<
-						LayerPropsOf<K>
-					>;
-
-					const extendedContext: LayerScriptContext<P, K> = {
-						...context,
-						layerProps: layerContext.props,
-						layer: layerContext,
-					};
-
-					scriptResult = withActiveLifecycle(state.lifecycle, () =>
-						(
-							options as unknown as DefineOptionsWithLayer<P, E, K>
-						).script(extendedContext)
-					);
-				} else {
-					throw new LayerRuntimeNotReadyError({
-						layerName: layerName,
-					});
-				}
-			} else {
-				scriptResult = withActiveLifecycle(state.lifecycle, () =>
-					(options as DefineOptions<P, E>).script(context)
-				);
-			}
+			const scriptResult = withActiveLifecycle(state.lifecycle, () =>
+				options.script(context)
+			);
 
 			if (Predicate.isNotNullable(scriptResult)) {
 				Object.assign(state.exposed, scriptResult);
@@ -208,6 +140,3 @@ export type InferProps<D> =
 		: D extends DefineOptions<infer P, ExposedValues>
 			? P
 			: never;
-
-export type LayerPropsFor<K extends keyof EffuseLayerRegistry> =
-	LayerPropsOf<K>;

@@ -45,25 +45,19 @@ import {
 } from './lifecycle.js';
 import { useCallback, useMemo } from './hooks.js';
 import {
-	getLayerContext,
 	getLayerComponent,
 	getLayerService,
 	isLayerRuntimeReady,
 	type LayerContext,
-	type TypedLayerContext,
 } from '../layers/context.js';
-import type {
-	EffuseLayerRegistry,
-	EffuseServiceRegistry,
-	EffuseComponentRegistry,
-	LayerPropsOf,
-	LayerProvidesOf,
-} from '../layers/types.js';
-import {
-	LayerRuntimeNotReadyError,
-	RouterNotConfiguredError,
-} from '../layers/errors.js';
+import type { EffuseServiceRegistry, EffuseComponentRegistry } from '../layers/types.js';
+import { RouterNotConfiguredError } from '../layers/errors.js';
 import { StoreGetterNotConfiguredError } from '../errors.js';
+import type { CompiledLayer } from '../layers/api/defineLayer.js';
+import {
+	resolveLayersAccessor,
+	type LayersAccessor,
+} from '../layers/api/layersAccessor.js';
 
 export type ExposedValues = object;
 
@@ -72,8 +66,11 @@ export interface EffuseRegistry {}
 
 type RouterType = EffuseRegistry extends { router: infer R } ? R : unknown;
 
-export interface ScriptContext<P> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export interface ScriptContext<P, L extends readonly CompiledLayer<any>[] = []> {
 	readonly props: Readonly<P>;
+
+	readonly layers: LayersAccessor<L>;
 
 	expose: (values: ExposedValues) => void;
 
@@ -134,10 +131,6 @@ export interface ScriptContext<P> {
 
 	useMemo: typeof useMemo;
 
-	useLayer: <K extends keyof EffuseLayerRegistry>(
-		name: K
-	) => TypedLayerContext<K>;
-
 	useStore: {
 		<K extends keyof EffuseServiceRegistry>(key: K): EffuseServiceRegistry[K];
 		(key: string): unknown;
@@ -147,18 +140,6 @@ export interface ScriptContext<P> {
 		<K extends keyof EffuseServiceRegistry>(key: K): EffuseServiceRegistry[K];
 		(key: string): unknown;
 	};
-
-	useLayerProps: <K extends keyof EffuseLayerRegistry>(
-		name: K
-	) => LayerPropsOf<K> | undefined;
-
-	/**
-	 * @deprecated Use `useLayer(name).provides` for all layer providers,
-	 * or `useService(key)` for individual services. Will be removed in a future release.
-	 */
-	useLayerProvider: <K extends keyof EffuseLayerRegistry>(
-		name: K
-	) => LayerProvidesOf<K> | undefined;
 
 	useComponent: {
 		<K extends keyof EffuseComponentRegistry>(
@@ -186,10 +167,16 @@ export const setGlobalRouter = (router: unknown): void => {
 	globalRouter = router;
 };
 
-export const createScriptContext = <P, E extends ExposedValues>(
+export const createScriptContext = <
+	P,
+	E extends ExposedValues,
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	L extends readonly CompiledLayer<any>[] = [],
+>(
 	props: P,
-	storeGetter?: (name: string) => unknown
-): { context: ScriptContext<P>; state: ScriptState<E> } => {
+	storeGetter?: (name: string) => unknown,
+	layers?: L
+): { context: ScriptContext<P, L>; state: ScriptState<E> } => {
 	const lifecycle = createComponentLifecycleSync();
 
 	const state: ScriptState<E> = {
@@ -199,8 +186,14 @@ export const createScriptContext = <P, E extends ExposedValues>(
 
 	const getStore = storeGetter ?? globalStoreGetter;
 
-	const context: ScriptContext<P> = {
+	const resolvedLayers = resolveLayersAccessor(
+		(layers ?? []) as L
+	) as LayersAccessor<L>;
+
+	const context: ScriptContext<P, L> = {
 		props: Object.freeze({ ...props }),
+
+		layers: resolvedLayers,
 
 		expose: (values: ExposedValues): void => {
 			Object.assign(state.exposed, values);
@@ -286,15 +279,6 @@ export const createScriptContext = <P, E extends ExposedValues>(
 
 		useMemo,
 
-		useLayer: (<K extends keyof EffuseLayerRegistry>(
-			name: K
-		): TypedLayerContext<K> => {
-			if (!isLayerRuntimeReady()) {
-				throw new LayerRuntimeNotReadyError({ layerName: name as string });
-			}
-			return getLayerContext(name as string) as TypedLayerContext<K>;
-		}) as ScriptContext<P>['useLayer'],
-
 		useStore: (key: string): unknown => {
 			if (!isLayerRuntimeReady()) {
 				if (getStore) {
@@ -311,33 +295,6 @@ export const createScriptContext = <P, E extends ExposedValues>(
 			}
 			return getLayerService(key);
 		},
-
-		useLayerProps: (<K extends keyof EffuseLayerRegistry>(
-			name: K
-		): LayerPropsOf<K> | undefined => {
-			if (!isLayerRuntimeReady()) {
-				return undefined;
-			}
-			const layerContext = getLayerContext(name as string);
-			return layerContext.props as LayerPropsOf<K> | undefined;
-		}) as ScriptContext<P>['useLayerProps'],
-
-		useLayerProvider: (<K extends keyof EffuseLayerRegistry>(
-			name: K
-		): LayerProvidesOf<K> | undefined => {
-			if (!isLayerRuntimeReady()) {
-				return undefined;
-			}
-			const layerContext = getLayerContext(name as string);
-			if (!layerContext.provides) {
-				return undefined;
-			}
-			const providers: Record<string, unknown> = {};
-			for (const key of Object.keys(layerContext.provides)) {
-				providers[key] = getLayerService(key);
-			}
-			return providers as LayerProvidesOf<K>;
-		}) as ScriptContext<P>['useLayerProvider'],
 
 		useComponent: (name: string): Component | undefined => {
 			if (!isLayerRuntimeReady()) {
@@ -362,4 +319,4 @@ export const runUnmountCallbacks = <E extends ExposedValues>(
 	state.lifecycle.runCleanup();
 };
 
-export type { LayerContext };
+export type { LayerContext, CompiledLayer, LayersAccessor };
