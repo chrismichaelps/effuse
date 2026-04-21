@@ -1497,29 +1497,12 @@ describe('define function - props type inference', () => {
 						return { first: props['0'] };
 					},
 					template: () => null,
-				});
-
-				const blueprint = extractBlueprint(NumericKeyComponent);
-				const state = blueprint.state({ '0': 'zero', '1': 'one', '123': 123 });
-				expect(state).toBeDefined();
 			});
+
+			const blueprint = extractBlueprint(NumericKeyComponent);
+			const state = blueprint.state({ '0': 'zero', '1': 'one', '123': 123 });
+			expect(state).toBeDefined();
 		});
 	});
 });
-
-describe('define function - layer option error handling', () => {
-	it('should throw when layer option is used but runtime is not ready', () => {
-		expect(() => {
-			const LayerComponent = define({
-				layer: 'nonExistentLayer' as never,
-				script: () => {
-					return { value: 'test' };
-				},
-				template: () => null,
-			});
-
-			const blueprint = extractBlueprint(LayerComponent);
-			blueprint.state({});
-		}).toThrow();
-	});
 });

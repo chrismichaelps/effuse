@@ -33,9 +33,7 @@ export {
 export {
 	define,
 	type DefineOptions,
-	type DefineOptionsWithLayer,
-	type LayerScriptContext,
-	type LayerPropsFor,
+	type DefineOptionsWithInferredProps,
 	type InferExposed,
 	type InferProps,
 	type TemplateArgs,
