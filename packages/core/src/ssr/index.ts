@@ -37,7 +37,13 @@ export type {
 
 export { createServerApp, type ServerApp } from './server-app.js';
 
-export { useHead, isServer } from './use-head.js';
+export {
+	createSSRRuntime,
+	type SSRRuntime,
+	type SSRRuntimeOptions,
+} from './runtime.js';
+
+export { useHead, isServer, runWithSSRContext } from './use-head.js';
 
 export { useSeoMeta, useServerSeoMeta, type SeoMetaInput } from './seo-meta.js';
 
@@ -59,6 +65,8 @@ export {
 	initHydration,
 	checkHydrationMatch,
 	applyHydratedHead,
+	cleanupHydrationScript,
+	serializeHydrationData,
 	HYDRATION_SCRIPT_ID,
 	type HydrationData,
 } from './hydration.js';
@@ -72,3 +80,5 @@ export {
 	PluginError,
 	type SSRError,
 } from './errors.js';
+
+export { renderToString, renderToFragment } from './render.js';

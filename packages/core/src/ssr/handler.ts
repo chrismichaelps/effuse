@@ -23,16 +23,22 @@
  */
 
 import type { Component } from '../render/node.js';
-import type { EffuseLayer } from '../layers/types.js';
+import type { AnyLayer } from '../layers/types.js';
+import type { CompiledLayer } from '../layers/api/defineLayer.js';
 import type { RequestContext, ServerAppOptions } from './types.js';
 import { createServerApp } from './server-app.js';
+import { createHash } from 'node:crypto';
 
 export interface HandlerConfig {
 	root: Component;
-	layers?: readonly EffuseLayer[];
+	layers?: readonly (AnyLayer | CompiledLayer<any>)[];
 	options?: ServerAppOptions;
 	transform?: (req: Request) => Request;
 	notFound?: () => Response;
+	/** Cache-Control max-age for successful renders. Defaults to 0. */
+	cacheMaxAge?: number;
+	/** Cache-Control s-maxage for CDN caching. Defaults to undefined (not set). */
+	cacheSMaxAge?: number;
 }
 
 export const createHandler = (config: HandlerConfig) => {
@@ -53,11 +59,35 @@ export const createHandler = (config: HandlerConfig) => {
 
 			const html = await serverApp.renderToHtml(pathname);
 
+			// Compute ETag from content hash
+			const hash = createHash('md5').update(html).digest('hex');
+			const etag = `"${hash}"`;
+
+			// Check If-None-Match for conditional requests
+			const ifNoneMatch = req.headers.get('If-None-Match');
+			if (ifNoneMatch === etag) {
+				return new Response(null, {
+					status: 304,
+					headers: { ETag: etag },
+				});
+			}
+
+			// Build Cache-Control header
+			const cacheDirectives: string[] = ['public'];
+			cacheDirectives.push(`max-age=${config.cacheMaxAge ?? 0}`);
+			if (config.cacheSMaxAge !== undefined) {
+				cacheDirectives.push(`s-maxage=${config.cacheSMaxAge}`);
+			}
+			cacheDirectives.push('must-revalidate');
+
 			return new Response(html, {
 				status: 200,
 				headers: {
 					'Content-Type': 'text/html; charset=utf-8',
-					'Cache-Control': 'public, max-age=0, must-revalidate',
+					'Content-Length': String(new TextEncoder().encode(html).byteLength),
+					'Cache-Control': cacheDirectives.join(', '),
+					ETag: etag,
+					'X-Content-Type-Options': 'nosniff',
 				},
 			});
 		} catch {

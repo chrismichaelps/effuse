@@ -22,16 +22,16 @@
  * SOFTWARE.
  */
 
-import { Effect, pipe } from 'effect';
 import type { Component } from '../render/node.js';
-import type { EffuseLayer } from '../layers/types.js';
-import type { HeadProps, RenderResult, ServerAppOptions } from './types.js';
+import type { AnyLayer } from '../layers/types.js';
+import type { CompiledLayer } from '../layers/api/defineLayer.js';
+import type { RenderResult, ServerAppOptions } from './types.js';
 import { renderToString } from './render.js';
 import { RenderError, createErrorHtml } from './errors.js';
-import { mapEffuseErrors } from '../errors.js';
+import { createSSRRuntime, type SSRRuntime, type SSRRuntimeOptions } from './runtime.js';
 
 export interface ServerApp {
-	useLayers(layers: readonly EffuseLayer[]): ServerApp;
+	useLayers(layers: readonly (AnyLayer | CompiledLayer<any>)[]): ServerApp;
 
 	configure(options: ServerAppOptions): ServerApp;
 
@@ -41,7 +41,7 @@ export interface ServerApp {
 }
 
 export const createServerApp = (root: Component): ServerApp => {
-	let layers: readonly EffuseLayer[] = [];
+	let layers: readonly (AnyLayer | CompiledLayer<any>)[] = [];
 	let options: ServerAppOptions = { hydrate: true };
 
 	const app: ServerApp = {
@@ -56,12 +56,24 @@ export const createServerApp = (root: Component): ServerApp => {
 		},
 
 		async renderToString(url: string): Promise<RenderResult> {
-			const layerHeads = collectLayerHeads(layers);
+			let ssrRuntime: SSRRuntime | null = null;
 
-			const effect = renderToString(root, url, layerHeads);
-			const result = await Effect.runPromise(pipe(effect, mapEffuseErrors));
+			try {
+				// Create a per-request SSRRuntime
+				ssrRuntime = await createSSRRuntime(layers, {
+					runSetup: true,
+				});
 
-			return result;
+				// Render the component tree with the runtime
+				const result = renderToString(root, url, ssrRuntime);
+
+				return result;
+			} finally {
+				// Always dispose the runtime to clean up layer state
+				if (ssrRuntime) {
+					await ssrRuntime.dispose();
+				}
+			}
 		},
 
 		async renderToHtml(url: string): Promise<string> {
@@ -83,26 +95,4 @@ export const createServerApp = (root: Component): ServerApp => {
 	};
 
 	return app;
-};
-
-const collectLayerHeads = (
-	layers: readonly EffuseLayer[],
-	visited = new Set<EffuseLayer>()
-): HeadProps[] => {
-	const heads: HeadProps[] = [];
-
-	for (const layer of layers) {
-		if (visited.has(layer)) continue;
-		visited.add(layer);
-
-		if (layer.extends) {
-			heads.push(...collectLayerHeads(layer.extends, visited));
-		}
-
-		if (layer.head) {
-			heads.push(layer.head);
-		}
-	}
-
-	return heads;
 };

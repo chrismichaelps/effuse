@@ -61,6 +61,7 @@ export function defineLayer<N extends string, T extends Omit<EffuseLayer, 'name'
 			Scope.Scope
 		>;
 		return {
+			...def,
 			name: definition.name,
 			effectLayer: emptyLayer,
 			tags: {} as {
