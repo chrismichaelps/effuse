@@ -50,14 +50,13 @@ import {
 	isLayerRuntimeReady,
 	type LayerContext,
 } from '../layers/context.js';
-import type { EffuseServiceRegistry, EffuseComponentRegistry } from '../layers/types.js';
-import { RouterNotConfiguredError } from '../layers/errors.js';
-import { StoreGetterNotConfiguredError } from '../errors.js';
 import type { CompiledLayer } from '../layers/api/defineLayer.js';
 import {
 	resolveLayersAccessor,
 	type LayersAccessor,
 } from '../layers/api/layersAccessor.js';
+import { RouterNotConfiguredError } from '../layers/errors.js';
+import { StoreGetterNotConfiguredError } from '../errors.js';
 
 export type ExposedValues = object;
 
@@ -131,22 +130,11 @@ export interface ScriptContext<P, L extends readonly CompiledLayer<any>[] = []> 
 
 	useMemo: typeof useMemo;
 
-	useStore: {
-		<K extends keyof EffuseServiceRegistry>(key: K): EffuseServiceRegistry[K];
-		(key: string): unknown;
-	};
+	useStore: (key: string) => unknown;
 
-	useService: {
-		<K extends keyof EffuseServiceRegistry>(key: K): EffuseServiceRegistry[K];
-		(key: string): unknown;
-	};
+	useService: (key: string) => unknown;
 
-	useComponent: {
-		<K extends keyof EffuseComponentRegistry>(
-			name: K
-		): EffuseComponentRegistry[K];
-		(name: string): Component | undefined;
-	};
+	useComponent: (name: string) => Component | undefined;
 }
 
 export interface ScriptState<E extends ExposedValues> {
