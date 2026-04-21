@@ -27,9 +27,6 @@ import type { Component } from '../render/node.js';
 import type {
 	LayerProps,
 	AnyResolvedLayer,
-	EffuseLayerRegistry,
-	EffuseComponentRegistry,
-	LayerPropsOf,
 } from './types.js';
 import type { PropsRegistry } from './services/PropsService.js';
 import type { LayerRegistry } from './services/RegistryService.js';
@@ -46,9 +43,6 @@ export interface LayerContext<P extends LayerProps = LayerProps> {
 	getService: (key: string) => unknown;
 	getComponent: (name: string) => unknown;
 }
-
-export type TypedLayerContext<K extends keyof EffuseLayerRegistry> =
-	LayerContext<LayerPropsOf<K>>;
 
 interface GlobalLayerState {
 	propsRegistry: PropsRegistry | null;
@@ -85,10 +79,6 @@ export const isLayerRuntimeReady = (): boolean => {
 	);
 };
 
-export function getLayerContext<K extends keyof EffuseLayerRegistry>(
-	name: K
-): TypedLayerContext<K>;
-export function getLayerContext(name: string): LayerContext;
 export function getLayerContext(name: string): LayerContext {
 	if (!globalState.layerRegistry || !globalState.propsRegistry) {
 		throw new LayerRuntimeNotInitializedError({ resource: `layer "${name}"` });
@@ -142,10 +132,6 @@ export const getLayerService = (key: string): unknown => {
 	return globalState.layerRegistry.getService(key);
 };
 
-export function getLayerComponent<K extends keyof EffuseComponentRegistry>(
-	name: K
-): EffuseComponentRegistry[K];
-export function getLayerComponent(name: string): Component | undefined;
 export function getLayerComponent(name: string): Component | undefined {
 	if (!globalState.layerRegistry) {
 		return undefined;

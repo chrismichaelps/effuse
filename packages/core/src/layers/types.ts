@@ -179,20 +179,3 @@ export interface MergedConfig {
 export type AnyLayer = EffuseLayer<any, any, any>;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type AnyResolvedLayer = ResolvedLayer<any, any, any>;
-
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
-export interface EffuseLayerRegistry {}
-
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
-export interface EffuseServiceRegistry {}
-
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
-export interface EffuseComponentRegistry {}
-
-export type LayerPropsOf<K extends keyof EffuseLayerRegistry> =
-	EffuseLayerRegistry[K] extends { props: infer P extends LayerProps }
-		? P
-		: LayerProps;
-
-export type LayerProvidesOf<K extends keyof EffuseLayerRegistry> =
-	EffuseLayerRegistry[K] extends { provides: infer S } ? S : unknown;

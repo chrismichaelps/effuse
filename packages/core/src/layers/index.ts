@@ -44,9 +44,6 @@ export type {
 	DepsRecord,
 	AnyLayer,
 	AnyResolvedLayer,
-	EffuseLayerRegistry,
-	LayerPropsOf,
-	LayerProvidesOf,
 } from './types.js';
 
 export {
@@ -87,7 +84,6 @@ export {
 	getLayerService,
 	isLayerRuntimeReady,
 	type LayerContext,
-	type TypedLayerContext,
 } from './context.js';
 
 export {
