@@ -25,13 +25,12 @@
 import { Effect, Exit, Predicate, Scope } from 'effect';
 
 export interface ComponentLifecycle {
-	readonly scope: Scope.CloseableScope;
 	readonly onMount: (fn: () => (() => void) | undefined) => void;
 	readonly onUnmount: (fn: () => void) => void;
 	readonly onBeforeMount: (fn: () => void) => void;
 	readonly onBeforeUnmount: (fn: () => void) => void;
 	readonly runMount: () => void;
-	readonly runCleanup: () => Effect.Effect<void>;
+	readonly runCleanup: () => void;
 }
 
 interface LifecycleState {
@@ -45,7 +44,7 @@ interface LifecycleState {
 const createLifecycleFns = (
 	scope: Scope.CloseableScope,
 	state: LifecycleState
-): Omit<ComponentLifecycle, 'scope'> => {
+): ComponentLifecycle => {
 	const onBeforeMount = (fn: () => void): void => {
 		if (!state.mounted) {
 			state.beforeMountCallbacks.push(fn);
@@ -84,21 +83,18 @@ const createLifecycleFns = (
 		state.mountCallbacks.length = 0;
 	};
 
-	const runCleanup = (): Effect.Effect<void> =>
-		Effect.gen(function* () {
-			for (const fn of state.beforeUnmountCallbacks) fn();
-			state.beforeUnmountCallbacks.length = 0;
+	const runCleanup = (): void => {
+		for (const fn of state.beforeUnmountCallbacks) fn();
+		state.beforeUnmountCallbacks.length = 0;
 
-			for (const cleanup of state.mountCleanups) {
-				if (Predicate.isFunction(cleanup)) {
-					cleanup();
-				}
-			}
-			state.mountCleanups.length = 0;
+		for (const cleanup of state.mountCleanups) {
+			if (Predicate.isFunction(cleanup)) cleanup();
+		}
+		state.mountCleanups.length = 0;
 
-			yield* Scope.close(scope, Exit.void);
-			state.mounted = false;
-		});
+		Effect.runSync(Scope.close(scope, Exit.void));
+		state.mounted = false;
+	};
 
 	return {
 		onMount,
@@ -121,5 +117,23 @@ const createState = (): LifecycleState => ({
 export const createComponentLifecycleSync = (): ComponentLifecycle => {
 	const scope = Effect.runSync(Scope.make());
 	const state = createState();
-	return { scope, ...createLifecycleFns(scope, state) };
+	return createLifecycleFns(scope, state);
+};
+
+let _activeLifecycle: ComponentLifecycle | null = null;
+
+export const getActiveLifecycle = (): ComponentLifecycle | null =>
+	_activeLifecycle;
+
+export const withActiveLifecycle = <T>(
+	lifecycle: ComponentLifecycle,
+	fn: () => T
+): T => {
+	const previous = _activeLifecycle;
+	_activeLifecycle = lifecycle;
+	try {
+		return fn();
+	} finally {
+		_activeLifecycle = previous;
+	}
 };

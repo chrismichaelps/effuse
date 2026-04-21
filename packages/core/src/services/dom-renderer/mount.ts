@@ -479,14 +479,13 @@ const mountNode = (
 			);
 
 			const stateWithLifecycle = context.state as unknown as {
-				lifecycle?: { runCleanup: () => Effect.Effect<void> };
+				lifecycle?: { runCleanup: () => void };
 			};
 
 			if (stateWithLifecycle.lifecycle) {
 				const lifecycle = stateWithLifecycle.lifecycle;
-				// Track component unmount for resource cleanup
 				cleanups.push(() => {
-					Effect.runSync(lifecycle.runCleanup());
+					lifecycle.runCleanup();
 				});
 			}
 
