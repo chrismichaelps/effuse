@@ -92,7 +92,7 @@ function required<T>(
 		};
 	}
 	return {
-		schema: schemaOrBuilder,
+		schema: schemaOrBuilder as unknown as Schema.Schema<T>,
 		required: true,
 		_tag: 'PropDefinition',
 	};
@@ -122,7 +122,7 @@ function optional<T>(
 		const builder = schemaOrBuilder;
 		baseSchema = builder.schema as unknown as Schema.Schema<T>;
 	} else {
-		baseSchema = schemaOrBuilder;
+		baseSchema = schemaOrBuilder as unknown as Schema.Schema<T>;
 	}
 
 	const schema = (defaultValue !== undefined

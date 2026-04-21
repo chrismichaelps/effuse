@@ -34,7 +34,8 @@ export type EffuseServices<T extends EffuseLayer> =
 		? { [K in keyof P]: ResultOf<P[K]> }
 		: {};
 
-export interface CompiledLayer<T extends EffuseLayer> extends EffuseLayer {
+export interface CompiledLayer<T extends EffuseLayer, N extends string = string> extends EffuseLayer {
+	readonly name: N;
 	readonly effectLayer: Layer.Layer<EffuseServices<T>, never, Scope.Scope>;
 	readonly tags: {
 		readonly [K in keyof EffuseServices<T>]: Context.Tag<
@@ -45,16 +46,17 @@ export interface CompiledLayer<T extends EffuseLayer> extends EffuseLayer {
 	readonly _resolved: true;
 }
 
-export function defineLayer<T extends EffuseLayer>(
-	definition: T
-): CompiledLayer<T> {
-	const provides = definition.provides ?? ({} as LayerProvides);
+export function defineLayer<N extends string, T extends Omit<EffuseLayer, 'name'>>(
+	definition: { name: N } & T
+): CompiledLayer<T & EffuseLayer, N> {
+	const def = definition as unknown as T & EffuseLayer;
+	const provides = def.provides ?? ({} as LayerProvides);
 	const keys = Object.keys(provides) as (keyof LayerProvides)[];
 
 	if (keys.length === 0) {
 		const emptyCtx = Context.empty() as Context.Context<{}>;
 		const emptyLayer = Layer.succeedContext(emptyCtx) as unknown as Layer.Layer<
-			EffuseServices<T>,
+			EffuseServices<T & EffuseLayer>,
 			never,
 			Scope.Scope
 		>;
@@ -62,13 +64,13 @@ export function defineLayer<T extends EffuseLayer>(
 			name: definition.name,
 			effectLayer: emptyLayer,
 			tags: {} as {
-				readonly [K in keyof EffuseServices<T>]: Context.Tag<
+				readonly [K in keyof EffuseServices<T & EffuseLayer>]: Context.Tag<
 					string,
-					EffuseServices<T>[K]
+					EffuseServices<T & EffuseLayer>[K]
 				>;
 			},
 			_resolved: true as const,
-		};
+		} as unknown as CompiledLayer<T & EffuseLayer, N>;
 	}
 
 	const entries = keys.map((k) => ({
@@ -106,19 +108,20 @@ export function defineLayer<T extends EffuseLayer>(
 	const tagMap = entries.reduce(
 		(acc, e) => Object.assign(acc, { [e.key]: e.tag }),
 		{} as {
-			readonly [K in keyof EffuseServices<T>]: Context.Tag<
+			readonly [K in keyof EffuseServices<T & EffuseLayer>]: Context.Tag<
 				string,
-				EffuseServices<T>[K]
+				EffuseServices<T & EffuseLayer>[K]
 			>;
 		}
 	);
 
 	return {
-		...definition,
-		effectLayer: final as Layer.Layer<EffuseServices<T>, never, Scope.Scope>,
+		...def,
+		name: definition.name,
+		effectLayer: final as Layer.Layer<EffuseServices<T & EffuseLayer>, never, Scope.Scope>,
 		tags: tagMap,
 		_resolved: true as const,
-	};
+	} as unknown as CompiledLayer<T & EffuseLayer, N>;
 }
 
 export type MergeServices<Layers extends readonly CompiledLayer<any>[]> =

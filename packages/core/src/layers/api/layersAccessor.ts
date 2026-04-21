@@ -26,26 +26,27 @@ import { getLayerContext, getLayerService } from '../context.js';
 import type { CompiledLayer, EffuseServices } from './defineLayer.js';
 import type { LayerProps, EffuseLayer } from '../types.js';
 
-type LayerName<L> =
-	L extends CompiledLayer<infer T>
-		? T extends { name: infer N extends string }
-			? N
-			: never
-		: never;
-
 export interface LayerEntry<T extends EffuseLayer> {
 	readonly props: LayerProps;
 	readonly services: EffuseServices<T>;
 }
 
-export type LayersAccessor<L extends readonly CompiledLayer<any>[]> = {
-	[I in keyof L as LayerName<L[I]>]: L[I] extends CompiledLayer<infer T>
-		? LayerEntry<T>
-		: never;
+type LayerNameOf<L> =
+	L extends CompiledLayer<any, infer N> ? N : never;
+
+type LayerByName<
+	U extends CompiledLayer<any, any>,
+	N extends string,
+> = U extends CompiledLayer<infer T, N>
+	? LayerEntry<T>
+	: never;
+
+export type LayersAccessor<L extends readonly CompiledLayer<any, any>[]> = {
+	[N in LayerNameOf<L[number]>]: LayerByName<L[number], N>;
 };
 
 export function resolveLayersAccessor<
-	L extends readonly CompiledLayer<any>[],
+	L extends readonly CompiledLayer<any, any>[],
 >(layers: L): LayersAccessor<L> {
 	const accessor: Record<string, LayerEntry<any>> = {};
 
