@@ -62,10 +62,6 @@ export interface PropSchemaBuilder<T extends Record<string, unknown>> {
 		[K in keyof T]: PropDefinition<T[K]>;
 	};
 	readonly schema: Schema.Schema<T>;
-	readonly validate: (
-		props: unknown,
-		componentName?: string
-	) => Effect.Effect<T, PropsValidationError>;
 	readonly validateSync: (props: unknown, componentName?: string) => T;
 }
 
@@ -224,7 +220,6 @@ const struct = <const D extends Record<string, PropDefinition<any>>>(
 			[K in keyof ResultType]: PropDefinition<ResultType[K]>;
 		},
 		schema: compositeSchema as unknown as Schema.Schema<ResultType>,
-		validate,
 		validateSync,
 	};
 };
