@@ -59,18 +59,50 @@ export interface SSRRuntimeOptions {
 }
 
 /**
+ * Mutex to serialize SSR renders.
+ *
+ * The layer context (`initGlobalLayerContext`) uses a module-global store.
+ * If two SSR requests overlap at the async boundary between
+ * `createSSRRuntime()` and `renderToString()`, the second request
+ * could overwrite the first's layer context.
+ *
+ * This mutex ensures only one render pass executes at a time,
+ * serializing requests to ensure concurrent renders are safe.
+ *
+ * The mutex is released after `dispose()` — not after `renderToString()` —
+ * so the full lifecycle (init → render → cleanup) is atomic.
+ */
+let renderLock: Promise<void> = Promise.resolve();
+
+export const acquireRenderLock = (): Promise<() => void> => {
+	let release: () => void;
+	const next = new Promise<void>((resolve) => {
+		release = resolve;
+	});
+	const wait = renderLock;
+	renderLock = next;
+	return wait.then(() => release!);
+};
+
+/**
  * Creates a per-request SSR runtime that mirrors the client-side
  * `createLayerRuntime` but is scoped to a single render pass.
  *
  * This initializes the global layer context so that `getLayerContext`,
  * `getLayerService`, and `resolveLayersAccessor` all work during
  * server-side rendering — then cleans up on `dispose()`.
+ *
+ * The runtime acquires a render lock to prevent concurrent requests
+ * from corrupting the shared global layer context.
  */
 export const createSSRRuntime = async (
 	rawLayers: readonly (AnyLayer | CompiledLayer<any>)[],
 	options: SSRRuntimeOptions = {}
 ): Promise<SSRRuntime> => {
 	const { runSetup = true } = options;
+
+	// Acquire exclusive render lock
+	const releaseLock = await acquireRenderLock();
 
 	// Compile any raw EffuseLayer definitions into CompiledLayer
 	const layers: AnyResolvedLayer[] = rawLayers.map((l) => {
@@ -125,14 +157,19 @@ export const createSSRRuntime = async (
 		headStack,
 		state,
 		dispose: async () => {
-			clearGlobalLayerContext();
-			clearGlobalTracing();
+			try {
+				clearGlobalLayerContext();
+				clearGlobalTracing();
 
-			if (Predicate.isFunction(aggregatedCleanup)) {
-				aggregatedCleanup();
+				if (Predicate.isFunction(aggregatedCleanup)) {
+					aggregatedCleanup();
+				}
+
+				await runtime.dispose();
+			} finally {
+				// Always release the lock, even if dispose fails
+				releaseLock();
 			}
-
-			await runtime.dispose();
 		},
 	};
 };

@@ -25,10 +25,13 @@
 import type { Component } from '../render/node.js';
 import type { AnyLayer } from '../layers/types.js';
 import type { CompiledLayer } from '../layers/api/defineLayer.js';
-import type { RenderResult, ServerAppOptions } from './types.js';
-import { renderToString } from './render.js';
+import type { RenderResult, ServerAppOptions, HeadProps } from './types.js';
+import { renderToString, renderToFragment } from './render.js';
 import { RenderError, createErrorHtml } from './errors.js';
-import { createSSRRuntime, type SSRRuntime, type SSRRuntimeOptions } from './runtime.js';
+import { headToHtml } from './head-registry.js';
+import { runWithSSRContext } from './use-head.js';
+import { serializeHydrationData, type HydrationData } from './hydration.js';
+import { createSSRRuntime, type SSRRuntime } from './runtime.js';
 
 export interface ServerApp {
 	useLayers(layers: readonly (AnyLayer | CompiledLayer<any>)[]): ServerApp;
@@ -38,6 +41,17 @@ export interface ServerApp {
 	renderToString(url: string): Promise<RenderResult>;
 
 	renderToHtml(url: string): Promise<string>;
+
+	/**
+	 * Streaming SSR — returns a `ReadableStream<string>` that
+	 * flushes the HTML shell (head + opening tags) immediately,
+	 * then streams the rendered body, then closes with hydration data.
+	 *
+	 *
+	 * This optimizes Time-To-First-Byte (TTFB) by sending the
+	 * `<head>` and CSS before the body is fully rendered.
+	 */
+	renderToStream(url: string): Promise<ReadableStream<Uint8Array>>;
 }
 
 export const createServerApp = (root: Component): ServerApp => {
@@ -59,17 +73,14 @@ export const createServerApp = (root: Component): ServerApp => {
 			let ssrRuntime: SSRRuntime | null = null;
 
 			try {
-				// Create a per-request SSRRuntime
 				ssrRuntime = await createSSRRuntime(layers, {
 					runSetup: true,
 				});
 
-				// Render the component tree with the runtime
 				const result = renderToString(root, url, ssrRuntime);
 
 				return result;
 			} finally {
-				// Always dispose the runtime to clean up layer state
 				if (ssrRuntime) {
 					await ssrRuntime.dispose();
 				}
@@ -90,6 +101,75 @@ export const createServerApp = (root: Component): ServerApp => {
 								cause: error,
 							});
 				return createErrorHtml(renderError);
+			}
+		},
+
+		async renderToStream(url: string): Promise<ReadableStream<Uint8Array>> {
+			let ssrRuntime: SSRRuntime | null = null;
+			const encoder = new TextEncoder();
+
+			try {
+				ssrRuntime = await createSSRRuntime(layers, {
+					runSetup: true,
+				});
+
+				const runtime = ssrRuntime;
+
+				return new ReadableStream<Uint8Array>({
+					start(controller) {
+						try {
+							// 1. Render body fragment inside SSR context
+							const bodyHtml = runWithSSRContext(
+								{
+									push: (head: HeadProps) => {
+										runtime.headStack.push(head);
+									},
+								},
+								() => renderToFragment(root, runtime)
+							);
+
+							// 2. Merge all collected heads
+							const mergedHead = runtime.headStack.reduce<HeadProps>(
+								(acc, head) => ({ ...acc, ...head }),
+								{}
+							);
+
+							const headHtml = headToHtml(mergedHead);
+							const lang = mergedHead.lang ?? 'en';
+
+							// 3. Serialize state for hydration
+							const serializedState: Record<string, unknown> = {};
+							for (const [key, value] of runtime.state) {
+								serializedState[key] = value;
+							}
+
+							const hydrationData: HydrationData = {
+								head: mergedHead,
+								state: serializedState,
+								url,
+								timestamp: Date.now(),
+							};
+
+							const hydrationScript = serializeHydrationData(hydrationData);
+
+							// 4. Stream in order: shell → body → hydration → close
+							controller.enqueue(encoder.encode(`<!DOCTYPE html>\n<html lang="${lang}">\n<head>\n\t${headHtml}\n</head>\n<body>\n\t<div id="app">`));
+							controller.enqueue(encoder.encode(bodyHtml));
+							controller.enqueue(encoder.encode(`</div>\n\t${hydrationScript}\n</body>\n</html>`));
+							controller.close();
+						} catch (error) {
+							controller.error(error);
+						} finally {
+							void runtime.dispose();
+						}
+					},
+				});
+			} catch (error) {
+				// If runtime creation fails, still release the lock
+				if (ssrRuntime) {
+					await ssrRuntime.dispose();
+				}
+				throw error;
 			}
 		},
 	};

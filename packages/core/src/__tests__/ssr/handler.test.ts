@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { createHandler, parseQuery, createRequestContext } from '../../ssr/handler.js';
+import { createHandler, createStreamingHandler, parseQuery, createRequestContext } from '../../ssr/handler.js';
 import { defineLayer } from '../../layers/api/defineLayer.js';
 import { clearGlobalLayerContext } from '../../layers/context.js';
 import { clearGlobalTracing } from '../../layers/tracing/index.js';
@@ -135,6 +135,63 @@ describe('SSR handler', () => {
 			const contentLength = response.headers.get('Content-Length');
 			expect(contentLength).toBeTruthy();
 			expect(Number(contentLength)).toBeGreaterThan(0);
+		});
+	});
+
+	describe('createStreamingHandler', () => {
+		it('should return a streaming response', async () => {
+			const handler = createStreamingHandler({
+				root: createRoot() as any,
+				layers: [],
+			});
+
+			const request = new Request('http://localhost:3000/');
+			const response = await handler(request);
+
+			expect(response.status).toBe(200);
+			expect(response.headers.get('Content-Type')).toBe(
+				'text/html; charset=utf-8'
+			);
+			expect(response.headers.get('Transfer-Encoding')).toBe('chunked');
+
+			const html = await response.text();
+			expect(html).toContain('<!DOCTYPE html>');
+			expect(html).toContain('Hello SSR');
+			expect(html).toContain('__EFFUSE_DATA__');
+		});
+
+		it('should skip static assets', async () => {
+			const handler = createStreamingHandler({
+				root: createRoot() as any,
+				layers: [],
+			});
+
+			const response = await handler(
+				new Request('http://localhost:3000/style.css')
+			);
+			expect(response.status).toBe(404);
+		});
+	});
+
+	describe('concurrent safety', () => {
+		it('should serialize concurrent renders without corruption', async () => {
+			const results = await Promise.all([
+				createHandler({
+					root: createRoot() as any,
+					layers: [],
+				})(new Request('http://localhost:3000/a')),
+				createHandler({
+					root: createRoot() as any,
+					layers: [],
+				})(new Request('http://localhost:3000/b')),
+			]);
+
+			for (const response of results) {
+				expect(response.status).toBe(200);
+				const html = await response.text();
+				expect(html).toContain('Hello SSR');
+				expect(html).toContain('<!DOCTYPE html>');
+			}
 		});
 	});
 

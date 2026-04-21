@@ -33,6 +33,8 @@ import {
 } from '../layers/index.js';
 import { Predicate } from 'effect';
 import { mount as mountComponent } from '../canvas/canvas.js';
+import { createServerApp, type ServerApp } from '../ssr/server-app.js';
+import type { RenderResult } from '../ssr/types.js';
 
 export interface AppInstance {
 	unmount: () => Promise<void>;
@@ -81,6 +83,47 @@ export class EffuseApp {
 		};
 	}
 
+	/**
+	 * Render the app to a full HTML string for SSR.
+	 *
+	 * Uses the same root component and layers configured via `useLayers()`.
+	 * This is the server-side equivalent of `mount()`.
+	 *
+	 * ```ts
+	 * // Server entry
+	 * const app = new EffuseApp(App);
+	 * await app.useLayers([ThemeLayer, RouterLayer]);
+	 * const { html } = await app.renderToString('/about');
+	 * ```
+	 */
+	async renderToString(url: string): Promise<RenderResult> {
+		return this.getServerApp().renderToString(url);
+	}
+
+	/**
+	 * Render the app to HTML string, with error fallback.
+	 * Returns error HTML on failure instead of throwing.
+	 */
+	async renderToHtml(url: string): Promise<string> {
+		return this.getServerApp().renderToHtml(url);
+	}
+
+	/**
+	 * Streaming SSR — returns a `ReadableStream<Uint8Array>` for
+	 * optimal Time-To-First-Byte. Flushes the `<head>` immediately,
+	 * then streams the body, then closes with hydration data.
+	 */
+	async renderToStream(url: string): Promise<ReadableStream<Uint8Array>> {
+		return this.getServerApp().renderToStream(url);
+	}
+
+	/**
+	 * Get the underlying ServerApp for advanced SSR configuration.
+	 */
+	getServerApp(): ServerApp {
+		return createServerApp(this.rootComponent).useLayers(this.layers);
+	}
+
 	private async cleanup(): Promise<void> {
 		if (this.layerRuntime) {
 			await this.layerRuntime.dispose();
@@ -88,3 +131,4 @@ export class EffuseApp {
 		}
 	}
 }
+
