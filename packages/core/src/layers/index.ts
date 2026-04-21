@@ -71,6 +71,9 @@ export {
 	type MergeServices,
 	type LayerServicesFrom,
 	type ExtractServices,
+	resolveLayersAccessor,
+	type LayersAccessor,
+	type LayerEntry,
 } from './api/index.js';
 
 export {
