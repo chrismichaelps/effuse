@@ -102,6 +102,51 @@ export const createHandler = (config: HandlerConfig) => {
 	};
 };
 
+/**
+ * Streaming handler — returns responses with `Transfer-Encoding: chunked`
+ * for optimal Time-To-First-Byte. The `<head>` and CSS are sent before
+ * the body is fully rendered.
+ *
+ * Use this when TTFB is critical (e.g., large pages, slow data fetching).
+ */
+export const createStreamingHandler = (config: HandlerConfig) => {
+	const serverApp = createServerApp(config.root)
+		.useLayers(config.layers ?? [])
+		.configure(config.options ?? {});
+
+	return async (request: Request): Promise<Response> => {
+		try {
+			const req = config.transform ? config.transform(request) : request;
+
+			const url = new URL(req.url);
+			const pathname = url.pathname;
+
+			if (shouldSkip(pathname)) {
+				return new Response(null, { status: 404 });
+			}
+
+			const stream = await serverApp.renderToStream(pathname);
+
+			return new Response(stream as unknown as BodyInit, {
+				status: 200,
+				headers: {
+					'Content-Type': 'text/html; charset=utf-8',
+					'Transfer-Encoding': 'chunked',
+					'X-Content-Type-Options': 'nosniff',
+				},
+			});
+		} catch {
+			return new Response(
+				`<!DOCTYPE html><html><head><title>Error</title></head><body><h1>Server Error</h1></body></html>`,
+				{
+					status: 500,
+					headers: { 'Content-Type': 'text/html; charset=utf-8' },
+				}
+			);
+		}
+	};
+};
+
 const shouldSkip = (pathname: string): boolean => {
 	const staticExtensions = [
 		'.js',

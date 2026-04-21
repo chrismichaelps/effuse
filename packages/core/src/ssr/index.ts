@@ -39,6 +39,7 @@ export { createServerApp, type ServerApp } from './server-app.js';
 
 export {
 	createSSRRuntime,
+	acquireRenderLock,
 	type SSRRuntime,
 	type SSRRuntimeOptions,
 } from './runtime.js';
@@ -49,6 +50,7 @@ export { useSeoMeta, useServerSeoMeta, type SeoMetaInput } from './seo-meta.js';
 
 export {
 	createHandler,
+	createStreamingHandler,
 	parseQuery,
 	createRequestContext,
 	type HandlerConfig,
