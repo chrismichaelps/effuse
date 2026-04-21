@@ -22,8 +22,6 @@
  * SOFTWARE.
  */
 
-import { Effect, pipe } from 'effect';
-import type { Scope } from 'effect';
 import type {
 	Signal,
 	ReadonlySignal,
@@ -42,6 +40,7 @@ import {
 import { watchEffect as standaloneEffect } from '../effects/effect.js';
 import {
 	createComponentLifecycleSync,
+	withActiveLifecycle,
 	type ComponentLifecycle,
 } from './lifecycle.js';
 import { useCallback, useMemo } from './hooks.js';
@@ -64,7 +63,7 @@ import {
 	LayerRuntimeNotReadyError,
 	RouterNotConfiguredError,
 } from '../layers/errors.js';
-import { StoreGetterNotConfiguredError, mapEffuseErrors } from '../errors.js';
+import { StoreGetterNotConfiguredError } from '../errors.js';
 
 export type ExposedValues = object;
 
@@ -172,7 +171,6 @@ export interface ScriptContext<P> {
 export interface ScriptState<E extends ExposedValues> {
 	exposed: E;
 	lifecycle: ComponentLifecycle;
-	scope: Scope.CloseableScope | null;
 }
 
 let globalStoreGetter: ((name: string) => unknown) | null = null;
@@ -197,7 +195,6 @@ export const createScriptContext = <P, E extends ExposedValues>(
 	const state: ScriptState<E> = {
 		exposed: {} as E,
 		lifecycle,
-		scope: lifecycle.scope,
 	};
 
 	const getStore = storeGetter ?? globalStoreGetter;
@@ -362,7 +359,7 @@ export const runMountCallbacks = <E extends ExposedValues>(
 export const runUnmountCallbacks = <E extends ExposedValues>(
 	state: ScriptState<E>
 ): void => {
-	Effect.runSync(pipe(state.lifecycle.runCleanup(), mapEffuseErrors));
+	state.lifecycle.runCleanup();
 };
 
 export type { LayerContext };

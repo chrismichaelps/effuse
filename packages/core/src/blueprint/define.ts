@@ -35,6 +35,7 @@ import type { ComponentLifecycle } from './lifecycle.js';
 import type { EffuseLayerRegistry, LayerPropsOf } from '../layers/types.js';
 import type { LayerContext } from '../layers/context.js';
 import { getLayerContext, isLayerRuntimeReady } from '../layers/context.js';
+import { withActiveLifecycle } from './lifecycle.js';
 import { LayerRuntimeNotReadyError } from '../layers/errors.js';
 
 interface PropsWithChildren {
@@ -151,16 +152,20 @@ export function define<
 						layer: layerContext,
 					};
 
-					scriptResult = (
-						options as unknown as DefineOptionsWithLayer<P, E, K>
-					).script(extendedContext);
+					scriptResult = withActiveLifecycle(state.lifecycle, () =>
+						(
+							options as unknown as DefineOptionsWithLayer<P, E, K>
+						).script(extendedContext)
+					);
 				} else {
 					throw new LayerRuntimeNotReadyError({
 						layerName: layerName,
 					});
 				}
 			} else {
-				scriptResult = (options as DefineOptions<P, E>).script(context);
+				scriptResult = withActiveLifecycle(state.lifecycle, () =>
+					(options as DefineOptions<P, E>).script(context)
+				);
 			}
 
 			if (Predicate.isNotNullable(scriptResult)) {

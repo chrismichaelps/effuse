@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { Effect } from 'effect';
 import { createScriptContext } from '../../blueprint/script-context.js';
 import {
 	initGlobalLayerContext,
@@ -474,7 +473,7 @@ describe('ScriptContext - Layer Hooks', () => {
 			await new Promise((r) => setTimeout(r, 10));
 			expect(calls).toContain(0);
 
-			Effect.runSync(state.lifecycle.runCleanup());
+			state.lifecycle.runCleanup();
 			const callsAfterUnmount = calls.length;
 
 			count.value = 99;
@@ -552,7 +551,7 @@ describe('ScriptContext - Layer Hooks', () => {
 			await new Promise((r) => setTimeout(r, 10));
 			expect(calls.length).toBeGreaterThanOrEqual(1);
 
-			Effect.runSync(state.lifecycle.runCleanup());
+			state.lifecycle.runCleanup();
 			const callsAfterUnmount = calls.length;
 
 			a.value = 99;
@@ -661,7 +660,7 @@ describe('ScriptContext - Layer Hooks', () => {
 			await new Promise((r) => setTimeout(r, 10));
 			expect(calls).toContain(0);
 
-			Effect.runSync(state.lifecycle.runCleanup());
+			state.lifecycle.runCleanup();
 			const callsAfterUnmount = calls.length;
 
 			count.value = 42;

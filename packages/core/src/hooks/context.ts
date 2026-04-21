@@ -12,6 +12,7 @@ import {
 	traceHookCleanup,
 	traceHookDispose,
 } from '../layers/tracing/hooks.js';
+import { getActiveLifecycle } from '../blueprint/lifecycle.js';
 import { HookLayerNotReadyError } from './errors.js';
 import type {
 	HookContext,
@@ -51,10 +52,8 @@ export const createHookContext = <C>(
 ): {
 	ctx: HookContext<C>;
 	dispose: () => Promise<void>;
-	mountCallbacks: EffectCallback[];
 } => {
 	const cleanups: HookCleanup[] = [];
-	const mountCallbacks: EffectCallback[] = [];
 	const { scope } = createHookScope();
 	const name = hookName ?? 'anonymous';
 	let effectIndex = 0;
@@ -78,7 +77,10 @@ export const createHookContext = <C>(
 	};
 
 	const onMount = (fn: EffectCallback) => {
-		mountCallbacks.push(fn);
+		const lifecycle = getActiveLifecycle();
+		if (lifecycle) {
+			lifecycle.onMount(() => fn());
+		}
 	};
 
 	const layer = <K extends keyof EffuseLayerRegistry>(
@@ -144,5 +146,5 @@ export const createHookContext = <C>(
 		runAsync,
 	};
 
-	return { ctx, dispose, mountCallbacks };
+	return { ctx, dispose };
 };
