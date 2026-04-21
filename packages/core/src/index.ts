@@ -145,9 +145,7 @@ export {
 
 export {
 	canvas,
-	canvasEffect,
 	mount,
-	mountEffect,
 	type Canvas,
 } from './canvas/index.js';
 
