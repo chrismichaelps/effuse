@@ -8,6 +8,7 @@ import { BuildError } from '../errors/index.js';
 import { APP_NAME, DEFAULT_CONFIG, PRESETS } from '../constants.js';
 import { fileExists } from '../utils/index.js';
 import { EntryGenerator } from './entry-generator.js';
+import { ManifestResolver } from './manifest.js';
 
 export interface BuildOptions {
 	readonly clientOnly?: boolean;
@@ -209,6 +210,15 @@ export class BuildService {
 		}
 
 		await copyPublicDir(cwd, DEFAULT_CONFIG.outDirClient);
+
+		// Resolve client manifest for SSR FOUC prevention
+		const manifestResolver = new ManifestResolver();
+		const manifest = manifestResolver.resolve(cwd);
+		if (manifest) {
+			const manifestOutPath = resolve(cwd, DEFAULT_CONFIG.outDirServer, 'manifest.json');
+			writeFileSync(manifestOutPath, manifestResolver.serialize(manifest), 'utf-8');
+			Console.log(`[${APP_NAME}] Manifest resolved — ${Object.keys(manifest).length} chunks`);
+		}
 
 		if (preset === PRESETS.CLOUDFLARE) {
 			Console.log(`[${APP_NAME}] Copying public files for Cloudflare Workers...`);

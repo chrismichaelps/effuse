@@ -52,7 +52,9 @@ describe('EntryGenerator', () => {
 		const serverContent = readFileSync(resolve(tempDir, '.effuse/entry-server.ts'), 'utf-8');
 		expect(serverContent).toContain("import { app } from '../src/app.ts'");
 		expect(serverContent).toContain('export async function handleRequest');
-		expect(serverContent).toContain('app.renderToStream');
+		expect(serverContent).toContain('app.getServerApp');
+		expect(serverContent).toContain('manifest');
+		expect(serverContent).toContain('renderToStream');
 	});
 
 	it('should only generate missing entries when one exists', () => {
