@@ -42,7 +42,9 @@ export interface HydrationData {
  */
 export const serializeHydrationData = (data: HydrationData): string => {
 	const json = JSON.stringify(data);
-	const escaped = json.replace(/<\/script/gi, '<\\/script');
+	// Escape '<' to \u003c to prevent ANY HTML break-out sequences
+	// (</script, <!--, <!CDATA[, etc.) from being interpreted by the parser.
+	const escaped = json.replace(/</g, '\\u003c');
 	return `<script id="${HYDRATION_SCRIPT_ID}" type="application/json">${escaped}</script>`;
 };
 
