@@ -26,6 +26,8 @@ import { Array as Arr, Predicate } from 'effect';
 import { computed } from '../reactivity/computed.js';
 import { isSignal } from '../reactivity/signal.js';
 import type { ReadonlySignal } from '../types/index.js';
+import { getActiveLifecycle } from './lifecycle.js';
+import { devWarn } from '../utils/dev-warnings.js';
 
 const trackDependencies = (deps: unknown[] | undefined): void => {
 	if (!Predicate.isNotNullable(deps)) return;
@@ -36,11 +38,21 @@ const trackDependencies = (deps: unknown[] | undefined): void => {
 	});
 };
 
+const warnIfOutsideLifecycle = (hookName: string): void => {
+	if (!getActiveLifecycle()) {
+		devWarn(
+			`${hookName}() called outside a component lifecycle. ` +
+				`Hooks should only be called inside a script() function.`
+		);
+	}
+};
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function useCallback<T extends (...args: any[]) => any>(
 	fn: T,
 	deps?: unknown[]
 ): T {
+	warnIfOutsideLifecycle('useCallback');
 	// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
 	return computed(() => {
 		trackDependencies(deps);
@@ -49,6 +61,7 @@ export function useCallback<T extends (...args: any[]) => any>(
 }
 
 export function useMemo<T>(fn: () => T, deps?: unknown[]): ReadonlySignal<T> {
+	warnIfOutsideLifecycle('useMemo');
 	const memoized = computed(() => {
 		trackDependencies(deps);
 		return fn();

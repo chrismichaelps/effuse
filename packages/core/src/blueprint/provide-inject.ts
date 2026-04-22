@@ -23,6 +23,7 @@
  */
 
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { devWarn } from '../utils/dev-warnings.js';
 
 export interface ProvideScope {
 	readonly parent: ProvideScope | null;
@@ -52,12 +53,10 @@ export const getCurrentProvideScope = (): ProvideScope | null => {
 export const provide = <T>(key: symbol | string, value: T): void => {
 	const scope = getCurrentProvideScope();
 	if (!scope) {
-		if (process.env.NODE_ENV !== 'production') {
-			console.warn(
-				'[Effuse] provide() called outside a component scope. ' +
-					'Call it inside a script() function.'
-			);
-		}
+		devWarn(
+			'provide() called outside a component scope. ' +
+				'Call it inside a script() function.'
+		);
 		return;
 	}
 	scope.values.set(key, value);
@@ -73,6 +72,13 @@ export const inject = <T>(
 			return scope.values.get(key) as T;
 		}
 		scope = scope.parent;
+	}
+	if (defaultValue === undefined) {
+		devWarn(
+			`inject(${typeof key === 'symbol' ? key.toString() : `"${key}"`}) ` +
+				`returned undefined because no provider was found. ` +
+				`Pass a default value, or ensure a parent component calls provide().`
+		);
 	}
 	return defaultValue;
 };

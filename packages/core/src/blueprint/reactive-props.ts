@@ -24,6 +24,7 @@
 
 import { signal } from '../reactivity/index.js';
 import type { Signal } from '../reactivity/signal.js';
+import { devWarn } from '../utils/dev-warnings.js';
 
 export interface ReactiveProps<P extends Record<string, unknown>> {
 	/** Readonly reactive proxy — each read tracks the underlying signal. */
@@ -55,16 +56,20 @@ export const createReactiveProps = <P extends Record<string, unknown>>(
 		get(_, key: string | symbol) {
 			if (typeof key === 'symbol') return undefined;
 			const sig = signals.get(key);
+			if (sig === undefined) {
+				devWarn(
+					`Accessed missing prop "${key}". ` +
+						`Did you forget to pass it, or is this a typo?`
+				);
+			}
 			return sig !== undefined ? sig.value : undefined;
 		},
 		set(_, key: string | symbol) {
 			if (typeof key === 'string') {
-				if (process.env.NODE_ENV !== 'production') {
-					console.warn(
-						`[Effuse] Attempted to mutate prop "${key}". Props are readonly. ` +
-							`Use local state (signal/computed) or emit events to the parent instead.`
-					);
-				}
+				devWarn(
+					`Attempted to mutate prop "${key}". Props are readonly. ` +
+						`Use local state (signal/computed) or emit events to the parent instead.`
+				);
 			}
 			return true;
 		},
