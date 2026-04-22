@@ -28,6 +28,8 @@ import { isSignal } from '../reactivity/signal.js';
 import type { ReadonlySignal } from '../types/index.js';
 import { getActiveLifecycle } from './lifecycle.js';
 import { devWarn } from '../utils/dev-warnings.js';
+import { getLayerService } from '../layers/context.js';
+import type { CompiledLayer, EffuseLayer, EffuseServices } from '../layers/api/defineLayer.js';
 
 const trackDependencies = (deps: unknown[] | undefined): void => {
 	if (!Predicate.isNotNullable(deps)) return;
@@ -68,3 +70,24 @@ export function useMemo<T>(fn: () => T, deps?: unknown[]): ReadonlySignal<T> {
 	});
 	return memoized;
 }
+
+/**
+ * Typed helper to retrieve a service from a layer at runtime.
+ *
+ * The layer argument is used only for type inference — the actual lookup
+ * uses the string key against the active layer registry.
+ *
+ * @example
+ * ```ts
+ * const auth = useLayerService(AuthLayer, 'authSvc');
+ * ```
+ */
+export const useLayerService = <
+	T extends EffuseLayer,
+	K extends keyof EffuseServices<T>,
+>(
+	_layer: CompiledLayer<T, string>,
+	key: K
+): EffuseServices<T>[K] | undefined => {
+	return getLayerService(key as string) as EffuseServices<T>[K] | undefined;
+};
