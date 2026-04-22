@@ -32,6 +32,7 @@ export const DEPTH_KEY = Symbol.for('effuse.router.depth');
 const contextMap = new Map<symbol, unknown>();
 
 let globalRouteSignal: Signal<Route> | null = null;
+const routerRouteSignals = new WeakMap<object, Signal<Route>>();
 
 // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters
 export const provide = <T>(key: symbol, value: T): void => {
@@ -73,16 +74,31 @@ export const provideDepth = (depth: number): void => {
 	provide(DEPTH_KEY, depth);
 };
 
-export const createRouteSignal = (initialRoute: Route): Signal<Route> => {
-	globalRouteSignal = signal<Route>(initialRoute);
-	provideRoute(globalRouteSignal);
+export const createRouteSignal = (
+	router: object,
+	initialRoute: Route
+): Signal<Route> => {
+	const sig = signal<Route>(initialRoute);
+	routerRouteSignals.set(router, sig);
+	provideRoute(sig);
+	globalRouteSignal = sig;
+	return sig;
+};
+
+export const getRouteSignal = (): Signal<Route> | null => {
+	const router = injectRouter();
+	if (router && typeof router === 'object') {
+		const scoped = routerRouteSignals.get(router);
+		if (scoped) return scoped;
+	}
 	return globalRouteSignal;
 };
 
-export const getRouteSignal = (): Signal<Route> | null => globalRouteSignal;
-
-export const updateRouteSignal = (route: Route): void => {
-	if (globalRouteSignal) {
+export const updateRouteSignal = (router: object, route: Route): void => {
+	const scoped = routerRouteSignals.get(router);
+	if (scoped) {
+		scoped.value = route;
+	} else if (globalRouteSignal) {
 		globalRouteSignal.value = route;
 	}
 };

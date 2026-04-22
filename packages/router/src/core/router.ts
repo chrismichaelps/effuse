@@ -149,6 +149,7 @@ export const createRouter = (options: RouterOptions): RouterInstance => {
 
 	const routeRef = Effect.runSync(SubscriptionRef.make(initialRoute));
 	let navigationId = 0;
+	let routeSignalUpdater: ((route: Route) => void) | null = null;
 
 	const navigate = (
 		to: RouteLocation,
@@ -262,7 +263,7 @@ export const createRouter = (options: RouterOptions): RouterInstance => {
 
 			yield* SubscriptionRef.set(routeRef, newRoute);
 
-			updateRouteSignal(newRoute);
+			if (routeSignalUpdater) routeSignalUpdater(newRoute);
 
 			if (typeof window !== 'undefined') {
 				window.dispatchEvent(
@@ -270,7 +271,7 @@ export const createRouter = (options: RouterOptions): RouterInstance => {
 				);
 			}
 
-			Effect.runFork(runAfterHooks(guards.afterEach, newRoute, from));
+			Effect.runSync(runAfterHooks(guards.afterEach, newRoute, from));
 
 			if (config.scrollToTop && !opts.replace && typeof window !== 'undefined') {
 				window.scrollTo(0, 0);
@@ -287,7 +288,11 @@ export const createRouter = (options: RouterOptions): RouterInstance => {
 		};
 	};
 
-	const router: RouterInstance = {
+	let router: RouterInstance;
+
+	routeSignalUpdater = (route) => updateRouteSignal(router, route);
+
+	router = {
 		currentRoute: routeRef,
 		routes: normalizedRoutes,
 		options,
@@ -333,7 +338,7 @@ export const createRouter = (options: RouterOptions): RouterInstance => {
 			if (isStarted) return () => {};
 			isStarted = true;
 
-			const cleanup = history.listen(() => {
+			const syncRoute = () => {
 				const path = history.getCurrentPath();
 				const { pathname, query, hash } = parseUrl(path);
 				const resolved = resolveRoute(pathname, normalizedRoutes);
@@ -344,9 +349,11 @@ export const createRouter = (options: RouterOptions): RouterInstance => {
 					fullPath: path,
 				});
 				Effect.runSync(SubscriptionRef.set(routeRef, newRoute));
+				if (routeSignalUpdater) routeSignalUpdater(newRoute);
+			};
 
-				updateRouteSignal(newRoute);
-			});
+			const cleanup = history.listen(syncRoute);
+			syncRoute();
 
 			return cleanup;
 		},
@@ -367,16 +374,18 @@ export const setGlobalRouter = (router: RouterInstance): void => {
 
 export const getGlobalRouter = (): RouterInstance | null => globalRouter;
 
-export const installRouter = (router: RouterInstance): RouterInstance => {
+export const installRouter = (
+	router: RouterInstance
+): RouterInstance & { cleanup: () => void } => {
 	setGlobalRouter(router);
 	setCoreGlobalRouter(router);
 	provideRouter(router);
 
 	const initialRoute = Effect.runSync(SubscriptionRef.get(router.currentRoute));
-	createRouteSignal(initialRoute);
+	createRouteSignal(router, initialRoute);
 
 	provideDepth(0);
 
-	router.start();
-	return router;
+	const cleanup = router.start();
+	return Object.assign(router, { cleanup });
 };
