@@ -129,6 +129,18 @@ export interface RenderResult {
 	readonly timing?: number;
 }
 
+export interface AssetManifestChunk {
+	readonly file: string;
+	readonly src?: string;
+	readonly isEntry?: boolean;
+	readonly isDynamicEntry?: boolean;
+	readonly imports?: readonly string[];
+	readonly css?: readonly string[];
+	readonly assets?: readonly string[];
+}
+
+export type AssetManifest = Record<string, AssetManifestChunk>;
+
 export interface ServerAppOptions {
 	readonly basePath?: string;
 
@@ -137,6 +149,13 @@ export interface ServerAppOptions {
 	readonly template?: string;
 
 	readonly hydrate?: boolean;
+
+	/**
+	 * A parsed Vite manifest.json from the client build.
+	 * When provided, renderToStream will automatically inject `<link rel="preload">`
+	 * and `<link rel="stylesheet">` tags for the entry assets to prevent FOUC.
+	 */
+	readonly manifest?: AssetManifest;
 }
 
 export interface RequestContext {
