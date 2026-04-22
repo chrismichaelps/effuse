@@ -7,6 +7,7 @@ import { existsSync } from 'node:fs';
 import { DevServerError } from '../errors/index.js';
 import { APP_NAME, DEFAULT_CONFIG, SERVER_TIMEOUT_MS, HTTP_STATUS } from '../constants.js';
 import { EntryGenerator } from './entry-generator.js';
+import { effuseHMRPlugin } from '../plugins/hmr.js';
 
 export interface DevOptions {
 	readonly port?: number;
@@ -140,6 +141,7 @@ export class DevService {
 			server: { middlewareMode: true, hmr: useHttps ? { host: 'localhost' } : true },
 			appType: 'custom',
 			base: basePath,
+			plugins: [effuseHMRPlugin()],
 		});
 
 		app.use(vite.middlewares);
