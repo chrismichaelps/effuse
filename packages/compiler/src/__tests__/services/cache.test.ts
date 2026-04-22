@@ -121,6 +121,57 @@ describe('SourceCache', () => {
 			expect(result).toEqual(value);
 		});
 	});
+
+	describe('LRU eviction', () => {
+		it('should evict oldest entries when over max size', () => {
+			const result = runCache(
+				Effect.gen(function* () {
+					const cache = yield* SourceCache;
+
+					// Fill cache to max (100) + 1
+					for (let i = 0; i < 101; i++) {
+						yield* cache.set(`file${i}.ts`, `hash${i}`, { code: `code${i}` });
+					}
+
+					// First entry should be evicted
+					const first = yield* cache.get('file0.ts', 'hash0');
+					// Last entry should still exist
+					const last = yield* cache.get('file100.ts', 'hash100');
+					const stats = yield* cache.stats();
+
+					return { first, last, size: stats.size };
+				})
+			);
+			expect(result.first).toBeNull();
+			expect(result.last).toEqual({ code: 'code100' });
+			expect(result.size).toBe(100);
+		});
+
+		it('should update LRU order on access', () => {
+			const result = runCache(
+				Effect.gen(function* () {
+					const cache = yield* SourceCache;
+
+					for (let i = 0; i < 100; i++) {
+						yield* cache.set(`file${i}.ts`, `hash${i}`, { code: `code${i}` });
+					}
+
+					// Access file0 to bump its LRU order
+					yield* cache.get('file0.ts', 'hash0');
+
+					// Add one more entry — file1 (not file0) should be evicted
+					yield* cache.set('file100.ts', 'hash100', { code: 'code100' });
+
+					const file0 = yield* cache.get('file0.ts', 'hash0');
+					const file1 = yield* cache.get('file1.ts', 'hash1');
+
+					return { file0, file1 };
+				})
+			);
+			expect(result.file0).toEqual({ code: 'code0' });
+			expect(result.file1).toBeNull();
+		});
+	});
 });
 
 describe('createContentHash', () => {
