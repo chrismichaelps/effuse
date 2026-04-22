@@ -64,6 +64,8 @@ export interface DefineOptionsWithInferredProps<
 	layers?: L;
 	script: (ctx: ScriptContext<P, L>) => E | undefined;
 	template: (ctx: TemplateContext<E, P>) => EffuseChild;
+	/** HMR module identifier — injected by the Vite dev plugin. */
+	__hmrId?: string;
 }
 
 export interface DefineOptions<
@@ -77,6 +79,8 @@ export interface DefineOptions<
 	layers?: L;
 	script: (ctx: ScriptContext<P, L>) => E | undefined;
 	template: (ctx: TemplateContext<E, P>) => EffuseChild;
+	/** HMR module identifier — injected by the Vite dev plugin. */
+	__hmrId?: string;
 }
 
 interface DefineState<E extends ExposedValues> {
@@ -98,9 +102,10 @@ export function define<
 >(
 	options: DefineOptions<P, E, L> | DefineOptionsWithInferredProps<P, E, L>
 ): Component<P> {
-	const blueprint: BlueprintDef<P> = {
+	const blueprint: Record<string, unknown> & BlueprintDef<P> = {
 		_tag: 'Blueprint',
 		name: (options as { name?: string }).name,
+		__hmrId: (options as { __hmrId?: string }).__hmrId,
 
 		state: (props: P) => {
 			const layers = (options as { layers?: L }).layers;

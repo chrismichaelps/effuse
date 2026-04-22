@@ -44,6 +44,7 @@ import type { BlueprintContext } from '../../schema/node.js';
 import { isSuspendToken } from '../../suspense/Suspense.js';
 import { isEffuseNode } from '../../render/index.js';
 import { mapEffuseErrors } from '../../errors.js';
+import { registerComponent } from '../../hmr/runtime.js';
 
 export interface MountedNode {
 	nodes: Node[];
@@ -496,7 +497,39 @@ const mountNode = (
 						node.blueprint.view(context as BlueprintContext)
 					)
 				: node.blueprint.view(context as BlueprintContext);
-			return mountChild(childView, cleanups);
+
+			// HMR: create anchor and register instance
+			const hmrId = (node.blueprint as unknown as Record<string, unknown>).__hmrId as
+				| string
+				| undefined;
+			const anchor = document.createComment('');
+
+			return pipe(
+				mountChild(childView, cleanups),
+				Effect.map((mountedNodes) => {
+					if (hmrId && mountedNodes.length > 0) {
+						const firstNode = mountedNodes[0];
+						const parent = firstNode.parentNode as Element | null;
+						if (parent) {
+							parent.insertBefore(anchor, firstNode);
+							const instanceCleanup = registerComponent(
+								hmrId,
+								node.blueprint,
+								node.props,
+								mountedNodes,
+								() => {
+									for (const c of cleanups) c();
+								},
+								parent,
+								anchor
+							);
+							cleanups.push(instanceCleanup);
+							return [anchor, ...mountedNodes];
+						}
+					}
+					return mountedNodes;
+				})
+			);
 		}
 		default: {
 			let tag: unknown = 'unknown';

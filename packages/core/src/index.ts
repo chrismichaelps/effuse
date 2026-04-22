@@ -262,6 +262,15 @@ export {
 } from './config/index.js';
 
 export {
+	registerComponent,
+	acceptComponentUpdate,
+	hmr,
+	type HMRInstance,
+} from './hmr/index.js';
+
+export { runtime as hmrRuntime } from './hmr/global.js';
+
+export {
 	useForm,
 	v,
 	validateField,
