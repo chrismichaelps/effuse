@@ -26,7 +26,7 @@ import { Predicate, pipe } from 'effect';
 import type { EffuseNode, Component, BlueprintDef } from '../render/node.js';
 import { isEffuseNode, matchEffuseNode } from '../render/node.js';
 import { isSignal } from '../reactivity/index.js';
-import type { HeadProps, RenderResult } from './types.js';
+import type { HeadProps, RenderResult, ServerAppOptions } from './types.js';
 import { RenderError } from './errors.js';
 import { headToHtml } from './head-registry.js';
 import { runWithSSRContext } from './use-head.js';
@@ -45,7 +45,8 @@ import type { SSRRuntime } from './runtime.js';
 export const renderToString = (
 	root: Component | EffuseNode,
 	url: string,
-	ssrRuntime: SSRRuntime
+	ssrRuntime: SSRRuntime,
+	options: ServerAppOptions = {}
 ): RenderResult => {
 	const startTime = Date.now();
 
@@ -79,7 +80,7 @@ export const renderToString = (
 					timestamp: Date.now(),
 				};
 
-				const fullHtml = generateFullHtml(html, mergedHead, hydrationData);
+				const fullHtml = generateFullHtml(html, mergedHead, hydrationData, options);
 
 				const timing = Date.now() - startTime;
 
@@ -90,6 +91,9 @@ export const renderToString = (
 					timing,
 				};
 			} catch (error) {
+				if (error instanceof RenderError) {
+					throw error;
+				}
 				throw new RenderError({
 					message: `Render failed: ${String(error)}`,
 					url,
@@ -278,11 +282,28 @@ const renderAttributes = (props: Record<string, unknown>): string => {
 const generateFullHtml = (
 	bodyHtml: string,
 	head: HeadProps,
-	hydrationData: HydrationData
+	hydrationData: HydrationData,
+	options: import('./types.js').ServerAppOptions = {}
 ): string => {
-	const headHtml = headToHtml(head);
+	let headHtml = headToHtml(head);
 	const lang = head.lang ?? 'en';
-	const hydrationScript = serializeHydrationData(hydrationData);
+	
+	if (options.manifest) {
+		for (const [key, chunk] of Object.entries(options.manifest)) {
+			if (chunk.isEntry) {
+				headHtml += `\n\t<link rel="modulepreload" crossorigin href="/${chunk.file}">`;
+				if (chunk.css) {
+					for (const cssFile of chunk.css) {
+						headHtml += `\n\t<link rel="stylesheet" href="/${cssFile}">`;
+					}
+				}
+			}
+		}
+	}
+
+	const hydrationScript = options.hydrate !== false 
+		? serializeHydrationData(hydrationData) 
+		: '';
 
 	return `<!DOCTYPE html>
 <html lang="${lang}">

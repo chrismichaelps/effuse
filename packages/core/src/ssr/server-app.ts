@@ -77,7 +77,7 @@ export const createServerApp = (root: Component): ServerApp => {
 					runSetup: true,
 				});
 
-				const result = renderToString(root, url, ssrRuntime);
+				const result = renderToString(root, url, ssrRuntime, options);
 
 				return result;
 			} finally {
@@ -134,8 +134,24 @@ export const createServerApp = (root: Component): ServerApp => {
 								{}
 							);
 
-							const headHtml = headToHtml(mergedHead);
+							let headHtml = headToHtml(mergedHead);
 							const lang = mergedHead.lang ?? 'en';
+
+							// If manifest is provided, inject preload/styles for the main entry point
+							if (options.manifest) {
+								for (const [key, chunk] of Object.entries(options.manifest)) {
+									if (chunk.isEntry) {
+										// Preload JS Entry
+										headHtml += `\n\t<link rel="modulepreload" crossorigin href="/${chunk.file}">`;
+										// Inject CSS
+										if (chunk.css) {
+											for (const cssFile of chunk.css) {
+												headHtml += `\n\t<link rel="stylesheet" href="/${cssFile}">`;
+											}
+										}
+									}
+								}
+							}
 
 							// 3. Serialize state for hydration
 							const serializedState: Record<string, unknown> = {};
@@ -150,7 +166,7 @@ export const createServerApp = (root: Component): ServerApp => {
 								timestamp: Date.now(),
 							};
 
-							const hydrationScript = serializeHydrationData(hydrationData);
+							const hydrationScript = options.hydrate !== false ? serializeHydrationData(hydrationData) : '';
 
 							// 4. Stream in order: shell → body → hydration → close
 							controller.enqueue(encoder.encode(`<!DOCTYPE html>\n<html lang="${lang}">\n<head>\n\t${headHtml}\n</head>\n<body>\n\t<div id="app">`));
