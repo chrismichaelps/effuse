@@ -39,6 +39,7 @@ import {
 	type EventBindingResult,
 } from './events.js';
 import { instantiateBlueprint } from '../../blueprint/blueprint.js';
+import { runWithProvideScope } from '../../blueprint/provide-inject.js';
 import type { BlueprintContext } from '../../schema/node.js';
 import { isSuspendToken } from '../../suspense/Suspense.js';
 import { isEffuseNode } from '../../render/index.js';
@@ -480,6 +481,7 @@ const mountNode = (
 
 			const stateWithLifecycle = context.state as unknown as {
 				lifecycle?: { runCleanup: () => void };
+				_provideScope?: import('../../blueprint/provide-inject.js').ProvideScope;
 			};
 
 			if (stateWithLifecycle.lifecycle) {
@@ -489,7 +491,11 @@ const mountNode = (
 				});
 			}
 
-			const childView = node.blueprint.view(context as BlueprintContext);
+			const childView = stateWithLifecycle._provideScope
+				? runWithProvideScope(stateWithLifecycle._provideScope, () =>
+						node.blueprint.view(context as BlueprintContext)
+					)
+				: node.blueprint.view(context as BlueprintContext);
 			return mountChild(childView, cleanups);
 		}
 		default: {

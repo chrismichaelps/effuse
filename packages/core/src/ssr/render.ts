@@ -26,6 +26,7 @@ import { Predicate, pipe } from 'effect';
 import type { EffuseNode, Component, BlueprintDef } from '../render/node.js';
 import { isEffuseNode, matchEffuseNode } from '../render/node.js';
 import { isSignal } from '../reactivity/index.js';
+import { runWithProvideScope } from '../blueprint/provide-inject.js';
 import type { HeadProps, RenderResult, ServerAppOptions } from './types.js';
 import { RenderError } from './errors.js';
 import { headToHtml } from './head-registry.js';
@@ -231,7 +232,12 @@ const renderBlueprint = (
 		portals: {},
 	};
 
-	const viewResult = def.view(context);
+	const provideScope = (state as unknown as { _provideScope?: import('../blueprint/provide-inject.js').ProvideScope })._provideScope;
+
+	const viewResult = provideScope
+		? runWithProvideScope(provideScope, () => def.view(context))
+		: def.view(context);
+
 	return renderNodeToString(viewResult);
 };
 
