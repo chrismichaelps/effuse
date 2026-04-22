@@ -1,0 +1,74 @@
+{
+	"name": "@effuse/cli",
+	"version": "1.0.0",
+	"description": "The official CLI and Bundler for Effuse.",
+	"author": "Chris M. Pérez",
+	"license": "MIT",
+	"publishConfig": {
+		"access": "public"
+	},
+	"bugs": {
+		"url": "https://github.com/chrismichaelps/effuse/issues"
+	},
+	"type": "module",
+	"main": "./dist/index.cjs",
+	"module": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"bin": {
+		"effuse": "./dist/bin.cjs"
+	},
+	"exports": {
+		".": {
+			"import": {
+				"types": "./dist/index.d.ts",
+				"default": "./dist/index.js"
+			},
+			"require": {
+				"types": "./dist/index.d.cts",
+				"default": "./dist/index.cjs"
+			}
+		}
+	},
+	"files": [
+		"dist",
+		"src"
+	],
+	"scripts": {
+		"build": "tsup",
+		"dev": "tsup --watch",
+		"lint": "eslint src",
+		"typecheck": "tsc --noEmit"
+	},
+	"keywords": [
+		"effuse",
+		"cli",
+		"bundler",
+		"meta-framework",
+		"vitest"
+	],
+	"engines": {
+		"node": ">=22.14.0"
+	},
+	"peerDependencies": {
+		"@effuse/core": "workspace:*"
+	},
+	"dependencies": {
+		"@effect/platform": "^0.96.0",
+		"@effect/platform-node": "^0.106.0",
+		"cac": "^6.7.14",
+		"effect": "^3.20.0",
+		"express": "^4.21.2",
+		"open": "^10.1.0",
+		"picocolors": "^1.1.1",
+		"vite": "^5.4.14"
+	},
+	"devDependencies": {
+		"@effect/eslint-plugin": "^0.3.2",
+		"@types/express": "^5.0.0",
+		"@types/node": "^25.5.0",
+		"eslint": "^10.0.3",
+		"tsup": "^8.5.1",
+		"typescript": "^5.9.3",
+		"vitest": "^4.1.0"
+	}
+}
