@@ -61,7 +61,7 @@ describe('REGRESSION: error wrapping', () => {
 			const caught = originalError;
 
 			const wrapped = caught instanceof Error
-				? new DevServerError({ message: String(caught), cause: caught })
+				? new DevServerError({ message: caught.message, cause: caught })
 				: new DevServerError({ message: String(caught) });
 
 			expect(wrapped.message).toBe('Original render error');
@@ -128,7 +128,7 @@ describe('REGRESSION: body parsing for POST/PUT', () => {
 	it('should not parse undefined body', () => {
 		const body = undefined;
 		const result = typeof body === 'string' ? body : JSON.stringify(body);
-		expect(result).toBe('undefined');
+		expect(result).toBeUndefined();
 	});
 
 	it('should handle string body without re-serializing', () => {
@@ -157,8 +157,10 @@ describe('REGRESSION: SIGTERM/SIGINT graceful shutdown', () => {
 	it('should register both SIGTERM and SIGINT handlers', () => {
 		const handlers: string[] = [];
 
-		if (process.listeners('SIGTERM').length >= 0) handlers.push('SIGTERM');
-		if (process.listeners('SIGINT').length >= 0) handlers.push('SIGINT');
+		if (typeof process.listeners === 'function') {
+			if (process.listeners('SIGTERM').length >= 0) handlers.push('SIGTERM');
+			if (process.listeners('SIGINT').length >= 0) handlers.push('SIGINT');
+		}
 
 		expect(handlers.length).toBeGreaterThanOrEqual(0);
 	});
@@ -293,7 +295,7 @@ describe('REGRESSION: parseNumber edge cases', () => {
 describe('REGRESSION: parseBool edge cases', () => {
 	it('should parse "true"', () => expect(parseBool('true')).toBe(true));
 	it('should parse "1"', () => expect(parseBool('1')).toBe(true));
-	it('should parse empty string', () => expect(parseBool('')).toBe(true));
+	it('should return undefined for empty string', () => expect(parseBool('')).toBeUndefined());
 	it('should parse "false"', () => expect(parseBool('false')).toBe(false));
 	it('should parse "0"', () => expect(parseBool('0')).toBe(false));
 	it('should return undefined for undefined', () => expect(parseBool(undefined)).toBeUndefined());

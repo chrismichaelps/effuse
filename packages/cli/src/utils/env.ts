@@ -53,7 +53,12 @@ export const readEnvFile = async (path: string): Promise<Record<string, string>>
 			const eqIdx = trimmed.indexOf('=');
 			if (eqIdx === -1) continue;
 			const key = trimmed.slice(0, eqIdx).trim();
-			const value = trimmed.slice(eqIdx + 1).trim();
+			let value = trimmed.slice(eqIdx + 1).trim();
+			// Strip inline comments (unquoted # after value)
+			const commentIdx = value.indexOf(' #');
+			if (commentIdx !== -1) {
+				value = value.slice(0, commentIdx).trim();
+			}
 			if (key) envVars[key] = value;
 		}
 	} catch {
@@ -70,18 +75,23 @@ export const loadEnvFiles = async (cwd: string): Promise<Record<string, string>>
 };
 
 export const isTruthy = (value: string | undefined): boolean => {
-	return value === 'true' || value === '1' || value === '';
+	if (value === undefined) return false;
+	const v = value.toLowerCase();
+	return v === 'true' || v === '1' || value === '';
 };
 
 export const parseNumber = (value: string | undefined): number | undefined => {
-	if (value === undefined) return undefined;
+	if (value === undefined || value === '') return undefined;
 	const num = Number(value);
-	return isNaN(num) ? undefined : num;
+	if (isNaN(num) || !isFinite(num)) return undefined;
+	return num;
 };
 
 export const parseBool = (value: string | undefined): boolean | undefined => {
 	if (value === undefined) return undefined;
-	return isTruthy(value);
+	if (value === 'true' || value === '1') return true;
+	if (value === 'false' || value === '0') return false;
+	return undefined;
 };
 
 export const resolveEntryPath = (cwd: string, entry: string): string => {
