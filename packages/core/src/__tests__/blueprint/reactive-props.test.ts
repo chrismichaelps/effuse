@@ -62,6 +62,21 @@ describe('createReactiveProps', () => {
 		expect(proxy.b).toBe(3);
 	});
 
+	it('should remove old keys via update', () => {
+		const { proxy, update } = createReactiveProps<{ a: number; b?: number }>({
+			a: 1,
+			b: 2,
+		});
+
+		expect(proxy.a).toBe(1);
+		expect(proxy.b).toBe(2);
+
+		update({ a: 3 });
+		expect(proxy.a).toBe(3);
+		expect(proxy.b).toBeUndefined();
+		expect(Object.keys(proxy)).toEqual(['a']);
+	});
+
 	it('should enumerate keys via Object.keys', () => {
 		const { proxy, update } = createReactiveProps<{ x: number; y?: number }>({ x: 1 });
 
