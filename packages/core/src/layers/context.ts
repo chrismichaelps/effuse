@@ -35,6 +35,7 @@ import {
 	LayerNotFoundError,
 	LayerRuntimeNotInitializedError,
 } from './errors.js';
+import { devWarn } from '../utils/dev-warnings.js';
 
 export interface LayerContext<P extends LayerProps = LayerProps> {
 	readonly name: string;
@@ -89,6 +90,11 @@ export const clearGlobalLayerContext = (): void => {
 const getStoreOrThrow = (): LayerContextStore => {
 	const store = layerContextStorage.getStore();
 	if (!store) {
+		devWarn(
+			'Layer runtime not initialized. ' +
+				'Did you forget to call app.useLayers() or createSSRRuntime()?' +
+				' If testing, wrap your code in runWithLayerContext(store, fn).'
+		);
 		throw new LayerRuntimeNotInitializedError({ resource: 'layer context' });
 	}
 	return store;
