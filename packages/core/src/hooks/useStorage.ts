@@ -22,7 +22,8 @@
  * SOFTWARE.
  */
 
-import { signal, type Signal, type ReadonlySignal, readonly } from '../reactivity/index.js';
+import { signal, readonly } from '../reactivity/index.js';
+import type { Signal, ReadonlySignal } from '../types/index.js';
 import { getActiveLifecycle } from '../blueprint/lifecycle.js';
 
 export interface StorageOptions<T> {

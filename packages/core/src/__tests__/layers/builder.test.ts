@@ -13,8 +13,8 @@ const testLayer = Layer.mergeAll(
 	TracingServiceLive({})
 );
 
-const runTest = <A, E>(effect: Effect.Effect<A, E, any>) =>
-	Effect.runPromiseExit(Effect.provide(effect, testLayer));
+const runTest = <A, E>(effect: Effect.Effect<A, E, never>) =>
+	Effect.runPromiseExit(effect);
 
 describe('buildLayerEffect', () => {
 	it('should fail with LayerSetupError when onMount throws', async () => {
@@ -25,7 +25,9 @@ describe('buildLayerEffect', () => {
 			},
 		} as unknown as AnyResolvedLayer;
 
-		const result = await runTest(buildLayerEffect(layer, []));
+		const result = await runTest(
+			Effect.provide(buildLayerEffect(layer, []), testLayer)
+		);
 
 		expect(Exit.isFailure(result)).toBe(true);
 		if (Exit.isFailure(result)) {
@@ -47,7 +49,9 @@ describe('buildLayerEffect', () => {
 			},
 		} as unknown as AnyResolvedLayer;
 
-		const result = await runTest(buildLayerEffect(layer, []));
+		const result = await runTest(
+			Effect.provide(buildLayerEffect(layer, []), testLayer)
+		);
 
 		expect(Exit.isFailure(result)).toBe(true);
 		if (Exit.isFailure(result)) {

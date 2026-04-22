@@ -27,6 +27,7 @@ import type { EffuseNode, Component, BlueprintDef } from '../render/node.js';
 import { isEffuseNode, matchEffuseNode } from '../render/node.js';
 import { isSignal } from '../reactivity/index.js';
 import { runWithProvideScope } from '../blueprint/provide-inject.js';
+import { isSuspendToken } from '../suspense/Suspense.js';
 import type { HeadProps, RenderResult, ServerAppOptions } from './types.js';
 import { RenderError } from './errors.js';
 import { headToHtml } from './head-registry.js';

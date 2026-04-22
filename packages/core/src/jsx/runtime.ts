@@ -36,7 +36,7 @@ import { el, fragment } from '../render/element.js';
 import { isBlueprint } from '../blueprint/blueprint.js';
 import { UnknownJSXTypeError } from '../errors.js';
 import type { BaseIntrinsicElements } from './types/intrinsic.js';
-import { pipe, Predicate } from 'effect';
+import { Predicate } from 'effect';
 
 interface FragmentProps {
 	children?: EffuseChild;
@@ -49,10 +49,10 @@ export interface FragmentComponent {
 	readonly _tag: typeof FRAGMENT;
 }
 
-export const Fragment: FragmentComponent = pipe(
+export const Fragment: FragmentComponent = Object.assign(
 	(props: FragmentProps): EffuseNode =>
 		fragment(...normalizeJSXChildren(props.children)),
-	(fn) => Object.assign(fn, { _tag: FRAGMENT } as const)
+	{ _tag: FRAGMENT } as const
 );
 
 const isFragment = (value: unknown): value is FragmentComponent =>
@@ -69,28 +69,39 @@ export const jsx = (
 ): EffuseNode => {
 	if (type === Fragment) {
 		const { children } = props ?? {};
-		const childArray = normalizeJSXChildren(children);
-		return fragment(...childArray);
+		return fragment(...normalizeJSXChildren(children));
 	}
 
-	const { children, ...restProps } = props ?? {};
-	const propsWithKey = key !== undefined ? { ...restProps, key } : restProps;
+	const children = props?.children;
+	const restProps: Record<string, unknown> = {};
+
+	if (props !== null) {
+		for (const [k, v] of Object.entries(props)) {
+			if (k !== 'children') {
+				restProps[k] = v;
+			}
+		}
+	}
+
+	const propsWithKey =
+		key !== undefined ? { ...restProps, key } : restProps;
 
 	if (Predicate.isString(type)) {
-		const childArray = normalizeJSXChildren(children);
-		return el(type, propsWithKey as ElementProps, ...childArray);
+		return el(type, propsWithKey as ElementProps, ...normalizeJSXChildren(children));
 	}
 
 	if (isBlueprint(type)) {
 		const portals =
 			Predicate.isObject(children) && !Array.isArray(children)
 				? (children as Portals)
-				: children
+				: children !== undefined
 					? { default: () => children as EffuseChild }
 					: null;
 
 		const blueprintProps =
-			children !== undefined ? { ...propsWithKey, children } : propsWithKey;
+			children !== undefined
+				? { ...propsWithKey, children }
+				: propsWithKey;
 
 		return CreateBlueprintNode({
 			[EFFUSE_NODE]: true,
@@ -101,7 +112,11 @@ export const jsx = (
 		});
 	}
 
-	if (Predicate.isFunction(type) && !isFragment(type)) {
+	if (Predicate.isFunction(type)) {
+		if (isFragment(type)) {
+			return type({ children: children as EffuseChild });
+		}
+
 		const componentProps =
 			key !== undefined
 				? { ...restProps, key, children }
@@ -109,31 +124,15 @@ export const jsx = (
 		return (type as Component)(componentProps);
 	}
 
-	if (isFragment(type)) {
-		return type({ children: children as EffuseChild });
-	}
-
 	throw new UnknownJSXTypeError({ type });
 };
 
 export const jsxs = jsx;
 
-export const jsxDEV = (
-	type: string | BlueprintDef | typeof Fragment,
-	props: Record<string, unknown> | null,
-	key?: string | number
-): EffuseNode => {
-	if (type === Fragment) {
-		const { children } = props ?? {};
-		const childArray = normalizeJSXChildren(children);
-		return fragment(...childArray);
-	}
-
-	return jsx(type, props, key);
-};
+export const jsxDEV = jsx;
 
 const normalizeJSXChildren = (children: unknown): EffuseChild[] => {
-	if (Predicate.isNullable(children)) {
+	if (Predicate.isNullable(children) || Predicate.isBoolean(children)) {
 		return [];
 	}
 
@@ -158,8 +157,7 @@ export namespace JSX {
 		| BlueprintDef
 		| Component
 		| FragmentComponent
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		| ((props: any) => EffuseNode);
+		| ((props: Record<string, unknown>) => EffuseNode);
 
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	export type LibraryManagedAttributes<_C, P> = P & IntrinsicAttributes;
