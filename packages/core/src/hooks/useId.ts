@@ -22,25 +22,21 @@
  * SOFTWARE.
  */
 
-export { defineHook } from './defineHook.js';
-export { createHookContext } from './context.js';
-export { useId } from './useId.js';
-export { useLocalStorage, useSessionStorage } from './useStorage.js';
-export type { StorageOptions } from './useStorage.js';
-export { useOnClickOutside } from './useOnClickOutside.js';
-export type { ClickOutsideOptions } from './useOnClickOutside.js';
-export { useResizeObserver } from './useResizeObserver.js';
-export type { ResizeObserverResult } from './useResizeObserver.js';
-export { useIntersectionObserver } from './useIntersectionObserver.js';
-export type { IntersectionObserverResult } from './useIntersectionObserver.js';
-export type {
-	HookContext,
-	HookDefinition,
-	HookSetupFn,
-	HookCleanup,
-	HookScope,
-	HookFinalizer,
-	EffectCallback,
-	InferHookReturn,
-	InferHookConfig,
-} from './types.js';
+let idCounter = 0;
+
+/**
+ * Generate a stable unique ID for accessibility attributes and SSR hydration.
+ *
+ * The ID is deterministic across SSR and client hydration when called in the
+ * same order, making it safe for `id`, `aria-labelledby`, `htmlFor`, etc.
+ *
+ * @example
+ * ```ts
+ * const id = useId();
+ * return <label htmlFor={id}>Name</label>
+ *        <input id={id} />;
+ * ```
+ */
+export const useId = (): string => {
+	return `:e${++idCounter}`;
+};
