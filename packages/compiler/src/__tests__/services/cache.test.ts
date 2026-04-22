@@ -5,99 +5,62 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { Effect } from 'effect';
-import { SourceCache, SourceCacheLive } from '../../services/source-cache.js';
+import { SourceCache } from '../../services/source-cache.js';
 import { createContentHash } from '../../utils/hash.js';
-
-const runCache = <T>(effect: Effect.Effect<T, never, SourceCache>): T => {
-	return Effect.runSync(Effect.provide(effect, SourceCacheLive));
-};
 
 describe('SourceCache', () => {
 	describe('basic operations', () => {
 		it('should return null for missing key', () => {
-			const result = runCache(
-				Effect.gen(function* () {
-					const cache = yield* SourceCache;
-					return yield* cache.get('missing', 'hash');
-				})
-			);
-			expect(result).toBeNull();
+			const cache = new SourceCache();
+			expect(cache.get('missing', 'hash')).toBeNull();
 		});
 
 		it('should set and get a value', () => {
+			const cache = new SourceCache();
 			const value = { code: 'test' };
-			const result = runCache(
-				Effect.gen(function* () {
-					const cache = yield* SourceCache;
-					yield* cache.set('file.ts', 'hash1', value);
-					return yield* cache.get('file.ts', 'hash1');
-				})
-			);
-			expect(result).toEqual(value);
+			cache.set('file.ts', 'hash1', value);
+			expect(cache.get('file.ts', 'hash1')).toEqual(value);
 		});
 
 		it('should miss when hash changes', () => {
+			const cache = new SourceCache();
 			const value = { code: 'test' };
-			const result = runCache(
-				Effect.gen(function* () {
-					const cache = yield* SourceCache;
-					yield* cache.set('file.ts', 'hash1', value);
-					return yield* cache.get('file.ts', 'hash2');
-				})
-			);
-			expect(result).toBeNull();
+			cache.set('file.ts', 'hash1', value);
+			expect(cache.get('file.ts', 'hash2')).toBeNull();
 		});
 
 		it('should invalidate a key', () => {
+			const cache = new SourceCache();
 			const value = { code: 'test' };
-			const result = runCache(
-				Effect.gen(function* () {
-					const cache = yield* SourceCache;
-					yield* cache.set('file.ts', 'hash1', value);
-					yield* cache.invalidate('file.ts');
-					return yield* cache.get('file.ts', 'hash1');
-				})
-			);
-			expect(result).toBeNull();
+			cache.set('file.ts', 'hash1', value);
+			cache.invalidate('file.ts');
+			expect(cache.get('file.ts', 'hash1')).toBeNull();
 		});
 
 		it('should clear all entries', () => {
+			const cache = new SourceCache();
 			const value = { code: 'test' };
-			const result = runCache(
-				Effect.gen(function* () {
-					const cache = yield* SourceCache;
-					yield* cache.set('file1.ts', 'hash1', value);
-					yield* cache.set('file2.ts', 'hash2', value);
-					yield* cache.clear();
-					return {
-						file1: yield* cache.get('file1.ts', 'hash1'),
-						file2: yield* cache.get('file2.ts', 'hash2'),
-					};
-				})
-			);
-			expect(result.file1).toBeNull();
-			expect(result.file2).toBeNull();
+			cache.set('file1.ts', 'hash1', value);
+			cache.set('file2.ts', 'hash2', value);
+			cache.clear();
+			expect(cache.get('file1.ts', 'hash1')).toBeNull();
+			expect(cache.get('file2.ts', 'hash2')).toBeNull();
 		});
 	});
 
 	describe('stats', () => {
 		it('should track hits and misses', () => {
-			const stats = runCache(
-				Effect.gen(function* () {
-					const cache = yield* SourceCache;
-					yield* cache.set('file.ts', 'hash1', { code: 'test' });
+			const cache = new SourceCache();
+			cache.set('file.ts', 'hash1', { code: 'test' });
 
-					// Hit
-					yield* cache.get('file.ts', 'hash1');
-					// Miss (wrong hash)
-					yield* cache.get('file.ts', 'hash2');
-					// Miss (missing)
-					yield* cache.get('missing.ts', 'hash3');
+			// Hit
+			cache.get('file.ts', 'hash1');
+			// Miss (wrong hash)
+			cache.get('file.ts', 'hash2');
+			// Miss (missing)
+			cache.get('missing.ts', 'hash3');
 
-					return yield* cache.stats();
-				})
-			);
+			const stats = cache.stats();
 			expect(stats.hits).toBe(1);
 			expect(stats.misses).toBe(2);
 			expect(stats.size).toBe(1);
@@ -105,71 +68,49 @@ describe('SourceCache', () => {
 	});
 
 	describe('TTL expiry', () => {
-		it('should expire entries after TTL', async () => {
+		it('should expire entries after TTL', () => {
+			const cache = new SourceCache();
 			const value = { code: 'test' };
-			const result = runCache(
-				Effect.gen(function* () {
-					const cache = yield* SourceCache;
-					yield* cache.set('file.ts', 'hash1', value);
-					// Fast-forward past TTL (5 minutes = 300000ms)
-					// Since we can't mock Date.now easily in this setup,
-					// we verify the TTL field is set correctly by checking
-					// the entry exists immediately
-					return yield* cache.get('file.ts', 'hash1');
-				})
-			);
-			expect(result).toEqual(value);
+			cache.set('file.ts', 'hash1', value);
+			// Fast-forward past TTL (5 minutes = 300000ms)
+			// Since we can't mock Date.now easily in this setup,
+			// we verify the TTL field is set correctly by checking
+			// the entry exists immediately
+			expect(cache.get('file.ts', 'hash1')).toEqual(value);
 		});
 	});
 
 	describe('LRU eviction', () => {
 		it('should evict oldest entries when over max size', () => {
-			const result = runCache(
-				Effect.gen(function* () {
-					const cache = yield* SourceCache;
+			const cache = new SourceCache();
 
-					// Fill cache to max (100) + 1
-					for (let i = 0; i < 101; i++) {
-						yield* cache.set(`file${i}.ts`, `hash${i}`, { code: `code${i}` });
-					}
+			// Fill cache to max (100) + 1
+			for (let i = 0; i < 101; i++) {
+				cache.set(`file${i}.ts`, `hash${i}`, { code: `code${i}` });
+			}
 
-					// First entry should be evicted
-					const first = yield* cache.get('file0.ts', 'hash0');
-					// Last entry should still exist
-					const last = yield* cache.get('file100.ts', 'hash100');
-					const stats = yield* cache.stats();
-
-					return { first, last, size: stats.size };
-				})
-			);
-			expect(result.first).toBeNull();
-			expect(result.last).toEqual({ code: 'code100' });
-			expect(result.size).toBe(100);
+			// First entry should be evicted
+			expect(cache.get('file0.ts', 'hash0')).toBeNull();
+			// Last entry should still exist
+			expect(cache.get('file100.ts', 'hash100')).toEqual({ code: 'code100' });
+			expect(cache.stats().size).toBe(100);
 		});
 
 		it('should update LRU order on access', () => {
-			const result = runCache(
-				Effect.gen(function* () {
-					const cache = yield* SourceCache;
+			const cache = new SourceCache();
 
-					for (let i = 0; i < 100; i++) {
-						yield* cache.set(`file${i}.ts`, `hash${i}`, { code: `code${i}` });
-					}
+			for (let i = 0; i < 100; i++) {
+				cache.set(`file${i}.ts`, `hash${i}`, { code: `code${i}` });
+			}
 
-					// Access file0 to bump its LRU order
-					yield* cache.get('file0.ts', 'hash0');
+			// Access file0 to bump its LRU order
+			cache.get('file0.ts', 'hash0');
 
-					// Add one more entry — file1 (not file0) should be evicted
-					yield* cache.set('file100.ts', 'hash100', { code: 'code100' });
+			// Add one more entry — file1 (not file0) should be evicted
+			cache.set('file100.ts', 'hash100', { code: 'code100' });
 
-					const file0 = yield* cache.get('file0.ts', 'hash0');
-					const file1 = yield* cache.get('file1.ts', 'hash1');
-
-					return { file0, file1 };
-				})
-			);
-			expect(result.file0).toEqual({ code: 'code0' });
-			expect(result.file1).toBeNull();
+			expect(cache.get('file0.ts', 'hash0')).toEqual({ code: 'code0' });
+			expect(cache.get('file1.ts', 'hash1')).toBeNull();
 		});
 	});
 });

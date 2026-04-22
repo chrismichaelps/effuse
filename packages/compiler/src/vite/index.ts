@@ -2,36 +2,18 @@
  * MIT License
  *
  * Copyright (c) 2025 Chris M. Perez
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
  */
 
 import type { Plugin, TransformResult as ViteTransformResult } from 'vite';
-import { Effect, pipe } from 'effect';
 
 import {
 	type CompilerConfig,
 	mergeConfig,
 	defaultConfig,
 } from '../config/index.js';
-import { transform, TransformerLive } from '../transformer/index.js';
+import { transformSync } from '../transformer/index.js';
 import { formatError, isCompilerError } from '../errors/index.js';
+import { SourceCache } from '../services/source-cache.js';
 import { VitePluginConfig } from '../constants/index.js';
 
 export type EffusePluginOptions = Partial<CompilerConfig>;
@@ -48,7 +30,7 @@ const shouldProcess = (id: string, config: CompilerConfig): boolean => {
 
 export const effuse = (options: EffusePluginOptions = {}): Plugin => {
 	const config = mergeConfig({ ...defaultConfig, ...options });
-
+	const cache = new SourceCache();
 	let isDebug = config.debug;
 
 	return {
@@ -76,41 +58,33 @@ export const effuse = (options: EffusePluginOptions = {}): Plugin => {
 				return null;
 			}
 
-			const program = pipe(
-				transform(code, id, config),
-				Effect.provide(TransformerLive),
-				Effect.match({
-					onSuccess: (result) => {
-						if (isDebug && result.transformed) {
-							const cacheStatus = result.cached ? ' (cached)' : '';
-							console.log(
-								`[effuse] Transformed ${id}${cacheStatus}: ` +
-									`${result.stats.expressionsWrapped} expressions, ` +
-									`${result.stats.propsWrapped} props wrapped`
-							);
-						}
-						return result;
-					},
-					onFailure: (error) => {
-						const message = isCompilerError(error)
-							? formatError(error)
-							: String(error);
-						console.error(`[effuse] Transform error: ${message}`);
-						return null;
-					},
-				})
-			);
+			try {
+				const result = transformSync(code, id, config, cache);
 
-			const result = Effect.runSync(program);
+				if (isDebug && result.transformed) {
+					const cacheStatus = result.cached ? ' (cached)' : '';
+					console.log(
+						`[effuse] Transformed ${id}${cacheStatus}: ` +
+							`${result.stats.expressionsWrapped} expressions, ` +
+							`${result.stats.propsWrapped} props wrapped`
+					);
+				}
 
-			if (!result || !result.transformed) {
+				if (!result.transformed) {
+					return null;
+				}
+
+				return {
+					code: result.code,
+					map: result.map as ViteTransformResult['map'],
+				};
+			} catch (error) {
+				const message = isCompilerError(error)
+					? formatError(error)
+					: String(error);
+				console.error(`[effuse] Transform error: ${message}`);
 				return null;
 			}
-
-			return {
-				code: result.code,
-				map: result.map as ViteTransformResult['map'],
-			};
 		},
 	};
 };

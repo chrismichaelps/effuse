@@ -2,27 +2,8 @@
  * MIT License
  *
  * Copyright (c) 2025 Chris M. Perez
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
  */
 
-import { Context, Effect, Layer, Ref } from 'effect';
 import { PerformanceThresholds } from '../constants/index.js';
 
 export { createContentHash } from '../utils/index.js';
@@ -34,118 +15,64 @@ interface CacheEntry<T> {
 	readonly hash: string;
 }
 
-export interface SourceCacheService {
-	readonly get: <T>(
-		key: string,
-		contentHash: string
-	) => Effect.Effect<T | null>;
+export class SourceCache {
+	private cache = new Map<string, CacheEntry<unknown>>();
+	private hits = 0;
+	private misses = 0;
 
-	readonly set: <T>(
-		key: string,
-		contentHash: string,
-		value: T
-	) => Effect.Effect<void>;
-
-	readonly invalidate: (key: string) => Effect.Effect<void>;
-
-	readonly clear: () => Effect.Effect<void>;
-
-	readonly stats: () => Effect.Effect<{
-		readonly size: number;
-		readonly hits: number;
-		readonly misses: number;
-	}>;
-}
-
-export class SourceCache extends Context.Tag('effuse/compiler/SourceCache')<
-	SourceCache,
-	SourceCacheService
->() {}
-
-const makeSourceCache = Effect.gen(function* () {
-	const cache = yield* Ref.make(new Map<string, CacheEntry<unknown>>());
-	const statsRef = yield* Ref.make({ hits: 0, misses: 0 });
-
-	const isExpired = (entry: CacheEntry<unknown>): boolean => {
+	private isExpired(entry: CacheEntry<unknown>): boolean {
 		return Date.now() - entry.timestamp > PerformanceThresholds.CACHE_TTL_MS;
-	};
+	}
 
-	return {
-		get: <T>(key: string, contentHash: string) =>
-			Effect.gen(function* () {
-				const cacheMap = yield* Ref.get(cache);
-				const entry = cacheMap.get(key) as CacheEntry<T> | undefined;
+	get<T>(key: string, contentHash: string): T | null {
+		const entry = this.cache.get(key) as CacheEntry<T> | undefined;
 
-				if (!entry) {
-					yield* Ref.update(statsRef, (s) => ({ ...s, misses: s.misses + 1 }));
-					return null;
-				}
+		if (!entry) {
+			this.misses++;
+			return null;
+		}
 
-				if (entry.hash !== contentHash || isExpired(entry)) {
-					yield* Ref.update(statsRef, (s) => ({ ...s, misses: s.misses + 1 }));
-					return null;
-				}
+		if (entry.hash !== contentHash || this.isExpired(entry)) {
+			this.misses++;
+			return null;
+		}
 
-				yield* Ref.update(statsRef, (s) => ({ ...s, hits: s.hits + 1 }));
-				// Update lastAccessed on hit for LRU
-				yield* Ref.update(cache, (m) => {
-					const newMap = new Map(m);
-					newMap.set(key, { ...entry, lastAccessed: Date.now() });
-					return newMap;
-				});
-				return entry.value;
-			}),
+		this.hits++;
+		// Move to end of Map to maintain LRU insertion order
+		this.cache.delete(key);
+		this.cache.set(key, { ...entry, lastAccessed: Date.now() });
+		return entry.value;
+	}
 
-		set: <T>(key: string, contentHash: string, value: T) =>
-			Effect.gen(function* () {
-				const now = Date.now();
-				const entry: CacheEntry<T> = {
-					value,
-					timestamp: now,
-					lastAccessed: now,
-					hash: contentHash,
-				};
-				yield* Ref.update(cache, (m) => {
-					const newMap = new Map(m);
-					newMap.set(key, entry);
+	set<T>(key: string, contentHash: string, value: T): void {
+		const now = Date.now();
+		const entry: CacheEntry<T> = {
+			value,
+			timestamp: now,
+			lastAccessed: now,
+			hash: contentHash,
+		};
+		this.cache.set(key, entry);
 
-					// Evict oldest entries if over limit
-					while (newMap.size > PerformanceThresholds.MAX_CACHE_ENTRIES) {
-						let oldestKey: string | undefined;
-						let oldestTime = Infinity;
-						for (const [k, v] of newMap) {
-							if (v.lastAccessed < oldestTime) {
-								oldestTime = v.lastAccessed;
-								oldestKey = k;
-							}
-						}
-						if (oldestKey) {
-							newMap.delete(oldestKey);
-						} else {
-							break;
-						}
-					}
+		while (this.cache.size > PerformanceThresholds.MAX_CACHE_ENTRIES) {
+			const oldestKey = this.cache.keys().next().value as string | undefined;
+			if (oldestKey) {
+				this.cache.delete(oldestKey);
+			} else {
+				break;
+			}
+		}
+	}
 
-					return newMap;
-				});
-			}),
+	invalidate(key: string): void {
+		this.cache.delete(key);
+	}
 
-		invalidate: (key: string) =>
-			Ref.update(cache, (m) => {
-				const newMap = new Map(m);
-				newMap.delete(key);
-				return newMap;
-			}),
+	clear(): void {
+		this.cache.clear();
+	}
 
-		clear: () => Ref.set(cache, new Map()),
-
-		stats: () =>
-			Effect.gen(function* () {
-				const cacheMap = yield* Ref.get(cache);
-				const { hits, misses } = yield* Ref.get(statsRef);
-				return { size: cacheMap.size, hits, misses };
-			}),
-	} satisfies SourceCacheService;
-});
-
-export const SourceCacheLive = Layer.effect(SourceCache, makeSourceCache);
+	stats(): { size: number; hits: number; misses: number } {
+		return { size: this.cache.size, hits: this.hits, misses: this.misses };
+	}
+}
