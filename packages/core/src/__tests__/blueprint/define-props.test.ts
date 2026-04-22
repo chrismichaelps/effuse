@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { define } from '../../blueprint/define.js';
+import type { ReadonlySignal } from '../../types/index.js';
 import type {
 	DefineOptions,
 	DefineOptionsWithInferredProps,
@@ -1051,27 +1052,28 @@ describe('define function - props type inference', () => {
 				}
 
 				interface MemoExposed {
-					getSum: () => number;
-					getAvg: () => number;
+					sum: ReadonlySignal<number>;
+					avg: ReadonlySignal<number>;
 				}
 
 				const MemoComponent = define<MemoProps, MemoExposed>({
 					script: ({ props, useMemo }) => {
-						const getSum = useMemo(() =>
+						const sum = useMemo(() =>
 							props.items.reduce((a, b) => a + b, 0)
 						);
-						const getAvg = useMemo(() => {
-							const sum = props.items.reduce((a, b) => a + b, 0);
-							return sum / props.items.length;
+						const avg = useMemo(() => {
+							const s = props.items.reduce((a, b) => a + b, 0);
+							return s / props.items.length;
 						});
-						return { getSum, getAvg };
+						return { sum, avg };
 					},
 					template: () => null,
 				});
 
 				const blueprint = extractBlueprint(MemoComponent);
-				const state = blueprint.state({ items: [1, 2, 3, 4, 5] });
-				expect(state).toBeDefined();
+				const state = blueprint.state({ items: [1, 2, 3, 4, 5] }) as unknown as { exposed: MemoExposed };
+				expect(state.exposed.sum.value).toBe(15);
+				expect(state.exposed.avg.value).toBe(3);
 			});
 		});
 
