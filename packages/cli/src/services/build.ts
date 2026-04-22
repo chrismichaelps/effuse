@@ -231,13 +231,19 @@ export class BuildService {
 		}
 
 		Console.log(`[${APP_NAME}] Building server...`);
+		// Edge presets require webworker target to avoid Node-specific globals
+		const serverTarget =
+			preset === PRESETS.CLOUDFLARE || preset === PRESETS.VERCEL
+				? 'webworker'
+				: DEFAULT_CONFIG.target;
+
 		const serverConfig: InlineConfig = {
 			root: cwd,
 			mode: 'production',
 			build: {
 				outDir: DEFAULT_CONFIG.outDirServer,
 				ssr: true,
-				target: DEFAULT_CONFIG.target,
+				target: serverTarget,
 				minify: DEFAULT_CONFIG.minify,
 				rollupOptions: { input: entries.server },
 			},
