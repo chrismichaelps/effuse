@@ -29,7 +29,7 @@ export default defineConfig({
 		globals: true,
 		environment: 'node',
 		include: ['src/**/*.test.ts'],
-		exclude: ['src/**/node/**'],
+		exclude: ['src/**/node/**', '**/*.test.mjs'],
 		coverage: {
 			provider: 'v8',
 			reporter: ['text', 'html'],
