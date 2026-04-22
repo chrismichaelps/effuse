@@ -34,7 +34,7 @@ export const getAttributeName = (attr: t.JSXAttribute): string => {
 		return attr.name.name;
 	}
 	if (attr.name.type === NodeTypes.JSX_NAMESPACED_NAME) {
-		return attr.name.name.name;
+		return `${attr.name.namespace.name}:${attr.name.name.name}`;
 	}
 	return '';
 };

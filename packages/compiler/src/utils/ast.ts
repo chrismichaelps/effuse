@@ -166,6 +166,22 @@ export const containsSignalAccess = (
 		return false;
 	}
 
+	if (
+		nodeType === NodeTypes.ARROW_FUNCTION_EXPRESSION ||
+		nodeType === NodeTypes.FUNCTION_EXPRESSION
+	) {
+		const funcNode = node as t.ArrowFunctionExpression | t.FunctionExpression;
+		return containsSignalAccess(funcNode.body, accessorSet, visited);
+	}
+
+	if (nodeType === NodeTypes.ASSIGNMENT_EXPRESSION) {
+		const assignNode = node as t.AssignmentExpression;
+		return (
+			containsSignalAccess(assignNode.left, accessorSet, visited) ||
+			containsSignalAccess(assignNode.right, accessorSet, visited)
+		);
+	}
+
 	return false;
 };
 
@@ -173,9 +189,8 @@ export const isEventHandler = (
 	name: string,
 	prefixSet: Set<string>
 ): boolean => {
-	const lowerName = name.toLowerCase();
 	for (const prefix of prefixSet) {
-		if (lowerName.startsWith(prefix)) {
+		if (name.startsWith(prefix)) {
 			return true;
 		}
 	}
