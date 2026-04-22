@@ -1,4 +1,5 @@
 import { resolve } from 'node:path';
+import { readFileSync } from 'node:fs';
 import { DEFAULT_CONFIG, ENV_KEYS } from '../constants.js';
 import { loadEnvFiles, isTruthy, parseNumber, parseBool } from '../utils/index.js';
 
@@ -45,8 +46,8 @@ export class CliConfigService {
 		const dev: DevConfig = {
 			port: parseNumber(env[ENV_KEYS.DESKTOP_PORT] ?? env[ENV_KEYS.DESKTOP_EFFUSE_DEV_PORT]) ?? DEFAULT_CONFIG.port,
 			host: env[ENV_KEYS.DESKTOP_HOST] ?? env[ENV_KEYS.DESKTOP_EFFUSE_DEV_HOST] ?? DEFAULT_CONFIG.host,
-			open: parseBool(env['OPEN']) ?? (!isCI && DEFAULT_CONFIG.open),
-			https: isTruthy(env[ENV_KEYS.HTTPS]),
+			open: isCI ? false : (parseBool(env['OPEN']) ?? DEFAULT_CONFIG.open),
+			https: parseBool(env[ENV_KEYS.HTTPS]) ?? DEFAULT_CONFIG.https,
 			basePath: env[ENV_KEYS.BASE_PATH] ?? env[ENV_KEYS.EFFUSE_BASE_PATH] ?? DEFAULT_CONFIG.basePath,
 		};
 
@@ -55,17 +56,17 @@ export class CliConfigService {
 			outDirServer: env[ENV_KEYS.OUT_DIR_SERVER] ?? DEFAULT_CONFIG.outDirServer,
 			entryClient: env[ENV_KEYS.ENTRY_CLIENT] ?? DEFAULT_CONFIG.entryClient,
 			entryServer: env[ENV_KEYS.ENTRY_SERVER] ?? DEFAULT_CONFIG.entryServer,
-			minify: isTruthy(env[ENV_KEYS.MINIFY]) ?? DEFAULT_CONFIG.minify,
-			sourcemap: isTruthy(env[ENV_KEYS.SOURCE_MAP]) ?? DEFAULT_CONFIG.sourcemap,
+			minify: parseBool(env[ENV_KEYS.MINIFY]) ?? DEFAULT_CONFIG.minify,
+			sourcemap: parseBool(env[ENV_KEYS.SOURCE_MAP]) ?? DEFAULT_CONFIG.sourcemap,
 			target: (env[ENV_KEYS.TARGET] ?? DEFAULT_CONFIG.target) as BuildConfig['target'],
-			analyze: isTruthy(env[ENV_KEYS.ANALYZE]) ?? DEFAULT_CONFIG.analyze,
+			analyze: parseBool(env[ENV_KEYS.ANALYZE]) ?? DEFAULT_CONFIG.analyze,
 		};
 
 		const runtime: RuntimeConfig = {
-			effect: isTruthy(env[ENV_KEYS.EFFECT]) ?? true,
-			reactivity: (env[ENV_KEYS.REACTIVITY] ?? 'signal') as RuntimeConfig['reactivity'],
-			ssr: isTruthy(env[ENV_KEYS.SSR]) ?? true,
-			hydrate: isTruthy(env[ENV_KEYS.HYDRATE]) ?? true,
+			effect: parseBool(env[ENV_KEYS.EFFECT]) ?? DEFAULT_CONFIG.effect,
+			reactivity: (env[ENV_KEYS.REACTIVITY] ?? DEFAULT_CONFIG.reactivity) as RuntimeConfig['reactivity'],
+			ssr: parseBool(env[ENV_KEYS.SSR]) ?? DEFAULT_CONFIG.ssr,
+			hydrate: parseBool(env[ENV_KEYS.HYDRATE]) ?? DEFAULT_CONFIG.hydrate,
 		};
 
 		return { version, dev, build, runtime };
@@ -73,7 +74,8 @@ export class CliConfigService {
 
 	private getVersion(cwd: string): string {
 		try {
-			const pkg = require(resolve(cwd, 'package.json'));
+			const content = readFileSync(resolve(cwd, 'package.json'), 'utf-8');
+			const pkg = JSON.parse(content) as { version?: string };
 			return pkg.version ?? '1.0.0';
 		} catch {
 			return '1.0.0';

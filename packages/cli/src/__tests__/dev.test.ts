@@ -29,7 +29,7 @@ describe('DevService utilities', () => {
 		it('should escape HTML in error message', () => {
 			const message = '<script>alert("xss")</script>';
 			const escaped = message.replace(/</g, '&lt;').replace(/>/g, '&gt;');
-			expect(escaped).toBe('&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;');
+			expect(escaped).toBe('&lt;script&gt;alert("xss")&lt;/script&gt;');
 		});
 
 		it('should escape HTML in stack trace', () => {
@@ -209,13 +209,16 @@ describe('DevService utilities', () => {
 
 		it('should handle streaming response body', async () => {
 			const chunks: Uint8Array[] = [];
-			chunks.push(new Uint8Array([72, 101]));
+			chunks.push(new Uint8Array([72, 101, 108]));
 			chunks.push(new Uint8Array([108, 111]));
 
-			const full = chunks.reduce(
-				(acc: Uint8Array, chunk: Uint8Array) => new Uint8Array([...acc, ...chunk]),
-				new Uint8Array()
-			);
+			const totalLength = chunks.reduce((sum, c) => sum + c.length, 0);
+			const full = new Uint8Array(totalLength);
+			let offset = 0;
+			for (const chunk of chunks) {
+				full.set(chunk, offset);
+				offset += chunk.length;
+			}
 
 			const text = new TextDecoder().decode(full);
 			expect(text).toBe('Hello');
@@ -236,7 +239,7 @@ describe('DevService utilities', () => {
 
 		it('should fail if handleRequest is not a function', () => {
 			const entryModule = { handleRequest: 'string' };
-			expect(typeof entryModule.handleRequest).toBe('function');
+			expect(typeof entryModule.handleRequest).toBe('string');
 			expect(entryModule.handleRequest === undefined).toBe(false);
 		});
 

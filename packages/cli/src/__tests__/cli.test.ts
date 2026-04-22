@@ -172,16 +172,16 @@ describe('utils', () => {
 		it('should parse truthy values', () => {
 			expect(parseBool('true')).toBe(true);
 			expect(parseBool('1')).toBe(true);
-			expect(parseBool('')).toBe(true);
 		});
 
-		it('should return false for falsy values', () => {
+		it('should return false for explicit falsy values', () => {
 			expect(parseBool('false')).toBe(false);
 			expect(parseBool('0')).toBe(false);
 		});
 
-		it('should return undefined for invalid input', () => {
+		it('should return undefined for empty or invalid input', () => {
 			expect(parseBool(undefined)).toBeUndefined();
+			expect(parseBool('')).toBeUndefined();
 			expect(parseBool('maybe')).toBeUndefined();
 		});
 	});
@@ -287,6 +287,9 @@ describe('errors', () => {
 });
 
 describe('integration', () => {
+	beforeEach(setupTestDir);
+	afterEach(teardownTestDir);
+
 	describe('config with env override', () => {
 		it('should apply CI mode correctly', async () => {
 			writeFileSync(resolve(TEST_DIR, 'package.json'), JSON.stringify({ version: '1.0.0' }));
