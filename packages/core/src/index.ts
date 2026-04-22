@@ -155,6 +155,12 @@ export {
 export {
 	defineHook,
 	createHookContext,
+	useId,
+	useLocalStorage,
+	useSessionStorage,
+	useOnClickOutside,
+	useResizeObserver,
+	useIntersectionObserver,
 	type HookContext,
 	type HookDefinition,
 	type HookSetupFn,
@@ -163,6 +169,10 @@ export {
 	type HookFinalizer,
 	type InferHookReturn,
 	type InferHookConfig,
+	type StorageOptions,
+	type ClickOutsideOptions,
+	type ResizeObserverResult,
+	type IntersectionObserverResult,
 } from './hooks/index.js';
 
 export { type MountedNode } from './services/index.js';

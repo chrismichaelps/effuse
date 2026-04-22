@@ -45,6 +45,8 @@ export interface AwaitProps<T> {
 	readonly pending?: EffuseChild | (() => EffuseChild);
 	readonly error?: EffuseChild | ((error: unknown) => EffuseChild);
 	readonly children: (data: T) => EffuseChild;
+	/** If true, the promise is not started automatically. Call `.start()` manually. */
+	readonly defer?: boolean;
 }
 
 const isSignalLike = <T>(val: unknown): val is Signal<T> =>
@@ -85,6 +87,7 @@ export const Await = <T>(props: AwaitProps<T>): EffuseNode => {
 		pending,
 		error: errorFallback,
 		children: renderSuccess,
+		defer = false,
 	} = props;
 
 	const state = signal<AwaitState<T>>(AwaitState.Pending() as AwaitState<T>);
@@ -92,6 +95,8 @@ export const Await = <T>(props: AwaitProps<T>): EffuseNode => {
 
 	const startFetch = (promise: Promise<T>): void => {
 		const promiseId = ++currentPromiseId;
+
+		state.value = AwaitState.Pending() as AwaitState<T>;
 
 		void promiseToEither(promise).then((result) => {
 			if (promiseId !== currentPromiseId) return;
@@ -116,7 +121,9 @@ export const Await = <T>(props: AwaitProps<T>): EffuseNode => {
 		return promiseInput;
 	};
 
-	startFetch(getPromise());
+	if (!defer) {
+		startFetch(getPromise());
+	}
 
 	if (isSignalLike<Promise<T>>(promiseInput)) {
 		const dep = getSignalDep(promiseInput);
@@ -127,7 +134,13 @@ export const Await = <T>(props: AwaitProps<T>): EffuseNode => {
 		}
 	}
 
-	const listNode = createListNode([]);
+	const listNode = createListNode([]) as ReturnType<typeof createListNode> & {
+		_start: () => void;
+		_refresh: () => void;
+	};
+
+	listNode._start = () => startFetch(getPromise());
+	listNode._refresh = () => startFetch(getPromise());
 
 	Object.defineProperty(listNode, 'children', {
 		enumerable: true,
