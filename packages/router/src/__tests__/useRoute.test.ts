@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { useRoute } from '../utils/composables.js';
 import { RouterNotInstalledError } from '../errors.js';
 import { createRouter, installRouter } from '../core/router.js';
+import { createMemoryHistory } from '../core/history.js';
 import { clearContext } from '../core/context.js';
 import { define } from '@effuse/core';
 
@@ -16,6 +17,7 @@ describe('useRoute', () => {
 
 	it('should return the current route if router is installed', () => {
 		const router = createRouter({
+			history: createMemoryHistory('/'),
 			routes: [
 				{
 					path: '/',

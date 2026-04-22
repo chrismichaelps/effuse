@@ -242,13 +242,15 @@ export const createRouter = (options: RouterOptions): RouterInstance => {
 
 			updateRouteSignal(newRoute);
 
-			window.dispatchEvent(
-				new CustomEvent('effuse:route-change', { detail: newRoute })
-			);
+			if (typeof window !== 'undefined') {
+				window.dispatchEvent(
+					new CustomEvent('effuse:route-change', { detail: newRoute })
+				);
+			}
 
 			Effect.runFork(runAfterHooks(guards.afterEach, newRoute, from));
 
-			if (config.scrollToTop && !opts.replace) {
+			if (config.scrollToTop && !opts.replace && typeof window !== 'undefined') {
 				window.scrollTo(0, 0);
 			}
 
