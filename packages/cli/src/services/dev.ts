@@ -6,6 +6,7 @@ import * as nodeFs from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { DevServerError } from '../errors/index.js';
 import { APP_NAME, DEFAULT_CONFIG, SERVER_TIMEOUT_MS, HTTP_STATUS } from '../constants.js';
+import { EntryGenerator } from './entry-generator.js';
 
 export interface DevOptions {
 	readonly port?: number;
@@ -113,6 +114,15 @@ export class DevService {
 		const useHttps = options.https ?? DEFAULT_CONFIG.https;
 		const basePath = options.basePath ?? DEFAULT_CONFIG.basePath;
 
+		const entryGenerator = new EntryGenerator();
+		const entries = entryGenerator.generate(cwd);
+
+		if (entries.generated) {
+			Console.log(`[${APP_NAME}] Auto-generated entry points from src/app.ts`);
+			Console.log(`  Client: ${entries.client}`);
+			Console.log(`  Server: ${entries.server}\n`);
+		}
+
 		Console.log(`\n[${APP_NAME}] Starting Dev Server...\n`);
 		Console.log(`  Port:     ${port}`);
 		Console.log(`  Host:     ${host}`);
@@ -151,10 +161,10 @@ export class DevService {
 					);
 				}
 
-				const entryModule = await vite.ssrLoadModule(`/${DEFAULT_CONFIG.entryServer}`);
+				const entryModule = await vite.ssrLoadModule(`/${entries.server}`);
 				if (!entryModule || typeof entryModule.handleRequest !== 'function') {
 					throw new DevServerError({
-						message: `Entry file ${DEFAULT_CONFIG.entryServer} must export 'handleRequest' handler.`,
+						message: `Entry file ${entries.server} must export 'handleRequest' handler.`,
 					});
 				}
 

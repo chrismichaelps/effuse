@@ -7,6 +7,7 @@ import { Console } from 'effect';
 import { BuildError } from '../errors/index.js';
 import { APP_NAME, DEFAULT_CONFIG, PRESETS } from '../constants.js';
 import { fileExists } from '../utils/index.js';
+import { EntryGenerator } from './entry-generator.js';
 
 export interface BuildOptions {
 	readonly clientOnly?: boolean;
@@ -170,6 +171,15 @@ export class BuildService {
 	private runEffect = async (options: BuildOptions, cwd: string): Promise<void> => {
 		const preset = options.preset ?? PRESETS.NODE;
 
+		const entryGenerator = new EntryGenerator();
+		const entries = entryGenerator.generate(cwd);
+
+		if (entries.generated) {
+			Console.log(`[${APP_NAME}] Auto-generated entry points from src/app.ts`);
+			Console.log(`  Client: ${entries.client}`);
+			Console.log(`  Server: ${entries.server}\n`);
+		}
+
 		Console.log(`\n[${APP_NAME}] Building for production...\n`);
 		Console.log(`  Preset:   ${preset}`);
 		Console.log(`  Client:   ${DEFAULT_CONFIG.outDirClient}`);
@@ -187,7 +197,7 @@ export class BuildService {
 				minify: DEFAULT_CONFIG.minify,
 				sourcemap: DEFAULT_CONFIG.sourcemap,
 				target: DEFAULT_CONFIG.target,
-				rollupOptions: { input: DEFAULT_CONFIG.entryClient },
+				rollupOptions: { input: entries.client },
 			},
 		};
 
@@ -219,7 +229,7 @@ export class BuildService {
 				ssr: true,
 				target: DEFAULT_CONFIG.target,
 				minify: DEFAULT_CONFIG.minify,
-				rollupOptions: { input: DEFAULT_CONFIG.entryServer },
+				rollupOptions: { input: entries.server },
 			},
 		};
 
