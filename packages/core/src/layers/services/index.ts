@@ -22,10 +22,5 @@
  * SOFTWARE.
  */
 
-export { PropsService, type PropsRegistry } from './PropsService.js';
-export { RegistryService, type LayerRegistry } from './RegistryService.js';
-
-import type { PropsService } from './PropsService.js';
-import type { RegistryService } from './RegistryService.js';
-
-export type LayerRuntimeServices = PropsService | RegistryService;
+export type { PropsRegistry } from './PropsService.js';
+export type { LayerRegistry } from './RegistryService.js';
