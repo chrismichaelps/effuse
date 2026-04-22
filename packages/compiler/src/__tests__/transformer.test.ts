@@ -162,6 +162,20 @@ describe('transformer', () => {
 			const result = transformSync(code, 'test.tsx', defaultConfig);
 			expect(result.cached).toBe(false);
 		});
+
+		it('should miss cache when config changes', () => {
+			const code = `const Comp = () => <div>{count.value}</div>;`;
+			const result1 = transformSync(code, 'test.tsx', defaultConfig);
+			expect(result1.cached).toBe(false);
+
+			// Same code, different config — should NOT be cached
+			const result2 = transformSync(code, 'test.tsx', {
+				...defaultConfig,
+				autoUnwrap: false,
+			});
+			expect(result2.cached).toBe(false);
+			expect(result2.transformed).toBe(false);
+		});
 	});
 
 	describe('error handling', () => {

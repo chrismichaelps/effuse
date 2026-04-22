@@ -30,6 +30,7 @@ export { createContentHash } from '../utils/index.js';
 interface CacheEntry<T> {
 	readonly value: T;
 	readonly timestamp: number;
+	readonly lastAccessed: number;
 	readonly hash: string;
 }
 
@@ -86,19 +87,45 @@ const makeSourceCache = Effect.gen(function* () {
 				}
 
 				yield* Ref.update(statsRef, (s) => ({ ...s, hits: s.hits + 1 }));
+				// Update lastAccessed on hit for LRU
+				yield* Ref.update(cache, (m) => {
+					const newMap = new Map(m);
+					newMap.set(key, { ...entry, lastAccessed: Date.now() });
+					return newMap;
+				});
 				return entry.value;
 			}),
 
 		set: <T>(key: string, contentHash: string, value: T) =>
 			Effect.gen(function* () {
+				const now = Date.now();
 				const entry: CacheEntry<T> = {
 					value,
-					timestamp: Date.now(),
+					timestamp: now,
+					lastAccessed: now,
 					hash: contentHash,
 				};
 				yield* Ref.update(cache, (m) => {
 					const newMap = new Map(m);
 					newMap.set(key, entry);
+
+					// Evict oldest entries if over limit
+					while (newMap.size > PerformanceThresholds.MAX_CACHE_ENTRIES) {
+						let oldestKey: string | undefined;
+						let oldestTime = Infinity;
+						for (const [k, v] of newMap) {
+							if (v.lastAccessed < oldestTime) {
+								oldestTime = v.lastAccessed;
+								oldestKey = k;
+							}
+						}
+						if (oldestKey) {
+							newMap.delete(oldestKey);
+						} else {
+							break;
+						}
+					}
+
 					return newMap;
 				});
 			}),

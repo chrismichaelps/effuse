@@ -187,7 +187,16 @@ export const transform = (
 		const cache = yield* SourceCache;
 
 		if (config.enableCache) {
-			const contentHash = createContentHash(code);
+			const configHash = createContentHash(
+				JSON.stringify([
+					config.autoUnwrap,
+					config.autoUnwrapProps,
+					config.signalAccessors,
+					config.eventHandlerPrefixes,
+					config.sourceMaps,
+				])
+			);
+			const contentHash = createContentHash(`${code}:${configHash}`);
 			const cached = yield* cache.get<TransformResult>(filename, contentHash);
 
 			if (cached) {
