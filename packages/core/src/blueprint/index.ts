@@ -32,11 +32,13 @@ export {
 
 export {
 	define,
+	defineProps,
 	type DefineOptions,
 	type DefineOptionsWithInferredProps,
 	type InferExposed,
 	type InferProps,
 	type TemplateArgs,
+	type TemplateContext,
 } from './define.js';
 export {
 	type ScriptContext,
@@ -75,4 +77,4 @@ export {
 	PORTAL_PRIORITY,
 } from './portal.js';
 
-export { useCallback, useMemo } from './hooks.js';
+export { useCallback, useMemo, useLayerService } from './hooks.js';

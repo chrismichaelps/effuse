@@ -144,8 +144,8 @@ describe('reactive props — blueprint integration', () => {
 		const Component = define({
 			props: { label: 'default' },
 			script: () => ({ greeting: 'hi' }),
-			template: (_exposed, props) => {
-				capturedProps = props;
+			template: (ctx) => {
+				capturedProps = ctx;
 				return null;
 			},
 		});

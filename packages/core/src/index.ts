@@ -112,11 +112,13 @@ export { EFFUSE_NODE, FRAGMENT, NodeType } from './constants.js';
 export {
 	blueprint,
 	define,
+	defineProps,
 	isBlueprint,
 	instantiateBlueprint,
 	type BlueprintOptions,
 	type DefineOptions,
 	type DefineOptionsWithInferredProps,
+	type TemplateContext,
 	type ScriptContext,
 	type EffuseRegistry,
 	setGlobalStoreGetter,
@@ -141,6 +143,7 @@ export {
 	type PortalInsertMode,
 	type PortalPriority,
 	PORTAL_PRIORITY,
+	useLayerService,
 } from './blueprint/index.js';
 
 export {

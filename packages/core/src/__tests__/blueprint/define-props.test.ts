@@ -363,8 +363,8 @@ describe('define function - props type inference', () => {
 				script: ({ props }) => {
 					return { computed: `${props.title}-${String(props.count)}` };
 				},
-				template: (_exposed, props) => {
-					capturedProps = props;
+				template: (ctx) => {
+					capturedProps = ctx;
 					return null;
 				},
 			});
@@ -375,7 +375,7 @@ describe('define function - props type inference', () => {
 
 			blueprint.view({ props: testProps, state });
 
-			expect(capturedProps).toEqual(testProps);
+			expect(capturedProps).toMatchObject(testProps);
 		});
 	});
 
@@ -1387,9 +1387,9 @@ describe('define function - props type inference', () => {
 					script: () => {
 						return { subtitle: 'Subtitle' };
 					},
-					template: (exposed, props) => {
-						capturedTitle = props.title;
-						capturedSubtitle = exposed.subtitle;
+					template: (ctx) => {
+						capturedTitle = ctx.title;
+						capturedSubtitle = ctx.subtitle;
 						return null;
 					},
 				});
