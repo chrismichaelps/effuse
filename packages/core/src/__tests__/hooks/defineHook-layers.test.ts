@@ -2,10 +2,7 @@ import { describe, it, expect, vi, afterEach, expectTypeOf } from 'vitest';
 import { defineHook } from '../../hooks/defineHook.js';
 import { createHookContext } from '../../hooks/context.js';
 import { defineLayer } from '../../layers/api/defineLayer.js';
-import {
-	initGlobalLayerContext,
-	clearGlobalLayerContext,
-} from '../../layers/context.js';
+import { runWithLayerContext } from '../../layers/context.js';
 import type { PropsRegistry } from '../../layers/services/PropsService.js';
 import type { LayerRegistry } from '../../layers/services/RegistryService.js';
 import type { AnyResolvedLayer, LayerProps } from '../../layers/types.js';
@@ -49,9 +46,6 @@ const createResolvedLayer = (
 	({ _resolved: true as const, _order: 0, ...overrides }) as AnyResolvedLayer;
 
 describe('defineHook — typed layers accessor', () => {
-	afterEach(() => {
-		clearGlobalLayerContext();
-	});
 
 	describe('layers accessor in HookContext', () => {
 		it('should expose an empty layers accessor when no layers passed', () => {
@@ -74,7 +68,7 @@ describe('defineHook — typed layers accessor', () => {
 				theme: { mode: modeSignal },
 			});
 			const layerRegistry = createMockLayerRegistry({ theme: resolvedLayer });
-			initGlobalLayerContext(propsRegistry, layerRegistry, [resolvedLayer]);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedLayer] };
 
 			const useHook = defineHook({
 				layers: [themeLayer] as const,
@@ -83,7 +77,7 @@ describe('defineHook — typed layers accessor', () => {
 				},
 			});
 
-			const props = useHook();
+			const props = runWithLayerContext(store, () => useHook());
 			expect(props).toBeDefined();
 			expect(props.mode).toBe(modeSignal);
 		});
@@ -103,7 +97,7 @@ describe('defineHook — typed layers accessor', () => {
 				{ auth: resolvedLayer },
 				{ authService: authService }
 			);
-			initGlobalLayerContext(propsRegistry, layerRegistry, [resolvedLayer]);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedLayer] };
 
 			const useHook = defineHook({
 				layers: [authLayer] as const,
@@ -112,7 +106,7 @@ describe('defineHook — typed layers accessor', () => {
 				},
 			});
 
-			const services = useHook();
+			const services = runWithLayerContext(store, () => useHook());
 			expect(services.authService).toBe(authService);
 		});
 
@@ -133,7 +127,7 @@ describe('defineHook — typed layers accessor', () => {
 				{ myLayer: resolvedLayer },
 				{ myService: cachedInstance }
 			);
-			initGlobalLayerContext(propsRegistry, layerRegistry, [resolvedLayer]);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedLayer] };
 
 			const useHook = defineHook({
 				layers: [myLayer] as const,
@@ -142,7 +136,7 @@ describe('defineHook — typed layers accessor', () => {
 				},
 			});
 
-			const svc = useHook();
+			const svc = runWithLayerContext(store, () => useHook());
 			expect(svc).toBe(cachedInstance);
 			expect(factorySpy).not.toHaveBeenCalled();
 		});
@@ -174,7 +168,7 @@ describe('defineHook — typed layers accessor', () => {
 				{ auth: resolvedAuth, log: resolvedLog },
 				{ authSvc, logSvc }
 			);
-			initGlobalLayerContext(propsRegistry, layerRegistry, [resolvedAuth, resolvedLog]);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedAuth, resolvedLog] };
 
 			const useHook = defineHook({
 				layers: [authLayer, logLayer] as const,
@@ -186,7 +180,7 @@ describe('defineHook — typed layers accessor', () => {
 				},
 			});
 
-			const result = useHook();
+			const result = runWithLayerContext(store, () => useHook());
 			expect(result.auth).toBe(authSvc);
 			expect(result.log).toBe(logSvc);
 		});
@@ -206,10 +200,10 @@ describe('defineHook — typed layers accessor', () => {
 				theme: { mode: modeSignal },
 			});
 			const layerRegistry = createMockLayerRegistry({ theme: resolvedLayer });
-			initGlobalLayerContext(propsRegistry, layerRegistry, [resolvedLayer]);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedLayer] };
 
 			const { ctx } = createHookContext(undefined, [themeLayer] as const);
-			expect(ctx.layers.theme.props.mode).toBe(modeSignal);
+			expect(runWithLayerContext(store, () => ctx.layers.theme.props.mode)).toBe(modeSignal);
 		});
 	});
 
