@@ -37,11 +37,13 @@ import {
 	type TracingConfig,
 } from '../tracing/index.js';
 
-export type LayerRuntimeServices =
+/** Internal — not exported to users. */
+type LayerRuntimeServices =
 	| PropsService
 	| RegistryService
 	| TracingService;
 
+/** Internal — not exported to users. */
 export const CoreServicesLive = Layer.mergeAll(
 	PropsService.Default,
 	RegistryService.Default
@@ -52,7 +54,6 @@ export interface LayerRuntimeOptions {
 }
 
 export interface LayerRuntime {
-	readonly runtime: ManagedRuntime.ManagedRuntime<LayerRuntimeServices, never>;
 	readonly cleanups: readonly CleanupFn[];
 	dispose: () => Promise<void>;
 }
@@ -102,5 +103,5 @@ export const createLayerRuntime = async (
 			}
 			await runtime.dispose();
 		},
-	};
+	} as LayerRuntime;
 };

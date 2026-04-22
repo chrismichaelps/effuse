@@ -31,8 +31,6 @@ export {
 } from './builder.js';
 export {
 	createLayerRuntime,
-	CoreServicesLive,
 	type LayerRuntime,
-	type LayerRuntimeServices,
 	type LayerRuntimeOptions,
 } from './runtime.js';

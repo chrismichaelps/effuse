@@ -46,12 +46,9 @@ export type {
 	AnyResolvedLayer,
 } from './types.js';
 
-export {
-	PropsService,
-	RegistryService,
-	type PropsRegistry,
-	type LayerRegistry,
-	type LayerRuntimeServices,
+export type {
+	PropsRegistry,
+	LayerRegistry,
 } from './services/index.js';
 
 export {
@@ -98,7 +95,6 @@ export {
 } from './errors.js';
 
 export {
-	TracingService,
 	createTracingService,
 	withTracing,
 	getGlobalTracing,
