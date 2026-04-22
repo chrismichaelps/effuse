@@ -105,10 +105,11 @@ export const runGuards = (
 ): Effect.Effect<NavigationResult> =>
 	Effect.gen(function* () {
 		for (const guard of guards) {
-			const result = yield* Effect.promise(async () => {
-				const res = guard(to, from);
-				return res instanceof Promise ? res : res;
-			});
+			const res = guard(to, from);
+			const result =
+				res instanceof Promise
+					? yield* Effect.promise(() => res)
+					: res;
 			if (!NavigationResult.isAllowed(result)) {
 				return result;
 			}

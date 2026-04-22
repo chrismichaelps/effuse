@@ -70,7 +70,7 @@ export interface ResolvedRoute {
 	readonly path: string;
 	readonly fullPath: string;
 	readonly params: Record<string, string>;
-	readonly query: Record<string, string>;
+	readonly query: Record<string, string | string[]>;
 	readonly hash: string;
 	readonly matched: readonly NormalizedRouteRecord[];
 	readonly name: string | undefined;
@@ -82,7 +82,7 @@ export interface Route {
 	readonly path: string;
 	readonly fullPath: string;
 	readonly params: Record<string, string>;
-	readonly query: Record<string, string>;
+	readonly query: Record<string, string | string[]>;
 	readonly hash: string;
 	readonly matched: readonly NormalizedRouteRecord[];
 	readonly name: string | undefined;
@@ -106,25 +106,42 @@ export type NavigationGuard = (
 
 export type NavigationHookCleanup = () => void;
 
-export const parseQuery = (search: string): Record<string, string> => {
-	const query: Record<string, string> = {};
+export const parseQuery = (search: string): Record<string, string | string[]> => {
+	const query: Record<string, string | string[]> = {};
 	if (!search || search === '?') return query;
 	const searchString = search.startsWith('?') ? search.slice(1) : search;
-	new URLSearchParams(searchString).forEach((value, key) => {
-		query[key] = value;
-	});
+	const params = new URLSearchParams(searchString);
+	for (const [key, value] of params) {
+		const existing = query[key];
+		if (existing === undefined) {
+			query[key] = value;
+		} else if (Array.isArray(existing)) {
+			existing.push(value);
+		} else {
+			query[key] = [existing, value];
+		}
+	}
 	return query;
 };
 
-export const stringifyQuery = (query: Record<string, string>): string => {
-	const params = new URLSearchParams(query);
+export const stringifyQuery = (query: Record<string, string | string[]>): string => {
+	const params = new URLSearchParams();
+	for (const [key, value] of Object.entries(query)) {
+		if (Array.isArray(value)) {
+			for (const v of value) {
+				params.append(key, v);
+			}
+		} else if (value !== undefined) {
+			params.set(key, value);
+		}
+	}
 	const str = params.toString();
 	return str ? `?${str}` : '';
 };
 
 export const parseUrl = (
 	url: string
-): { pathname: string; query: Record<string, string>; hash: string } => {
+): { pathname: string; query: Record<string, string | string[]>; hash: string } => {
 	const hashIndex = url.indexOf('#');
 	const hash = hashIndex >= 0 ? url.slice(hashIndex) : '';
 	const urlWithoutHash = hashIndex >= 0 ? url.slice(0, hashIndex) : url;
@@ -134,26 +151,67 @@ export const parseUrl = (
 		queryIndex >= 0 ? urlWithoutHash.slice(0, queryIndex) : urlWithoutHash;
 	const queryString = queryIndex >= 0 ? urlWithoutHash.slice(queryIndex) : '';
 
-	const normalizedPathname =
-		(pathname || '/').replace(/\/+/g, '/').replace(/\/$/, '') || '/';
+	const normalizedPathname = (pathname || '/').replace(/\/+/g, '/');
 
 	return { pathname: normalizedPathname, query: parseQuery(queryString), hash };
 };
 
 const pathToRegex = (path: string): { regex: RegExp; paramNames: string[] } => {
 	const paramNames: string[] = [];
-	const regexPattern = path
-		.replace(/\*/g, '.*')
+	// Process optional params first, then required params, then wildcards
+	let regexPattern = path
 		.replace(/:([^/]+)\?/g, (_: string, paramName: string) => {
 			paramNames.push(paramName);
-			return '([^/]*)';
+			return '<<OPT>>';
 		})
 		.replace(/:([^/]+)/g, (_: string, paramName: string) => {
 			paramNames.push(paramName);
-			return '([^/]+)';
+			return '<<REQ>>';
 		})
-		.replace(/\//g, '\\/');
+		.replace(/\*/g, '.*');
+
+	// Escape slashes
+	regexPattern = regexPattern.replace(/\//g, '\\/');
+
+	// Replace markers with actual regex patterns
+	// For optional params, the preceding slash is also optional
+	regexPattern = regexPattern
+		.replace(/\\\/<<OPT>>/g, '(?:\\/([^/]*))?')
+		.replace(/<<OPT>>/g, '([^/]*)?')
+		.replace(/<<REQ>>/g, '([^/]+)');
+
 	return { regex: new RegExp(`^${regexPattern}$`), paramNames };
+};
+
+/**
+ * Score a route path for ranked matching.
+ * Higher score = more specific = should match first.
+ *
+ * Scoring:
+ * - Static segment: 4 points
+ * - Dynamic param (:id): 2 points
+ * - Optional param (:id?): 1 point
+ * - Catch-all (*): 0 points
+ *
+ * More segments always outrank fewer segments at the same specificity.
+ */
+const scoreRoute = (path: string): number => {
+	const segments = path.split('/').filter(Boolean);
+	let score = 0;
+	for (const segment of segments) {
+		if (segment === '*') {
+			score += 0;
+		} else if (segment.startsWith(':') && segment.endsWith('?')) {
+			score += 1;
+		} else if (segment.startsWith(':')) {
+			score += 2;
+		} else {
+			score += 4;
+		}
+	}
+	// More segments = higher base score to ensure /a/b outranks /a
+	score += segments.length * 0.1;
+	return score;
 };
 
 const normalizeRouteRecord = (
@@ -189,6 +247,9 @@ export const normalizeRoutes = (
 		}
 	}
 
+	// Sort by specificity: static > dynamic > optional > catch-all
+	result.sort((a, b) => scoreRoute(b.fullPath) - scoreRoute(a.fullPath));
+
 	return result;
 };
 
@@ -196,22 +257,30 @@ export const matchRoute = (
 	pathname: string,
 	normalizedRoutes: readonly NormalizedRouteRecord[]
 ): { matched: NormalizedRouteRecord[]; params: Record<string, string> } => {
-	for (const route of normalizedRoutes) {
-		const match = pathname.match(route.regex);
-		if (match) {
-			const params: Record<string, string> = {};
-			route.paramNames.forEach((name, index) => {
-				params[name] = match[index + 1] ?? '';
-			});
+	// Try pathname as-is, and also without trailing slash (for matching /about/ against /about)
+	const pathVariants = [pathname];
+	if (pathname !== '/' && pathname.endsWith('/')) {
+		pathVariants.push(pathname.slice(0, -1));
+	}
 
-			const matched: NormalizedRouteRecord[] = [];
-			let current: NormalizedRouteRecord | undefined = route;
-			while (current) {
-				matched.unshift(current);
-				current = current.parent;
+	for (const path of pathVariants) {
+		for (const route of normalizedRoutes) {
+			const match = path.match(route.regex);
+			if (match) {
+				const params: Record<string, string> = {};
+				route.paramNames.forEach((name, index) => {
+					params[name] = match[index + 1] ?? '';
+				});
+
+				const matched: NormalizedRouteRecord[] = [];
+				let current: NormalizedRouteRecord | undefined = route;
+				while (current) {
+					matched.unshift(current);
+					current = current.parent;
+				}
+
+				return { matched, params };
 			}
-
-			return { matched, params };
 		}
 	}
 	return { matched: [], params: {} };
@@ -223,7 +292,7 @@ export const resolveRoute = (
 	_currentRoute?: Route
 ): ResolvedRoute => {
 	let pathname: string;
-	let query: Record<string, string> = {};
+	let query: Record<string, string | string[]> = {};
 	let hash = '';
 	let params: Record<string, string> = {};
 
