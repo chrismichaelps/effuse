@@ -44,6 +44,7 @@ import {
 	type ComponentLifecycle,
 } from './lifecycle.js';
 import { useCallback, useMemo } from './hooks.js';
+import { createReactiveProps } from './reactive-props.js';
 import {
 	getLayerComponent,
 	getLayerService,
@@ -140,6 +141,8 @@ export interface ScriptContext<P, L extends readonly CompiledLayer<any>[] = []> 
 export interface ScriptState<E extends ExposedValues> {
 	exposed: E;
 	lifecycle: ComponentLifecycle;
+	/** Update reactive prop signals in-place (for reconciliation). */
+	updateProps(props: Record<string, unknown>): void;
 }
 
 let globalStoreGetter: ((name: string) => unknown) | null = null;
@@ -170,6 +173,9 @@ export const createScriptContext = <
 	const state: ScriptState<E> = {
 		exposed: {} as E,
 		lifecycle,
+		updateProps: (newProps: Record<string, unknown>) => {
+			updateProps(newProps);
+		},
 	};
 
 	const getStore = storeGetter ?? globalStoreGetter;
@@ -178,8 +184,12 @@ export const createScriptContext = <
 		(layers ?? []) as L
 	) as LayersAccessor<L>;
 
+	const { proxy: reactiveProps, update: updateProps } = createReactiveProps(
+		props as Record<string, unknown>
+	);
+
 	const context: ScriptContext<P, L> = {
-		props: Object.freeze({ ...props }),
+		props: reactiveProps as Readonly<P>,
 
 		layers: resolvedLayers,
 

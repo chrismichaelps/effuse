@@ -73,6 +73,8 @@ interface DefineState<E extends ExposedValues> {
 	exposed: E;
 	lifecycle: ComponentLifecycle;
 	_template: (exposed: TemplateArgs<E>, props: unknown) => EffuseChild;
+	/** Reactive props proxy created by script context. */
+	_reactiveProps?: Readonly<Record<string, unknown>>;
 	[key: string]: unknown;
 }
 
@@ -112,6 +114,7 @@ export function define<
 				exposed: state.exposed,
 				lifecycle: state.lifecycle,
 				_template: options.template,
+				_reactiveProps: context.props as Readonly<Record<string, unknown>>,
 			} as DefineState<E> as unknown as Record<string, never>;
 		},
 
