@@ -48,6 +48,11 @@ export type TemplateArgs<E extends ExposedValues> = E & {
 	readonly children?: EffuseChild;
 };
 
+/** Merged template context: exposed values + props + children. */
+export type TemplateContext<E extends ExposedValues, P> = E & Readonly<P> & {
+	readonly children?: EffuseChild;
+};
+
 export interface DefineOptionsWithInferredProps<
 	P,
 	E extends ExposedValues,
@@ -58,7 +63,7 @@ export interface DefineOptionsWithInferredProps<
 	props: P;
 	layers?: L;
 	script: (ctx: ScriptContext<P, L>) => E | undefined;
-	template: (exposed: TemplateArgs<E>, props: Readonly<P>) => EffuseChild;
+	template: (ctx: TemplateContext<E, P>) => EffuseChild;
 }
 
 export interface DefineOptions<
@@ -71,13 +76,13 @@ export interface DefineOptions<
 	props?: undefined;
 	layers?: L;
 	script: (ctx: ScriptContext<P, L>) => E | undefined;
-	template: (exposed: TemplateArgs<E>, props: Readonly<P>) => EffuseChild;
+	template: (ctx: TemplateContext<E, P>) => EffuseChild;
 }
 
 interface DefineState<E extends ExposedValues> {
 	exposed: E;
 	lifecycle: ComponentLifecycle;
-	_template: (exposed: TemplateArgs<E>, props: unknown) => EffuseChild;
+	_template: (ctx: TemplateContext<E, unknown>) => EffuseChild;
 	/** Reactive props proxy created by script context. */
 	_reactiveProps?: Readonly<Record<string, unknown>>;
 	/** Provide scope for component-level provide/inject. */
@@ -133,12 +138,13 @@ export function define<
 			const state = ctx.state as unknown as DefineState<E>;
 
 			const propsWithChildren = ctx.props as unknown as PropsWithChildren;
-			const exposedWithChildren: TemplateArgs<E> = {
+			const mergedCtx: TemplateContext<E, P> = {
 				...state.exposed,
+				...ctx.props,
 				children: propsWithChildren.children,
-			};
+			} as unknown as TemplateContext<E, P>;
 
-			return state._template(exposedWithChildren, ctx.props);
+			return state._template(mergedCtx);
 		},
 	};
 
@@ -154,3 +160,19 @@ export type InferProps<D> =
 		: D extends DefineOptions<infer P, ExposedValues>
 			? P
 			: never;
+
+/**
+ * Type-only helper for declaring component props without dummy runtime values.
+ *
+ * Returns an empty object at runtime — type checking happens at compile time.
+ *
+ * @example
+ * ```ts
+ * const Comp = define({
+ *   props: defineProps<{ name: string; count: number }>(),
+ *   script: ({ props }) => { … },
+ *   template: (ctx) => <div>{ctx.name}</div>,
+ * });
+ * ```
+ */
+export const defineProps = <P>(): P => ({} as P);
