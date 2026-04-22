@@ -131,6 +131,40 @@ describe('route matching', () => {
 			expect(result.matched[0].path).toBe('/lazy');
 		});
 	});
+
+	describe('aliases', () => {
+		it('should create alias route records', () => {
+			const routes = normalizeRoutes([
+				{ path: '/users', alias: '/people', component: () => 'users' },
+			]);
+			const paths = routes.map((r) => r.path);
+			expect(paths).toContain('/users');
+			expect(paths).toContain('/people');
+		});
+
+		it('should match alias path', () => {
+			const routes = normalizeRoutes([
+				{ path: '/users', alias: '/people', component: () => 'users' },
+			]);
+			const result = matchRoute('/people', routes);
+			expect(result.matched).toHaveLength(1);
+			expect(result.matched[0].path).toBe('/people');
+		});
+
+		it('should support multiple aliases', () => {
+			const routes = normalizeRoutes([
+				{
+					path: '/users',
+					alias: ['/people', '/folks'],
+					component: () => 'users',
+				},
+			]);
+			const paths = routes.map((r) => r.path);
+			expect(paths).toContain('/users');
+			expect(paths).toContain('/people');
+			expect(paths).toContain('/folks');
+		});
+	});
 });
 
 describe('resolveRoute', () => {

@@ -242,6 +242,20 @@ export const normalizeRoutes = (
 		const normalized = normalizeRouteRecord(route, parent);
 		result.push(normalized);
 
+		// Generate alias routes that share the same component/guards/meta
+		if (route.alias) {
+			const aliases = Array.isArray(route.alias) ? route.alias : [route.alias];
+			for (const alias of aliases) {
+				const { alias: _ignored, ...routeWithoutAlias } = route;
+				void _ignored;
+				const aliasRecord = normalizeRouteRecord(
+					{ ...routeWithoutAlias, path: alias },
+					parent
+				);
+				result.push(aliasRecord);
+			}
+		}
+
 		if (route.children) {
 			result.push(...normalizeRoutes(route.children, normalized));
 		}
