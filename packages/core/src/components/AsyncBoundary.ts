@@ -68,7 +68,8 @@ export const matchAsyncStatus = <R>(
 		onLoading: () => R;
 		onSuccess: () => R;
 		onError: (error: unknown) => R;
-	}
+	},
+	error?: unknown
 ): R => {
 	switch (status) {
 		case 'idle':
@@ -78,7 +79,7 @@ export const matchAsyncStatus = <R>(
 		case 'success':
 			return handlers.onSuccess();
 		case 'error':
-			return handlers.onError(undefined);
+			return handlers.onError(error);
 	}
 };
 

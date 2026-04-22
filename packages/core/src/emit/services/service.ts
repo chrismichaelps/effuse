@@ -87,7 +87,12 @@ const defaultService: EmitServiceApi = {
 			const handlers = ctx.handlers.get(event);
 			if (handlers) {
 				for (const handler of handlers) {
-					handler(payload);
+					try {
+						handler(payload);
+					} catch {
+						// Isolate handler errors so one throwing handler
+						// doesn't skip all subsequent ones.
+					}
 				}
 			}
 

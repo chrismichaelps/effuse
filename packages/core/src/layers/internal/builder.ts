@@ -37,7 +37,7 @@ import {
 	type LayerRegistry,
 } from '../services/RegistryService.js';
 import type { Component } from '../../render/node.js';
-import { DependencyNotFoundError } from '../errors.js';
+import { DependencyNotFoundError, LayerSetupError } from '../errors.js';
 import {
 	withLayerSpan,
 	type TracingService,
@@ -150,7 +150,11 @@ export const buildLayerEffect = (
 					try: () => Promise.resolve(onMountFn(ctx)),
 					catch: (error: unknown) => {
 						handleError(error);
-						return error;
+						return new LayerSetupError({
+							layerName: layer.name,
+							phase: 'onMount',
+							cause: error,
+						});
 					},
 				});
 			}
@@ -162,7 +166,11 @@ export const buildLayerEffect = (
 					try: () => Promise.resolve(setupFn(ctx)),
 					catch: (error: unknown) => {
 						handleError(error);
-						return error;
+						return new LayerSetupError({
+							layerName: layer.name,
+							phase: 'setup',
+							cause: error,
+						});
 					},
 				});
 
@@ -271,10 +279,15 @@ export const buildAllLayersEffect = (
 
 		if (onReadyCallbacks.length > 0) {
 			yield* Effect.all(
-				onReadyCallbacks.map((cb) =>
+				onReadyCallbacks.map((cb, index) =>
 					Effect.tryPromise({
 						try: () => Promise.resolve(cb()),
-						catch: () => undefined,
+						catch: (error: unknown) =>
+							new LayerSetupError({
+								layerName: results[index]?.layer.name ?? 'unknown',
+								phase: 'onReady',
+								cause: error,
+							}),
 					})
 				),
 				{ concurrency: 'unbounded' }

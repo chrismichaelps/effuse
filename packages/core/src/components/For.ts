@@ -237,12 +237,10 @@ const createDynamic = <T>(
 	Object.defineProperty(node, 'children', {
 		get() {
 			const items = sig.value;
-			return items.map((item, i) =>
-				render(
-					item,
-					computed(() => i)
-				)
-			);
+			return items.map((item, i) => {
+				const indexSignal = signal(i);
+				return render(item, indexSignal);
+			});
 		},
 	});
 
