@@ -207,6 +207,28 @@ export const createRouter = (options: RouterOptions): RouterInstance => {
 				);
 			}
 
+			// Run per-route beforeEnter guards
+			const beforeEnterGuards = resolved.matched
+				.map((r) => (r as unknown as { beforeEnter?: NavigationGuard }).beforeEnter)
+				.filter((g): g is NavigationGuard => g !== undefined);
+			const beforeEnterResult = yield* runGuards(
+				beforeEnterGuards,
+				resolved,
+				from
+			);
+			if (!NavigationResult.isAllowed(beforeEnterResult)) {
+				if (beforeEnterResult._tag === 'NavigationRedirected') {
+					return yield* navigate(beforeEnterResult.to, opts);
+				}
+				return NavigationFailure.guardCancelled(
+					resolved,
+					from as ResolvedRoute,
+					beforeEnterResult._tag === 'NavigationCancelled'
+						? beforeEnterResult.reason
+						: undefined
+				);
+			}
+
 			const beforeResolveResult = yield* runGuards(
 				guards.beforeResolve,
 				resolved,

@@ -111,6 +111,26 @@ describe('route matching', () => {
 			expect(result.matched[1].path).toBe('child');
 		});
 	});
+
+	describe('lazy components', () => {
+		it('should preserve lazy component in normalized route', () => {
+			const lazyComponent = () => Promise.resolve({ default: () => 'lazy' });
+			const routes = normalizeRoutes([
+				{ path: '/lazy', component: lazyComponent },
+			]);
+			expect(routes[0].component).toBe(lazyComponent);
+		});
+
+		it('should match route with lazy component', () => {
+			const lazyComponent = () => Promise.resolve({ default: () => 'lazy' });
+			const routes = normalizeRoutes([
+				{ path: '/lazy', component: lazyComponent },
+			]);
+			const result = matchRoute('/lazy', routes);
+			expect(result.matched).toHaveLength(1);
+			expect(result.matched[0].path).toBe('/lazy');
+		});
+	});
 });
 
 describe('resolveRoute', () => {
