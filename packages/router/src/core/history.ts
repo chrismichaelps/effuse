@@ -32,34 +32,43 @@ export interface RouterHistory {
 	readonly getCurrentPath: () => string;
 }
 
+const isBrowser = (): boolean => typeof window !== 'undefined';
+
 export const createWebHistory = (base: string = ''): RouterHistory => {
 	const normalizeBase = base.replace(/\/$/, '');
 
 	return {
 		push: (path: string) => {
+			if (!isBrowser()) return;
 			window.history.pushState({}, '', normalizeBase + path);
 			window.dispatchEvent(new PopStateEvent('popstate'));
 		},
 		replace: (path: string) => {
+			if (!isBrowser()) return;
 			window.history.replaceState({}, '', normalizeBase + path);
 			window.dispatchEvent(new PopStateEvent('popstate'));
 		},
 		go: (delta: number) => {
+			if (!isBrowser()) return;
 			window.history.go(delta);
 		},
 		back: () => {
+			if (!isBrowser()) return;
 			window.history.back();
 		},
 		forward: () => {
+			if (!isBrowser()) return;
 			window.history.forward();
 		},
 		listen: (callback: () => void) => {
+			if (!isBrowser()) return () => {};
 			window.addEventListener('popstate', callback);
 			return () => {
 				window.removeEventListener('popstate', callback);
 			};
 		},
 		getCurrentPath: () => {
+			if (!isBrowser()) return '/';
 			const path =
 				window.location.pathname +
 				window.location.search +
@@ -72,32 +81,70 @@ export const createWebHistory = (base: string = ''): RouterHistory => {
 export const createHashHistory = (): RouterHistory => {
 	return {
 		push: (path: string) => {
+			if (!isBrowser()) return;
 			window.location.hash = path;
 		},
 		replace: (path: string) => {
+			if (!isBrowser()) return;
 			const url = new URL(window.location.href);
 			url.hash = path;
 			window.history.replaceState({}, '', url.toString());
 			window.dispatchEvent(new HashChangeEvent('hashchange'));
 		},
 		go: (delta: number) => {
+			if (!isBrowser()) return;
 			window.history.go(delta);
 		},
 		back: () => {
+			if (!isBrowser()) return;
 			window.history.back();
 		},
 		forward: () => {
+			if (!isBrowser()) return;
 			window.history.forward();
 		},
 		listen: (callback: () => void) => {
+			if (!isBrowser()) return () => {};
 			window.addEventListener('hashchange', callback);
 			return () => {
 				window.removeEventListener('hashchange', callback);
 			};
 		},
 		getCurrentPath: () => {
+			if (!isBrowser()) return '/';
 			const hash = window.location.hash.slice(1) || '/';
 			return hash;
 		},
+	};
+};
+
+/** Memory history for testing and SSR environments. */
+export const createMemoryHistory = (initialPath: string = '/'): RouterHistory => {
+	let currentPath = initialPath;
+	const listeners = new Set<() => void>();
+
+	const notify = () => {
+		for (const cb of listeners) cb();
+	};
+
+	return {
+		push: (path: string) => {
+			currentPath = path;
+			notify();
+		},
+		replace: (path: string) => {
+			currentPath = path;
+			notify();
+		},
+		go: () => {},
+		back: () => {},
+		forward: () => {},
+		listen: (callback: () => void) => {
+			listeners.add(callback);
+			return () => {
+				listeners.delete(callback);
+			};
+		},
+		getCurrentPath: () => currentPath,
 	};
 };

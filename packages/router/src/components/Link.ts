@@ -125,28 +125,28 @@ export const Link = define<LinkProps, LinkState>({
 		};
 	},
 
-	template: (exposed, props): ElementNode => {
+	template: (ctx): ElementNode => {
 		const userClass =
-			(typeof props.class === 'string' && props.class) ||
-			(typeof props.className === 'string' && props.className) ||
+			(typeof ctx.class === 'string' && ctx.class) ||
+			(typeof ctx.className === 'string' && ctx.className) ||
 			'';
 
 		const classSig = computed<string | null>(() => {
 			const classes: string[] = [];
 			if (userClass) classes.push(userClass);
-			if (exposed.isExactActive.value) {
-				classes.push(exposed.exactActiveClass);
-			} else if (exposed.isActive.value) {
-				classes.push(exposed.activeClass);
+			if (ctx.isExactActive.value) {
+				classes.push(ctx.exactActiveClass);
+			} else if (ctx.isActive.value) {
+				classes.push(ctx.activeClass);
 			}
 			return classes.length > 0 ? classes.join(' ') : null;
 		});
 
 		const ariaCurrentSig = computed<string | null>(() =>
-			exposed.isExactActive.value ? 'page' : null
+			ctx.isExactActive.value ? 'page' : null
 		);
 
-		const childrenProp = (props as { children?: unknown }).children;
+		const childrenProp = (ctx as unknown as { children?: unknown }).children;
 		const childrenArr =
 			childrenProp == null
 				? []
@@ -158,9 +158,9 @@ export const Link = define<LinkProps, LinkState>({
 			[EFFUSE_NODE]: true,
 			tag: 'a',
 			props: {
-				href: exposed.to,
+				href: ctx.to,
 				className: classSig,
-				onClick: exposed.handleClick,
+				onClick: ctx.handleClick,
 				'aria-current': ariaCurrentSig,
 			},
 			children: childrenArr,
