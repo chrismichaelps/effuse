@@ -84,6 +84,56 @@ describe('AST analyzer', () => {
 			visited.add(node);
 			expect(containsSignalAccess(node, accessorSet, visited)).toBe(false);
 		});
+
+		it('should detect signal in TS as expression', () => {
+			const node = parseExpr('(count.value as number)');
+			expect(containsSignalAccess(node, accessorSet)).toBe(true);
+		});
+
+		it('should detect signal in TS satisfies expression', () => {
+			const node = parseExpr('(count.value satisfies number)');
+			expect(containsSignalAccess(node, accessorSet)).toBe(true);
+		});
+
+		it('should detect signal in TS non-null expression', () => {
+			const node = parseExpr('count.value!');
+			expect(containsSignalAccess(node, accessorSet)).toBe(true);
+		});
+
+		it('should detect signal in await expression', () => {
+			const node = parseExpr('await count.value');
+			expect(containsSignalAccess(node, accessorSet)).toBe(true);
+		});
+
+		it('should detect signal in new expression', () => {
+			const node = parseExpr('new Signal(count.value)');
+			expect(containsSignalAccess(node, accessorSet)).toBe(true);
+		});
+
+		it('should detect signal in sequence expression', () => {
+			const node = parseExpr('(a, count.value, b)');
+			expect(containsSignalAccess(node, accessorSet)).toBe(true);
+		});
+
+		it('should detect signal in spread element', () => {
+			const node = parseExpr('[...count.value]');
+			expect(containsSignalAccess(node, accessorSet)).toBe(true);
+		});
+
+		it('should detect signal in tagged template expression', () => {
+			const node = parseExpr('tag`Hello ${name.value}`');
+			expect(containsSignalAccess(node, accessorSet)).toBe(true);
+		});
+
+		it('should detect signal in update expression', () => {
+			const node = parseExpr('count.value++');
+			expect(containsSignalAccess(node, accessorSet)).toBe(true);
+		});
+
+		it('should detect signal in spread argument', () => {
+			const node = parseExpr('fn(...count.value)');
+			expect(containsSignalAccess(node, accessorSet)).toBe(true);
+		});
 	});
 
 	describe('isEventHandler', () => {
