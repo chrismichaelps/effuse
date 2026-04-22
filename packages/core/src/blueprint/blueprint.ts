@@ -103,8 +103,11 @@ export const instantiateBlueprint = <P extends Record<string, unknown>>(
 
 	const state = def.state ? def.state(validatedProps) : {};
 
+	// Prefer reactive props proxy created by define() over raw validated props
+	const reactiveProps = (state as unknown as { _reactiveProps?: P })._reactiveProps;
+
 	return {
-		props: validatedProps,
+		props: reactiveProps ?? validatedProps,
 		state,
 		portals,
 	};
