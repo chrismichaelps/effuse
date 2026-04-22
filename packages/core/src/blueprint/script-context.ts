@@ -45,6 +45,7 @@ import {
 } from './lifecycle.js';
 import { useCallback, useMemo } from './hooks.js';
 import { createReactiveProps } from './reactive-props.js';
+import { provide, inject } from './provide-inject.js';
 import {
 	getLayerComponent,
 	getLayerService,
@@ -136,6 +137,10 @@ export interface ScriptContext<P, L extends readonly CompiledLayer<any>[] = []> 
 	useService: (key: string) => unknown;
 
 	useComponent: (name: string) => Component | undefined;
+
+	provide: typeof provide;
+
+	inject: typeof inject;
 }
 
 export interface ScriptState<E extends ExposedValues> {
@@ -300,6 +305,10 @@ export const createScriptContext = <
 			}
 			return getLayerComponent(name) as Component | undefined;
 		},
+
+		provide,
+
+		inject,
 	};
 
 	return { context, state };

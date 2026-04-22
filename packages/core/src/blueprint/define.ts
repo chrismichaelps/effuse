@@ -34,6 +34,11 @@ import { createScriptContext, runMountCallbacks } from './script-context.js';
 import type { ComponentLifecycle } from './lifecycle.js';
 import { withActiveLifecycle } from './lifecycle.js';
 import type { CompiledLayer } from '../layers/api/defineLayer.js';
+import {
+	createProvideScope,
+	runWithProvideScope,
+	getCurrentProvideScope,
+} from './provide-inject.js';
 
 interface PropsWithChildren {
 	readonly children?: EffuseChild;
@@ -75,6 +80,8 @@ interface DefineState<E extends ExposedValues> {
 	_template: (exposed: TemplateArgs<E>, props: unknown) => EffuseChild;
 	/** Reactive props proxy created by script context. */
 	_reactiveProps?: Readonly<Record<string, unknown>>;
+	/** Provide scope for component-level provide/inject. */
+	_provideScope?: import('./provide-inject.js').ProvideScope;
 	[key: string]: unknown;
 }
 
@@ -98,8 +105,11 @@ export function define<
 				layers
 			);
 
-			const scriptResult = withActiveLifecycle(state.lifecycle, () =>
-				options.script(context)
+			const parentScope = getCurrentProvideScope();
+			const provideScope = createProvideScope(parentScope);
+
+			const scriptResult = runWithProvideScope(provideScope, () =>
+				withActiveLifecycle(state.lifecycle, () => options.script(context))
 			);
 
 			if (Predicate.isNotNullable(scriptResult)) {
@@ -115,6 +125,7 @@ export function define<
 				lifecycle: state.lifecycle,
 				_template: options.template,
 				_reactiveProps: context.props as Readonly<Record<string, unknown>>,
+				_provideScope: provideScope,
 			} as DefineState<E> as unknown as Record<string, never>;
 		},
 
