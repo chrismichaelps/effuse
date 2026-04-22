@@ -365,6 +365,7 @@ const mountNode = (
 
 					return pipe(
 						Effect.all(allBindingEffects),
+						Effect.orDie,
 						Effect.map((results) => {
 							for (const result of results) {
 								bindingCleanups.push(result.cleanup);
@@ -383,7 +384,7 @@ const mountNode = (
 									for (const childNode of results.flat()) {
 										element.appendChild(childNode);
 									}
-									return [element];
+									return [element] as Node[];
 								})
 							)
 						)

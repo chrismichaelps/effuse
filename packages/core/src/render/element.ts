@@ -137,6 +137,11 @@ export const toNode = (child: EffuseChild): EffuseNode | null => {
 		return createTextNode(String(child));
 	}
 
+	if (Array.isArray(child)) {
+		const nodes = child.map(toNode).filter((n): n is EffuseNode => n !== null);
+		return nodes.length === 1 ? nodes[0] : createFragmentNode(nodes);
+	}
+
 	if (Predicate.isObject(child) && EFFUSE_NODE in child) {
 		return child;
 	}

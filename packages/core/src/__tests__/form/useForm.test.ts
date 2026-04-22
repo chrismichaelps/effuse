@@ -4,7 +4,7 @@ import { signal } from '../../reactivity/signal.js';
 
 describe('useForm bind input types', () => {
 	it('should handle checkbox inputs', () => {
-		const form = useForm({
+		const form = useForm<{ agree: boolean }>({
 			initial: { agree: signal(false) },
 		});
 		const binding = form.bind('agree');
@@ -20,7 +20,7 @@ describe('useForm bind input types', () => {
 	});
 
 	it('should handle radio inputs', () => {
-		const form = useForm({
+		const form = useForm<{ color: string }>({
 			initial: { color: signal('red') },
 		});
 		const binding = form.bind('color');
@@ -37,7 +37,7 @@ describe('useForm bind input types', () => {
 	});
 
 	it('should handle number inputs', () => {
-		const form = useForm({
+		const form = useForm<{ age: number }>({
 			initial: { age: signal(0) },
 		});
 		const binding = form.bind('age');
@@ -46,9 +46,7 @@ describe('useForm bind input types', () => {
 			tagName: 'INPUT',
 			type: 'number',
 			value: '25',
-			get valueAsNumber() {
-				return Number(this.value);
-			},
+			valueAsNumber: 25,
 		} as unknown as HTMLInputElement;
 
 		binding.onInput({ target: numberInput } as unknown as Event);
@@ -56,7 +54,7 @@ describe('useForm bind input types', () => {
 	});
 
 	it('should handle range inputs', () => {
-		const form = useForm({
+		const form = useForm<{ volume: number }>({
 			initial: { volume: signal(0) },
 		});
 		const binding = form.bind('volume');
@@ -65,9 +63,7 @@ describe('useForm bind input types', () => {
 			tagName: 'INPUT',
 			type: 'range',
 			value: '75',
-			get valueAsNumber() {
-				return Number(this.value);
-			},
+			valueAsNumber: 75,
 		} as unknown as HTMLInputElement;
 
 		binding.onInput({ target: rangeInput } as unknown as Event);
@@ -75,7 +71,7 @@ describe('useForm bind input types', () => {
 	});
 
 	it('should handle select inputs', () => {
-		const form = useForm({
+		const form = useForm<{ country: string }>({
 			initial: { country: signal('') },
 		});
 		const binding = form.bind('country');
@@ -92,7 +88,7 @@ describe('useForm bind input types', () => {
 	});
 
 	it('should handle multi-select inputs', () => {
-		const form = useForm({
+		const form = useForm<{ tags: string[] }>({
 			initial: { tags: signal([] as string[]) },
 		});
 		const binding = form.bind('tags');
@@ -108,7 +104,7 @@ describe('useForm bind input types', () => {
 	});
 
 	it('should fall back to text value for unknown input types', () => {
-		const form = useForm({
+		const form = useForm<{ name: string }>({
 			initial: { name: signal('') },
 		});
 		const binding = form.bind('name');

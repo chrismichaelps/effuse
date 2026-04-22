@@ -1,12 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { Await } from '../../components/Await.js';
-import { EFFUSE_NODE } from '../../constants.js';
-
-const textNode = (text: string) => ({
-	[EFFUSE_NODE]: true,
-	_tag: 'Text',
-	text,
-});
+import { createTextNode } from '../../render/node.js';
 
 describe('Await deferred', () => {
 	it('should not start promise automatically when defer is true', async () => {
@@ -21,8 +15,8 @@ describe('Await deferred', () => {
 		const node = Await({
 			promise,
 			defer: true,
-			pending: textNode('loading'),
-			children: (data) => textNode(data),
+			pending: createTextNode('loading'),
+			children: (data: string) => createTextNode(data),
 		});
 
 		// Immediately check children — should still be pending
@@ -40,8 +34,8 @@ describe('Await deferred', () => {
 		const node = Await({
 			promise,
 			defer: true,
-			pending: textNode('loading'),
-			children: (data) => textNode(data),
+			pending: createTextNode('loading'),
+			children: (data: string) => createTextNode(data),
 		}) as any;
 
 		node._start();
@@ -61,8 +55,8 @@ describe('Await deferred', () => {
 		const node = Await({
 			promise: factory,
 			defer: true,
-			pending: textNode('loading'),
-			children: (data) => textNode(data),
+			pending: createTextNode('loading'),
+			children: (data: string) => createTextNode(data),
 		}) as any;
 
 		node._start();
