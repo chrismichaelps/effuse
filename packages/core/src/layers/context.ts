@@ -46,9 +46,9 @@ export interface LayerContext<P extends LayerProps = LayerProps> {
 	getComponent: (name: string) => unknown;
 }
 
-interface LayerContextStore {
-	propsRegistry: PropsRegistry;
-	layerRegistry: LayerRegistry;
+export interface LayerContextStore {
+	propsRegistry: PropsRegistry | null;
+	layerRegistry: LayerRegistry | null;
 	layers: readonly AnyResolvedLayer[];
 }
 
@@ -81,15 +81,21 @@ export const initGlobalLayerContext = (
 export const clearGlobalLayerContext = (): void => {
 	const store = layerContextStorage.getStore();
 	if (store) {
-		store.propsRegistry = null as unknown as PropsRegistry;
-		store.layerRegistry = null as unknown as LayerRegistry;
+		store.propsRegistry = null;
+		store.layerRegistry = null;
 		store.layers = [];
 	}
 };
 
-const getStoreOrThrow = (): LayerContextStore => {
+interface NonNullLayerContextStore {
+	propsRegistry: PropsRegistry;
+	layerRegistry: LayerRegistry;
+	layers: readonly AnyResolvedLayer[];
+}
+
+const getStoreOrThrow = (): NonNullLayerContextStore => {
 	const store = layerContextStorage.getStore();
-	if (!store) {
+	if (!store || !store.propsRegistry || !store.layerRegistry) {
 		devWarn(
 			'Layer runtime not initialized. ' +
 				'Did you forget to call app.useLayers() or createSSRRuntime()?' +
@@ -97,7 +103,7 @@ const getStoreOrThrow = (): LayerContextStore => {
 		);
 		throw new LayerRuntimeNotInitializedError({ resource: 'layer context' });
 	}
-	return store;
+	return store as NonNullLayerContextStore;
 };
 
 export const isLayerRuntimeReady = (): boolean => {
@@ -136,20 +142,9 @@ export function getLayerContext(name: string): LayerContext {
 			provides: layer.provides as Record<string, () => unknown>,
 		}),
 		deps,
-		getService: (key: string) =>
-			pipe(
-				Option.fromNullable(store.layerRegistry),
-				Option.map((registry) => registry.getService(key)),
-				Option.getOrUndefined
-			),
+		getService: (key: string) => store.layerRegistry.getService(key),
 		getComponent: (componentName: string) =>
-			pipe(
-				Option.fromNullable(store.layerRegistry),
-				Option.flatMap((registry) =>
-					Option.fromNullable(registry.getComponent(componentName))
-				),
-				Option.getOrUndefined
-			),
+			store.layerRegistry.getComponent(componentName),
 	};
 }
 

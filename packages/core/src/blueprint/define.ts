@@ -122,7 +122,11 @@ export function define<
 			}
 
 			queueMicrotask(() => {
-				runMountCallbacks(state);
+				try {
+					runMountCallbacks(state);
+				} catch {
+					/* mount errors are handled individually inside runMount */
+				}
 			});
 
 			return {
@@ -131,23 +135,26 @@ export function define<
 				_template: options.template,
 				_reactiveProps: context.props as Readonly<Record<string, unknown>>,
 				_provideScope: provideScope,
-			} as DefineState<E> as unknown as Record<string, never>;
+			} as unknown as Record<string, unknown>;
 		},
 
 		view: (ctx: BlueprintContext<P>) => {
-			const state = ctx.state as unknown as DefineState<E>;
-
-			const propsWithChildren = ctx.props as unknown as PropsWithChildren;
+			const state = ctx.state as DefineState<E>;
+			const children = (ctx.props as Record<string, unknown>).children as
+				| EffuseChild
+				| undefined;
 			const mergedCtx: TemplateContext<E, P> = {
 				...state.exposed,
 				...ctx.props,
-				children: propsWithChildren.children,
-			} as unknown as TemplateContext<E, P>;
+				children,
+			} as TemplateContext<E, P>;
 
 			return state._template(mergedCtx);
 		},
 	};
 
+	// Component<P> adds a callable signature to BlueprintDef<P>; at runtime
+	// JSX treats this as a blueprint, so the cast bridges the type gap.
 	return blueprint as unknown as Component<P>;
 }
 

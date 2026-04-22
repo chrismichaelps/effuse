@@ -29,7 +29,8 @@ import type { ReadonlySignal } from '../types/index.js';
 import { getActiveLifecycle } from './lifecycle.js';
 import { devWarn } from '../utils/dev-warnings.js';
 import { getLayerService } from '../layers/context.js';
-import type { CompiledLayer, EffuseLayer, EffuseServices } from '../layers/api/defineLayer.js';
+import type { CompiledLayer, EffuseServices } from '../layers/api/defineLayer.js';
+import type { EffuseLayer } from '../layers/types.js';
 
 const trackDependencies = (deps: unknown[] | undefined): void => {
 	if (!Predicate.isNotNullable(deps)) return;

@@ -40,6 +40,7 @@ interface LifecycleState {
 	readonly beforeUnmountCallbacks: Array<() => void>;
 	readonly mountCleanups: Array<() => void>;
 	mounted: boolean;
+	cleanedUp: boolean;
 }
 
 const createLifecycleFns = (
@@ -70,31 +71,56 @@ const createLifecycleFns = (
 	};
 
 	const runMount = (): void => {
-		if (state.mounted) return;
+		if (state.mounted || state.cleanedUp) return;
 
-		for (const fn of state.beforeMountCallbacks) fn();
+		for (const fn of state.beforeMountCallbacks) {
+			try {
+				fn();
+			} catch {
+				/* swallow individual beforeMount errors */
+			}
+		}
 		state.beforeMountCallbacks.length = 0;
 
 		state.mounted = true;
 
 		for (const fn of state.mountCallbacks) {
-			const cleanup = fn();
-			if (cleanup) state.mountCleanups.push(cleanup);
+			try {
+				const cleanup = fn();
+				if (cleanup) state.mountCleanups.push(cleanup);
+			} catch {
+				/* swallow individual mount errors so one bad callback doesn't break the rest */
+			}
 		}
 		state.mountCallbacks.length = 0;
 	};
 
 	const runCleanup = (): void => {
-		for (const fn of state.beforeUnmountCallbacks) fn();
+		if (state.cleanedUp) return;
+
+		for (const fn of state.beforeUnmountCallbacks) {
+			try {
+				fn();
+			} catch {
+				/* swallow individual beforeUnmount errors */
+			}
+		}
 		state.beforeUnmountCallbacks.length = 0;
 
 		for (const cleanup of state.mountCleanups) {
-			if (Predicate.isFunction(cleanup)) cleanup();
+			if (Predicate.isFunction(cleanup)) {
+				try {
+					cleanup();
+				} catch {
+					/* swallow individual cleanup errors */
+				}
+			}
 		}
 		state.mountCleanups.length = 0;
 
 		Effect.runSync(Scope.close(scope, Exit.void));
 		state.mounted = false;
+		state.cleanedUp = true;
 	};
 
 	return {
@@ -113,6 +139,7 @@ const createState = (): LifecycleState => ({
 	beforeUnmountCallbacks: [],
 	mountCleanups: [],
 	mounted: false,
+	cleanedUp: false,
 });
 
 export const createComponentLifecycleSync = (): ComponentLifecycle => {
