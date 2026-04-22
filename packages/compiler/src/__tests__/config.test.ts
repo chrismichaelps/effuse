@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { defaultConfig, mergeConfig, CompilerConfigSchema } from '../config/index.js';
+import { defaultConfig, mergeConfig } from '../config/index.js';
 
 describe('config', () => {
 	describe('defaultConfig', () => {
@@ -42,13 +42,4 @@ describe('config', () => {
 		});
 	});
 
-	describe('CompilerConfigSchema', () => {
-		it('should validate valid config', () => {
-			const result = CompilerConfigSchema.make({
-				autoUnwrap: true,
-				signalAccessors: ['.value'],
-			});
-			expect(result.autoUnwrap).toBe(true);
-		});
-	});
 });

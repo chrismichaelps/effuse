@@ -2,27 +2,8 @@
  * MIT License
  *
  * Copyright (c) 2025 Chris M. Perez
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
  */
 
-import { Data } from 'effect';
 import { ErrorCodes } from '../constants/index.js';
 
 export interface ParseErrorProps {
@@ -32,15 +13,23 @@ export interface ParseErrorProps {
 	readonly column?: number;
 }
 
-export class ParseError extends Data.TaggedError('ParseError')<{
-	readonly code: typeof ErrorCodes.PARSE_ERROR;
+export class ParseError {
+	readonly _tag = 'ParseError' as const;
+	readonly code = ErrorCodes.PARSE_ERROR;
 	readonly file: string;
 	readonly message: string;
 	readonly line?: number;
 	readonly column?: number;
-}> {
+
 	static create(props: ParseErrorProps): ParseError {
-		return new ParseError({ ...props, code: ErrorCodes.PARSE_ERROR });
+		return new ParseError(props);
+	}
+
+	constructor(props: ParseErrorProps) {
+		this.file = props.file;
+		this.message = props.message;
+		this.line = props.line;
+		this.column = props.column;
 	}
 }
 
@@ -51,15 +40,23 @@ export interface TransformErrorProps {
 	readonly nodeType?: string;
 }
 
-export class TransformError extends Data.TaggedError('TransformError')<{
-	readonly code: typeof ErrorCodes.TRANSFORM_ERROR;
+export class TransformError {
+	readonly _tag = 'TransformError' as const;
+	readonly code = ErrorCodes.TRANSFORM_ERROR;
 	readonly file: string;
 	readonly message: string;
 	readonly nodePath?: string;
 	readonly nodeType?: string;
-}> {
+
 	static create(props: TransformErrorProps): TransformError {
-		return new TransformError({ ...props, code: ErrorCodes.TRANSFORM_ERROR });
+		return new TransformError(props);
+	}
+
+	constructor(props: TransformErrorProps) {
+		this.file = props.file;
+		this.message = props.message;
+		this.nodePath = props.nodePath;
+		this.nodeType = props.nodeType;
 	}
 }
 
@@ -68,13 +65,19 @@ export interface GenerateErrorProps {
 	readonly message: string;
 }
 
-export class GenerateError extends Data.TaggedError('GenerateError')<{
-	readonly code: typeof ErrorCodes.GENERATE_ERROR;
+export class GenerateError {
+	readonly _tag = 'GenerateError' as const;
+	readonly code = ErrorCodes.GENERATE_ERROR;
 	readonly file: string;
 	readonly message: string;
-}> {
+
 	static create(props: GenerateErrorProps): GenerateError {
-		return new GenerateError({ ...props, code: ErrorCodes.GENERATE_ERROR });
+		return new GenerateError(props);
+	}
+
+	constructor(props: GenerateErrorProps) {
+		this.file = props.file;
+		this.message = props.message;
 	}
 }
 
@@ -85,15 +88,23 @@ export interface ConfigErrorProps {
 	readonly receivedValue?: unknown;
 }
 
-export class ConfigError extends Data.TaggedError('ConfigError')<{
-	readonly code: typeof ErrorCodes.CONFIG_ERROR;
+export class ConfigError {
+	readonly _tag = 'ConfigError' as const;
+	readonly code = ErrorCodes.CONFIG_ERROR;
 	readonly message: string;
 	readonly key?: string;
 	readonly expectedType?: string;
 	readonly receivedValue?: unknown;
-}> {
+
 	static create(props: ConfigErrorProps): ConfigError {
-		return new ConfigError({ ...props, code: ErrorCodes.CONFIG_ERROR });
+		return new ConfigError(props);
+	}
+
+	constructor(props: ConfigErrorProps) {
+		this.message = props.message;
+		this.key = props.key;
+		this.expectedType = props.expectedType;
+		this.receivedValue = props.receivedValue;
 	}
 }
 
@@ -102,13 +113,19 @@ export interface CacheErrorProps {
 	readonly key?: string;
 }
 
-export class CacheError extends Data.TaggedError('CacheError')<{
-	readonly code: typeof ErrorCodes.CACHE_ERROR;
+export class CacheError {
+	readonly _tag = 'CacheError' as const;
+	readonly code = ErrorCodes.CACHE_ERROR;
 	readonly message: string;
 	readonly key?: string;
-}> {
+
 	static create(props: CacheErrorProps): CacheError {
-		return new CacheError({ ...props, code: ErrorCodes.CACHE_ERROR });
+		return new CacheError(props);
+	}
+
+	constructor(props: CacheErrorProps) {
+		this.message = props.message;
+		this.key = props.key;
 	}
 }
 
