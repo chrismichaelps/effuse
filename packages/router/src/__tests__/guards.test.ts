@@ -121,6 +121,84 @@ describe('createRouter guards', () => {
 		router.push('/about');
 		expect(guard).not.toHaveBeenCalled();
 	});
+
+	it('should call beforeEnter guard on matched route', () => {
+		const beforeEnter = vi.fn(() => NavigationResult.allowed());
+		const router = createRouter({
+			history: createMemoryHistory('/'),
+			routes: [
+				{ path: '/', component: dummyComponent },
+				{ path: '/admin', component: dummyComponent, beforeEnter },
+			],
+		});
+		router.push('/admin');
+		expect(beforeEnter).toHaveBeenCalled();
+	});
+
+	it('should cancel navigation when beforeEnter returns cancelled', () => {
+		const router = createRouter({
+			history: createMemoryHistory('/'),
+			routes: [
+				{ path: '/', component: dummyComponent },
+				{
+					path: '/admin',
+					component: dummyComponent,
+					beforeEnter: () => NavigationResult.cancelled('no access'),
+				},
+			],
+		});
+		const result = router.push('/admin');
+		expect(NavigationFailure.isNavigationFailure(result)).toBe(true);
+	});
+
+	it('should redirect when beforeEnter returns redirect', () => {
+		const router = createRouter({
+			history: createMemoryHistory('/'),
+			routes: [
+				{ path: '/', component: dummyComponent },
+				{ path: '/login', component: dummyComponent },
+				{
+					path: '/admin',
+					component: dummyComponent,
+					beforeEnter: (to) =>
+						to.path === '/admin'
+							? NavigationResult.redirected('/login')
+							: NavigationResult.allowed(),
+				},
+			],
+		});
+		const result = router.push('/admin');
+		expect(NavigationFailure.isNavigationFailure(result)).toBe(false);
+		expect((result as { path: string }).path).toBe('/login');
+	});
+
+	it('should run beforeEnter after beforeEach and before beforeResolve', () => {
+		const order: string[] = [];
+		const router = createRouter({
+			history: createMemoryHistory('/'),
+			routes: [
+				{ path: '/', component: dummyComponent },
+				{
+					path: '/admin',
+					component: dummyComponent,
+					beforeEnter: () => {
+						order.push('beforeEnter');
+						return NavigationResult.allowed();
+					},
+				},
+			],
+		});
+		router.beforeEach(() => {
+			order.push('beforeEach');
+			return NavigationResult.allowed();
+		});
+		router.beforeResolve(() => {
+			order.push('beforeResolve');
+			return NavigationResult.allowed();
+		});
+		router.push('/admin');
+		expect(order).toEqual(['beforeEach', 'beforeEnter', 'beforeResolve']);
+	});
 });
 
 describe('guard utilities', () => {

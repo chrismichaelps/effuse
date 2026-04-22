@@ -38,6 +38,7 @@ import type {
 	Route,
 	NormalizedRouteRecord,
 	RouteComponent,
+	LazyRouteComponent,
 } from '../core/route.js';
 import { InvalidRouterStateError } from '../errors.js';
 
@@ -45,16 +46,22 @@ const getMatchedComponent = (
 	route: Route,
 	depth: number,
 	name: string
-): RouteComponent | null => {
+): RouteComponent | LazyRouteComponent | null => {
 	const matched = route.matched[depth];
 	if (!matched) return null;
 
 	if (matched.components) {
-		return (matched.components[name] as RouteComponent | undefined) ?? null;
+		return (
+			(matched.components[name] as
+				| RouteComponent
+				| LazyRouteComponent
+				| undefined) ?? null
+		);
 	}
 
 	return name === 'default'
-		? ((matched.component as RouteComponent | undefined) ?? null)
+		? ((matched.component as RouteComponent | LazyRouteComponent | undefined) ??
+				null)
 		: null;
 };
 
@@ -165,6 +172,61 @@ export const RouterView = define({
 			}
 
 			const props = getComponentProps(route, matched);
+
+			// Handle lazy components
+			if (Predicate.isFunction(component)) {
+				const result = component({ ...props, ...route.params });
+				if (result instanceof Promise) {
+					lastRoutePath = currentRoutePath;
+					matchedView.value = CreateElementNode({
+						[EFFUSE_NODE]: true,
+						tag: 'div',
+						props: { class: 'router-view-loading' },
+						children: [],
+					});
+
+					result
+						.then((mod) => {
+							const resolved = mod.default;
+							if (routeSignal.value.fullPath !== currentRoutePath) return;
+							const rendered = renderComponent(resolved, route, props);
+							matchedView.value = CreateElementNode({
+								[EFFUSE_NODE]: true,
+								tag: 'div',
+								key: `route-${String(depth)}-${currentRoutePath}`,
+								props: {
+									class: 'router-view-content',
+								},
+								children: [rendered],
+							});
+						})
+						.catch(() => {
+							if (routeSignal.value.fullPath !== currentRoutePath) return;
+							matchedView.value = CreateElementNode({
+								[EFFUSE_NODE]: true,
+								tag: 'div',
+								props: { class: 'router-view-error' },
+								children: ['Failed to load component'],
+							});
+						});
+					return;
+				}
+
+				// Sync function component
+				const content = CreateElementNode({
+					[EFFUSE_NODE]: true,
+					tag: 'div',
+					key: `route-${String(depth)}-${currentRoutePath}`,
+					props: {
+						class: 'router-view-content',
+					},
+					children: [result as EffuseChild],
+				});
+
+				lastRoutePath = currentRoutePath;
+				matchedView.value = content;
+				return;
+			}
 
 			const rendered = renderComponent(component, route, props);
 
