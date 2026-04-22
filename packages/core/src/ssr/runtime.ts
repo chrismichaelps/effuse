@@ -33,6 +33,7 @@ import {
 	initGlobalLayerContext,
 	clearGlobalLayerContext,
 	runWithLayerContext,
+	type LayerContextStore,
 } from '../layers/context.js';
 import {
 	TracingServiceLive,
@@ -97,10 +98,10 @@ export const createSSRRuntime = async (
 	const managedRuntime = ManagedRuntime.make(servicesLayer);
 
 	let aggregatedCleanup: CleanupFn | undefined;
-	let layerContextStore = {
-		propsRegistry: null as unknown as import('../layers/services/PropsService.js').PropsRegistry,
-		layerRegistry: null as unknown as import('../layers/services/RegistryService.js').LayerRegistry,
-		layers: [] as readonly AnyResolvedLayer[],
+	let layerContextStore: LayerContextStore = {
+		propsRegistry: null,
+		layerRegistry: null,
+		layers: [],
 	};
 
 	if (runSetup) {
