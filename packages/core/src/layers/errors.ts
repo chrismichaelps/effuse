@@ -97,6 +97,16 @@ export class RouterNotConfiguredError extends Data.TaggedError(
 	}
 }
 
+export class LayerSetupError extends Data.TaggedError('LayerSetupError')<{
+	readonly layerName: string;
+	readonly phase: 'onMount' | 'setup' | 'onReady';
+	readonly cause: unknown;
+}> {
+	get message(): string {
+		return `[Effuse] Layer "${this.layerName}" failed during ${this.phase}: ${String(this.cause)}`;
+	}
+}
+
 export type LayerError =
 	| LayerNotFoundError
 	| LayerRuntimeNotReadyError
@@ -104,4 +114,5 @@ export type LayerError =
 	| ServiceNotFoundError
 	| DependencyNotFoundError
 	| CircularDependencyError
-	| RouterNotConfiguredError;
+	| RouterNotConfiguredError
+	| LayerSetupError;

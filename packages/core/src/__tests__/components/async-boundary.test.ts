@@ -107,6 +107,22 @@ describe('AsyncBoundary', () => {
 			expect(result).toBe('error-result');
 		});
 
+		it('should pass the error to onError handler when provided', () => {
+			const testError = new Error('something went wrong');
+			const result = matchAsyncStatus(
+				'error',
+				{
+					onIdle: () => null,
+					onLoading: () => null,
+					onSuccess: () => null,
+					onError: (error) => error,
+				},
+				testError
+			);
+
+			expect(result).toBe(testError);
+		});
+
 		it('should be exhaustive for all statuses', () => {
 			const statuses: AsyncStatus[] = ['idle', 'loading', 'success', 'error'];
 			const results: string[] = [];

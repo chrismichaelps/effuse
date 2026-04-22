@@ -179,8 +179,43 @@ export function useForm<T extends Record<string, unknown>>(
 				return fieldSignal.value;
 			},
 			onInput: (e: Event) => {
-				const target = e.target as HTMLInputElement;
-				fieldSignal.value = target.value as T[K];
+				const target = e.target as HTMLInputElement | HTMLSelectElement;
+				const tag = target.tagName.toLowerCase();
+
+				if (tag === 'select') {
+					const select = target as HTMLSelectElement;
+					if (select.multiple) {
+						const values = Array.from(select.selectedOptions).map(
+							(opt) => opt.value
+						);
+						fieldSignal.value = values as T[K];
+					} else {
+						fieldSignal.value = select.value as T[K];
+					}
+					return;
+				}
+
+				const input = target as HTMLInputElement;
+				const type = input.type;
+
+				if (type === 'checkbox') {
+					fieldSignal.value = input.checked as T[K];
+				} else if (type === 'radio') {
+					if (input.checked) {
+						fieldSignal.value = input.value as T[K];
+					}
+				} else if (type === 'file') {
+					if (input.multiple) {
+						fieldSignal.value = Array.from(input.files ?? []) as T[K];
+					} else {
+						fieldSignal.value = (input.files?.[0] ?? null) as T[K];
+					}
+				} else if (type === 'number' || type === 'range') {
+					const num = input.valueAsNumber;
+					fieldSignal.value = (Number.isNaN(num) ? 0 : num) as T[K];
+				} else {
+					fieldSignal.value = input.value as T[K];
+				}
 			},
 			onBlur: () => {
 				touchedSignal.value = true;
