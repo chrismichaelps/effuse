@@ -46,6 +46,14 @@ export const NodeTypes = {
 	ASSIGNMENT_EXPRESSION: 'AssignmentExpression',
 	UPDATE_EXPRESSION: 'UpdateExpression',
 	SPREAD_ELEMENT: 'SpreadElement',
+	TS_AS_EXPRESSION: 'TSAsExpression',
+	TS_SATISFIES_EXPRESSION: 'TSSatisfiesExpression',
+	TS_NON_NULL_EXPRESSION: 'TSNonNullExpression',
+	AWAIT_EXPRESSION: 'AwaitExpression',
+	NEW_EXPRESSION: 'NewExpression',
+	SEQUENCE_EXPRESSION: 'SequenceExpression',
+	TAGGED_TEMPLATE_EXPRESSION: 'TaggedTemplateExpression',
+	PARENTHESIZED_EXPRESSION: 'ParenthesizedExpression',
 } as const;
 
 export type NodeType = (typeof NodeTypes)[keyof typeof NodeTypes];
