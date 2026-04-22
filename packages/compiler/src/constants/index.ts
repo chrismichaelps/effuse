@@ -76,6 +76,7 @@ export type ErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes];
 
 export const PerformanceThresholds = {
 	CACHE_TTL_MS: 5 * 60 * 1000,
+	MAX_CACHE_ENTRIES: 100,
 } as const;
 
 export const VitePluginConfig = {
