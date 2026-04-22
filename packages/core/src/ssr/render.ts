@@ -223,7 +223,7 @@ const renderBlueprint = (
 
 	// Prefer reactive props proxy created by define() over raw props
 	const reactiveProps =
-		(state as unknown as { _reactiveProps?: Record<string, unknown> })._reactiveProps ??
+		((state as Record<string, unknown>)._reactiveProps as Record<string, unknown> | undefined) ??
 		props;
 
 	const context = {
@@ -232,7 +232,9 @@ const renderBlueprint = (
 		portals: {},
 	};
 
-	const provideScope = (state as unknown as { _provideScope?: import('../blueprint/provide-inject.js').ProvideScope })._provideScope;
+	const provideScope = (state as Record<string, unknown>)._provideScope as
+		| import('../blueprint/provide-inject.js').ProvideScope
+		| undefined;
 
 	const viewResult = provideScope
 		? runWithProvideScope(provideScope, () => def.view(context))
