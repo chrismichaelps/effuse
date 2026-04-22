@@ -48,10 +48,10 @@ export function useCallback<T extends (...args: any[]) => any>(
 	}).value as T;
 }
 
-export function useMemo<T>(fn: () => T, deps?: unknown[]): () => T {
+export function useMemo<T>(fn: () => T, deps?: unknown[]): ReadonlySignal<T> {
 	const memoized = computed(() => {
 		trackDependencies(deps);
 		return fn();
 	});
-	return () => memoized.value;
+	return memoized;
 }
