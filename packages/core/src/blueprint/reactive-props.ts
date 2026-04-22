@@ -91,6 +91,12 @@ export const createReactiveProps = <P extends Record<string, unknown>>(
 	});
 
 	const update = (newProps: P): void => {
+		const newKeys = new Set(Object.keys(newProps));
+		for (const key of signals.keys()) {
+			if (!newKeys.has(key)) {
+				signals.delete(key);
+			}
+		}
 		for (const [key, value] of Object.entries(newProps)) {
 			const existing = signals.get(key);
 			if (existing) {

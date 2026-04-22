@@ -338,35 +338,19 @@ const mountNode = (
 
 							if (
 								(key === 'value' || key === 'checked') &&
-								Predicate.isFunction(value) &&
+								(Predicate.isFunction(value) || isSignal(value)) &&
 								(element instanceof HTMLInputElement ||
 									element instanceof HTMLTextAreaElement ||
 									element instanceof HTMLSelectElement)
 							) {
-								const result = Effect.runSync(
+								propEffects.push(
 									propService.bindFormControl(
 										element,
-										value as () => string | number | boolean
+										value as
+											| (() => string | number | boolean)
+											| Signal<string | number | boolean>
 									)
 								);
-								bindingCleanups.push(result.cleanup);
-								continue;
-							}
-
-							if (
-								(key === 'value' || key === 'checked') &&
-								isSignal(value) &&
-								(element instanceof HTMLInputElement ||
-									element instanceof HTMLTextAreaElement ||
-									element instanceof HTMLSelectElement)
-							) {
-								const result = Effect.runSync(
-									propService.bindFormControl(
-										element,
-										value as Signal<string | number | boolean>
-									)
-								);
-								bindingCleanups.push(result.cleanup);
 								continue;
 							}
 
@@ -374,30 +358,35 @@ const mountNode = (
 						}
 					}
 
-					for (const propEffect of propEffects) {
-						const result = Effect.runSync(pipe(propEffect, mapEffuseErrors));
-						bindingCleanups.push(result.cleanup);
-					}
-
-					for (const eventEffect of eventEffects) {
-						const result = Effect.runSync(pipe(eventEffect, mapEffuseErrors));
-						bindingCleanups.push(result.cleanup);
-					}
-
-					cleanups.push(() => {
-						for (const fn of bindingCleanups) {
-							fn();
-						}
-					});
+					const allBindingEffects = [
+						...propEffects.map((e) => pipe(e, mapEffuseErrors)),
+						...eventEffects.map((e) => pipe(e, mapEffuseErrors)),
+					];
 
 					return pipe(
-						Effect.all(children.map((c) => mountChild(c, cleanups))),
+						Effect.all(allBindingEffects),
 						Effect.map((results) => {
-							for (const childNode of results.flat()) {
-								element.appendChild(childNode);
+							for (const result of results) {
+								bindingCleanups.push(result.cleanup);
 							}
-							return [element];
-						})
+							cleanups.push(() => {
+								for (const fn of bindingCleanups) {
+									fn();
+								}
+							});
+							return element;
+						}),
+						Effect.flatMap(() =>
+							pipe(
+								Effect.all(children.map((c) => mountChild(c, cleanups))),
+								Effect.map((results) => {
+									for (const childNode of results.flat()) {
+										element.appendChild(childNode);
+									}
+									return [element];
+								})
+							)
+						)
 					);
 				})
 			);

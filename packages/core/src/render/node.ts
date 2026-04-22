@@ -130,6 +130,6 @@ export const isSignalChild = (value: unknown): value is Signal<EffuseChild> => {
 	return (
 		Predicate.isObject(value) &&
 		'value' in value &&
-		Predicate.isObject((value as Record<string, unknown>)._subscribers)
+		('_ref' in value || '_dep' in value)
 	);
 };

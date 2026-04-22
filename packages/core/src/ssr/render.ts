@@ -155,8 +155,11 @@ const renderNodeToString = (node: unknown): string => {
 		try {
 			const result = (node as () => unknown)();
 			return renderNodeToString(result);
-		} catch {
-			return '';
+		} catch (err) {
+			if (isSuspendToken(err)) {
+				return '';
+			}
+			throw err;
 		}
 	}
 
