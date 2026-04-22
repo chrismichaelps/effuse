@@ -4,10 +4,7 @@ import { createHookContext } from '../../hooks/context.js';
 import { defineLayer } from '../../layers/api/defineLayer.js';
 import { resolveLayersAccessor } from '../../layers/api/layersAccessor.js';
 import type { LayersAccessor } from '../../layers/api/layersAccessor.js';
-import {
-	initGlobalLayerContext,
-	clearGlobalLayerContext,
-} from '../../layers/context.js';
+import { runWithLayerContext } from '../../layers/context.js';
 import type { PropsRegistry } from '../../layers/services/PropsService.js';
 import type { LayerRegistry } from '../../layers/services/RegistryService.js';
 import type { AnyResolvedLayer, LayerProps } from '../../layers/types.js';
@@ -51,9 +48,6 @@ const createResolvedLayer = (
 	({ _resolved: true as const, _order: 0, ...overrides }) as AnyResolvedLayer;
 
 describe('LayersAccessor — comprehensive regression tests', () => {
-	afterEach(() => {
-		clearGlobalLayerContext();
-	});
 
 	describe('resolveLayersAccessor — runtime behavior', () => {
 		it('should return an object keyed by layer name', () => {
@@ -76,11 +70,11 @@ describe('LayersAccessor — comprehensive regression tests', () => {
 				theme: { mode: modeSignal },
 			});
 			const layerRegistry = createMockLayerRegistry({ theme: resolvedLayer });
-			initGlobalLayerContext(propsRegistry, layerRegistry, [resolvedLayer]);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedLayer] };
 
 			const accessor = resolveLayersAccessor([themeLayer]);
 
-			expect(accessor.theme.props.mode).toBe(modeSignal);
+			expect(runWithLayerContext(store, () => accessor.theme.props.mode)).toBe(modeSignal);
 		});
 
 		it('should expose services getter that lazily resolves from global context', () => {
@@ -99,11 +93,11 @@ describe('LayersAccessor — comprehensive regression tests', () => {
 				{ auth: resolvedLayer },
 				{ authService }
 			);
-			initGlobalLayerContext(propsRegistry, layerRegistry, [resolvedLayer]);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedLayer] };
 
 			const accessor = resolveLayersAccessor([authLayer]);
 
-			expect(accessor.auth.services.authService).toBe(authService);
+			expect(runWithLayerContext(store, () => accessor.auth.services.authService)).toBe(authService);
 		});
 
 		it('should return cached service — factory NOT called on repeated access', () => {
@@ -124,12 +118,12 @@ describe('LayersAccessor — comprehensive regression tests', () => {
 				{ myLayer: resolvedLayer },
 				{ myService: cached }
 			);
-			initGlobalLayerContext(propsRegistry, layerRegistry, [resolvedLayer]);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedLayer] };
 
 			const accessor = resolveLayersAccessor([myLayer]);
 
-			const first = accessor.myLayer.services.myService;
-			const second = accessor.myLayer.services.myService;
+			const first = runWithLayerContext(store, () => accessor.myLayer.services.myService);
+			const second = runWithLayerContext(store, () => accessor.myLayer.services.myService);
 
 			expect(first).toBe(cached);
 			expect(second).toBe(cached);
@@ -176,17 +170,13 @@ describe('LayersAccessor — comprehensive regression tests', () => {
 				{ auth: resolvedAuth, log: resolvedLog, store: resolvedStore },
 				{ authSvc, logSvc, storeSvc }
 			);
-			initGlobalLayerContext(
-				propsRegistry,
-				layerRegistry,
-				[resolvedAuth, resolvedLog, resolvedStore]
-			);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedAuth, resolvedLog, resolvedStore] };
 
 			const accessor = resolveLayersAccessor([authLayer, logLayer, storeLayer]);
 
-			expect(accessor.auth.services.authSvc).toBe(authSvc);
-			expect(accessor.log.services.logSvc).toBe(logSvc);
-			expect(accessor.store.services.storeSvc).toBe(storeSvc);
+			expect(runWithLayerContext(store, () => accessor.auth.services.authSvc)).toBe(authSvc);
+			expect(runWithLayerContext(store, () => accessor.log.services.logSvc)).toBe(logSvc);
+			expect(runWithLayerContext(store, () => accessor.store.services.storeSvc)).toBe(storeSvc);
 		});
 
 		it('should handle layer with no provides (empty services object)', () => {
@@ -195,11 +185,11 @@ describe('LayersAccessor — comprehensive regression tests', () => {
 
 			const propsRegistry = createMockPropsRegistry({ empty: {} });
 			const layerRegistry = createMockLayerRegistry({ empty: resolvedLayer });
-			initGlobalLayerContext(propsRegistry, layerRegistry, [resolvedLayer]);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedLayer] };
 
 			const accessor = resolveLayersAccessor([emptyLayer]);
 
-			expect(accessor.empty.services).toEqual({});
+			expect(runWithLayerContext(store, () => accessor.empty.services)).toEqual({});
 		});
 
 		it('should resolve props independently from services', () => {
@@ -226,15 +216,12 @@ describe('LayersAccessor — comprehensive regression tests', () => {
 				{ theme: resolvedTheme, auth: resolvedAuth },
 				{ authSvc }
 			);
-			initGlobalLayerContext(propsRegistry, layerRegistry, [
-				resolvedTheme,
-				resolvedAuth,
-			]);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedTheme, resolvedAuth] };
 
 			const accessor = resolveLayersAccessor([themeLayer, authLayer]);
 
-			expect(accessor.theme.props.mode).toBe(themeSignal);
-			expect(accessor.auth.services.authSvc).toBe(authSvc);
+			expect(runWithLayerContext(store, () => accessor.theme.props.mode)).toBe(themeSignal);
+			expect(runWithLayerContext(store, () => accessor.auth.services.authSvc)).toBe(authSvc);
 		});
 	});
 
@@ -269,15 +256,12 @@ describe('LayersAccessor — comprehensive regression tests', () => {
 				{ strLayer: resolvedStr, numLayer: resolvedNum },
 				{ strService: strSvc, numService: numSvc }
 			);
-			initGlobalLayerContext(propsRegistry, layerRegistry, [
-				resolvedStr,
-				resolvedNum,
-			]);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedStr, resolvedNum] };
 
 			const accessor = resolveLayersAccessor([strLayer, numLayer]);
 
-			const strResult = accessor.strLayer.services.strService;
-			const numResult = accessor.numLayer.services.numService;
+			const strResult = runWithLayerContext(store, () => accessor.strLayer.services.strService);
+			const numResult = runWithLayerContext(store, () => accessor.numLayer.services.numService);
 
 			expect(strResult).toBe(strSvc);
 			expect(numResult).toBe(numSvc);
@@ -310,15 +294,12 @@ describe('LayersAccessor — comprehensive regression tests', () => {
 				{ auth: resolvedAuth, log: resolvedLog },
 				{ authSvc, logSvc }
 			);
-			initGlobalLayerContext(propsRegistry, layerRegistry, [
-				resolvedAuth,
-				resolvedLog,
-			]);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedAuth, resolvedLog] };
 
 			const accessor = resolveLayersAccessor([authLayer, logLayer]);
 
-			const a = accessor.auth.services.authSvc;
-			const l = accessor.log.services.logSvc;
+			const a = runWithLayerContext(store, () => accessor.auth.services.authSvc);
+			const l = runWithLayerContext(store, () => accessor.log.services.logSvc);
 
 			expect(a).toBe(authSvc);
 			expect(l).toBe(logSvc);
@@ -342,7 +323,7 @@ describe('LayersAccessor — comprehensive regression tests', () => {
 				{ auth: resolvedLayer },
 				{ authSvc }
 			);
-			initGlobalLayerContext(propsRegistry, layerRegistry, [resolvedLayer]);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedLayer] };
 
 			const useHook = defineHook({
 				layers: [authLayer] as const,
@@ -351,7 +332,7 @@ describe('LayersAccessor — comprehensive regression tests', () => {
 				},
 			});
 
-			const result = useHook();
+			const result = runWithLayerContext(store, () => useHook());
 			expect(result).toBe(authSvc);
 		});
 
@@ -382,10 +363,7 @@ describe('LayersAccessor — comprehensive regression tests', () => {
 				{ auth: resolvedAuth, log: resolvedLog },
 				{ authSvc, logSvc }
 			);
-			initGlobalLayerContext(propsRegistry, layerRegistry, [
-				resolvedAuth,
-				resolvedLog,
-			]);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedAuth, resolvedLog] };
 
 			const useHook = defineHook({
 				layers: [authLayer, logLayer] as const,
@@ -397,7 +375,7 @@ describe('LayersAccessor — comprehensive regression tests', () => {
 				},
 			});
 
-			const result = useHook();
+			const result = runWithLayerContext(store, () => useHook());
 			expect(result.auth).toBe(authSvc);
 			expect(result.log).toBe(logSvc);
 		});
@@ -411,7 +389,7 @@ describe('LayersAccessor — comprehensive regression tests', () => {
 				theme: { mode: themeSignal },
 			});
 			const layerRegistry = createMockLayerRegistry({ theme: resolvedLayer });
-			initGlobalLayerContext(propsRegistry, layerRegistry, [resolvedLayer]);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedLayer] };
 
 			const useHook = defineHook({
 				layers: [themeLayer] as const,
@@ -420,7 +398,7 @@ describe('LayersAccessor — comprehensive regression tests', () => {
 				},
 			});
 
-			const props = useHook();
+			const props = runWithLayerContext(store, () => useHook());
 			expect(props.mode).toBe(themeSignal);
 		});
 
@@ -442,11 +420,7 @@ describe('LayersAccessor — comprehensive regression tests', () => {
 				{ a: resolvedA, b: resolvedB, c: resolvedC },
 				{ aSvc, bSvc, cSvc }
 			);
-			initGlobalLayerContext(propsRegistry, layerRegistry, [
-				resolvedA,
-				resolvedB,
-				resolvedC,
-			]);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedA, resolvedB, resolvedC] };
 
 			const useHook = defineHook({
 				layers: [layerA, layerB, layerC] as const,
@@ -459,7 +433,7 @@ describe('LayersAccessor — comprehensive regression tests', () => {
 				},
 			});
 
-			const result = useHook();
+			const result = runWithLayerContext(store, () => useHook());
 			expect(result.a).toBe(aSvc);
 			expect(result.b).toBe(bSvc);
 			expect(result.c).toBe(cSvc);
@@ -481,10 +455,10 @@ describe('LayersAccessor — comprehensive regression tests', () => {
 				theme: { mode: modeSignal },
 			});
 			const layerRegistry = createMockLayerRegistry({ theme: resolvedLayer });
-			initGlobalLayerContext(propsRegistry, layerRegistry, [resolvedLayer]);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedLayer] };
 
 			const { ctx } = createHookContext(undefined, [themeLayer] as const);
-			expect(ctx.layers.theme.props.mode).toBe(modeSignal);
+			expect(runWithLayerContext(store, () => ctx.layers.theme.props.mode)).toBe(modeSignal);
 		});
 
 		it('should resolve services via lazy getter', () => {
@@ -503,10 +477,10 @@ describe('LayersAccessor — comprehensive regression tests', () => {
 				{ auth: resolvedLayer },
 				{ authSvc }
 			);
-			initGlobalLayerContext(propsRegistry, layerRegistry, [resolvedLayer]);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedLayer] };
 
 			const { ctx } = createHookContext(undefined, [authLayer] as const);
-			expect(ctx.layers.auth.services.authSvc).toBe(authSvc);
+			expect(runWithLayerContext(store, () => ctx.layers.auth.services.authSvc)).toBe(authSvc);
 		});
 	});
 
@@ -538,14 +512,11 @@ describe('LayersAccessor — comprehensive regression tests', () => {
 					logSvc: { log: vi.fn() },
 				}
 			);
-			initGlobalLayerContext(propsRegistry, layerRegistry, [
-				resolvedAuth,
-				resolvedLog,
-			]);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedAuth, resolvedLog] };
 
 			const accessor = resolveLayersAccessor([authLayer, logLayer]);
 
-			expect(accessor.auth).toBeDefined();
+			expect(runWithLayerContext(store, () => accessor.auth)).toBeDefined();
 			expect(accessor.log).toBeDefined();
 		});
 
@@ -576,15 +547,12 @@ describe('LayersAccessor — comprehensive regression tests', () => {
 				{ auth: resolvedAuth, log: resolvedLog },
 				{ authSvc, logSvc }
 			);
-			initGlobalLayerContext(propsRegistry, layerRegistry, [
-				resolvedAuth,
-				resolvedLog,
-			]);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedAuth, resolvedLog] };
 
 			const accessor = resolveLayersAccessor([authLayer, logLayer]);
 
-			expect(accessor.auth.services.authSvc).toBe(authSvc);
-			expect(accessor.log.services.logSvc).toBe(logSvc);
+			expect(runWithLayerContext(store, () => accessor.auth.services.authSvc)).toBe(authSvc);
+			expect(runWithLayerContext(store, () => accessor.log.services.logSvc)).toBe(logSvc);
 		});
 	});
 
@@ -596,10 +564,10 @@ describe('LayersAccessor — comprehensive regression tests', () => {
 
 			const propsRegistry = createMockPropsRegistry({ a: {} });
 			const layerRegistry = createMockLayerRegistry({ a: resolved }, { xSvc: svc });
-			initGlobalLayerContext(propsRegistry, layerRegistry, [resolved]);
+			const store = { propsRegistry, layerRegistry, layers: [resolved] };
 
 			const accessor = resolveLayersAccessor([layer]);
-			expect(accessor.a.services.xSvc).toBe(svc);
+			expect(runWithLayerContext(store, () => accessor.a.services.xSvc)).toBe(svc);
 		});
 
 		it('should handle layer with numeric string name', () => {
@@ -609,10 +577,10 @@ describe('LayersAccessor — comprehensive regression tests', () => {
 
 			const propsRegistry = createMockPropsRegistry({ '123': {} });
 			const layerRegistry = createMockLayerRegistry({ '123': resolved }, { numSvc: svc });
-			initGlobalLayerContext(propsRegistry, layerRegistry, [resolved]);
+			const store = { propsRegistry, layerRegistry, layers: [resolved] };
 
 			const accessor = resolveLayersAccessor([layer]);
-			expect(accessor['123'].services.numSvc).toBe(svc);
+			expect(runWithLayerContext(store, () => accessor['123'].services.numSvc)).toBe(svc);
 		});
 
 		it('should handle layer with camelCase name', () => {
@@ -622,10 +590,10 @@ describe('LayersAccessor — comprehensive regression tests', () => {
 
 			const propsRegistry = createMockPropsRegistry({ myDbLayer: {} });
 			const layerRegistry = createMockLayerRegistry({ myDbLayer: resolved }, { dbService: svc });
-			initGlobalLayerContext(propsRegistry, layerRegistry, [resolved]);
+			const store = { propsRegistry, layerRegistry, layers: [resolved] };
 
 			const accessor = resolveLayersAccessor([layer]);
-			expect(accessor.myDbLayer.services.dbService).toBe(svc);
+			expect(runWithLayerContext(store, () => accessor.myDbLayer.services.dbService)).toBe(svc);
 		});
 
 		it('should handle multiple services in a single layer', () => {
@@ -652,12 +620,12 @@ describe('LayersAccessor — comprehensive regression tests', () => {
 				{ combined: resolvedLayer },
 				{ authSvc, userSvc }
 			);
-			initGlobalLayerContext(propsRegistry, layerRegistry, [resolvedLayer]);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedLayer] };
 
 			const accessor = resolveLayersAccessor([combinedLayer]);
 
-			expect(accessor.combined.services.authSvc).toBe(authSvc);
-			expect(accessor.combined.services.userSvc).toBe(userSvc);
+			expect(runWithLayerContext(store, () => accessor.combined.services.authSvc)).toBe(authSvc);
+			expect(runWithLayerContext(store, () => accessor.combined.services.userSvc)).toBe(userSvc);
 		});
 	});
 });

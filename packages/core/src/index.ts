@@ -215,7 +215,6 @@ export {
 	createServerApp,
 	type ServerApp,
 	createSSRRuntime,
-	acquireRenderLock,
 	type SSRRuntime,
 	type SSRRuntimeOptions,
 	renderToString,

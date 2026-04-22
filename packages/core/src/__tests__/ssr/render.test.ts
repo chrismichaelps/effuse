@@ -22,7 +22,7 @@ describe('SSR render', () => {
 				text: 'Hello World',
 			});
 
-			const result = renderToString(node, '/', runtime);
+			const result = runtime.run(() => renderToString(node, '/', runtime));
 
 			expect(result.html).toContain('Hello World');
 			expect(result.html).toContain('<!DOCTYPE html>');
@@ -46,7 +46,7 @@ describe('SSR render', () => {
 				],
 			});
 
-			const result = renderToString(node, '/', runtime);
+			const result = runtime.run(() => renderToString(node, '/', runtime));
 
 			expect(result.html).toContain('<div class="container" id="root">Content</div>');
 
@@ -63,7 +63,7 @@ describe('SSR render', () => {
 				children: [],
 			});
 
-			const result = renderToString(node, '/', runtime);
+			const result = runtime.run(() => renderToString(node, '/', runtime));
 
 			expect(result.html).toContain('<img src="/logo.png" alt="Logo">');
 			expect(result.html).not.toContain('</img>');
@@ -82,7 +82,7 @@ describe('SSR render', () => {
 				],
 			});
 
-			const result = renderToString(node, '/', runtime);
+			const result = runtime.run(() => renderToString(node, '/', runtime));
 
 			expect(result.html).toContain('AB');
 
@@ -97,7 +97,7 @@ describe('SSR render', () => {
 				text: '<script>alert("xss")</script>',
 			});
 
-			const result = renderToString(node, '/', runtime);
+			const result = runtime.run(() => renderToString(node, '/', runtime));
 
 			expect(result.html).toContain('&lt;script&gt;alert("xss")&lt;/script&gt;');
 			expect(result.html).not.toContain('<script>alert');
@@ -117,7 +117,7 @@ describe('SSR render', () => {
 			const runtime = await createSSRRuntime([TestLayer]);
 
 			const node = CreateTextNode({ [EFFUSE_NODE]: true, text: 'body' });
-			const result = renderToString(node, '/', runtime);
+			const result = runtime.run(() => renderToString(node, '/', runtime));
 
 			expect(result.html).toContain('<title>My App</title>');
 			expect(result.html).toContain('content="App description"');
@@ -130,7 +130,7 @@ describe('SSR render', () => {
 			const runtime = await createSSRRuntime([]);
 
 			const node = CreateTextNode({ [EFFUSE_NODE]: true, text: 'test' });
-			const result = renderToString(node, '/page', runtime);
+			const result = runtime.run(() => renderToString(node, '/page', runtime));
 
 			expect(result.html).toContain('__EFFUSE_DATA__');
 			expect(result.html).toContain('"url":"/page"');
@@ -159,7 +159,7 @@ describe('SSR render', () => {
 				],
 			});
 
-			const result = renderToString(node, '/', runtime);
+			const result = runtime.run(() => renderToString(node, '/', runtime));
 
 			expect(result.html).toContain(
 				'<div class="outer"><span class="inner">Nested</span></div>'
@@ -180,7 +180,7 @@ describe('SSR render', () => {
 				],
 			});
 
-			const result = renderToString(node, '/', runtime);
+			const result = runtime.run(() => renderToString(node, '/', runtime));
 
 			expect(result.html).toContain('class="btn"');
 			expect(result.html).not.toContain('onClick');
@@ -203,7 +203,7 @@ describe('SSR render', () => {
 				],
 			});
 
-			const html = renderToFragment(node, runtime);
+			const html = runtime.run(() => renderToFragment(node, runtime));
 
 			expect(html).toBe('<p>Fragment content</p>');
 			expect(html).not.toContain('<!DOCTYPE');

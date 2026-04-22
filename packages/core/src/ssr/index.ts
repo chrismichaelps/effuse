@@ -39,7 +39,6 @@ export { createServerApp, type ServerApp } from './server-app.js';
 
 export {
 	createSSRRuntime,
-	acquireRenderLock,
 	type SSRRuntime,
 	type SSRRuntimeOptions,
 } from './runtime.js';

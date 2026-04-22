@@ -1,10 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { define } from '../../blueprint/define.js';
 import { defineLayer } from '../../layers/api/defineLayer.js';
-import {
-	initGlobalLayerContext,
-	clearGlobalLayerContext,
-} from '../../layers/context.js';
+import { runWithLayerContext } from '../../layers/context.js';
 import type { PropsRegistry } from '../../layers/services/PropsService.js';
 import type { LayerRegistry } from '../../layers/services/RegistryService.js';
 import type { AnyResolvedLayer, LayerProps } from '../../layers/types.js';
@@ -58,9 +55,6 @@ const extractBlueprint = (component: unknown): BlueprintMock => {
 };
 
 describe('define() + layers — full integration', () => {
-	afterEach(() => {
-		clearGlobalLayerContext();
-	});
 
 	describe('single layer via layers option', () => {
 		it('should expose layer services via ctx.layers in script', () => {
@@ -79,7 +73,7 @@ describe('define() + layers — full integration', () => {
 				{ auth: resolvedLayer },
 				{ authSvc }
 			);
-			initGlobalLayerContext(propsRegistry, layerRegistry, [resolvedLayer]);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedLayer] };
 
 			const Component = define({
 				props: { userId: '' },
@@ -92,7 +86,7 @@ describe('define() + layers — full integration', () => {
 			});
 
 			const blueprint = extractBlueprint(Component);
-			const state = blueprint.state({ userId: 'u1' }) as { exposed: Record<string, unknown> };
+			const state = runWithLayerContext(store, () => blueprint.state({ userId: 'u1' })) as { exposed: Record<string, unknown> };
 			expect(state.exposed.isAuthenticated).toBe(true);
 			expect(state.exposed.user).toBe('chris');
 		});
@@ -106,7 +100,7 @@ describe('define() + layers — full integration', () => {
 				theme: { mode: themeMode },
 			});
 			const layerRegistry = createMockLayerRegistry({ theme: resolvedLayer });
-			initGlobalLayerContext(propsRegistry, layerRegistry, [resolvedLayer]);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedLayer] };
 
 			const Component = define({
 				props: {},
@@ -118,7 +112,7 @@ describe('define() + layers — full integration', () => {
 			});
 
 			const blueprint = extractBlueprint(Component);
-			const state = blueprint.state({}) as { exposed: { mode: { value: string } } };
+			const state = runWithLayerContext(store, () => blueprint.state({})) as { exposed: { mode: { value: string } } };
 			expect(state.exposed.mode.value).toBe('dark');
 		});
 	});
@@ -151,10 +145,7 @@ describe('define() + layers — full integration', () => {
 				{ auth: resolvedAuth, log: resolvedLog },
 				{ authSvc, logSvc }
 			);
-			initGlobalLayerContext(propsRegistry, layerRegistry, [
-				resolvedAuth,
-				resolvedLog,
-			]);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedAuth, resolvedLog] };
 
 			const Component = define({
 				props: {},
@@ -171,7 +162,7 @@ describe('define() + layers — full integration', () => {
 			});
 
 			const blueprint = extractBlueprint(Component);
-			const state = blueprint.state({}) as { exposed: Record<string, unknown> };
+			const state = runWithLayerContext(store, () => blueprint.state({})) as { exposed: Record<string, unknown> };
 			expect(state.exposed.authToken).toBe('abc');
 			expect(state.exposed.logLevel).toBe('info');
 		});
@@ -194,11 +185,7 @@ describe('define() + layers — full integration', () => {
 				{ a: resolvedA, b: resolvedB, c: resolvedC },
 				{ aSvc, bSvc, cSvc }
 			);
-			initGlobalLayerContext(propsRegistry, layerRegistry, [
-				resolvedA,
-				resolvedB,
-				resolvedC,
-			]);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedA, resolvedB, resolvedC] };
 
 			const Component = define({
 				props: {},
@@ -214,7 +201,7 @@ describe('define() + layers — full integration', () => {
 			});
 
 			const blueprint = extractBlueprint(Component);
-			const state = blueprint.state({}) as { exposed: Record<string, unknown> };
+			const state = runWithLayerContext(store, () => blueprint.state({})) as { exposed: Record<string, unknown> };
 			expect(state.exposed.a).toBe(1);
 			expect(state.exposed.b).toBe('two');
 			expect(state.exposed.c).toBe(true);
@@ -240,7 +227,7 @@ describe('define() + layers — full integration', () => {
 				{ counter: resolvedLayer },
 				{ counterSvc }
 			);
-			initGlobalLayerContext(propsRegistry, layerRegistry, [resolvedLayer]);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedLayer] };
 
 			let capturedCount = -1;
 
@@ -261,7 +248,7 @@ describe('define() + layers — full integration', () => {
 			});
 
 			const blueprint = extractBlueprint(Component);
-			const state = blueprint.state({}) as { exposed: Record<string, unknown> };
+			const state = runWithLayerContext(store, () => blueprint.state({})) as { exposed: Record<string, unknown> };
 			expect(state.exposed.initial).toBe(0);
 
 			countSignal.value = 42;
@@ -286,7 +273,7 @@ describe('define() + layers — full integration', () => {
 				{ auth: resolvedLayer },
 				{ authSvc }
 			);
-			initGlobalLayerContext(propsRegistry, layerRegistry, [resolvedLayer]);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedLayer] };
 
 			const mountOrder: string[] = [];
 
@@ -306,10 +293,10 @@ describe('define() + layers — full integration', () => {
 			});
 
 			const blueprint = extractBlueprint(Component);
-			const state = blueprint.state({}) as { lifecycle: { runMount: () => void } };
+			const state = runWithLayerContext(store, () => blueprint.state({})) as { lifecycle: { runMount: () => void } };
 			expect(mountOrder).toEqual(['script']);
 
-			state.lifecycle.runMount();
+			runWithLayerContext(store, () => state.lifecycle.runMount());
 			expect(mountOrder).toEqual(['script', 'mount:abc']);
 		});
 	});
@@ -331,7 +318,7 @@ describe('define() + layers — full integration', () => {
 				{ auth: resolvedLayer },
 				{ authSvc }
 			);
-			initGlobalLayerContext(propsRegistry, layerRegistry, [resolvedLayer]);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedLayer] };
 
 			const cleanupOrder: string[] = [];
 
@@ -349,8 +336,8 @@ describe('define() + layers — full integration', () => {
 			});
 
 			const blueprint = extractBlueprint(Component);
-			const state = blueprint.state({}) as { lifecycle: { runCleanup: () => void } };
-			state.lifecycle.runCleanup();
+			const state = runWithLayerContext(store, () => blueprint.state({})) as { lifecycle: { runCleanup: () => void } };
+			runWithLayerContext(store, () => state.lifecycle.runCleanup());
 			expect(cleanupOrder).toEqual(['unmount:abc']);
 		});
 	});
@@ -372,7 +359,7 @@ describe('define() + layers — full integration', () => {
 				{ math: resolvedLayer },
 				{ multiplier }
 			);
-			initGlobalLayerContext(propsRegistry, layerRegistry, [resolvedLayer]);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedLayer] };
 
 			const Component = define({
 				props: { value: 0 },
@@ -387,7 +374,7 @@ describe('define() + layers — full integration', () => {
 			});
 
 			const blueprint = extractBlueprint(Component);
-			const state = blueprint.state({ value: 10 }) as {
+			const state = runWithLayerContext(store, () => blueprint.state({ value: 10 })) as {
 				exposed: { count: { value: number }; result: { value: number } };
 			};
 			expect(state.exposed.count.value).toBe(0);
@@ -423,10 +410,7 @@ describe('define() + layers — full integration', () => {
 				{ theme: resolvedTheme, auth: resolvedAuth },
 				{ authSvc: { user: authUser } }
 			);
-			initGlobalLayerContext(propsRegistry, layerRegistry, [
-				resolvedTheme,
-				resolvedAuth,
-			]);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedTheme, resolvedAuth] };
 
 			const Component = define({
 				props: {},
@@ -441,7 +425,7 @@ describe('define() + layers — full integration', () => {
 			});
 
 			const blueprint = extractBlueprint(Component);
-			const state = blueprint.state({}) as {
+			const state = runWithLayerContext(store, () => blueprint.state({})) as {
 				exposed: { theme: { value: string }; user: string };
 			};
 			expect(state.exposed.theme.value).toBe('dark');
@@ -467,7 +451,7 @@ describe('define() + layers — full integration', () => {
 				{ cache: resolvedLayer },
 				{ cachedSvc: cachedInstance }
 			);
-			initGlobalLayerContext(propsRegistry, layerRegistry, [resolvedLayer]);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedLayer] };
 
 			let instanceA: unknown;
 			let instanceB: unknown;
@@ -484,7 +468,7 @@ describe('define() + layers — full integration', () => {
 			});
 
 			const blueprint = extractBlueprint(Component);
-			blueprint.state({});
+			runWithLayerContext(store, () => blueprint.state({}));
 			expect(instanceA).toBe(cachedInstance);
 			expect(instanceB).toBe(cachedInstance);
 			expect(factorySpy).not.toHaveBeenCalled();
@@ -502,7 +486,8 @@ describe('define() + layers — full integration', () => {
 			});
 
 			const blueprint = extractBlueprint(Component);
-			const state = blueprint.state({}) as { exposed: Record<string, unknown> };
+			const emptyStore = { propsRegistry: createMockPropsRegistry(), layerRegistry: createMockLayerRegistry(), layers: [] };
+			const state = runWithLayerContext(emptyStore, () => blueprint.state({})) as { exposed: Record<string, unknown> };
 			expect(state.exposed.layerKeys).toEqual([]);
 		});
 	});
@@ -535,10 +520,7 @@ describe('define() + layers — full integration', () => {
 					logSvc: { log: vi.fn() },
 				}
 			);
-			initGlobalLayerContext(propsRegistry, layerRegistry, [
-				resolvedAuth,
-				resolvedLog,
-			]);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedAuth, resolvedLog] };
 
 			const accessorKeys: string[] = [];
 
@@ -556,7 +538,7 @@ describe('define() + layers — full integration', () => {
 			});
 
 			const blueprint = extractBlueprint(Component);
-			blueprint.state({});
+			runWithLayerContext(store, () => blueprint.state({}));
 			expect(accessorKeys.sort()).toEqual(['auth', 'log']);
 		});
 	});
@@ -578,7 +560,7 @@ describe('define() + layers — full integration', () => {
 				{ auth: resolvedLayer },
 				{ authSvc: authSvcVal }
 			);
-			initGlobalLayerContext(propsRegistry, layerRegistry, [resolvedLayer]);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedLayer] };
 
 			let capturedExposed: Record<string, unknown> | null = null;
 
@@ -595,8 +577,8 @@ describe('define() + layers — full integration', () => {
 			});
 
 			const blueprint = extractBlueprint(Component);
-			const state = blueprint.state({}) as unknown as { exposed: { user: string } };
-			blueprint.view({ props: {}, state, portals: {} });
+			const state = runWithLayerContext(store, () => blueprint.state({})) as unknown as { exposed: { user: string } };
+			runWithLayerContext(store, () => blueprint.view({ props: {}, state, portals: {} }));
 			const capturedUser = capturedExposed && capturedExposed['user'];
 			expect(capturedUser).toBe('Admin');
 		});

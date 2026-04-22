@@ -32,6 +32,7 @@ import { buildAllLayersEffect } from '../layers/internal/builder.js';
 import {
 	initGlobalLayerContext,
 	clearGlobalLayerContext,
+	runWithLayerContext,
 } from '../layers/context.js';
 import {
 	TracingServiceLive,
@@ -49,6 +50,8 @@ export interface SSRRuntime {
 	readonly headStack: HeadProps[];
 	/** Per-request serializable state for hydration. */
 	readonly state: Map<string, unknown>;
+	/** Run a function within this runtime's context */
+	run<T>(fn: () => T): T;
 	/** Dispose the runtime and run all cleanups. */
 	dispose(): Promise<void>;
 }
@@ -59,50 +62,17 @@ export interface SSRRuntimeOptions {
 }
 
 /**
- * Mutex to serialize SSR renders.
+ * Creates a per-request SSR runtime scoped to a single render pass.
  *
- * The layer context (`initGlobalLayerContext`) uses a module-global store.
- * If two SSR requests overlap at the async boundary between
- * `createSSRRuntime()` and `renderToString()`, the second request
- * could overwrite the first's layer context.
- *
- * This mutex ensures only one render pass executes at a time,
- * serializing requests to ensure concurrent renders are safe.
- *
- * The mutex is released after `dispose()` — not after `renderToString()` —
- * so the full lifecycle (init → render → cleanup) is atomic.
- */
-let renderLock: Promise<void> = Promise.resolve();
-
-export const acquireRenderLock = (): Promise<() => void> => {
-	let release: () => void;
-	const next = new Promise<void>((resolve) => {
-		release = resolve;
-	});
-	const wait = renderLock;
-	renderLock = next;
-	return wait.then(() => release!);
-};
-
-/**
- * Creates a per-request SSR runtime that mirrors the client-side
- * `createLayerRuntime` but is scoped to a single render pass.
- *
- * This initializes the global layer context so that `getLayerContext`,
- * `getLayerService`, and `resolveLayersAccessor` all work during
- * server-side rendering — then cleans up on `dispose()`.
- *
- * The runtime acquires a render lock to prevent concurrent requests
- * from corrupting the shared global layer context.
+ * Layer context is stored in AsyncLocalStorage, so concurrent requests
+ * no longer corrupt shared state. Each request gets its own isolated
+ * context that follows the render lifecycle (init → render → cleanup).
  */
 export const createSSRRuntime = async (
 	rawLayers: readonly (AnyLayer | CompiledLayer<any>)[],
 	options: SSRRuntimeOptions = {}
 ): Promise<SSRRuntime> => {
 	const { runSetup = true } = options;
-
-	// Acquire exclusive render lock
-	const releaseLock = await acquireRenderLock();
 
 	// Compile any raw EffuseLayer definitions into CompiledLayer
 	const layers: AnyResolvedLayer[] = rawLayers.map((l) => {
@@ -124,9 +94,14 @@ export const createSSRRuntime = async (
 
 	const tracingLayer = TracingServiceLive({});
 	const servicesLayer = Layer.mergeAll(CoreServicesLive, tracingLayer);
-	const runtime = ManagedRuntime.make(servicesLayer);
+	const managedRuntime = ManagedRuntime.make(servicesLayer);
 
 	let aggregatedCleanup: CleanupFn | undefined;
+	let layerContextStore = {
+		propsRegistry: null as unknown as import('../layers/services/PropsService.js').PropsRegistry,
+		layerRegistry: null as unknown as import('../layers/services/RegistryService.js').LayerRegistry,
+		layers: [] as readonly AnyResolvedLayer[],
+	};
 
 	if (runSetup) {
 		const runEffect = Effect.gen(function* () {
@@ -139,7 +114,7 @@ export const createSSRRuntime = async (
 			return yield* buildAllLayersEffect(layers);
 		});
 
-		const buildResult = await runtime.runPromise(runEffect);
+		const buildResult = await managedRuntime.runPromise(runEffect);
 
 		aggregatedCleanup = buildResult.cleanup;
 
@@ -147,15 +122,19 @@ export const createSSRRuntime = async (
 			const propsRegistry = yield* PropsService;
 			const layerRegistry = yield* RegistryService;
 			initGlobalLayerContext(propsRegistry, layerRegistry, layers);
+			layerContextStore = { propsRegistry, layerRegistry, layers };
 		});
 
-		await runtime.runPromise(initContextEffect);
+		await managedRuntime.runPromise(initContextEffect);
 	}
 
 	return {
 		layers,
 		headStack,
 		state,
+		run: <T>(fn: () => T): T => {
+			return runWithLayerContext(layerContextStore, fn);
+		},
 		dispose: async () => {
 			try {
 				clearGlobalLayerContext();
@@ -165,10 +144,9 @@ export const createSSRRuntime = async (
 					aggregatedCleanup();
 				}
 
-				await runtime.dispose();
-			} finally {
-				// Always release the lock, even if dispose fails
-				releaseLock();
+				await managedRuntime.dispose();
+			} catch {
+				// Ignore cleanup errors
 			}
 		},
 	};

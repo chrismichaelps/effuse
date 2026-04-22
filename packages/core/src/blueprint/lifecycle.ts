@@ -22,6 +22,7 @@
  * SOFTWARE.
  */
 
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { Effect, Exit, Predicate, Scope } from 'effect';
 
 export interface ComponentLifecycle {
@@ -120,20 +121,23 @@ export const createComponentLifecycleSync = (): ComponentLifecycle => {
 	return createLifecycleFns(scope, state);
 };
 
-let _activeLifecycle: ComponentLifecycle | null = null;
+const activeLifecycleStorage = new AsyncLocalStorage<ComponentLifecycle>();
 
-export const getActiveLifecycle = (): ComponentLifecycle | null =>
-	_activeLifecycle;
+export const getActiveLifecycle = (): ComponentLifecycle | null => {
+	return activeLifecycleStorage.getStore() ?? null;
+};
 
 export const withActiveLifecycle = <T>(
 	lifecycle: ComponentLifecycle,
 	fn: () => T
 ): T => {
-	const previous = _activeLifecycle;
-	_activeLifecycle = lifecycle;
-	try {
-		return fn();
-	} finally {
-		_activeLifecycle = previous;
+	return activeLifecycleStorage.run(lifecycle, fn);
+};
+
+export const runWithActiveLifecycle = <T>(fn: () => T): T => {
+	const lifecycle = getActiveLifecycle();
+	if (!lifecycle) {
+		throw new Error('No active lifecycle found. Call withActiveLifecycle first.');
 	}
+	return fn();
 };

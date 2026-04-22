@@ -70,20 +70,18 @@ export const createServerApp = (root: Component): ServerApp => {
 		},
 
 		async renderToString(url: string): Promise<RenderResult> {
-			let ssrRuntime: SSRRuntime | null = null;
+			const ssrRuntime = await createSSRRuntime(layers, {
+				runSetup: true,
+			});
 
 			try {
-				ssrRuntime = await createSSRRuntime(layers, {
-					runSetup: true,
-				});
-
-				const result = renderToString(root, url, ssrRuntime, options);
+				const result = ssrRuntime.run(() =>
+					renderToString(root, url, ssrRuntime, options)
+				);
 
 				return result;
 			} finally {
-				if (ssrRuntime) {
-					await ssrRuntime.dispose();
-				}
+				await ssrRuntime.dispose();
 			}
 		},
 
@@ -119,13 +117,15 @@ export const createServerApp = (root: Component): ServerApp => {
 					start(controller) {
 						try {
 							// 1. Render body fragment inside SSR context
-							const bodyHtml = runWithSSRContext(
-								{
-									push: (head: HeadProps) => {
-										runtime.headStack.push(head);
+							const bodyHtml = runtime.run(() =>
+								runWithSSRContext(
+									{
+										push: (head: HeadProps) => {
+											runtime.headStack.push(head);
+										},
 									},
-								},
-								() => renderToFragment(root, runtime)
+									() => renderToFragment(root, runtime)
+								)
 							);
 
 							// 2. Merge all collected heads

@@ -2,11 +2,10 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { createSSRRuntime } from '../../ssr/runtime.js';
 import { defineLayer } from '../../layers/api/defineLayer.js';
 import { signal } from '../../reactivity/signal.js';
-import { clearGlobalLayerContext, isLayerRuntimeReady } from '../../layers/context.js';
+import { isLayerRuntimeReady } from '../../layers/context.js';
 import { clearGlobalTracing } from '../../layers/tracing/index.js';
 
 afterEach(() => {
-	clearGlobalLayerContext();
 	clearGlobalTracing();
 });
 
@@ -25,7 +24,7 @@ describe('SSRRuntime', () => {
 			expect(runtime.layers).toHaveLength(1);
 			expect(runtime.headStack).toBeInstanceOf(Array);
 			expect(runtime.state).toBeInstanceOf(Map);
-			expect(isLayerRuntimeReady()).toBe(true);
+			expect(runtime.run(() => isLayerRuntimeReady())).toBe(true);
 
 			await runtime.dispose();
 		});
@@ -36,7 +35,7 @@ describe('SSRRuntime', () => {
 			});
 
 			const runtime = await createSSRRuntime([TestLayer]);
-			expect(isLayerRuntimeReady()).toBe(true);
+			expect(runtime.run(() => isLayerRuntimeReady())).toBe(true);
 
 			await runtime.dispose();
 			expect(isLayerRuntimeReady()).toBe(false);
