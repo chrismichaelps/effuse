@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { createHandler, createStreamingHandler, parseQuery, createRequestContext } from '../../ssr/handler.js';
 import { defineLayer } from '../../layers/api/defineLayer.js';
 import { clearGlobalLayerContext } from '../../layers/context.js';
@@ -208,6 +208,92 @@ describe('SSR handler', () => {
 			const query = parseQuery(url);
 
 			expect(query).toEqual({});
+		});
+	});
+
+	describe('error handling', () => {
+		it('should call onError when createHandler throws', async () => {
+			const onError = vi.fn();
+			const handler = createHandler({
+				root: createRoot() as any,
+				layers: [],
+				onError,
+				transform: () => {
+					throw new Error('transform failed');
+				},
+			});
+
+			const request = new Request('http://localhost:3000/');
+			const response = await handler(request);
+
+			expect(response.status).toBe(500);
+			expect(onError).toHaveBeenCalledOnce();
+			expect(onError.mock.calls[0][0]).toBeInstanceOf(Error);
+			expect(onError.mock.calls[0][0].message).toBe('transform failed');
+			expect(onError.mock.calls[0][1]).toBeInstanceOf(Request);
+		});
+
+		it('should console.error when createHandler throws without onError', async () => {
+			const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+			const handler = createHandler({
+				root: createRoot() as any,
+				layers: [],
+				transform: () => {
+					throw new Error('transform failed');
+				},
+			});
+
+			const request = new Request('http://localhost:3000/');
+			const response = await handler(request);
+
+			expect(response.status).toBe(500);
+			expect(consoleSpy).toHaveBeenCalledOnce();
+			expect(consoleSpy.mock.calls[0][0]).toContain('[effuse-ssr] Render error:');
+			expect(consoleSpy.mock.calls[0][1]).toBeInstanceOf(Error);
+
+			consoleSpy.mockRestore();
+		});
+
+		it('should call onError when createStreamingHandler throws', async () => {
+			const onError = vi.fn();
+			const handler = createStreamingHandler({
+				root: createRoot() as any,
+				layers: [],
+				onError,
+				transform: () => {
+					throw new Error('stream transform failed');
+				},
+			});
+
+			const request = new Request('http://localhost:3000/');
+			const response = await handler(request);
+
+			expect(response.status).toBe(500);
+			expect(onError).toHaveBeenCalledOnce();
+			expect(onError.mock.calls[0][0]).toBeInstanceOf(Error);
+			expect(onError.mock.calls[0][0].message).toBe('stream transform failed');
+			expect(onError.mock.calls[0][1]).toBeInstanceOf(Request);
+		});
+
+		it('should console.error when createStreamingHandler throws without onError', async () => {
+			const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+			const handler = createStreamingHandler({
+				root: createRoot() as any,
+				layers: [],
+				transform: () => {
+					throw new Error('stream transform failed');
+				},
+			});
+
+			const request = new Request('http://localhost:3000/');
+			const response = await handler(request);
+
+			expect(response.status).toBe(500);
+			expect(consoleSpy).toHaveBeenCalledOnce();
+			expect(consoleSpy.mock.calls[0][0]).toContain('[effuse-ssr] Streaming render error:');
+			expect(consoleSpy.mock.calls[0][1]).toBeInstanceOf(Error);
+
+			consoleSpy.mockRestore();
 		});
 	});
 

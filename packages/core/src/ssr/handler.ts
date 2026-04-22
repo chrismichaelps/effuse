@@ -39,6 +39,8 @@ export interface HandlerConfig {
 	cacheMaxAge?: number;
 	/** Cache-Control s-maxage for CDN caching. Defaults to undefined (not set). */
 	cacheSMaxAge?: number;
+	/** Optional error handler for logging/monitoring. Called before returning 500. */
+	onError?: (error: unknown, request: Request) => void;
 }
 
 export const createHandler = (config: HandlerConfig) => {
@@ -47,8 +49,9 @@ export const createHandler = (config: HandlerConfig) => {
 		.configure(config.options ?? {});
 
 	return async (request: Request): Promise<Response> => {
+		let req = request;
 		try {
-			const req = config.transform ? config.transform(request) : request;
+			req = config.transform ? config.transform(request) : request;
 
 			const url = new URL(req.url);
 			const pathname = url.pathname;
@@ -90,7 +93,13 @@ export const createHandler = (config: HandlerConfig) => {
 					'X-Content-Type-Options': 'nosniff',
 				},
 			});
-		} catch {
+		} catch (error) {
+			if (config.onError) {
+				config.onError(error, req);
+			} else {
+				// eslint-disable-next-line no-console
+				console.error('[effuse-ssr] Render error:', error);
+			}
 			return new Response(
 				`<!DOCTYPE html><html><head><title>Error</title></head><body><h1>Server Error</h1></body></html>`,
 				{
@@ -115,8 +124,9 @@ export const createStreamingHandler = (config: HandlerConfig) => {
 		.configure(config.options ?? {});
 
 	return async (request: Request): Promise<Response> => {
+		let req = request;
 		try {
-			const req = config.transform ? config.transform(request) : request;
+			req = config.transform ? config.transform(request) : request;
 
 			const url = new URL(req.url);
 			const pathname = url.pathname;
@@ -135,7 +145,13 @@ export const createStreamingHandler = (config: HandlerConfig) => {
 					'X-Content-Type-Options': 'nosniff',
 				},
 			});
-		} catch {
+		} catch (error) {
+			if (config.onError) {
+				config.onError(error, req);
+			} else {
+				// eslint-disable-next-line no-console
+				console.error('[effuse-ssr] Streaming render error:', error);
+			}
 			return new Response(
 				`<!DOCTYPE html><html><head><title>Error</title></head><body><h1>Server Error</h1></body></html>`,
 				{

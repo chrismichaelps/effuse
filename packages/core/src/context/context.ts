@@ -63,7 +63,7 @@ export function createContext<T>(options: ContextOptions<T>): EffuseContext<T> {
 	const { id, defaultValue, displayName = id } = options;
 
 	const existing = createdContexts.get(id);
-	if (existing && typeof window !== 'undefined') {
+	if (existing) {
 		return existing as EffuseContext<T>;
 	}
 
