@@ -53,6 +53,11 @@ import {
 	LOCALE_STORAGE_KEY,
 } from './config/constants.js';
 
+const hasLocalStorage = (): boolean =>
+	typeof localStorage !== 'undefined' &&
+	typeof localStorage.getItem === 'function' &&
+	typeof localStorage.setItem === 'function';
+
 let globalI18nInstance: I18nInstance | null = null;
 
 class I18nInstance implements I18n {
@@ -83,7 +88,7 @@ class I18nInstance implements I18n {
 		}
 
 		const persistEnabled = options.persistLocale ?? envConfig.persistLocale;
-		if (persistEnabled && typeof localStorage !== 'undefined') {
+		if (persistEnabled && hasLocalStorage()) {
 			const stored = localStorage.getItem(LOCALE_STORAGE_KEY);
 			if (
 				Predicate.isNotNullable(stored) &&
@@ -151,7 +156,7 @@ class I18nInstance implements I18n {
 
 		const persistEnabled =
 			this._options.persistLocale ?? getI18nConfig().persistLocale;
-		if (persistEnabled && typeof localStorage !== 'undefined') {
+		if (persistEnabled && hasLocalStorage()) {
 			localStorage.setItem(LOCALE_STORAGE_KEY, locale);
 		}
 
