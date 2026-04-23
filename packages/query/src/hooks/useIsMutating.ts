@@ -43,7 +43,7 @@ export const useIsMutating = (options?: UseIsMutatingOptions): ReadonlySignal<nu
 
 	updateCount();
 
-	const unsubscribe = client.mutationCache.subscribe(updateCount);
+	void client.mutationCache.subscribe(updateCount);
 
 	const result = computed(() => countSignal.value);
 	return result;

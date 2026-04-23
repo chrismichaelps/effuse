@@ -87,14 +87,13 @@ export type {
 	MutationStatus,
 	MutateOptions,
 	OptimisticMutationOptions,
+	OptimisticMutationHookOptions,
 	UseQueriesOptions,
 	UseQueriesResult,
 	CombinedQueryResult,
 	InfiniteQueryOptions,
 	UseInfiniteQueryResult,
 	InfiniteData,
-	InfiniteQueryPage,
-	PrefetchOptions,
 } from './hooks/index.js';
 
 export {

@@ -44,7 +44,7 @@ export const useIsFetching = (options?: UseIsFetchingOptions): ReadonlySignal<nu
 
 	updateCount();
 
-	const unsubscribe = client.queryCache.subscribe(updateCount);
+	void client.queryCache.subscribe(updateCount);
 
 	const result = computed(() => countSignal.value);
 

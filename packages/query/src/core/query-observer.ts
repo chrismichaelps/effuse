@@ -153,7 +153,6 @@ export class QueryObserver<TData = unknown, TError = Error, TSelected = TData> {
 	private currentResult: QueryObserverResult<TSelected, TError>;
 	private listener: QueryObserverListener<TSelected, TError> | null = null;
 	private unsubscribeQuery: (() => void) | null = null;
-	private previousSelectError: Error | null = null;
 	private memo: MemoState<TData, TSelected> = {
 		lastSourceData: undefined,
 		lastSelectedData: undefined,
@@ -256,12 +255,7 @@ export class QueryObserver<TData = unknown, TError = Error, TSelected = TData> {
 
 		try {
 			this.currentResult = createResult(this.query, this.options, this.memo, prevResult);
-			this.previousSelectError = null;
-		} catch (error) {
-			// If select throws, we treat it as an error state
-			const err =
-				error instanceof Error ? error : new Error(String(error));
-			this.previousSelectError = err;
+		} catch (err) {
 			this.currentResult = {
 				...this.currentResult,
 				data: undefined,

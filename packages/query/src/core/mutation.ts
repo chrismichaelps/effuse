@@ -26,7 +26,7 @@ import type { RetryConfig } from '../execution/index.js';
 
 export type MutationStatus = 'idle' | 'pending' | 'success' | 'error';
 
-export interface MutationState<TData = unknown, TError = Error, TVariables = unknown> {
+export interface MutationState<TData = unknown, TError extends Error = Error, TVariables = unknown> {
 	readonly data: TData | undefined;
 	readonly error: TError | null;
 	readonly variables: TVariables | undefined;
@@ -36,13 +36,13 @@ export interface MutationState<TData = unknown, TError = Error, TVariables = unk
 	readonly failureReason: TError | null;
 }
 
-export type MutationAction<TData = unknown, TError = Error, TVariables = unknown> =
+export type MutationAction<TData = unknown, TError extends Error = Error, TVariables = unknown> =
 	| { readonly type: 'run'; readonly variables: TVariables }
 	| { readonly type: 'success'; readonly data: TData }
 	| { readonly type: 'error'; readonly error: TError }
 	| { readonly type: 'reset' };
 
-export interface MutationConfig<TData = unknown, TError = Error, TVariables = unknown, TContext = unknown> {
+export interface MutationConfig<TData = unknown, TError extends Error = Error, TVariables = unknown, TContext = unknown> {
 	readonly mutationFn: (variables: TVariables) => Promise<TData>;
 	readonly mutationKey?: readonly unknown[];
 	readonly retry?: RetryConfig | number | boolean;
@@ -54,13 +54,13 @@ export interface MutationConfig<TData = unknown, TError = Error, TVariables = un
 	readonly onSettled?: (data: TData | undefined, error: TError | null, variables: TVariables, context: TContext | undefined) => void;
 }
 
-export interface MutationObserver<TData = unknown, TError = Error, TVariables = unknown> {
+export interface MutationObserver {
 	readonly onMutationUpdate: () => void;
 }
 
 let mutationIdCounter = 0;
 
-const createInitialState = <TData, TError, TVariables>(): MutationState<TData, TError, TVariables> => ({
+const createInitialState = <TData, TError extends Error, TVariables>(): MutationState<TData, TError, TVariables> => ({
 	data: undefined,
 	error: null,
 	variables: undefined,
@@ -70,7 +70,7 @@ const createInitialState = <TData, TError, TVariables>(): MutationState<TData, T
 	failureReason: null,
 });
 
-const mutationReducer = <TData, TError, TVariables>(
+const mutationReducer = <TData, TError extends Error, TVariables>(
 	state: MutationState<TData, TError, TVariables>,
 	action: MutationAction<TData, TError, TVariables>
 ): MutationState<TData, TError, TVariables> => {
@@ -113,12 +113,12 @@ const sleep = (ms: number): Promise<void> =>
  * Represents a single mutation.
  * Manages its own state machine and lifecycle.
  */
-export class Mutation<TData = unknown, TError = Error, TVariables = unknown, TContext = unknown> {
+export class Mutation<TData = unknown, TError extends Error = Error, TVariables = unknown, TContext = unknown> {
 	readonly mutationId: number;
 	readonly options: MutationConfig<TData, TError, TVariables, TContext>;
 
 	private state: MutationState<TData, TError, TVariables>;
-	private observers: Set<MutationObserver<TData, TError, TVariables>> = new Set();
+	private observers: Set<MutationObserver> = new Set();
 	private abortController: AbortController | null = null;
 	private promise: Promise<TData> | null = null;
 
@@ -136,7 +136,7 @@ export class Mutation<TData = unknown, TError = Error, TVariables = unknown, TCo
 		return this.state.status === 'pending';
 	}
 
-	addObserver(observer: MutationObserver<TData, TError, TVariables>): () => void {
+	addObserver(observer: MutationObserver): () => void {
 		this.observers.add(observer);
 		return () => {
 			this.observers.delete(observer);
@@ -175,13 +175,13 @@ export class Mutation<TData = unknown, TError = Error, TVariables = unknown, TCo
 			try {
 				const result = onMutate(variables);
 				context = result instanceof Promise ? await result : result;
-			} catch (mutateError) {
-				const error = mutateError instanceof Error ? mutateError : new Error(String(mutateError)) as TError;
-				this.dispatch({ type: 'error', error });
-				if (onError) onError(error, variables, context);
-				if (onSettled) onSettled(undefined, error, variables, context);
-				throw error;
-			}
+		} catch (mutateError) {
+			const error = (mutateError instanceof Error ? mutateError : new Error(String(mutateError))) as TError;
+			this.dispatch({ type: 'error', error });
+			if (onError) onError(error, variables, context);
+			if (onSettled) onSettled(undefined, error, variables, context);
+			throw error;
+		}
 		}
 
 		this.promise = this.runWithRetry(mutationFn, variables, timeout, context);

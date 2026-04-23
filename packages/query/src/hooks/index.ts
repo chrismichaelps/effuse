@@ -31,6 +31,7 @@ export type {
 	MutationStatus,
 	MutateOptions,
 	OptimisticMutationOptions,
+	OptimisticMutationHookOptions,
 	OptimisticQueryConfig,
 } from './useMutation.js';
 
@@ -46,7 +47,6 @@ export type {
 	InfiniteQueryOptions,
 	UseInfiniteQueryResult,
 	InfiniteData,
-	InfiniteQueryPage,
 } from './useInfiniteQuery.js';
 
 export {

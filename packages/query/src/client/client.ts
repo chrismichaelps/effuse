@@ -102,7 +102,7 @@ export interface QueryClientApi {
 	readonly removeQueries: (filters: QueryFilters | QueryKey) => void;
 	/** Get or create a Query from the new QueryCache. */
 	readonly getQuery: <TData, TError = Error>(
-		config: QueryConfig<TData, TError>
+		config: QueryConfig<TData>
 	) => Query<TData, TError>;
 	/** The underlying QueryCache instance. */
 	readonly queryCache: QueryCache;
@@ -320,7 +320,7 @@ const createQueryClientImpl = (): QueryClientApi => {
 		},
 
 		getQuery: <TData, TError = Error>(
-			config: QueryConfig<TData, TError>
+			config: QueryConfig<TData>
 		): Query<TData, TError> => {
 			const query = queryCache.getOrCreate(config);
 
@@ -339,12 +339,12 @@ const createQueryClientImpl = (): QueryClientApi => {
 					fetchCount: existing.fetchCount ?? 0,
 					isInvalidated: existing.isInvalidated ?? false,
 					...(existing.error
-						? { error: existing.error as TError, errorUpdatedAt: existing.errorUpdatedAt ?? Date.now() }
+						? { error: existing.error as unknown as Error, errorUpdatedAt: existing.errorUpdatedAt ?? Date.now() }
 						: {}),
 				});
 			}
 
-			return query;
+			return query as Query<TData, TError>;
 		},
 
 		queryCache,
