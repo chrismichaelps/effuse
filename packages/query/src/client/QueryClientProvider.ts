@@ -22,35 +22,37 @@
  * SOFTWARE.
  */
 
-export {
-	setGlobalQueryClient,
-	getGlobalQueryClient,
-	createQueryClient,
-	invalidateQuery,
-	invalidateQueries,
-	invalidateAllQueries,
-	invalidateQueryAsync,
-	invalidateQueriesAsync,
-	invalidateAllAsync,
-	type QueryClientApi,
-} from './client.js';
+import { define } from '@effuse/core';
+import type { EffuseChild } from '@effuse/core';
+import { provideQueryClient } from './provider.js';
+import type { QueryClientApi } from './client.js';
 
-export {
-	QueryClientSymbol,
-	provideQueryClient,
-	useQueryClient,
-	useQueryClientStrict,
-} from './provider.js';
+export interface QueryClientProviderProps {
+	readonly client: QueryClientApi;
+	readonly children?: EffuseChild;
+}
 
-export { QueryClientProvider } from './QueryClientProvider.js';
-export type { QueryClientProviderProps } from './QueryClientProvider.js';
-
-export {
-	type QueryKey,
-	type QueryStatus,
-	type CacheEntry,
-	type QueryOptions,
-	type MutationOptions,
-	type QueryState,
-	type MutationState,
-} from './types.js';
+/**
+ * Effuse-native QueryClient provider blueprint.
+ *
+ * Uses Effuse's provide/inject system so child components and hooks
+ * automatically pick up the scoped QueryClient via `useQueryClient()`.
+ *
+ * @example
+ * ```ts
+ * import { QueryClientProvider, createQueryClient } from '@effuse/query';
+ *
+ * const client = createQueryClient();
+ *
+ * const App = () =>
+ *   QueryClientProvider({ client, children: MyPage() });
+ * ```
+ */
+export const QueryClientProvider = define<QueryClientProviderProps>({
+	name: 'QueryClientProvider',
+	script: ({ props }) => {
+		provideQueryClient(props.client);
+		return {};
+	},
+	template: ({ children }) => children ?? null,
+});

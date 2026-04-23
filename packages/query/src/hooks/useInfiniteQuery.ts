@@ -24,7 +24,7 @@
 
 import { Effect, Fiber, Duration, Predicate } from 'effect';
 import { signal, type Signal } from '@effuse/core';
-import { getGlobalQueryClient, type QueryKey } from '../client/index.js';
+import { useQueryClient, type QueryKey } from '../client/index.js';
 import { buildRetrySchedule, type RetryConfig } from '../execution/index.js';
 import { DEFAULT_STALE_TIME_MS, DEFAULT_TIMEOUT_MS } from '../config/index.js';
 import { InfiniteQueryError, TimeoutError } from '../errors/index.js';
@@ -52,6 +52,12 @@ export interface InfiniteQueryOptions<TData, TPageParam = number> {
 	readonly retry?: RetryConfig | number | boolean;
 	readonly enabled?: boolean;
 	readonly maxPages?: number;
+	/**
+	 * Explicit QueryClient instance. If omitted, the hook will inject
+	 * from the nearest Effuse component scope via provideQueryClient(),
+	 * falling back to the global singleton.
+	 */
+	readonly client?: import('../client/client.js').QueryClientApi;
 }
 
 // Infinite query result state
@@ -109,7 +115,7 @@ export const useInfiniteQuery = <TData, TPageParam = number>(
 		maxPages,
 	} = options;
 
-	const client = getGlobalQueryClient();
+	const client = options.client ?? useQueryClient();
 
 	const dataSignal = signal<InfiniteData<TData> | undefined>(undefined);
 	const errorSignal = signal<Error | undefined>(undefined);

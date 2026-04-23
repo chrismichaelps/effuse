@@ -25,7 +25,7 @@
 import { Effect, Fiber, Duration, Exit, Predicate, Option, pipe } from 'effect';
 import { signal, type Signal } from '@effuse/core';
 import {
-	getGlobalQueryClient,
+	useQueryClient,
 	type QueryOptions,
 	type CacheEntry,
 } from '../client/index.js';
@@ -103,7 +103,7 @@ export const useQuery = <TData>(
 		placeholderData,
 	} = options;
 
-	const client = getGlobalQueryClient();
+	const client = options.client ?? useQueryClient();
 
 	const dataSignal = signal<TData | undefined>(undefined);
 	const errorSignal = signal<Error | undefined>(undefined);

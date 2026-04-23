@@ -57,6 +57,12 @@ export interface QueryOptions<T = unknown> {
 	) => void;
 	readonly select?: (data: T) => T;
 	readonly placeholderData?: T | (() => T);
+	/**
+	 * Explicit QueryClient instance. If omitted, the hook will inject
+	 * from the nearest Effuse component scope via provideQueryClient(),
+	 * falling back to the global singleton.
+	 */
+	readonly client?: import('./client.js').QueryClientApi;
 }
 
 export interface MutationOptions<TData = unknown, TVariables = unknown> {
@@ -72,6 +78,12 @@ export interface MutationOptions<TData = unknown, TVariables = unknown> {
 		variables: TVariables
 	) => void;
 	readonly onMutate?: (variables: TVariables) => unknown | Promise<unknown>;
+	/**
+	 * Explicit QueryClient instance. If omitted, the hook will inject
+	 * from the nearest Effuse component scope via provideQueryClient(),
+	 * falling back to the global singleton.
+	 */
+	readonly client?: import('./client.js').QueryClientApi;
 }
 
 export interface QueryState<T = unknown> {

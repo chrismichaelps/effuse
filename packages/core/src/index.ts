@@ -144,6 +144,12 @@ export {
 	type PortalPriority,
 	PORTAL_PRIORITY,
 	useLayerService,
+	provide,
+	inject,
+	createProvideScope,
+	runWithProvideScope,
+	getCurrentProvideScope,
+	type ProvideScope,
 } from './blueprint/index.js';
 
 export {

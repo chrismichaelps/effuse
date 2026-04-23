@@ -47,6 +47,11 @@ export {
 	invalidateQueryAsync,
 	invalidateQueriesAsync,
 	invalidateAllAsync,
+	QueryClientSymbol,
+	provideQueryClient,
+	useQueryClient,
+	useQueryClientStrict,
+	QueryClientProvider,
 } from './client/index.js';
 
 export type {
@@ -55,6 +60,7 @@ export type {
 	CacheEntry,
 	QueryOptions,
 	MutationOptions,
+	QueryClientProviderProps,
 } from './client/index.js';
 
 export {
