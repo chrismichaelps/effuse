@@ -22,40 +22,32 @@
  * SOFTWARE.
  */
 
-export { useQuery } from './useQuery.js';
-export type { UseQueryResult, QueryStatus } from './useQuery.js';
+import { signal, computed, type ReadonlySignal } from '@effuse/core';
+import { useQueryClient, type QueryClientApi } from '../client/index.js';
 
-export { useMutation, useOptimisticMutation } from './useMutation.js';
-export type {
-	UseMutationResult,
-	MutationStatus,
-	MutateOptions,
-	OptimisticMutationOptions,
-	OptimisticQueryConfig,
-} from './useMutation.js';
+export interface UseIsFetchingOptions {
+	readonly client?: QueryClientApi;
+}
 
-export { useQueries, useCombinedQueries } from './useQueries.js';
-export type {
-	UseQueriesOptions,
-	UseQueriesResult,
-	CombinedQueryResult,
-} from './useQueries.js';
+/**
+ * Returns a reactive signal with the count of currently fetching queries.
+ * Useful for global loading indicators.
+ */
+export const useIsFetching = (options?: UseIsFetchingOptions): ReadonlySignal<number> => {
+	const client = options?.client ?? useQueryClient();
+	const countSignal = signal<number>(0);
 
-export { useInfiniteQuery } from './useInfiniteQuery.js';
-export type {
-	InfiniteQueryOptions,
-	UseInfiniteQueryResult,
-	InfiniteData,
-	InfiniteQueryPage,
-} from './useInfiniteQuery.js';
+	const updateCount = (): void => {
+		const queries = client.queryCache.getAll();
+		countSignal.value = queries.filter((q) => q.isFetching).length;
+	};
 
-export {
-	prefetchQuery,
-	prefetchQueryAsync,
-	fetchQuery,
-	ensureQueryData,
-	usePrefetch,
-} from './usePrefetch.js';
-export type { PrefetchOptions } from './usePrefetch.js';
+	updateCount();
 
-export { useIsFetching } from './useIsFetching.js';
+	const unsubscribe = client.queryCache.subscribe(updateCount);
+
+	const result = computed(() => countSignal.value);
+
+	// Attach cleanup to the computed signal's disposal if supported by the framework layer
+	return result;
+};

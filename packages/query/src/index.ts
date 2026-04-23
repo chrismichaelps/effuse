@@ -76,6 +76,7 @@ export {
 	fetchQuery,
 	ensureQueryData,
 	usePrefetch,
+	useIsFetching,
 } from './hooks/index.js';
 
 export type {
@@ -104,6 +105,8 @@ export {
 } from './errors/index.js';
 
 export type { RetryConfig, BackoffStrategy } from './execution/index.js';
+
+export { createQueryKeys } from './utils/index.js';
 
 export { Query, QueryObserver, QueryCache } from './core/index.js';
 
