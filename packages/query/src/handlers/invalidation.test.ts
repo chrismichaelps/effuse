@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { Effect } from 'effect';
 import {
 	invalidateKey,
-	invalidatePattern,
+	invalidateWithFilters,
 	invalidateAll,
 } from './invalidation.js';
 import type { QueryHandlerDeps, QueryCacheInternals } from './types.js';
@@ -75,13 +75,15 @@ describe('invalidation handlers', () => {
 		});
 	});
 
-	describe('invalidatePattern', () => {
+	describe('invalidateWithFilters', () => {
 		it('should mark entries matching pattern prefix as invalidated', async () => {
 			const deps = createMockDeps();
 			deps.internals.cache.set('["users",1]', createEntry({ id: 1 }));
 			deps.internals.cache.set('["users",2]', createEntry({ id: 2 }));
 			deps.internals.cache.set('["posts",1]', createEntry({ id: 1 }));
-			await Effect.runPromise(invalidatePattern(deps, { pattern: ['users'] }));
+			await Effect.runPromise(
+				invalidateWithFilters(deps, { queryKey: ['users'] })
+			);
 			expect(deps.internals.cache.get('["users",1]')?.isInvalidated).toBe(true);
 			expect(deps.internals.cache.get('["users",2]')?.isInvalidated).toBe(true);
 			expect(deps.internals.cache.get('["posts",1]')?.isInvalidated).toBeFalsy();
@@ -93,7 +95,7 @@ describe('invalidation handlers', () => {
 			deps.internals.cache.set('["users","settings",1]', createEntry({}));
 			deps.internals.cache.set('["users","profile",2]', createEntry({}));
 			await Effect.runPromise(
-				invalidatePattern(deps, { pattern: ['users', 'profile'] })
+				invalidateWithFilters(deps, { queryKey: ['users', 'profile'] })
 			);
 			expect(
 				deps.internals.cache.get('["users","profile",1]')?.isInvalidated
@@ -106,11 +108,13 @@ describe('invalidation handlers', () => {
 			).toBeFalsy();
 		});
 
-		it('should handle empty pattern (matches all)', async () => {
+		it('should handle empty queryKey (matches all)', async () => {
 			const deps = createMockDeps();
 			deps.internals.cache.set('["a"]', createEntry(1));
 			deps.internals.cache.set('["b"]', createEntry(2));
-			await Effect.runPromise(invalidatePattern(deps, { pattern: [] }));
+			await Effect.runPromise(
+				invalidateWithFilters(deps, { queryKey: [] })
+			);
 			expect(deps.internals.cache.size).toBe(2);
 			expect(deps.internals.cache.get('["a"]')?.isInvalidated).toBe(true);
 			expect(deps.internals.cache.get('["b"]')?.isInvalidated).toBe(true);
@@ -124,7 +128,9 @@ describe('invalidation handlers', () => {
 			deps.internals.cache.set('["users",2]', createEntry({}));
 			deps.internals.subscribers.set('["users",1]', new Set([cb1]));
 			deps.internals.subscribers.set('["users",2]', new Set([cb2]));
-			await Effect.runPromise(invalidatePattern(deps, { pattern: ['users'] }));
+			await Effect.runPromise(
+				invalidateWithFilters(deps, { queryKey: ['users'] })
+			);
 			expect(cb1).toHaveBeenCalled();
 			expect(cb2).toHaveBeenCalled();
 		});
@@ -133,7 +139,9 @@ describe('invalidation handlers', () => {
 			const deps = createMockDeps();
 			deps.internals.cache.set('["posts",1]', createEntry({}));
 			await expect(
-				Effect.runPromise(invalidatePattern(deps, { pattern: ['users'] }))
+				Effect.runPromise(
+					invalidateWithFilters(deps, { queryKey: ['users'] })
+				)
 			).resolves.not.toThrow();
 			expect(deps.internals.cache.size).toBe(1);
 		});
