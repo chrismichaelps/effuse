@@ -24,6 +24,7 @@
 
 import { Query } from './query.js';
 import type { QueryKey, QueryConfig, QuerySnapshot } from './types.js';
+import { dehydrate, hydrate, type DehydratedState, type DehydrateOptions } from './hydration.js';
 
 const hashKey = (key: QueryKey): string => JSON.stringify(key);
 
@@ -118,5 +119,27 @@ export class QueryCache {
 	 */
 	get size(): number {
 		return this.queries.size;
+	}
+
+	/**
+	 * Serialize all queries to a dehydrated state.
+	 */
+	dehydrate(options?: DehydrateOptions): DehydratedState {
+		return dehydrate(this.getAll(), options);
+	}
+
+	/**
+	 * Restore queries from a dehydrated state.
+	 * Creates Query instances with the restored state.
+	 */
+	hydrate(state: DehydratedState, options?: DehydrateOptions): void {
+		const hydrated = hydrate(state, options);
+		for (const entry of hydrated) {
+			const existing = this.queries.get(entry.queryHash);
+			if (existing) {
+				existing.setState(entry.state);
+			}
+			// If query doesn't exist, it will be created lazily on next getOrCreate
+		}
 	}
 }
