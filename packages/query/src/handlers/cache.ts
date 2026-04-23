@@ -122,6 +122,7 @@ export const isStale = (
 ): boolean => {
 	const entry = deps.internals.cache.get(input.keyStr);
 	if (!entry) return true;
+	if (entry.isInvalidated) return true;
 	const threshold = staleTime ?? deps.config.staleTimeMs;
 	return Date.now() - entry.dataUpdatedAt > threshold;
 };

@@ -36,11 +36,13 @@ describe('invalidation handlers', () => {
 	});
 
 	describe('invalidateKey', () => {
-		it('should remove entry for exact key', async () => {
+		it('should mark entry as invalidated without removing', async () => {
 			const deps = createMockDeps();
 			deps.internals.cache.set('["users",1]', createEntry({ id: 1 }));
 			await Effect.runPromise(invalidateKey(deps, '["users",1]'));
-			expect(deps.internals.cache.has('["users",1]')).toBe(false);
+			expect(deps.internals.cache.has('["users",1]')).toBe(true);
+			const entry = deps.internals.cache.get('["users",1]');
+			expect(entry?.isInvalidated).toBe(true);
 		});
 
 		it('should notify subscribers', async () => {
@@ -59,30 +61,30 @@ describe('invalidation handlers', () => {
 			).resolves.not.toThrow();
 		});
 
-		it('should clear GC timer when invalidating', async () => {
+		it('should reset GC timer when invalidating', async () => {
 			vi.useFakeTimers();
 			const deps = createMockDeps();
 			deps.internals.cache.set('key1', createEntry('data'));
-			deps.internals.gcTimers.set(
-				'key1',
-				setTimeout(() => {}, 1000)
-			);
+			const oldTimer = setTimeout(() => {}, 1000);
+			deps.internals.gcTimers.set('key1', oldTimer);
 			await Effect.runPromise(invalidateKey(deps, 'key1'));
-			expect(deps.internals.gcTimers.has('key1')).toBe(false);
+			// GC timer is reset by setEntry, not cleared
+			expect(deps.internals.gcTimers.has('key1')).toBe(true);
+			expect(deps.internals.gcTimers.get('key1')).not.toBe(oldTimer);
 			vi.useRealTimers();
 		});
 	});
 
 	describe('invalidatePattern', () => {
-		it('should remove entries matching pattern prefix', async () => {
+		it('should mark entries matching pattern prefix as invalidated', async () => {
 			const deps = createMockDeps();
 			deps.internals.cache.set('["users",1]', createEntry({ id: 1 }));
 			deps.internals.cache.set('["users",2]', createEntry({ id: 2 }));
 			deps.internals.cache.set('["posts",1]', createEntry({ id: 1 }));
 			await Effect.runPromise(invalidatePattern(deps, { pattern: ['users'] }));
-			expect(deps.internals.cache.has('["users",1]')).toBe(false);
-			expect(deps.internals.cache.has('["users",2]')).toBe(false);
-			expect(deps.internals.cache.has('["posts",1]')).toBe(true);
+			expect(deps.internals.cache.get('["users",1]')?.isInvalidated).toBe(true);
+			expect(deps.internals.cache.get('["users",2]')?.isInvalidated).toBe(true);
+			expect(deps.internals.cache.get('["posts",1]')?.isInvalidated).toBeFalsy();
 		});
 
 		it('should match nested patterns', async () => {
@@ -93,17 +95,25 @@ describe('invalidation handlers', () => {
 			await Effect.runPromise(
 				invalidatePattern(deps, { pattern: ['users', 'profile'] })
 			);
-			expect(deps.internals.cache.has('["users","profile",1]')).toBe(false);
-			expect(deps.internals.cache.has('["users","profile",2]')).toBe(false);
-			expect(deps.internals.cache.has('["users","settings",1]')).toBe(true);
+			expect(
+				deps.internals.cache.get('["users","profile",1]')?.isInvalidated
+			).toBe(true);
+			expect(
+				deps.internals.cache.get('["users","profile",2]')?.isInvalidated
+			).toBe(true);
+			expect(
+				deps.internals.cache.get('["users","settings",1]')?.isInvalidated
+			).toBeFalsy();
 		});
 
-		it('should handle empty pattern (matches none)', async () => {
+		it('should handle empty pattern (matches all)', async () => {
 			const deps = createMockDeps();
 			deps.internals.cache.set('["a"]', createEntry(1));
 			deps.internals.cache.set('["b"]', createEntry(2));
 			await Effect.runPromise(invalidatePattern(deps, { pattern: [] }));
 			expect(deps.internals.cache.size).toBe(2);
+			expect(deps.internals.cache.get('["a"]')?.isInvalidated).toBe(true);
+			expect(deps.internals.cache.get('["b"]')?.isInvalidated).toBe(true);
 		});
 
 		it('should notify subscribers for each invalidated key', async () => {
@@ -130,28 +140,31 @@ describe('invalidation handlers', () => {
 	});
 
 	describe('invalidateAll', () => {
-		it('should remove all entries', async () => {
+		it('should mark all entries as invalidated', async () => {
 			const deps = createMockDeps();
 			deps.internals.cache.set('a', createEntry(1));
 			deps.internals.cache.set('b', createEntry(2));
 			deps.internals.cache.set('c', createEntry(3));
 			await Effect.runPromise(invalidateAll(deps));
-			expect(deps.internals.cache.size).toBe(0);
+			expect(deps.internals.cache.size).toBe(3);
+			expect(deps.internals.cache.get('a')?.isInvalidated).toBe(true);
+			expect(deps.internals.cache.get('b')?.isInvalidated).toBe(true);
+			expect(deps.internals.cache.get('c')?.isInvalidated).toBe(true);
 		});
 
-		it('should clear all GC timers', async () => {
+		it('should reset GC timers rather than clear them', async () => {
 			vi.useFakeTimers();
 			const deps = createMockDeps();
-			deps.internals.gcTimers.set(
-				'a',
-				setTimeout(() => {}, 1000)
-			);
-			deps.internals.gcTimers.set(
-				'b',
-				setTimeout(() => {}, 1000)
-			);
+			deps.internals.cache.set('a', createEntry(1));
+			deps.internals.cache.set('b', createEntry(2));
+			const oldTimerA = setTimeout(() => {}, 1000);
+			const oldTimerB = setTimeout(() => {}, 1000);
+			deps.internals.gcTimers.set('a', oldTimerA);
+			deps.internals.gcTimers.set('b', oldTimerB);
 			await Effect.runPromise(invalidateAll(deps));
-			expect(deps.internals.gcTimers.size).toBe(0);
+			expect(deps.internals.gcTimers.size).toBe(2);
+			expect(deps.internals.gcTimers.get('a')).not.toBe(oldTimerA);
+			expect(deps.internals.gcTimers.get('b')).not.toBe(oldTimerB);
 			vi.useRealTimers();
 		});
 

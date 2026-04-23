@@ -34,6 +34,12 @@ export interface CacheEntry<T = unknown> {
 	readonly status: QueryStatus;
 	readonly error?: unknown;
 	readonly fetchCount: number;
+	/** Marked stale by invalidateQueries; overrides staleTime. */
+	readonly isInvalidated?: boolean;
+	/** Timestamp when the error was last set. */
+	readonly errorUpdatedAt?: number;
+	/** Arbitrary metadata attached to the query. */
+	readonly meta?: unknown;
 }
 
 export interface QueryOptions<T = unknown> {

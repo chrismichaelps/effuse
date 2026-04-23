@@ -24,7 +24,7 @@
 
 import { Effect, Fiber, Duration, Predicate } from 'effect';
 import { signal, type Signal } from '@effuse/core';
-import { useQueryClient, type QueryKey } from '../client/index.js';
+import { useQueryClient, type QueryKey, type CacheEntry } from '../client/index.js';
 import { buildRetrySchedule, type RetryConfig } from '../execution/index.js';
 import { DEFAULT_STALE_TIME_MS, DEFAULT_TIMEOUT_MS } from '../config/index.js';
 import { InfiniteQueryError, TimeoutError } from '../errors/index.js';
@@ -81,6 +81,7 @@ export interface UseInfiniteQueryResult<TData> {
 	readonly refetch: () => Promise<void>;
 
 	readonly allPagesData: Signal<TData[] | undefined>;
+	readonly dispose: () => void;
 }
 
 // Infinite query page collection
@@ -137,6 +138,19 @@ export const useInfiniteQuery = <TData, TPageParam = number>(
 	let activeFiber: Fiber.RuntimeFiber<unknown, unknown> | null = null;
 
 	let isInternalUpdate = false;
+
+	const cacheKey = [...queryKey, 'infinite'];
+
+	const writeCache = (data: InfiniteData<TData>): void => {
+		const existing = client.get<InfiniteData<TData>>(cacheKey);
+		const entry: CacheEntry<InfiniteData<TData>> = {
+			data,
+			dataUpdatedAt: Date.now(),
+			status: 'success',
+			fetchCount: (existing?.fetchCount ?? 0) + 1,
+		};
+		client.set(cacheKey, entry);
+	};
 
 	const updateDerivedState = (): void => {
 		const status = statusSignal.value;
@@ -221,6 +235,7 @@ export const useInfiniteQuery = <TData, TPageParam = number>(
 			hasNextPageSignal.value = nextNext !== undefined;
 
 			statusSignal.value = 'success';
+			writeCache(newData);
 			updateDerivedState();
 			isInternalUpdate = false;
 		} catch (error) {
@@ -273,6 +288,7 @@ export const useInfiniteQuery = <TData, TPageParam = number>(
 			hasPreviousPageSignal.value = prevPrev !== undefined;
 
 			statusSignal.value = 'success';
+			writeCache(newData);
 			updateDerivedState();
 			isInternalUpdate = false;
 		} catch (error) {
@@ -320,6 +336,7 @@ export const useInfiniteQuery = <TData, TPageParam = number>(
 
 			statusSignal.value = 'success';
 			errorSignal.value = undefined;
+			writeCache(newData);
 			updateDerivedState();
 			isInternalUpdate = false;
 		} catch (error) {
@@ -334,7 +351,6 @@ export const useInfiniteQuery = <TData, TPageParam = number>(
 		}
 	};
 
-	const cacheKey = [...queryKey, 'infinite'];
 	const cached = client.get<InfiniteData<TData>>(cacheKey);
 	if (cached) {
 		dataSignal.value = cached.data;
@@ -349,7 +365,7 @@ export const useInfiniteQuery = <TData, TPageParam = number>(
 		updateDerivedState();
 	}
 
-	client.subscribe(cacheKey, () => {
+	const unsubscribe = client.subscribe(cacheKey, () => {
 		if (enabled && !isInternalUpdate) {
 			refetch();
 		}
@@ -358,6 +374,14 @@ export const useInfiniteQuery = <TData, TPageParam = number>(
 	if (enabled && (!cached || client.isStale(cacheKey, staleTime))) {
 		refetch();
 	}
+
+	const dispose = (): void => {
+		unsubscribe();
+		if (activeFiber) {
+			Effect.runFork(Fiber.interrupt(activeFiber));
+			activeFiber = null;
+		}
+	};
 
 	return {
 		data: dataSignal,
@@ -375,5 +399,6 @@ export const useInfiniteQuery = <TData, TPageParam = number>(
 		fetchPreviousPage,
 		refetch,
 		allPagesData: allPagesDataSignal,
+		dispose,
 	};
 };

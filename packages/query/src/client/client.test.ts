@@ -73,7 +73,7 @@ describe('QueryClient Integration', () => {
 		expect(client.get(key)?.data).toBe('original');
 	});
 
-	it('should invalidate queries matching a pattern', async () => {
+	it('should invalidate queries matching a pattern without deleting', async () => {
 		const client = createQueryClient();
 
 		client.set(['todos', 1], {
@@ -97,14 +97,70 @@ describe('QueryClient Integration', () => {
 
 		await Effect.runPromise(client.invalidateQueries(['todos']));
 
-		expect(client.has(['todos', 1])).toBe(false);
-		expect(client.has(['todos', 2])).toBe(false);
+		expect(client.has(['todos', 1])).toBe(true);
+		expect(client.get(['todos', 1])?.isInvalidated).toBe(true);
+		expect(client.has(['todos', 2])).toBe(true);
+		expect(client.get(['todos', 2])?.isInvalidated).toBe(true);
 		expect(client.has(['users', 1])).toBe(true);
+		expect(client.get(['users', 1])?.isInvalidated).toBeFalsy();
 	});
 
 	it('should get global query client singleton', () => {
 		const client1 = getGlobalQueryClient();
 		const client2 = getGlobalQueryClient();
 		expect(client1).toBe(client2);
+	});
+
+	describe('imperative cache API', () => {
+		it('setQueryData should write data directly', () => {
+			const client = createQueryClient();
+			const key = ['post', 1];
+
+			client.setQueryData(key, { title: 'Hello' });
+			expect(client.getQueryData(key)).toEqual({ title: 'Hello' });
+			expect(client.getQueryState(key)?.status).toBe('success');
+		});
+
+		it('setQueryData should support updater function', () => {
+			const client = createQueryClient();
+			const key = ['counter'];
+
+			client.setQueryData(key, 0);
+			client.setQueryData(key, (old) => (old ?? 0) + 1);
+			expect(client.getQueryData(key)).toBe(1);
+		});
+
+		it('setQueryData should preserve fetchCount', () => {
+			const client = createQueryClient();
+			const key = ['item'];
+
+			client.set(key, {
+				data: 'a',
+				status: 'success',
+				dataUpdatedAt: Date.now(),
+				fetchCount: 5,
+			});
+
+			client.setQueryData(key, 'b');
+			expect(client.getQueryState(key)?.fetchCount).toBe(5);
+		});
+
+		it('getQueryData should return undefined for missing key', () => {
+			const client = createQueryClient();
+			expect(client.getQueryData(['missing'])).toBeUndefined();
+		});
+
+		it('removeQueries should delete matching entries by prefix', () => {
+			const client = createQueryClient();
+			client.setQueryData(['todos', 1], 'a');
+			client.setQueryData(['todos', 2], 'b');
+			client.setQueryData(['users', 1], 'c');
+
+			client.removeQueries(['todos']);
+
+			expect(client.has(['todos', 1])).toBe(false);
+			expect(client.has(['todos', 2])).toBe(false);
+			expect(client.has(['users', 1])).toBe(true);
+		});
 	});
 });

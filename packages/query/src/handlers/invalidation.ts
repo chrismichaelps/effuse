@@ -28,62 +28,80 @@ import type {
 	QueryKey,
 	InvalidatePatternInput,
 } from './types.js';
-import { notifySubscribersForKey } from './cache.js';
+import { getEntry, setEntry, notifySubscribersForKey } from './cache.js';
+import { partialMatchKey } from '../utils/index.js';
 
-const matchesKeyPattern = (pattern: QueryKey, key: QueryKey): boolean => {
-	if (pattern.length === 0) return false;
-	if (pattern.length > key.length) return false;
-	for (let i = 0; i < pattern.length; i++) {
-		if (JSON.stringify(pattern[i]) !== JSON.stringify(key[i])) {
-			return false;
-		}
-	}
-	return true;
-};
+const parseKey = (keyStr: string): QueryKey => JSON.parse(keyStr) as QueryKey;
 
+/**
+ * Mark a single cache entry as invalidated (stale).
+ * The entry is NOT deleted — it remains visible to observers
+ * while a background refetch is triggered via subscriber notification.
+ */
 export const invalidateKey = (
 	deps: QueryHandlerDeps,
 	keyStr: string
 ): Effect.Effect<void> =>
 	Effect.sync(() => {
-		const timer = deps.internals.gcTimers.get(keyStr);
-		if (timer) {
-			clearTimeout(timer);
-			deps.internals.gcTimers.delete(keyStr);
-		}
-		deps.internals.cache.delete(keyStr);
+		const entry = getEntry<unknown>(deps, { keyStr });
+		if (!entry) return;
+
+		setEntry(deps, {
+			keyStr,
+			entry: {
+				...entry,
+				isInvalidated: true,
+			},
+		});
+
 		notifySubscribersForKey(deps, keyStr);
 	});
 
+/**
+ * Mark all entries matching the prefix pattern as invalidated.
+ * Uses deep prefix matching so `['todos']` invalidates `['todos', {page:1}]`.
+ */
 export const invalidatePattern = (
 	deps: QueryHandlerDeps,
 	input: InvalidatePatternInput
 ): Effect.Effect<void> =>
 	Effect.sync(() => {
 		for (const keyStr of deps.internals.cache.keys()) {
-			const key = JSON.parse(keyStr) as QueryKey;
-			if (matchesKeyPattern(input.pattern, key)) {
-				const timer = deps.internals.gcTimers.get(keyStr);
-				if (timer) {
-					clearTimeout(timer);
-					deps.internals.gcTimers.delete(keyStr);
-				}
-				deps.internals.cache.delete(keyStr);
+			const key = parseKey(keyStr);
+			if (partialMatchKey(key, input.pattern)) {
+				const entry = getEntry<unknown>(deps, { keyStr });
+				if (!entry) continue;
+
+				setEntry(deps, {
+					keyStr,
+					entry: {
+						...entry,
+						isInvalidated: true,
+					},
+				});
+
 				notifySubscribersForKey(deps, keyStr);
 			}
 		}
 	});
 
+/**
+ * Mark every cache entry as invalidated.
+ */
 export const invalidateAll = (deps: QueryHandlerDeps): Effect.Effect<void> =>
 	Effect.sync(() => {
-		for (const timer of deps.internals.gcTimers.values()) {
-			clearTimeout(timer);
-		}
-		deps.internals.gcTimers.clear();
+		for (const keyStr of deps.internals.cache.keys()) {
+			const entry = getEntry<unknown>(deps, { keyStr });
+			if (!entry) continue;
 
-		const allKeys = Array.from(deps.internals.cache.keys());
-		deps.internals.cache.clear();
-		for (const keyStr of allKeys) {
+			setEntry(deps, {
+				keyStr,
+				entry: {
+					...entry,
+					isInvalidated: true,
+				},
+			});
+
 			notifySubscribersForKey(deps, keyStr);
 		}
 	});

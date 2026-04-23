@@ -42,6 +42,7 @@ import {
 	type QueryCacheInternals,
 	type QueryHandlerDeps,
 } from '../handlers/index.js';
+import { partialMatchKey } from '../utils/index.js';
 
 const serializeKey = (key: QueryKey): string => JSON.stringify(key);
 
@@ -71,6 +72,20 @@ export interface QueryClientApi {
 		data: T
 	) => CacheEntry<T> | undefined;
 	readonly rollback: <T>(key: QueryKey, snapshot: CacheEntry<T>) => void;
+	/**
+	 * Directly set query data in the cache.
+	 * `updater` can be the new data or a function receiving the old data.
+	 */
+	readonly setQueryData: <T>(
+		key: QueryKey,
+		updater: T | ((old: T | undefined) => T)
+	) => CacheEntry<T> | undefined;
+	/** Read only the data for a query key. */
+	readonly getQueryData: <T>(key: QueryKey) => T | undefined;
+	/** Read the full cache entry (state) for a query key. */
+	readonly getQueryState: <T>(key: QueryKey) => CacheEntry<T> | undefined;
+	/** Remove queries matching a prefix pattern. */
+	readonly removeQueries: (pattern: QueryKey) => void;
 }
 
 export class QueryClient extends Context.Tag('effuse/query/QueryClient')<
@@ -222,6 +237,49 @@ const createQueryClientImpl = (): QueryClientApi => {
 		rollback: <T>(key: QueryKey, snapshot: CacheEntry<T>): void => {
 			const keyStr = serializeKey(key);
 			setEntry(deps, { keyStr, entry: snapshot });
+		},
+
+		setQueryData: <T>(
+			key: QueryKey,
+			updater: T | ((old: T | undefined) => T)
+		): CacheEntry<T> | undefined => {
+			const keyStr = serializeKey(key);
+			const existing = getEntry<T>(deps, { keyStr });
+			const prevData = existing?.data;
+			const nextData =
+				typeof updater === 'function'
+					? (updater as (old: T | undefined) => T)(prevData)
+					: updater;
+
+			const entry: CacheEntry<T> = {
+				data: nextData,
+				dataUpdatedAt: Date.now(),
+				status: 'success',
+				fetchCount: existing?.fetchCount ?? 0,
+				meta: existing?.meta,
+			};
+
+			setEntry(deps, { keyStr, entry });
+			return entry;
+		},
+
+		getQueryData: <T>(key: QueryKey): T | undefined => {
+			const keyStr = serializeKey(key);
+			return getEntry<T>(deps, { keyStr })?.data;
+		},
+
+		getQueryState: <T>(key: QueryKey): CacheEntry<T> | undefined => {
+			const keyStr = serializeKey(key);
+			return getEntry<T>(deps, { keyStr });
+		},
+
+		removeQueries: (pattern: QueryKey): void => {
+			for (const keyStr of deps.internals.cache.keys()) {
+				const key = parseKey(keyStr);
+				if (partialMatchKey(key, pattern)) {
+					removeEntry(deps, { keyStr });
+				}
+			}
 		},
 	};
 };
