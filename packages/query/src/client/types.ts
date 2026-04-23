@@ -22,6 +22,7 @@
  * SOFTWARE.
  */
 
+import type { Effect } from 'effect';
 import type { RetryConfig } from '../execution/index.js';
 
 export type QueryKey = readonly unknown[];
@@ -29,6 +30,9 @@ export type QueryKey = readonly unknown[];
 export type QueryStatus = 'idle' | 'loading' | 'success' | 'error';
 
 export type FetchStatus = 'idle' | 'fetching' | 'paused';
+
+/** Query function that returns either a Promise or an Effect. */
+export type QueryFunction<T> = () => Promise<T> | Effect.Effect<T, Error, never>;
 
 export interface CacheEntry<T = unknown> {
 	readonly data: T;
@@ -48,7 +52,7 @@ export interface CacheEntry<T = unknown> {
 
 export interface QueryOptions<T = unknown> {
 	readonly queryKey: QueryKey;
-	readonly queryFn: () => Promise<T>;
+	readonly queryFn: QueryFunction<T>;
 	readonly staleTime?: number;
 	readonly cacheTime?: number;
 	readonly retry?: RetryConfig | number | boolean;
@@ -66,7 +70,12 @@ export interface QueryOptions<T = unknown> {
 		error: unknown | undefined
 	) => void;
 	readonly select?: (data: T) => T;
-	readonly placeholderData?: T | (() => T);
+	readonly placeholderData?: T | ((previousData: T | undefined) => T);
+	/**
+	 * Initial data to use before the first fetch completes.
+	 * When provided, the hook's `data` is guaranteed to be defined.
+	 */
+	readonly initialData?: T | (() => T);
 	/**
 	 * Explicit QueryClient instance. If omitted, the hook will inject
 	 * from the nearest Effuse component scope via provideQueryClient(),

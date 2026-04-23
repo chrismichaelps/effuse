@@ -99,6 +99,7 @@ export const useQuery = <TData>(
 		onSettled,
 		select,
 		placeholderData,
+		initialData,
 	} = options;
 
 	const client = options.client ?? useQueryClient();
@@ -309,10 +310,21 @@ export const useQuery = <TData>(
 			errorSignal.value = cached.error as Error;
 		}
 		isStaleSignal.value = client.isStale(queryKey, staleTime);
+	} else if (initialData !== undefined) {
+		const initial =
+			typeof initialData === 'function'
+				? (initialData as () => TData)()
+				: initialData;
+		dataSignal.value = initial;
+		statusSignal.value = 'success';
+		dataUpdatedAtSignal.value = Date.now();
+		isStaleSignal.value = client.isStale(queryKey, staleTime);
 	} else if (placeholderData !== undefined) {
 		const placeholder =
 			typeof placeholderData === 'function'
-				? (placeholderData as () => TData)()
+				? (placeholderData as (previousData: TData | undefined) => TData)(
+						undefined
+					)
 				: placeholderData;
 		dataSignal.value = placeholder;
 		isPlaceholderDataSignal.value = true;

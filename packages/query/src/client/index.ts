@@ -50,11 +50,17 @@ export {
 	type QueryKey,
 	type QueryStatus,
 	type FetchStatus,
+	type QueryFunction,
 	type CacheEntry,
 	type QueryOptions,
 	type MutationOptions,
-	type QueryState,
-	type MutationState,
 	type QueryFilters,
 	type QueryInfo,
 } from './types.js';
+
+export {
+	queryOptions,
+	keepPreviousData,
+	type DefinedInitialDataOptions,
+	type UndefinedInitialDataOptions,
+} from './query-options.js';

@@ -25,38 +25,67 @@
 import { Effect } from 'effect';
 import { hashQueryKey } from './schema.js';
 import { QueryError, NetworkError } from '../errors/index.js';
-import type { QueryKey } from '../client/types.js';
+import type { QueryFunction, QueryKey } from '../client/types.js';
 
 const inFlightRequests = new Map<string, Promise<unknown>>();
 
 export const executeQuery = <T>(
 	queryKey: QueryKey,
-	queryFn: () => Promise<T>
+	queryFn: QueryFunction<T>
 ): Effect.Effect<T, Error, never> => {
 	const keyHash = hashQueryKey(queryKey);
 
-	return Effect.tryPromise({
-		try: async () => {
-			const existing = inFlightRequests.get(keyHash);
-			if (existing) {
-				return existing as Promise<T>;
-			}
-
-			const promise = queryFn().finally(() => {
-				inFlightRequests.delete(keyHash);
+	return Effect.gen(function* () {
+		const existing = inFlightRequests.get(keyHash);
+		if (existing) {
+			return yield* Effect.tryPromise({
+				try: () => existing as Promise<T>,
+				catch: (error) =>
+					error instanceof TypeError
+						? new NetworkError({ message: String(error) })
+						: new QueryError({
+								message: error instanceof Error ? error.message : String(error),
+								queryKey,
+								cause: error,
+							}),
 			});
+		}
 
-			inFlightRequests.set(keyHash, promise);
-			return promise;
-		},
-		catch: (error) =>
-			error instanceof TypeError
-				? new NetworkError({ message: String(error) })
-				: new QueryError({
-						message: error instanceof Error ? error.message : String(error),
-						queryKey,
-						cause: error,
-					}),
+		const raw = queryFn();
+
+		if (Effect.isEffect(raw)) {
+			return yield* raw.pipe(
+				Effect.catchAll((error) =>
+					Effect.fail(
+						error instanceof TypeError
+							? new NetworkError({ message: String(error) })
+							: new QueryError({
+									message: error instanceof Error ? error.message : String(error),
+									queryKey,
+									cause: error,
+								})
+					)
+				)
+			);
+		}
+
+		const promise = raw.finally(() => {
+			inFlightRequests.delete(keyHash);
+		});
+
+		inFlightRequests.set(keyHash, promise);
+
+		return yield* Effect.tryPromise({
+			try: () => promise,
+			catch: (error) =>
+				error instanceof TypeError
+					? new NetworkError({ message: String(error) })
+					: new QueryError({
+							message: error instanceof Error ? error.message : String(error),
+							queryKey,
+							cause: error,
+						}),
+		});
 	});
 };
 
