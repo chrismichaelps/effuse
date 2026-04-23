@@ -23,16 +23,7 @@
  */
 
 export {
-	setGlobalQueryClient,
-	getGlobalQueryClient,
 	createQueryClient,
-	invalidateQuery,
-	invalidateQueries,
-	invalidateAllQueries,
-	invalidateQueryAsync,
-	invalidateQueriesAsync,
-	invalidateAllAsync,
-	refetchQueries,
 	type QueryClientApi,
 } from './client.js';
 

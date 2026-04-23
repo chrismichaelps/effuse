@@ -351,54 +351,6 @@ export const QueryClientLive: Layer.Layer<QueryClient> = Layer.effect(
 	})
 );
 
-let globalQueryClient: QueryClientApi | null = null;
-
-export const setGlobalQueryClient = (client: QueryClientApi): void => {
-	globalQueryClient = client;
-};
-
-export const getGlobalQueryClient = (): QueryClientApi => {
-	if (!globalQueryClient) {
-		globalQueryClient = createQueryClientImpl();
-	}
-	return globalQueryClient;
-};
-
 export const createQueryClient = (): QueryClientApi => {
 	return createQueryClientImpl();
-};
-
-export const invalidateQuery = (key: QueryKey): void => {
-	const client = getGlobalQueryClient();
-	void client.invalidate(key);
-};
-
-export const invalidateQueries = (pattern: QueryKey): void => {
-	const client = getGlobalQueryClient();
-	void client.invalidateQueries(pattern);
-};
-
-export const invalidateAllQueries = (): void => {
-	const client = getGlobalQueryClient();
-	void client.invalidateAll();
-};
-
-export const invalidateQueryAsync = (key: QueryKey): Promise<void> => {
-	const client = getGlobalQueryClient();
-	return client.invalidate(key);
-};
-
-export const invalidateQueriesAsync = (pattern: QueryKey): Promise<void> => {
-	const client = getGlobalQueryClient();
-	return client.invalidateQueries(pattern);
-};
-
-export const invalidateAllAsync = (): Promise<void> => {
-	const client = getGlobalQueryClient();
-	return client.invalidateAll();
-};
-
-export const refetchQueries = (filters?: QueryFilters | QueryKey): void => {
-	const client = getGlobalQueryClient();
-	client.refetchQueries(filters);
 };

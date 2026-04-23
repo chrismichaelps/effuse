@@ -39,15 +39,7 @@ export {
 } from './config/constants.js';
 
 export {
-	setGlobalQueryClient,
 	createQueryClient,
-	invalidateQuery,
-	invalidateQueries,
-	invalidateAllQueries,
-	invalidateQueryAsync,
-	invalidateQueriesAsync,
-	invalidateAllAsync,
-	refetchQueries,
 	QueryClientSymbol,
 	provideQueryClient,
 	useQueryClient,

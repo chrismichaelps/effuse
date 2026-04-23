@@ -26,7 +26,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { Query } from './query.js';
 
 describe('Query', () => {
-	const createTestQuery = (overrides?: Partial<Parameters<typeof Query.prototype.fetch>[0]>) =>
+	const createTestQuery = (overrides?: Partial<ConstructorParameters<typeof Query>[0]>) =>
 		new Query({
 			queryKey: ['test'],
 			queryFn: async () => 'data',
