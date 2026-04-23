@@ -23,13 +23,22 @@
  */
 
 import { Effect, Predicate, Option, pipe } from 'effect';
-import { getGlobalQueryClient, type QueryKey } from '../client/index.js';
+import {
+	useQueryClient,
+	getGlobalQueryClient,
+	type QueryKey,
+} from '../client/index.js';
+import type { QueryClientApi } from '../client/client.js';
 import { DEFAULT_STALE_TIME_MS } from '../config/index.js';
 
 // Prefetch options
 export interface PrefetchOptions {
 	readonly staleTime?: number;
+	readonly client?: QueryClientApi;
 }
+
+const resolveClient = (options?: PrefetchOptions): QueryClientApi =>
+	options?.client ?? getGlobalQueryClient();
 
 // Prefetch query data
 export const prefetchQuery = <T>(
@@ -37,7 +46,7 @@ export const prefetchQuery = <T>(
 	queryFn: () => Promise<T>,
 	options?: PrefetchOptions
 ): void => {
-	const client = getGlobalQueryClient();
+	const client = resolveClient(options);
 	const staleTime = pipe(
 		Option.fromNullable(options),
 		Option.flatMap((o) => Option.fromNullable(o.staleTime)),
@@ -53,7 +62,7 @@ export const prefetchQueryAsync = async <T>(
 	queryFn: () => Promise<T>,
 	options?: PrefetchOptions
 ): Promise<void> => {
-	const client = getGlobalQueryClient();
+	const client = resolveClient(options);
 	const staleTime = pipe(
 		Option.fromNullable(options),
 		Option.flatMap((o) => Option.fromNullable(o.staleTime)),
@@ -69,7 +78,7 @@ export const fetchQuery = async <T>(
 	queryFn: () => Promise<T>,
 	options?: PrefetchOptions
 ): Promise<T> => {
-	const client = getGlobalQueryClient();
+	const client = resolveClient(options);
 	const staleTime = pipe(
 		Option.fromNullable(options),
 		Option.flatMap((o) => Option.fromNullable(o.staleTime)),
@@ -109,7 +118,7 @@ export const ensureQueryData = async <T>(
 	queryFn: () => Promise<T>,
 	options?: PrefetchOptions
 ): Promise<T> => {
-	const client = getGlobalQueryClient();
+	const client = resolveClient(options);
 	const staleTime = pipe(
 		Option.fromNullable(options),
 		Option.flatMap((o) => Option.fromNullable(o.staleTime)),
@@ -129,12 +138,29 @@ export const ensureQueryData = async <T>(
 	return fetchQuery(queryKey, queryFn, options);
 };
 
-// Reactive prefetch hook
+// Reactive prefetch hook — binds to injected QueryClient
 export const usePrefetch = () => {
+	const client = useQueryClient();
 	return {
-		prefetchQuery,
-		prefetchQueryAsync,
-		fetchQuery,
-		ensureQueryData,
+		prefetchQuery: <T>(
+			queryKey: QueryKey,
+			queryFn: () => Promise<T>,
+			options?: Omit<PrefetchOptions, 'client'>
+		) => prefetchQuery(queryKey, queryFn, { ...options, client }),
+		prefetchQueryAsync: <T>(
+			queryKey: QueryKey,
+			queryFn: () => Promise<T>,
+			options?: Omit<PrefetchOptions, 'client'>
+		) => prefetchQueryAsync(queryKey, queryFn, { ...options, client }),
+		fetchQuery: <T>(
+			queryKey: QueryKey,
+			queryFn: () => Promise<T>,
+			options?: Omit<PrefetchOptions, 'client'>
+		) => fetchQuery(queryKey, queryFn, { ...options, client }),
+		ensureQueryData: <T>(
+			queryKey: QueryKey,
+			queryFn: () => Promise<T>,
+			options?: Omit<PrefetchOptions, 'client'>
+		) => ensureQueryData(queryKey, queryFn, { ...options, client }),
 	};
 };

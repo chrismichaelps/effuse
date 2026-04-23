@@ -24,7 +24,7 @@
 
 import { Effect, Duration } from 'effect';
 import { signal, type Signal } from '@effuse/core';
-import { type QueryKey } from '../client/index.js';
+import { useQueryClient, type QueryKey } from '../client/index.js';
 import { DEFAULT_TIMEOUT_MS } from '../config/index.js';
 import { QueryFetchError, TimeoutError } from '../errors/index.js';
 
@@ -33,6 +33,12 @@ export interface UseQueriesOptions<T> {
 	readonly queryKey: QueryKey;
 	readonly queryFn: () => Promise<T>;
 	readonly enabled?: boolean;
+	/**
+	 * Explicit QueryClient instance. If omitted, the hook will inject
+	 * from the nearest Effuse component scope via provideQueryClient(),
+	 * falling back to the global singleton.
+	 */
+	readonly client?: import('../client/client.js').QueryClientApi;
 }
 
 // Parallel query result
@@ -48,6 +54,11 @@ export interface UseQueriesResult<T> {
 export const useQueries = <T>(
 	queries: ReadonlyArray<UseQueriesOptions<T>>
 ): UseQueriesResult<T>[] => {
+	const client = queries[0]?.client ?? useQueryClient();
+	// TODO(#144): useQueries currently bypasses the cache entirely.
+	// It should build QueryObservers and read from / write to the cache.
+	void client;
+
 	const enabledQueries = queries.filter((q) => q.enabled !== false);
 
 	const results: UseQueriesResult<T>[] = queries.map(() => ({

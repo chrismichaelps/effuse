@@ -25,7 +25,7 @@
 import { Effect, Fiber, Duration, Predicate } from 'effect';
 import { signal, type Signal } from '@effuse/core';
 import {
-	getGlobalQueryClient,
+	useQueryClient,
 	type MutationOptions,
 	type CacheEntry,
 	type QueryKey,
@@ -128,6 +128,10 @@ export const useMutation = <TData, TVariables = void, TContext = unknown>(
 		onError,
 		onSettled,
 	} = options;
+
+	// Resolved for consistency with other hooks; mutation cache integration is #147
+	const _client = options.client ?? useQueryClient();
+	void _client;
 
 	const dataSignal = signal<TData | undefined>(undefined);
 	const errorSignal = signal<Error | undefined>(undefined);
@@ -360,6 +364,7 @@ export const useOptimisticMutation = <TData, TVariables>(options: {
 		current: TData | undefined
 	) => TData;
 	timeout?: number;
+	client?: import('../client/client.js').QueryClientApi;
 }): UseMutationResult<TData, TVariables, CacheEntry<TData> | undefined> => {
 	const {
 		mutationFn,
@@ -367,7 +372,7 @@ export const useOptimisticMutation = <TData, TVariables>(options: {
 		optimisticUpdate,
 		timeout = DEFAULT_TIMEOUT_MS,
 	} = options;
-	const client = getGlobalQueryClient();
+	const client = options.client ?? useQueryClient();
 
 	return useMutation<TData, TVariables, CacheEntry<TData> | undefined>({
 		mutationFn,

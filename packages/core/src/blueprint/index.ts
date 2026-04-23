@@ -78,3 +78,12 @@ export {
 } from './portal.js';
 
 export { useCallback, useMemo, useLayerService } from './hooks.js';
+
+export {
+	provide,
+	inject,
+	createProvideScope,
+	runWithProvideScope,
+	getCurrentProvideScope,
+	type ProvideScope,
+} from './provide-inject.js';
