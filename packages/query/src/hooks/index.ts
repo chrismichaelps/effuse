@@ -31,6 +31,7 @@ export type {
 	MutationStatus,
 	MutateOptions,
 	OptimisticMutationOptions,
+	OptimisticQueryConfig,
 } from './useMutation.js';
 
 export { useQueries, useCombinedQueries } from './useQueries.js';

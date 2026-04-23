@@ -130,9 +130,6 @@ export const useMutation = <TData, TVariables = void, TContext = unknown>(
 	} = options;
 
 	// Resolved for consistency with other hooks; mutation cache integration is #147
-	const _client = options.client ?? useQueryClient();
-	void _client;
-
 	const dataSignal = signal<TData | undefined>(undefined);
 	const errorSignal = signal<Error | undefined>(undefined);
 	const statusSignal = signal<MutationStatus>('idle');
@@ -343,43 +340,84 @@ export const useMutation = <TData, TVariables = void, TContext = unknown>(
 	};
 };
 
-// Optimistic update hook
-export const useOptimisticMutation = <TData, TVariables>(options: {
-	mutationFn: (variables: TVariables) => Promise<TData>;
-	queryKey: QueryKey;
-	optimisticUpdate: (
+// Per-query optimistic update config
+export interface OptimisticQueryConfig<TData, TVariables> {
+	readonly queryKey: QueryKey;
+	readonly optimisticUpdate: (
 		variables: TVariables,
 		current: TData | undefined
 	) => TData;
-	timeout?: number;
-	client?: import('../client/client.js').QueryClientApi;
-}): UseMutationResult<TData, TVariables, CacheEntry<TData> | undefined> => {
+}
+
+// Options for optimistic mutation
+export interface OptimisticMutationOptions<TData, TVariables> {
+	readonly mutationFn: (variables: TVariables) => Promise<TData>;
+	/** Queries to optimistically update. */
+	readonly queries: ReadonlyArray<OptimisticQueryConfig<TData, TVariables>>;
+	/** Keys to invalidate after successful mutation. */
+	readonly invalidateKeys?: ReadonlyArray<QueryKey>;
+	readonly timeout?: number;
+	readonly client?: import('../client/client.js').QueryClientApi;
+}
+
+interface OptimisticContext<TData> {
+	readonly snapshots: ReadonlyArray<{
+		readonly queryKey: QueryKey;
+		readonly snapshot: CacheEntry<TData> | undefined;
+	}>;
+}
+
+// Optimistic update hook
+export const useOptimisticMutation = <TData, TVariables>(
+	options: OptimisticMutationOptions<TData, TVariables>
+): UseMutationResult<TData, TVariables, OptimisticContext<TData>> => {
 	const {
 		mutationFn,
-		queryKey,
-		optimisticUpdate,
+		queries,
+		invalidateKeys,
 		timeout = DEFAULT_TIMEOUT_MS,
 	} = options;
 	const client = options.client ?? useQueryClient();
 
-	return useMutation<TData, TVariables, CacheEntry<TData> | undefined>({
+	return useMutation<TData, TVariables, OptimisticContext<TData>>({
 		mutationFn,
 		timeout,
 		onMutate: (variables) => {
-			const snapshot = client.getSnapshot<TData>(queryKey);
+			const snapshots = queries.map((config) => {
+				const snapshot = client.getSnapshot<TData>(config.queryKey);
 
-			const existing = client.get<TData>(queryKey);
-			const currentData = Predicate.isNotNullable(existing)
-				? existing.data
-				: undefined;
-			const optimisticData = optimisticUpdate(variables, currentData);
-			client.setOptimistic(queryKey, optimisticData);
+				const existing = client.get<TData>(config.queryKey);
+				const currentData = Predicate.isNotNullable(existing)
+					? existing.data
+					: undefined;
+				const optimisticData = config.optimisticUpdate(
+					variables,
+					currentData
+				);
+				client.setOptimistic(config.queryKey, optimisticData);
 
-			return snapshot;
+				return { queryKey: config.queryKey, snapshot };
+			});
+
+			return { snapshots };
 		},
 		onError: (_error, _variables, context) => {
 			if (context) {
-				client.rollback(queryKey, context);
+				for (const entry of context.snapshots) {
+					if (entry.snapshot) {
+						client.rollback(entry.queryKey, entry.snapshot);
+					} else {
+						// No prior snapshot — remove the optimistic entry
+						client.remove(entry.queryKey);
+					}
+				}
+			}
+		},
+		onSuccess: (_data, _variables) => {
+			if (invalidateKeys) {
+				for (const key of invalidateKeys) {
+					void client.invalidate(key);
+				}
 			}
 		},
 	});
