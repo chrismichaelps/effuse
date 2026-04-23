@@ -22,30 +22,29 @@
  * SOFTWARE.
  */
 
-export { Query } from './query.js';
-export { QueryObserver } from './query-observer.js';
-export { QueryCache } from './query-cache.js';
-export { Mutation } from './mutation.js';
-export { MutationCache } from './mutation-cache.js';
-export { dehydrate, hydrate } from './hydration.js';
+import { signal, computed, type ReadonlySignal } from '@effuse/core';
+import { useQueryClient, type QueryClientApi } from '../client/index.js';
 
-export type {
-	QueryKey,
-	QueryStatus,
-	FetchStatus,
-	QueryFunction,
-	QueryState,
-	QueryAction,
-	QueryConfig,
-	QueryObserverOptions,
-	QueryObserverResult,
-	QueryObserverListener,
-	QuerySnapshot,
-} from './types.js';
+export interface UseIsMutatingOptions {
+	readonly client?: QueryClientApi;
+}
 
-export type {
-	DehydratedState,
-	DehydratedQuery,
-	DehydrateOptions,
-	TypeSerializer,
-} from './hydration.js';
+/**
+ * Returns a reactive signal with the count of currently pending mutations.
+ * Useful for global mutation loading indicators.
+ */
+export const useIsMutating = (options?: UseIsMutatingOptions): ReadonlySignal<number> => {
+	const client = options?.client ?? useQueryClient();
+	const countSignal = signal<number>(0);
+
+	const updateCount = (): void => {
+		countSignal.value = client.mutationCache.pendingCount;
+	};
+
+	updateCount();
+
+	const unsubscribe = client.mutationCache.subscribe(updateCount);
+
+	const result = computed(() => countSignal.value);
+	return result;
+};

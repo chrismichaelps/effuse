@@ -44,7 +44,7 @@ import {
 	type QueryCacheInternals,
 	type QueryHandlerDeps,
 } from '../handlers/index.js';
-import { QueryCache, Query } from '../core/index.js';
+import { QueryCache, Query, MutationCache } from '../core/index.js';
 import type { QueryConfig } from '../core/types.js';
 import type { DehydratedState, DehydrateOptions } from '../core/hydration.js';
 
@@ -106,6 +106,8 @@ export interface QueryClientApi {
 	) => Query<TData, TError>;
 	/** The underlying QueryCache instance. */
 	readonly queryCache: QueryCache;
+	/** The underlying MutationCache instance. */
+	readonly mutationCache: MutationCache;
 	/** Serialize cache state to a dehydrated object for SSR. */
 	readonly dehydrate: (options?: DehydrateOptions) => DehydratedState;
 	/** Restore cache state from a dehydrated object. */
@@ -133,6 +135,7 @@ const createQueryClientImpl = (): QueryClientApi => {
 	};
 
 	const queryCache = new QueryCache();
+	const mutationCache = new MutationCache();
 
 	return {
 		get: <T>(key: QueryKey): CacheEntry<T> | undefined => {
@@ -345,6 +348,7 @@ const createQueryClientImpl = (): QueryClientApi => {
 		},
 
 		queryCache,
+		mutationCache,
 
 		dehydrate: (options?: DehydrateOptions): DehydratedState => {
 			return queryCache.dehydrate(options);
