@@ -10,7 +10,6 @@ import { describe, it, expect, vi } from 'vitest';
 import { useQuery } from '../hooks/useQuery.js';
 import { useMutation } from '../hooks/useMutation.js';
 import { createQueryClient } from '../client/client.js';
-import { setGlobalQueryClient } from '../client/client.js';
 import { deepEqual } from '../utils/deep-equal.js';
 
 describe('P0 bug fixes', () => {
@@ -75,11 +74,11 @@ describe('P0 bug fixes', () => {
 	describe('useQuery falsy data', () => {
 		it('should preserve 0 as data', async () => {
 			const client = createQueryClient();
-			setGlobalQueryClient(client);
 
 			const result = useQuery({
 				queryKey: ['falsy', 'zero'],
 				queryFn: () => Promise.resolve(0),
+				client,
 			});
 
 			// Wait for fetch
@@ -92,11 +91,11 @@ describe('P0 bug fixes', () => {
 
 		it('should preserve false as data', async () => {
 			const client = createQueryClient();
-			setGlobalQueryClient(client);
 
 			const result = useQuery({
 				queryKey: ['falsy', 'false'],
 				queryFn: () => Promise.resolve(false),
+				client,
 			});
 
 			await new Promise((r) => setTimeout(r, 50));
@@ -107,11 +106,11 @@ describe('P0 bug fixes', () => {
 
 		it('should preserve empty string as data', async () => {
 			const client = createQueryClient();
-			setGlobalQueryClient(client);
 
 			const result = useQuery({
 				queryKey: ['falsy', 'empty'],
 				queryFn: () => Promise.resolve(''),
+				client,
 			});
 
 			await new Promise((r) => setTimeout(r, 50));
@@ -122,11 +121,11 @@ describe('P0 bug fixes', () => {
 
 		it('should preserve empty array as data', async () => {
 			const client = createQueryClient();
-			setGlobalQueryClient(client);
 
 			const result = useQuery({
 				queryKey: ['falsy', 'array'],
 				queryFn: () => Promise.resolve([]),
+				client,
 			});
 
 			await new Promise((r) => setTimeout(r, 50));
@@ -139,7 +138,6 @@ describe('P0 bug fixes', () => {
 		describe('useQuery dispose', () => {
 		it('should clean up event listeners', () => {
 			const client = createQueryClient();
-			setGlobalQueryClient(client);
 
 			// Mock window in Node test environment
 			const win = {
@@ -153,6 +151,7 @@ describe('P0 bug fixes', () => {
 				queryFn: () => Promise.resolve('data'),
 				refetchOnWindowFocus: true,
 				refetchOnReconnect: true,
+				client,
 			});
 
 			expect(win.addEventListener).toHaveBeenCalledWith('focus', expect.any(Function));
@@ -168,12 +167,12 @@ describe('P0 bug fixes', () => {
 
 		it('should clean up subscriber', () => {
 			const client = createQueryClient();
-			setGlobalQueryClient(client);
 
 			const key = ['dispose', 'subscriber'];
 			const result = useQuery({
 				queryKey: key,
 				queryFn: () => Promise.resolve('data'),
+				client,
 			});
 
 			// After dispose, subscriber callback should be removed
@@ -198,10 +197,10 @@ describe('P0 bug fixes', () => {
 	describe('useMutation error propagation', () => {
 		it('should propagate mutation errors via mutateAsync', async () => {
 			const client = createQueryClient();
-			setGlobalQueryClient(client);
 
 			const result = useMutation({
 				mutationFn: () => Promise.reject(new Error('mutate boom')),
+				client,
 			});
 
 			await expect(result.mutateAsync(undefined)).rejects.toThrow(
@@ -213,13 +212,13 @@ describe('P0 bug fixes', () => {
 
 		it('should write onMutate errors to error signal', async () => {
 			const client = createQueryClient();
-			setGlobalQueryClient(client);
 
 			const result = useMutation({
 				mutationFn: () => Promise.resolve('ok'),
 				onMutate: () => {
 					throw new Error('onMutate boom');
 				},
+				client,
 			});
 
 			await expect(result.mutateAsync(undefined)).rejects.toThrow(

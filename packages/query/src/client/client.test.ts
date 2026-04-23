@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createQueryClient, getGlobalQueryClient } from './client.js';
+import { createQueryClient } from './client.js';
 
 describe('QueryClient Integration', () => {
 	it('should be able to set and get cache entries', () => {
@@ -102,12 +102,6 @@ describe('QueryClient Integration', () => {
 		expect(client.get(['todos', 2])?.isInvalidated).toBe(true);
 		expect(client.has(['users', 1])).toBe(true);
 		expect(client.get(['users', 1])?.isInvalidated).toBeFalsy();
-	});
-
-	it('should get global query client singleton', () => {
-		const client1 = getGlobalQueryClient();
-		const client2 = getGlobalQueryClient();
-		expect(client1).toBe(client2);
 	});
 
 	describe('imperative cache API', () => {

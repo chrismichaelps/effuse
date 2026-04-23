@@ -23,7 +23,6 @@
  */
 
 import { provide, inject } from '@effuse/core';
-import { getGlobalQueryClient } from './client.js';
 import type { QueryClientApi } from './client.js';
 
 /**
@@ -69,18 +68,6 @@ export const provideQueryClient = (client: QueryClientApi): void => {
  */
 export const useQueryClient = (): QueryClientApi => {
 	const client = inject<QueryClientApi>(QueryClientSymbol);
-	if (client) {
-		return client;
-	}
-	return getGlobalQueryClient();
-};
-
-/**
- * Type-safe helper to inject a QueryClient without fallback.
- * Throws if no provider is found.
- */
-export const useQueryClientStrict = (): QueryClientApi => {
-	const client = inject<QueryClientApi>(QueryClientSymbol);
 	if (!client) {
 		throw new Error(
 			'No QueryClient found in component scope. ' +
@@ -89,3 +76,9 @@ export const useQueryClientStrict = (): QueryClientApi => {
 	}
 	return client;
 };
+
+/**
+ * Alias for `useQueryClient`.
+ * Both now require an explicit provider — no global fallback.
+ */
+export const useQueryClientStrict = useQueryClient;
