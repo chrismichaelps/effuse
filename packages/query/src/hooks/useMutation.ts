@@ -23,7 +23,7 @@
  */
 
 import { Effect, Fiber, Duration, Predicate } from 'effect';
-import { signal, type Signal } from '@effuse/core';
+import { signal, computed, type Signal, type ReadonlySignal } from '@effuse/core';
 import {
 	useQueryClient,
 	type MutationOptions,
@@ -45,10 +45,10 @@ export interface UseMutationResult<TData, TVariables, TContext = unknown> {
 
 	readonly status: Signal<MutationStatus>;
 
-	readonly isPending: Signal<boolean>;
-	readonly isSuccess: Signal<boolean>;
-	readonly isError: Signal<boolean>;
-	readonly isIdle: Signal<boolean>;
+	readonly isPending: ReadonlySignal<boolean>;
+	readonly isSuccess: ReadonlySignal<boolean>;
+	readonly isError: ReadonlySignal<boolean>;
+	readonly isIdle: ReadonlySignal<boolean>;
 
 	readonly variables: Signal<TVariables | undefined>;
 	readonly context: Signal<TContext | undefined>;
@@ -140,23 +140,16 @@ export const useMutation = <TData, TVariables = void, TContext = unknown>(
 	const contextSignal = signal<TContext | undefined>(undefined);
 	const submittedAtSignal = signal<number | undefined>(undefined);
 
-	const isPendingSignal = signal<boolean>(false);
-	const isSuccessSignal = signal<boolean>(false);
-	const isErrorSignal = signal<boolean>(false);
-	const isIdleSignal = signal<boolean>(true);
-
 	const failureCountSignal = signal<number>(0);
 	const failureReasonSignal = signal<Error | undefined>(undefined);
 
-	let activeFiber: Fiber.RuntimeFiber<unknown, unknown> | null = null;
+	// Derived state — automatically reactive via computed()
+	const isPendingSignal = computed(() => statusSignal.value === 'pending');
+	const isSuccessSignal = computed(() => statusSignal.value === 'success');
+	const isErrorSignal = computed(() => statusSignal.value === 'error');
+	const isIdleSignal = computed(() => statusSignal.value === 'idle');
 
-	const updateDerivedState = (): void => {
-		const status = statusSignal.value;
-		isPendingSignal.value = status === 'pending';
-		isSuccessSignal.value = status === 'success';
-		isErrorSignal.value = status === 'error';
-		isIdleSignal.value = status === 'idle';
-	};
+	let activeFiber: Fiber.RuntimeFiber<unknown, unknown> | null = null;
 
 	const buildMutationEffect = (
 		variables: TVariables
@@ -204,7 +197,6 @@ export const useMutation = <TData, TVariables = void, TContext = unknown>(
 		statusSignal.value = 'pending';
 		variablesSignal.value = variables;
 		submittedAtSignal.value = Date.now();
-		updateDerivedState();
 
 		let context: TContext | undefined;
 		if (onMutate) {
@@ -218,7 +210,6 @@ export const useMutation = <TData, TVariables = void, TContext = unknown>(
 						? mutateError
 						: new Error(String(mutateError));
 				statusSignal.value = 'error';
-				updateDerivedState();
 				if (Predicate.isNotNullable(onError)) {
 					onError(errorSignal.value, variables, context);
 				}
@@ -241,7 +232,6 @@ export const useMutation = <TData, TVariables = void, TContext = unknown>(
 							statusSignal.value = 'success';
 							failureCountSignal.value = 0;
 							failureReasonSignal.value = undefined;
-							updateDerivedState();
 
 							if (Predicate.isNotNullable(onSuccess)) {
 								onSuccess(data, variables, context);
@@ -269,7 +259,6 @@ export const useMutation = <TData, TVariables = void, TContext = unknown>(
 						Effect.sync(() => {
 							errorSignal.value = error;
 							statusSignal.value = 'error';
-							updateDerivedState();
 
 							if (Predicate.isNotNullable(onError)) {
 								onError(error, variables, context);
@@ -333,7 +322,6 @@ export const useMutation = <TData, TVariables = void, TContext = unknown>(
 		submittedAtSignal.value = undefined;
 		failureCountSignal.value = 0;
 		failureReasonSignal.value = undefined;
-		updateDerivedState();
 	};
 
 	return {
