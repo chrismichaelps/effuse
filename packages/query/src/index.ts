@@ -77,6 +77,7 @@ export {
 	ensureQueryData,
 	usePrefetch,
 	useIsFetching,
+	useIsMutating,
 } from './hooks/index.js';
 
 export type {
