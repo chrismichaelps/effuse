@@ -263,4 +263,218 @@ describe('createStore Integration', () => {
 
 		expect(store.count.value).toBe(42);
 	});
+
+	describe('DX convenience methods', () => {
+		describe('get / set', () => {
+			it('should get value by key', () => {
+				const store = createStore('dxGet', { count: 42, name: 'test' });
+				expect(store.get('count')).toBe(42);
+				expect(store.get('name')).toBe('test');
+			});
+
+			it('should set value by key', () => {
+				const store = createStore('dxSet', { count: 0 });
+				store.set('count', 10);
+				expect(store.count.value).toBe(10);
+				expect(store.get('count')).toBe(10);
+			});
+		});
+
+		describe('patch', () => {
+			it('should apply partial updates', () => {
+				const store = createStore('dxPatch', { a: 1, b: 2, c: 3 });
+				store.patch({ a: 10, b: 20 });
+				expect(store.get('a')).toBe(10);
+				expect(store.get('b')).toBe(20);
+				expect(store.get('c')).toBe(3);
+			});
+
+			it('should batch patch updates', () => {
+				const store = createStore('dxPatchBatch', { x: 0, y: 0 });
+				const callback = vi.fn();
+				store.subscribe(callback);
+
+				store.patch({ x: 1, y: 2 });
+				expect(callback).toHaveBeenCalledTimes(1);
+			});
+		});
+
+		describe('toggle', () => {
+			it('should toggle boolean values', () => {
+				const store = createStore('dxToggle', { flag: false });
+				store.toggle('flag');
+				expect(store.get('flag')).toBe(true);
+				store.toggle('flag');
+				expect(store.get('flag')).toBe(false);
+			});
+
+			it('should not toggle non-boolean values', () => {
+				const store = createStore('dxToggleNoop', { count: 5 });
+				store.toggle('count');
+				expect(store.get('count')).toBe(5);
+			});
+		});
+
+		describe('resetKey', () => {
+			it('should reset a single key to initial value', () => {
+				const store = createStore('dxResetKey', { count: 0, label: 'init' });
+				// @ts-expect-error testing proxy assignment
+				store.count = 99;
+				// @ts-expect-error testing proxy assignment
+				store.label = 'changed';
+
+				store.resetKey('count');
+				expect(store.get('count')).toBe(0);
+				expect(store.get('label')).toBe('changed');
+			});
+		});
+
+		describe('watch', () => {
+			it('should call callback when selector value changes', () => {
+				const store = createStore('dxWatch', { count: 0 });
+				const callback = vi.fn();
+
+				const unsub = store.watch(
+					(snap) => snap.count,
+					(newVal, oldVal) => {
+						callback({ newVal, oldVal });
+					}
+				);
+
+				// Initial call on setup
+				expect(callback).toHaveBeenCalledWith({ newVal: 0, oldVal: undefined });
+
+				// @ts-expect-error testing proxy assignment
+				store.count = 5;
+				expect(callback).toHaveBeenCalledWith({ newVal: 5, oldVal: 0 });
+
+				// @ts-expect-error testing proxy assignment
+				store.count = 10;
+				expect(callback).toHaveBeenCalledWith({ newVal: 10, oldVal: 5 });
+
+				unsub();
+			});
+
+			it('should not call callback when selector value is unchanged', () => {
+				const store = createStore('dxWatchNoop', { count: 0 });
+				const callback = vi.fn();
+
+				store.watch((snap) => snap.count, callback);
+
+				// @ts-expect-error testing proxy assignment
+				store.count = 0;
+				expect(callback).toHaveBeenCalledTimes(1); // initial call only
+			});
+
+			it('should support custom equality function', () => {
+				const store = createStore('dxWatchEq', { items: [1, 2, 3] });
+				const callback = vi.fn();
+
+				store.watch(
+					(snap) => snap.items,
+					callback,
+					(a, b) => JSON.stringify(a) === JSON.stringify(b)
+				);
+
+				// @ts-expect-error testing proxy assignment
+				store.items = [1, 2, 3];
+				expect(callback).toHaveBeenCalledTimes(1); // no change with custom eq
+			});
+		});
+
+		describe('subscribeToKeys', () => {
+			it('should notify when any subscribed key changes', () => {
+				const store = createStore('dxSubKeys', { a: 1, b: 2, c: 3 });
+				const callback = vi.fn();
+
+				store.subscribeToKeys(['a', 'b'], callback);
+
+				// @ts-expect-error testing proxy assignment
+				store.a = 10;
+				expect(callback).toHaveBeenCalledWith({ a: 10, b: 2 });
+
+				// @ts-expect-error testing proxy assignment
+				store.c = 30;
+				expect(callback).toHaveBeenCalledTimes(1); // c not subscribed
+			});
+		});
+
+		describe('batch returning value', () => {
+			it('should return the result of the callback', () => {
+				const store = createStore('dxBatchReturn', { count: 5 });
+				const result = store.batch(() => {
+					// @ts-expect-error testing proxy assignment
+					store.count = 10;
+					return store.count.value * 2;
+				});
+				expect(result).toBe(20);
+				expect(store.get('count')).toBe(10);
+			});
+		});
+
+		describe('destroy', () => {
+			it('should clear all subscribers', () => {
+				const store = createStore('dxDestroySub', { count: 0 });
+				const callback = vi.fn();
+				store.subscribe(callback);
+
+				store.destroy();
+
+				// @ts-expect-error testing proxy assignment
+				store.count = 1;
+				expect(callback).not.toHaveBeenCalled();
+			});
+
+			it('should remove from registry', async () => {
+				const store = createStore('dxDestroyReg', { count: 0 });
+				const { hasStore } = await import('../registry/index.js');
+				expect(hasStore('dxDestroyReg')).toBe(true);
+				store.destroy();
+				expect(hasStore('dxDestroyReg')).toBe(false);
+			});
+
+			it('should prevent action calls after destroy', () => {
+				const store = createStore('dxDestroyAction', {
+					count: 0,
+					increment() {
+						this.count.value++;
+					},
+				});
+				store.destroy();
+				expect(() => {
+					store.increment();
+				}).toThrow(
+					'Cannot call action "increment" on destroyed store "dxDestroyAction"'
+				);
+			});
+
+			it('should clean up computed selectors', () => {
+				const store = createStore('dxDestroyComputed', { count: 1 });
+				const doubled = store.computed(
+					(snap) => (snap.count as number) * 2
+				);
+				expect(doubled.value).toBe(2);
+
+				store.destroy();
+				// @ts-expect-error testing proxy assignment
+				store.count = 5;
+				// After destroy, computed should not update
+				expect(doubled.value).toBe(2);
+			});
+		});
+
+		describe('getSnapshot omits actions', () => {
+			it('should not include actions in snapshot', () => {
+				const store = createStore('dxSnapshot', {
+					count: 0,
+					increment() {
+						this.count.value++;
+					},
+				});
+				const snap = store.getSnapshot();
+				expect(Object.keys(snap)).toEqual(['count']);
+				expect(snap).toEqual({ count: 0 });
+			});
+		});
+	});
 });
