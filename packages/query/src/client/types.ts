@@ -28,6 +28,8 @@ export type QueryKey = readonly unknown[];
 
 export type QueryStatus = 'idle' | 'loading' | 'success' | 'error';
 
+export type FetchStatus = 'idle' | 'fetching' | 'paused';
+
 export interface CacheEntry<T = unknown> {
 	readonly data: T;
 	readonly dataUpdatedAt: number;
@@ -40,6 +42,8 @@ export interface CacheEntry<T = unknown> {
 	readonly errorUpdatedAt?: number;
 	/** Arbitrary metadata attached to the query. */
 	readonly meta?: unknown;
+	/** Current fetch status for the query. */
+	readonly fetchStatus?: FetchStatus;
 }
 
 export interface QueryOptions<T = unknown> {
@@ -114,4 +118,53 @@ export interface MutationState<TData = unknown> {
 	readonly isSuccess: boolean;
 	readonly isError: boolean;
 	readonly isIdle: boolean;
+}
+
+/** Information about a cached query exposed to filter predicates. */
+export interface QueryInfo {
+	readonly queryKey: QueryKey;
+	readonly state: CacheEntry<unknown>;
+	/** Whether the query currently has active subscribers. */
+	readonly isActive: boolean;
+	/** Whether the query is currently stale. */
+	readonly isStale: boolean;
+}
+
+/** Query filter options used by `invalidateQueries`, `removeQueries`, and `refetchQueries`. */
+export interface QueryFilters {
+	/**
+	 * Match queries with a key that starts with this prefix.
+	 * Use `exact: true` to require an exact match.
+	 */
+	readonly queryKey?: QueryKey;
+	/**
+	 * When `true`, only match queries with the exact `queryKey`.
+	 * When `false` or omitted, prefix matching is used.
+	 */
+	readonly exact?: boolean;
+	/**
+	 * Filter by active status. Active queries have at least one subscriber.
+	 */
+	readonly type?: 'all' | 'active' | 'inactive';
+	/**
+	 * Filter by stale status.
+	 */
+	readonly stale?: boolean;
+	/**
+	 * Filter by fetch status.
+	 */
+	readonly fetchStatus?: FetchStatus;
+	/**
+	 * Custom predicate evaluated against each cached query.
+	 * Receives the full `QueryInfo` for the query.
+	 */
+	readonly predicate?: (query: QueryInfo) => boolean;
+	/**
+	 * Which matched queries should be refetched after invalidation.
+	 * - `'active'` — only queries with active subscribers
+	 * - `'inactive'` — only queries without active subscribers
+	 * - `'all'` — all matched queries (default)
+	 * - `'none'` — do not refetch; only mark stale
+	 */
+	readonly refetchType?: 'active' | 'inactive' | 'all' | 'none';
 }

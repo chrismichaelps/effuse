@@ -32,6 +32,7 @@ export {
 	invalidateQueryAsync,
 	invalidateQueriesAsync,
 	invalidateAllAsync,
+	refetchQueries,
 	type QueryClientApi,
 } from './client.js';
 
@@ -48,9 +49,12 @@ export type { QueryClientProviderProps } from './QueryClientProvider.js';
 export {
 	type QueryKey,
 	type QueryStatus,
+	type FetchStatus,
 	type CacheEntry,
 	type QueryOptions,
 	type MutationOptions,
 	type QueryState,
 	type MutationState,
+	type QueryFilters,
+	type QueryInfo,
 } from './types.js';

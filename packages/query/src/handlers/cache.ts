@@ -75,6 +75,14 @@ export const setEntry = <T>(
 	notifySubscribersForKey(deps, input.keyStr);
 };
 
+export const setEntryWithoutNotify = <T>(
+	deps: QueryHandlerDeps,
+	input: SetEntryInput<T>
+): void => {
+	deps.internals.cache.set(input.keyStr, input.entry as CacheEntry<unknown>);
+	scheduleGC(deps, input.keyStr);
+};
+
 export const removeEntry = (
 	deps: QueryHandlerDeps,
 	input: RemoveEntryInput

@@ -28,6 +28,7 @@ import {
 	useQueryClient,
 	type QueryOptions,
 	type CacheEntry,
+	type FetchStatus,
 } from '../client/index.js';
 import {
 	buildRetrySchedule,
@@ -38,9 +39,6 @@ import { executeQuery } from '../request/index.js';
 import { DEFAULT_STALE_TIME_MS, DEFAULT_TIMEOUT_MS } from '../config/index.js';
 import { TimeoutError } from '../errors/index.js';
 import { deepEqual } from '../utils/index.js';
-
-// Network request status
-export type FetchStatus = 'idle' | 'fetching' | 'paused';
 
 // Query result status
 export type QueryStatus = 'pending' | 'success' | 'error';

@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-import { Effect, Predicate, Option, pipe } from 'effect';
+import { Predicate, Option, pipe } from 'effect';
 import {
 	useQueryClient,
 	getGlobalQueryClient,
@@ -53,7 +53,7 @@ export const prefetchQuery = <T>(
 		Option.getOrElse(() => DEFAULT_STALE_TIME_MS)
 	);
 
-	Effect.runFork(client.prefetch(queryKey, queryFn, staleTime));
+	void client.prefetch(queryKey, queryFn, staleTime);
 };
 
 // Prefetch query data
@@ -69,7 +69,7 @@ export const prefetchQueryAsync = async <T>(
 		Option.getOrElse(() => DEFAULT_STALE_TIME_MS)
 	);
 
-	await Effect.runPromise(client.prefetch(queryKey, queryFn, staleTime));
+	await client.prefetch(queryKey, queryFn, staleTime);
 };
 
 // Fetch and cache query data

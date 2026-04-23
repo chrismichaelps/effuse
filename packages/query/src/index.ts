@@ -47,6 +47,7 @@ export {
 	invalidateQueryAsync,
 	invalidateQueriesAsync,
 	invalidateAllAsync,
+	refetchQueries,
 	QueryClientSymbol,
 	provideQueryClient,
 	useQueryClient,
@@ -57,10 +58,13 @@ export {
 export type {
 	QueryKey,
 	QueryStatus as CacheQueryStatus,
+	FetchStatus,
 	CacheEntry,
 	QueryOptions,
 	MutationOptions,
 	QueryClientProviderProps,
+	QueryFilters,
+	QueryInfo,
 } from './client/index.js';
 
 export {
@@ -79,7 +83,6 @@ export {
 
 export type {
 	UseQueryResult,
-	FetchStatus,
 	QueryStatus,
 	UseMutationResult,
 	MutationStatus,

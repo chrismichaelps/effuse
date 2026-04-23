@@ -1,6 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createQueryClient, getGlobalQueryClient } from './client.js';
-import { Effect } from 'effect';
 
 describe('QueryClient Integration', () => {
 	it('should be able to set and get cache entries', () => {
@@ -25,7 +24,7 @@ describe('QueryClient Integration', () => {
 		const key = ['users'];
 		const fetchFn = vi.fn().mockResolvedValue(['alice', 'bob']);
 
-		await Effect.runPromise(client.prefetch(key, fetchFn));
+		await client.prefetch(key, fetchFn);
 
 		expect(fetchFn).toHaveBeenCalled();
 		const entry = client.get(key);
@@ -45,7 +44,7 @@ describe('QueryClient Integration', () => {
 			fetchCount: 1,
 		});
 
-		await Effect.runPromise(client.prefetch(key, fetchFn, 5000)); // 5s stale time
+		await client.prefetch(key, fetchFn, 5000); // 5s stale time
 
 		expect(fetchFn).not.toHaveBeenCalled();
 	});
@@ -95,7 +94,7 @@ describe('QueryClient Integration', () => {
 			fetchCount: 1,
 		});
 
-		await Effect.runPromise(client.invalidateQueries(['todos']));
+		await client.invalidateQueries(['todos']);
 
 		expect(client.has(['todos', 1])).toBe(true);
 		expect(client.get(['todos', 1])?.isInvalidated).toBe(true);

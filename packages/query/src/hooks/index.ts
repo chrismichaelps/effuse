@@ -23,7 +23,7 @@
  */
 
 export { useQuery } from './useQuery.js';
-export type { UseQueryResult, FetchStatus, QueryStatus } from './useQuery.js';
+export type { UseQueryResult, QueryStatus } from './useQuery.js';
 
 export { useMutation, useOptimisticMutation } from './useMutation.js';
 export type {
