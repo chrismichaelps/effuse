@@ -22,8 +22,6 @@
  * SOFTWARE.
  */
 
-import { Effect, Fiber, Queue } from 'effect';
-
 export type ConcurrencyStrategy = 'switch' | 'exhaust' | 'merge' | 'concat';
 
 export interface ConcurrencyOptions {
@@ -32,87 +30,99 @@ export interface ConcurrencyOptions {
 	throttleMs?: number;
 }
 
-export function useConcurrency<A extends unknown[], R, E = never>(
-	action: (...args: A) => Effect.Effect<R, E>,
+interface RunningTask {
+	abort: () => void;
+	promise: Promise<unknown>;
+}
+
+export function useConcurrency<A extends unknown[], R>(
+	action: (...args: A) => Promise<R>,
 	options: ConcurrencyOptions = {}
 ): (...args: A) => void {
 	const { strategy = 'switch', debounceMs, throttleMs } = options;
 
-	let runningFiber: Fiber.RuntimeFiber<unknown, unknown> | null = null;
+	let runningTask: RunningTask | null = null;
 	let debounceTimeout: ReturnType<typeof setTimeout> | null = null;
 	let lastCallTime = 0;
+	const queue: A[] = [];
+	let isProcessingQueue = false;
+	let destroyed = false;
 
-	// Dedicated unbounded queue for sequential 'concat' strategy
-	const queue =
-		strategy === 'concat' ? Effect.runSync(Queue.unbounded<A>()) : null;
+	const processQueue = async (): Promise<void> => {
+		if (isProcessingQueue || queue.length === 0) return;
+		isProcessingQueue = true;
+		while (queue.length > 0) {
+			if (destroyed) break;
+			const args = queue.shift() as A;
+			try {
+				await Promise.resolve(action(...args));
+			} catch {
+				// Ignore errors so the queue doesn't stall
+			}
+		}
+		isProcessingQueue = false;
+	};
 
-	if (queue) {
-		// Spin up a background worker to consume the queue sequentially
-		Effect.runFork(
-			Effect.forever(
-				Effect.gen(function* () {
-					const args = yield* Queue.take(queue);
-					// Catch all errors so the worker doesn't die on failure
-					yield* Effect.catchAll(action(...args), () => Effect.void);
-				})
-			)
-		);
-	}
+	const execute = (...args: A): void => {
+		if (destroyed) return;
 
-	const execute = (...args: A) => {
 		switch (strategy) {
-			case 'switch':
-				if (runningFiber) {
-					Effect.runFork(Fiber.interrupt(runningFiber));
+			case 'switch': {
+				if (runningTask) {
+					runningTask.abort();
 				}
-				runningFiber = Effect.runFork(
-					Effect.match(action(...args), {
-						onFailure: () => {
-							runningFiber = null;
+				const controller = new AbortController();
+				const promise = Promise.resolve(action(...args));
+					runningTask = {
+						abort: () => {
+							controller.abort();
 						},
-						onSuccess: () => {
-							runningFiber = null;
+						promise: promise.then(
+						() => {
+							if (runningTask?.promise === promise) {
+								runningTask = null;
+							}
 						},
-					})
-				);
+						() => {
+							if (runningTask?.promise === promise) {
+								runningTask = null;
+							}
+						}
+					),
+				};
 				break;
+			}
 
-			case 'exhaust':
-				if (runningFiber) {
-					return; // Ignore execution if already running
-				}
-				runningFiber = Effect.runFork(
-					Effect.match(action(...args), {
-						onFailure: () => {
-							runningFiber = null;
-						},
-						onSuccess: () => {
-							runningFiber = null;
-						},
-					})
-				);
+			case 'exhaust': {
+				if (runningTask) return;
+				const promise = Promise.resolve(action(...args));
+				runningTask = {
+					abort: () => {},
+					promise: promise.finally(() => {
+						runningTask = null;
+					}),
+				};
 				break;
+			}
 
-			case 'merge':
+			case 'merge': {
 				// Unbounded concurrency: fire and forget
-				Effect.runFork(
-					Effect.catchAll(action(...args), () => Effect.void)
-				);
+				Promise.resolve(action(...args)).catch(() => {});
 				break;
+			}
 
-			case 'concat':
-				// Sequential execution via the background queue
-				if (queue) {
-					Effect.runFork(Queue.offer(queue, args));
-				}
+			case 'concat': {
+				queue.push(args);
+				void processQueue();
 				break;
+			}
 		}
 	};
 
-	return (...args: A) => {
+	const wrapped = (...args: A): void => {
+		if (destroyed) return;
 		const now = Date.now();
 
-		// 1. Evaluate Throttle
 		if (throttleMs !== undefined && throttleMs > 0) {
 			if (now - lastCallTime < throttleMs) {
 				return;
@@ -120,7 +130,6 @@ export function useConcurrency<A extends unknown[], R, E = never>(
 			lastCallTime = now;
 		}
 
-		// 2. Evaluate Debounce
 		if (debounceMs !== undefined && debounceMs > 0) {
 			if (debounceTimeout) {
 				clearTimeout(debounceTimeout);
@@ -131,7 +140,19 @@ export function useConcurrency<A extends unknown[], R, E = never>(
 			return;
 		}
 
-		// 3. Fallthrough immediate execution
 		execute(...args);
 	};
+
+	(wrapped as unknown as { destroy: () => void }).destroy = () => {
+		destroyed = true;
+		if (debounceTimeout) {
+			clearTimeout(debounceTimeout);
+		}
+		if (runningTask) {
+			runningTask.abort();
+		}
+		queue.length = 0;
+	};
+
+	return wrapped;
 }

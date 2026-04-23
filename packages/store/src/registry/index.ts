@@ -30,6 +30,7 @@ const stores = new Map<string, Store<unknown>>();
 
 export const registerStore = <T>(name: string, store: Store<T>): void => {
 	if (stores.has(name) && getStoreConfig().debug) {
+		// eslint-disable-next-line no-console
 		console.warn(`[store] Overwriting existing store: ${name}`);
 	}
 	stores.set(name, store as Store<unknown>);
@@ -38,7 +39,7 @@ export const registerStore = <T>(name: string, store: Store<T>): void => {
 export const getStore = <T>(name: string): Store<T> => {
 	const store = stores.get(name);
 	if (!store) {
-		throw new StoreNotFoundError({ name });
+		throw new StoreNotFoundError(name);
 	}
 	return store as Store<T>;
 };

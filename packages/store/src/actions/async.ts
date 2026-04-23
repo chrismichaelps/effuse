@@ -22,10 +22,7 @@
  * SOFTWARE.
  */
 
-import { Effect, Duration, Schedule } from 'effect';
 import type { Store } from '../core/types.js';
-
-import { runWithAbortSignal } from './cancellation.js';
 import {
 	DEFAULT_RETRY_INITIAL_DELAY_MS,
 	DEFAULT_RETRY_MAX_DELAY_MS,
@@ -34,6 +31,7 @@ import {
 import {
 	ActionNotFoundError,
 	TimeoutError,
+	CancellationError,
 } from '../errors.js';
 
 export interface ActionResult<T> {
@@ -62,24 +60,12 @@ export const createAsyncAction = <A extends unknown[], R>(
 
 	const action = async (...args: A): Promise<R> => {
 		pending = true;
-		const result = await Effect.runPromise(
-			Effect.tryPromise({
-				try: async () => fn(...args),
-				catch: (error) => error as Error,
-			}).pipe(
-				Effect.tapBoth({
-					onSuccess: () =>
-						Effect.sync(() => {
-							pending = false;
-						}),
-					onFailure: () =>
-						Effect.sync(() => {
-							pending = false;
-						}),
-				})
-			)
-		);
-		return result;
+		try {
+			const result = await fn(...args);
+			return result;
+		} finally {
+			pending = false;
+		}
 	};
 
 	Object.defineProperty(action, 'pending', {
@@ -94,30 +80,38 @@ export const createCancellableAction = <A extends unknown[], R>(
 	fn: ActionFn<A, R>
 ): CancellableAction<A, R> => {
 	let pending = false;
-	let currentController: AbortController | null = null;
+	let currentReject: ((error: Error) => void) | null = null;
 
 	const action = async (...args: A): Promise<R> => {
-		if (currentController) {
-			currentController.abort();
+		if (currentReject) {
+			currentReject(new CancellationError('Operation was cancelled'));
+			currentReject = null;
 		}
 
-		currentController = new AbortController();
-		const signal = currentController.signal;
 		pending = true;
 
-		try {
-			const effect = Effect.tryPromise({
-				try: async () => fn(...args),
-				catch: (error) => error as Error,
+		return new Promise((resolve, reject) => {
+			currentReject = reject;
+			Promise.resolve(fn(...args))
+				.then((result) => {
+					if (currentReject === reject) {
+						currentReject = null;
+						pending = false;
+						resolve(result);
+					}
+				})
+			.catch((error: unknown) => {
+				if (currentReject === reject) {
+					currentReject = null;
+					pending = false;
+					reject(
+						error instanceof Error
+							? error
+							: new Error(String(error))
+					);
+				}
 			});
-			const result = await Effect.runPromise(
-				runWithAbortSignal(effect, signal)
-			);
-			return result;
-		} finally {
-			pending = false;
-			currentController = null;
-		}
+		});
 	};
 
 	Object.defineProperty(action, 'pending', {
@@ -127,11 +121,11 @@ export const createCancellableAction = <A extends unknown[], R>(
 
 	Object.defineProperty(action, 'cancel', {
 		value: () => {
-			if (currentController) {
-				currentController.abort();
-				currentController = null;
-				pending = false;
+			if (currentReject) {
+				currentReject(new CancellationError('Operation was cancelled'));
+				currentReject = null;
 			}
+			pending = false;
 		},
 		enumerable: true,
 	});
@@ -144,17 +138,20 @@ export const withTimeout = <A extends unknown[], R>(
 	timeoutMs: number
 ): ((...args: A) => Promise<R>) => {
 	return async (...args: A): Promise<R> => {
-		const effect = Effect.tryPromise({
-			try: async () => fn(...args),
-			catch: (error) => error as Error,
-		}).pipe(
-			Effect.timeoutFail({
-				duration: Duration.millis(timeoutMs),
-				onTimeout: () => new TimeoutError({ ms: timeoutMs }),
+		const promise = Promise.resolve(fn(...args));
+		const timeoutPromise = new Promise<never>((_, reject) => {
+			const timer = setTimeout(() => {
+				reject(new TimeoutError(timeoutMs));
+			}, timeoutMs);
+			promise
+			.then(() => {
+				clearTimeout(timer);
 			})
-		);
-
-		return Effect.runPromise(effect);
+			.catch(() => {
+				clearTimeout(timer);
+			});
+		});
+		return Promise.race([promise, timeoutPromise]);
 	};
 };
 
@@ -176,25 +173,28 @@ export const withRetry = <A extends unknown[], R>(
 		backoffFactor = DEFAULT_RETRY_BACKOFF_FACTOR,
 	} = config;
 
+	const sleep = (ms: number): Promise<void> =>
+		new Promise((resolve) => setTimeout(resolve, ms));
+
 	return async (...args: A): Promise<R> => {
-		const schedule = Schedule.exponential(
-			Duration.millis(initialDelayMs),
-			backoffFactor
-		).pipe(
-			Schedule.either(Schedule.recurs(maxRetries)),
-			Schedule.upTo(Duration.millis(maxDelayMs))
-		);
+		let lastError: Error | undefined;
+		let delay = initialDelayMs;
 
-		const effect = Effect.tryPromise({
-			try: async () => fn(...args),
-			catch: (error) => error as Error,
-		}).pipe(Effect.retry(schedule));
+		for (let attempt = 0; attempt <= maxRetries; attempt++) {
+			try {
+				return await fn(...args);
+			} catch (error) {
+				lastError = error instanceof Error ? error : new Error(String(error));
+				if (attempt < maxRetries) {
+					await sleep(delay);
+					delay = Math.min(delay * backoffFactor, maxDelayMs);
+				}
+			}
+		}
 
-		return Effect.runPromise(effect);
+		throw lastError ?? new Error('Unknown error');
 	};
 };
-
-
 
 export const dispatch = <T>(
 	store: Store<T>,
@@ -205,16 +205,10 @@ export const dispatch = <T>(
 	const action = storeRecord[actionName as string];
 	if (typeof action !== 'function') {
 		return Promise.reject(
-			new ActionNotFoundError({ actionName: String(actionName) })
+			new ActionNotFoundError(String(actionName))
 		);
 	}
-	const actionFn = action as (...a: unknown[]) => unknown;
-	return Effect.runPromise(
-		Effect.tryPromise({
-			try: () => Promise.resolve(actionFn(...args)),
-			catch: (error) => error as Error,
-		})
-	);
+	return Promise.resolve((action as (...args: unknown[]) => unknown)(...args));
 };
 
 export const dispatchSync = <T>(
@@ -225,20 +219,38 @@ export const dispatchSync = <T>(
 	const storeRecord = store as unknown as Record<string, unknown>;
 	const action = storeRecord[actionName as string];
 	if (typeof action !== 'function') {
-		throw new ActionNotFoundError({ actionName: String(actionName) });
+		throw new ActionNotFoundError(String(actionName));
 	}
-	const actionFn = action as (...a: unknown[]) => unknown;
-	return actionFn(...args);
+	return (action as (...args: unknown[]) => unknown)(...args);
 };
 
 export const withAbortSignal = <A extends unknown[], R>(
 	fn: ActionFn<A, R>
 ): ((signal: AbortSignal, ...args: A) => Promise<R>) => {
 	return (signal: AbortSignal, ...args: A): Promise<R> => {
-		const effect = Effect.tryPromise({
-			try: async () => fn(...args),
-			catch: (error) => error as Error,
+		const promise = Promise.resolve(fn(...args));
+		if (signal.aborted) {
+			return Promise.reject(new Error('Operation was cancelled'));
+		}
+		return new Promise((resolve, reject) => {
+			const onAbort = () => {
+				reject(new Error('Operation was cancelled'));
+			};
+			signal.addEventListener('abort', onAbort, { once: true });
+			promise.then(
+				(value) => {
+					signal.removeEventListener('abort', onAbort);
+					resolve(value);
+				},
+			(error: unknown) => {
+				signal.removeEventListener('abort', onAbort);
+				reject(
+					error instanceof Error
+						? error
+						: new Error(String(error))
+				);
+			}
+			);
 		});
-		return Effect.runPromise(runWithAbortSignal(effect, signal));
 	};
 };

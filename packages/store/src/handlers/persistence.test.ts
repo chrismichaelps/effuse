@@ -83,7 +83,9 @@ describe('persistence handlers', () => {
 			const deps = createMockDeps({});
 			const jsonValue = JSON.stringify({ a: 1, b: [1, 2, 3] });
 			setItem(deps, { key: 'json', value: jsonValue });
-			expect(JSON.parse(deps.storage.get('json')!)).toEqual({
+			const stored = deps.storage.get('json');
+		expect(stored).toBeDefined();
+		expect(JSON.parse(stored as string)).toEqual({
 				a: 1,
 				b: [1, 2, 3],
 			});
@@ -138,7 +140,7 @@ describe('persistence handlers', () => {
 
 		it('should handle empty storage', () => {
 			const deps = createMockDeps({});
-			expect(() => clearStorage(deps)).not.toThrow();
+			expect(() => { clearStorage(deps); }).not.toThrow();
 		});
 	});
 

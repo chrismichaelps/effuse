@@ -22,7 +22,6 @@
  * SOFTWARE.
  */
 
-import { Effect, Option, pipe } from 'effect';
 import { signal, type Signal } from '@effuse/core';
 import type {
 	Store,
@@ -37,7 +36,6 @@ import { createMiddlewareManager } from '../middleware/index.js';
 import { registerStore } from '../registry/index.js';
 import {
 	type StorageAdapter,
-	runAdapter,
 	localStorageAdapter,
 } from '../persistence/index.js';
 import {
@@ -66,26 +64,10 @@ export const createStore = <T extends object>(
 	options?: CreateStoreOptions
 ): Store<T> & StoreState<T> => {
 	const config = getStoreConfig();
-	const shouldPersist = pipe(
-		Option.fromNullable(options),
-		Option.flatMap((o) => Option.fromNullable(o.persist)),
-		Option.getOrElse(() => config.persistByDefault)
-	);
-	const storageKey = pipe(
-		Option.fromNullable(options),
-		Option.flatMap((o) => Option.fromNullable(o.storageKey)),
-		Option.getOrElse(() => `${config.storagePrefix}${name}`)
-	);
-	const enableDevtools = pipe(
-		Option.fromNullable(options),
-		Option.flatMap((o) => Option.fromNullable(o.devtools)),
-		Option.getOrElse(() => config.debug)
-	);
-	const adapter = pipe(
-		Option.fromNullable(options),
-		Option.flatMap((o) => Option.fromNullable(o.storage)),
-		Option.getOrElse(() => localStorageAdapter)
-	);
+	const shouldPersist = options?.persist ?? config.persistByDefault;
+	const storageKey = options?.storageKey ?? `${config.storagePrefix}${name}`;
+	const enableDevtools = options?.devtools ?? config.debug;
+	const adapter = options?.storage ?? localStorageAdapter;
 
 	if (config.debug) {
 		// eslint-disable-next-line no-console
@@ -99,7 +81,7 @@ export const createStore = <T extends object>(
 		subscribers: new Set(),
 		keySubscribers: new Map(),
 		computedSelectors: new Map(),
-		isBatching: false,
+		batchDepth: 0,
 		cancellationScope: createCancellationScope(),
 		pendingActions: new Map(),
 	};
@@ -131,27 +113,19 @@ export const createStore = <T extends object>(
 	};
 
 	if (shouldPersist) {
-		pipe(
-			runAdapter.getItem(adapter, storageKey),
-			Option.fromNullable,
-			Option.flatMap((saved) =>
-				Effect.runSync(
-					Effect.try(() => JSON.parse(saved) as Record<string, unknown>).pipe(
-						Effect.map(Option.some),
-						Effect.catchAll(() =>
-							Effect.succeed(Option.none<Record<string, unknown>>())
-						)
-					)
-				)
-			),
-			Option.map((parsed) => {
+		try {
+			const saved = adapter.getItem(storageKey);
+			if (saved !== null) {
+				const parsed = JSON.parse(saved) as Record<string, unknown>;
 				for (const [key, value] of Object.entries(parsed)) {
 					const sig = internals.signalMap.get(key);
 					if (sig) sig.value = value;
 				}
 				atomicState.set({ ...atomicState.get(), ...parsed });
-			})
-		);
+			}
+		} catch {
+			// Ignore parse errors for corrupted storage
+		}
 	}
 
 	const stateProxy = new Proxy({} as Record<string, unknown>, {
@@ -337,11 +311,6 @@ export const createStore = <T extends object>(
 			const initial = selector(getSnapshot(internals.signalMap));
 			const sig = signal<R>(initial);
 			internals.computedSelectors.set(selectorKey, sig as Signal<unknown>);
-
-			internals.subscribers.add(() => {
-				const newValue = selector(getSnapshot(internals.signalMap));
-				if (sig.value !== newValue) sig.value = newValue;
-			});
 
 			return sig;
 		},

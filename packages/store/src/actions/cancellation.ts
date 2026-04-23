@@ -22,7 +22,6 @@
  * SOFTWARE.
  */
 
-import { Effect } from 'effect';
 import { CancellationError } from '../errors.js';
 
 export interface CancellationToken {
@@ -49,7 +48,7 @@ export const createCancellationToken = (): CancellationToken => {
 		},
 		throwIfCancelled: () => {
 			if (cancelled)
-				throw new CancellationError({ message: 'Operation was cancelled' });
+				throw new CancellationError('Operation was cancelled');
 		},
 		onCancel: (callback: () => void) => {
 			if (cancelled) {
@@ -90,37 +89,35 @@ export const createCancellationScope = (): CancellationScope => {
 	};
 };
 
-export const runWithAbortSignal = <A, E>(
-	effect: Effect.Effect<A, E>,
+export const runWithAbortSignal = <A>(
+	promise: Promise<A>,
 	signal: AbortSignal
-): Effect.Effect<A, E | CancellationError> => {
+): Promise<A> => {
 	if (signal.aborted) {
-		return Effect.fail(
-			new CancellationError({ message: 'Operation was cancelled' }) as
-				| E
-				| CancellationError
+		return Promise.reject(
+			new CancellationError('Operation was cancelled')
 		);
 	}
 
-	return Effect.async<A, E | CancellationError>((resume) => {
+	return new Promise((resolve, reject) => {
 		const onAbort = () => {
-			resume(
-				Effect.fail(
-					new CancellationError({ message: 'Operation was cancelled' })
-				)
-			);
+			reject(new CancellationError('Operation was cancelled'));
 		};
 
 		signal.addEventListener('abort', onAbort, { once: true });
 
-		Effect.runPromise(effect)
+		promise
 			.then((result) => {
 				signal.removeEventListener('abort', onAbort);
-				resume(Effect.succeed(result));
+				resolve(result);
 			})
 			.catch((error: unknown) => {
 				signal.removeEventListener('abort', onAbort);
-				resume(Effect.fail(error as E));
+				reject(
+					error instanceof Error
+						? error
+						: new Error(String(error))
+				);
 			});
 	});
 };

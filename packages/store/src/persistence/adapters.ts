@@ -22,112 +22,103 @@
  * SOFTWARE.
  */
 
-import { Effect, Option } from 'effect';
-import {
-	getItem,
-	setItem,
-	removeItem,
-	hasItem,
-	clearStorage,
-	getStorageKeys,
-	getStorageSize,
-	type StorageHandlerDeps,
-} from '../handlers/index.js';
-
 export interface StorageAdapter {
-	getItem: (key: string) => Effect.Effect<Option.Option<string>>;
-	setItem: (key: string, value: string) => Effect.Effect<void>;
-	removeItem: (key: string) => Effect.Effect<void>;
-	has: (key: string) => Effect.Effect<boolean>;
-	clear: () => Effect.Effect<void>;
-	keys: () => Effect.Effect<string[]>;
-	size: () => Effect.Effect<number>;
+	getItem: (key: string) => string | null;
+	setItem: (key: string, value: string) => void;
+	removeItem: (key: string) => void;
+	has: (key: string) => boolean;
+	clear: () => void;
+	keys: () => string[];
+	size: () => number;
 }
 
 const createBrowserStorageAdapter = (storage: Storage): StorageAdapter => ({
-	getItem: (key) =>
-		Effect.try({
-			try: () => Option.fromNullable(storage.getItem(key)),
-			catch: () => Option.none<string>(),
-		}).pipe(Effect.catchAll(() => Effect.succeed(Option.none<string>()))),
-	setItem: (key, value) =>
-		Effect.try(() => {
+	getItem: (key) => {
+		try {
+			return storage.getItem(key);
+		} catch {
+			return null;
+		}
+	},
+	setItem: (key, value) => {
+		try {
 			storage.setItem(key, value);
-		}).pipe(Effect.catchAll(() => Effect.void)),
-	removeItem: (key) =>
-		Effect.try(() => {
+		} catch {
+			// QuotaExceeded or other storage errors are silently ignored
+		}
+	},
+	removeItem: (key) => {
+		try {
 			storage.removeItem(key);
-		}).pipe(Effect.catchAll(() => Effect.void)),
-	has: (key) =>
-		Effect.try({
-			try: () => storage.getItem(key) !== null,
-			catch: () => false,
-		}).pipe(Effect.catchAll(() => Effect.succeed(false))),
-	clear: () =>
-		Effect.try(() => {
+		} catch {
+			// Ignore
+		}
+	},
+	has: (key) => {
+		try {
+			return storage.getItem(key) !== null;
+		} catch {
+			return false;
+		}
+	},
+	clear: () => {
+		try {
 			storage.clear();
-		}).pipe(Effect.catchAll(() => Effect.void)),
-	keys: () =>
-		Effect.try({
-			try: () => Object.keys(storage),
-			catch: () => [] as string[],
-		}).pipe(Effect.catchAll(() => Effect.succeed([] as string[]))),
-	size: () =>
-		Effect.try({
-			try: () => storage.length,
-			catch: () => 0,
-		}).pipe(Effect.catchAll(() => Effect.succeed(0))),
+		} catch {
+			// Ignore
+		}
+	},
+	keys: () => {
+		try {
+			return Object.keys(storage);
+		} catch {
+			return [];
+		}
+	},
+	size: () => {
+		try {
+			return storage.length;
+		} catch {
+			return 0;
+		}
+	},
 });
 
-export const localStorageAdapter: StorageAdapter = createBrowserStorageAdapter(
-	typeof localStorage !== 'undefined' ? localStorage : ({} as Storage)
-);
+const noopAdapter: StorageAdapter = {
+	getItem: () => null,
+	setItem: () => {},
+	removeItem: () => {},
+	has: () => false,
+	clear: () => {},
+	keys: () => [],
+	size: () => 0,
+};
+
+export const localStorageAdapter: StorageAdapter =
+	typeof localStorage !== 'undefined'
+		? createBrowserStorageAdapter(localStorage)
+		: noopAdapter;
 
 export const sessionStorageAdapter: StorageAdapter =
-	createBrowserStorageAdapter(
-		typeof sessionStorage !== 'undefined' ? sessionStorage : ({} as Storage)
-	);
+	typeof sessionStorage !== 'undefined'
+		? createBrowserStorageAdapter(sessionStorage)
+		: noopAdapter;
 
 export const createMemoryAdapter = (): StorageAdapter => {
 	const storage = new Map<string, string>();
-	const deps: StorageHandlerDeps = { storage };
-
 	return {
-		getItem: (key) => Effect.succeed(getItem(deps, { key })),
-		setItem: (key, value) =>
-			Effect.sync(() => {
-				setItem(deps, { key, value });
-			}),
-		removeItem: (key) =>
-			Effect.sync(() => {
-				removeItem(deps, { key });
-			}),
-		has: (key) => Effect.succeed(hasItem(deps, { key })),
-		clear: () =>
-			Effect.sync(() => {
-				clearStorage(deps);
-			}),
-		keys: () => Effect.succeed(getStorageKeys(deps)),
-		size: () => Effect.succeed(getStorageSize(deps)),
+		getItem: (key) => storage.get(key) ?? null,
+		setItem: (key, value) => {
+			storage.set(key, value);
+		},
+		removeItem: (key) => {
+			storage.delete(key);
+		},
+		has: (key) => storage.has(key),
+		clear: () => {
+			storage.clear();
+		},
+		keys: () => Array.from(storage.keys()),
+		size: () => storage.size,
 	};
-};
-
-export const runAdapter = {
-	getItem: (adapter: StorageAdapter, key: string): string | null =>
-		Effect.runSync(
-			adapter.getItem(key).pipe(Effect.map((opt) => Option.getOrNull(opt)))
-		),
-	setItem: (adapter: StorageAdapter, key: string, value: string): void => {
-		Effect.runSync(adapter.setItem(key, value));
-	},
-	removeItem: (adapter: StorageAdapter, key: string): void => {
-		Effect.runSync(adapter.removeItem(key));
-	},
-	has: (adapter: StorageAdapter, key: string): boolean =>
-		Effect.runSync(adapter.has(key)),
-	clear: (adapter: StorageAdapter): void => {
-		Effect.runSync(adapter.clear());
-	},
-	keys: (adapter: StorageAdapter): string[] => Effect.runSync(adapter.keys()),
-	size: (adapter: StorageAdapter): number => Effect.runSync(adapter.size()),
 };
