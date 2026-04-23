@@ -22,11 +22,10 @@
  * SOFTWARE.
  */
 
-import { Effect, Duration } from 'effect';
+import { Effect } from 'effect';
 import { signal, type Signal } from '@effuse/core';
-import { useQueryClient, type QueryKey } from '../client/index.js';
-import { DEFAULT_TIMEOUT_MS } from '../config/index.js';
-import { QueryFetchError, TimeoutError } from '../errors/index.js';
+import { useQuery } from './useQuery.js';
+import type { QueryKey } from '../client/index.js';
 
 // Parallel query configuration
 export interface UseQueriesOptions<T> {
@@ -54,87 +53,22 @@ export interface UseQueriesResult<T> {
 export const useQueries = <T>(
 	queries: ReadonlyArray<UseQueriesOptions<T>>
 ): UseQueriesResult<T>[] => {
-	const client = queries[0]?.client ?? useQueryClient();
-	// TODO(#144): useQueries currently bypasses the cache entirely.
-	// It should build QueryObservers and read from / write to the cache.
-	void client;
+	return queries.map((q) => {
+		const result = useQuery<T>({
+			queryKey: q.queryKey,
+			queryFn: q.queryFn,
+			...(q.enabled !== undefined ? { enabled: q.enabled } : {}),
+			...(q.client !== undefined ? { client: q.client } : {}),
+		});
 
-	const enabledQueries = queries.filter((q) => q.enabled !== false);
-
-	const results: UseQueriesResult<T>[] = queries.map(() => ({
-		data: signal<T | undefined>(undefined),
-		error: signal<Error | undefined>(undefined),
-		isPending: signal<boolean>(true),
-		isSuccess: signal<boolean>(false),
-		isError: signal<boolean>(false),
-	}));
-
-	if (enabledQueries.length === 0) {
-		return results;
-	}
-
-	const queryIndexMap = new Map<string, number>();
-	queries.forEach((q, index) => {
-		queryIndexMap.set(JSON.stringify(q.queryKey), index);
+		return {
+			data: result.data,
+			error: result.error,
+			isPending: result.isPending,
+			isSuccess: result.isSuccess,
+			isError: result.isError,
+		};
 	});
-
-	const parallelEffect = Effect.all(
-		enabledQueries.map((q) =>
-			Effect.tryPromise({
-				try: () => q.queryFn(),
-				catch: (error) =>
-					new QueryFetchError({
-						message: error instanceof Error ? error.message : String(error),
-						cause: error,
-					}),
-			}).pipe(
-				Effect.timeoutFail({
-					duration: Duration.millis(DEFAULT_TIMEOUT_MS),
-					onTimeout: () => new TimeoutError({ durationMs: DEFAULT_TIMEOUT_MS }),
-				}),
-				Effect.map((data) => ({
-					queryKey: q.queryKey,
-					data,
-					error: undefined as Error | undefined,
-				})),
-				Effect.catchAll((error: Error) =>
-					Effect.succeed({
-						queryKey: q.queryKey,
-						data: undefined as T | undefined,
-						error,
-					})
-				)
-			)
-		),
-		{ concurrency: 'unbounded' }
-	);
-
-	Effect.runFork(
-		parallelEffect.pipe(
-			Effect.tap((queryResults) =>
-				Effect.sync(() => {
-					for (const result of queryResults) {
-						const index = queryIndexMap.get(JSON.stringify(result.queryKey));
-						if (index !== undefined) {
-							const r = results[index];
-							if (r) {
-								if (result.error) {
-									r.error.value = result.error;
-									r.isError.value = true;
-								} else {
-									r.data.value = result.data;
-									r.isSuccess.value = true;
-								}
-								r.isPending.value = false;
-							}
-						}
-					}
-				})
-			)
-		)
-	);
-
-	return results;
 };
 
 // Combined query result state
