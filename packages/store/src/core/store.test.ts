@@ -1,6 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createStore } from './store.js';
-import { Effect, Option } from 'effect';
 
 describe('createStore Integration', () => {
 	it('should create a store with initial state', () => {
@@ -12,7 +11,7 @@ describe('createStore Integration', () => {
 
 	it('should allow updates via proxy setters', () => {
 		const store = createStore('testUpdates', { count: 0 });
-		// @ts-expect-error
+		// @ts-expect-error testing proxy assignment
 		store.count = 10;
 		expect(store.count.value).toBe(10);
 	});
@@ -37,7 +36,7 @@ describe('createStore Integration', () => {
 
 		expect(doubled.value).toBe(2);
 
-		// @ts-expect-error
+		// @ts-expect-error testing proxy assignment
 		store.count = 5;
 		expect(doubled.value).toBe(10);
 	});
@@ -48,9 +47,9 @@ describe('createStore Integration', () => {
 		store.subscribe(callback);
 
 		store.batch(() => {
-			// @ts-expect-error
+			// @ts-expect-error testing proxy assignment
 			store.a = 1;
-			// @ts-expect-error
+			// @ts-expect-error testing proxy assignment
 			store.b = 2;
 		});
 
@@ -61,7 +60,7 @@ describe('createStore Integration', () => {
 
 	it('should reset state to initial', () => {
 		const store = createStore('testReset', { count: 0 });
-		// @ts-expect-error
+		// @ts-expect-error testing proxy assignment
 		store.count = 5;
 		store.reset();
 		expect(store.count.value).toBe(0);
@@ -73,11 +72,11 @@ describe('createStore Integration', () => {
 
 		store.subscribeToKey('count', callback);
 
-		// @ts-expect-error
+		// @ts-expect-error testing proxy assignment
 		store.count = 1;
 		expect(callback).toHaveBeenCalledWith(1);
 
-		// @ts-expect-error
+		// @ts-expect-error testing proxy assignment
 		store.username = 'changed';
 		expect(callback).toHaveBeenCalledTimes(1); // Should not accept name change
 	});
@@ -85,7 +84,7 @@ describe('createStore Integration', () => {
 	it('should prevent overwriting store methods', () => {
 		const store = createStore('testStrict', { count: 0 });
 		expect(() => {
-			// @ts-expect-error
+			// @ts-expect-error testing proxy assignment
 			store.subscribe = () => {};
 		}).toThrow();
 	});
@@ -95,7 +94,7 @@ describe('createStore Integration', () => {
 		const snap = store.getSnapshot();
 		expect(snap).toEqual({ a: 1 });
 
-		// @ts-expect-error
+		// @ts-expect-error testing proxy assignment
 		store.a = 2;
 		expect(store.getSnapshot()).toEqual({ a: 2 });
 		// Snapshot should be immutable/copy
@@ -115,12 +114,12 @@ describe('createStore Integration', () => {
 			users: [{ id: 1, name: 'Alice' }],
 		});
 		const firstUserName = store.select(
-			(state) => (state.users as any[])[0].name
+			(state) => (state.users as Array<{ id: number; name: string }>)[0].name
 		);
 
 		expect(firstUserName.value).toBe('Alice');
 
-		// @ts-expect-error
+		// @ts-expect-error testing proxy assignment
 		store.users = [{ id: 1, name: 'Bob' }];
 		expect(firstUserName.value).toBe('Bob');
 	});
@@ -170,8 +169,8 @@ describe('createStore Integration', () => {
 	it('should handle async actions (failure)', async () => {
 		const store = createStore('testAsyncFail', {
 			error: null as string | null,
-			async riskyAction() {
-				throw new Error('boom');
+			riskyAction() {
+				return Promise.reject(new Error('boom'));
 			},
 		});
 
@@ -183,7 +182,7 @@ describe('createStore Integration', () => {
 		const log: string[] = [];
 
 		store.use((state, action, args) => {
-			log.push(`${action}:${args}`);
+			log.push(`${action}:${args.join(',')}`);
 			if (action === 'set:count' && args[0] === 100) {
 				return { ...state, count: 99 }; // Cap value
 			}
@@ -203,14 +202,17 @@ describe('createStore Integration', () => {
 	it('should integrate with persistence', () => {
 		const storage = new Map<string, string>();
 		const mockAdapter = {
-			getItem: (k: string) =>
-				Effect.succeed(Option.fromNullable(storage.get(k))),
-			setItem: (k: string, v: string) => Effect.sync(() => storage.set(k, v)),
-			removeItem: (k: string) => Effect.sync(() => storage.delete(k)),
-			has: (k: string) => Effect.succeed(storage.has(k)),
-			clear: () => Effect.sync(() => storage.clear()),
-			keys: () => Effect.succeed(Array.from(storage.keys())),
-			size: () => Effect.succeed(storage.size),
+			getItem: (k: string) => storage.get(k) ?? null,
+			setItem: (k: string, v: string) => {
+				storage.set(k, v);
+			},
+			removeItem: (k: string) => {
+				storage.delete(k);
+			},
+			has: (k: string) => storage.has(k),
+			clear: () => { storage.clear(); },
+			keys: () => Array.from(storage.keys()),
+			size: () => storage.size,
 		};
 
 		const store = createStore(
@@ -228,7 +230,7 @@ describe('createStore Integration', () => {
 
 		const stored = storage.get('my-store');
 		expect(stored).toBeDefined();
-		expect(JSON.parse(stored!)).toEqual({ count: 5 });
+		expect(JSON.parse(stored as string)).toEqual({ count: 5 });
 	});
 
 	it('should load initial state from persistence', () => {
@@ -236,14 +238,17 @@ describe('createStore Integration', () => {
 		storage.set('restored-store', JSON.stringify({ count: 42 }));
 
 		const mockAdapter = {
-			getItem: (k: string) =>
-				Effect.succeed(Option.fromNullable(storage.get(k))),
-			setItem: (k: string, v: string) => Effect.sync(() => storage.set(k, v)),
-			removeItem: (k: string) => Effect.sync(() => storage.delete(k)),
-			has: (k: string) => Effect.succeed(storage.has(k)),
-			clear: () => Effect.sync(() => storage.clear()),
-			keys: () => Effect.succeed(Array.from(storage.keys())),
-			size: () => Effect.succeed(storage.size),
+			getItem: (k: string) => storage.get(k) ?? null,
+			setItem: (k: string, v: string) => {
+				storage.set(k, v);
+			},
+			removeItem: (k: string) => {
+				storage.delete(k);
+			},
+			has: (k: string) => storage.has(k),
+			clear: () => { storage.clear(); },
+			keys: () => Array.from(storage.keys()),
+			size: () => storage.size,
 		};
 
 		const store = createStore(

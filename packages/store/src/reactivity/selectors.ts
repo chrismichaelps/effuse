@@ -78,12 +78,12 @@ export const createSelector = <T, R>(
 	store: Store<T>,
 	selector: Selector<ReturnType<Store<T>['getSnapshot']>, R>,
 	equalityFn: EqualityFn<R> = shallowEqual
-): Signal<R> => {
+): Signal<R> & { cleanup: () => void } => {
 	const snapshot = store.getSnapshot();
 	const initialValue = selector(snapshot);
 	const derived = signal(initialValue);
 
-	store.subscribe(() => {
+	const unsub = store.subscribe(() => {
 		const currentSnapshot = store.getSnapshot();
 		const newValue = selector(currentSnapshot);
 		if (!equalityFn(derived.value, newValue)) {
@@ -91,7 +91,9 @@ export const createSelector = <T, R>(
 		}
 	});
 
-	return derived;
+	const result = derived as Signal<R> & { cleanup: () => void };
+	result.cleanup = unsub;
+	return result;
 };
 
 // Asynchronous state selector
@@ -117,7 +119,7 @@ export const createSelectorAsync = <T, R>(
 		pending.value = true;
 
 		const snapshot = store.getSnapshot();
-		asyncSelector(snapshot, myToken)
+		Promise.resolve(asyncSelector(snapshot, myToken))
 			.then((newValue) => {
 				if (!myToken.isCancelled && derived.value !== newValue) {
 					derived.value = newValue;

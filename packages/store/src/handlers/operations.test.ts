@@ -28,7 +28,7 @@ const createMockDeps = (
 		subscribers: new Set(),
 		keySubscribers: new Map(),
 		computedSelectors: new Map(),
-		isBatching: false,
+		batchDepth: 0,
 		cancellationScope: createCancellationScope(),
 		pendingActions: new Map(),
 	};
@@ -79,7 +79,7 @@ describe('operations handlers', () => {
 
 		it('should NOT notify subscribers when batching', () => {
 			const deps = createMockDeps({ count: 0 });
-			deps.internals.isBatching = true;
+			deps.internals.batchDepth = 1;
 			const subscriber = vi.fn();
 			deps.internals.subscribers.add(subscriber);
 			setValue(deps, { prop: 'count', value: 5 });
@@ -128,7 +128,7 @@ describe('operations handlers', () => {
 
 		it('should handle empty initial state', () => {
 			const deps = createMockDeps({});
-			expect(() => resetState(deps)).not.toThrow();
+			expect(() => { resetState(deps); }).not.toThrow();
 		});
 	});
 
@@ -166,7 +166,7 @@ describe('operations handlers', () => {
 			} catch {
 				// Expected
 			}
-			expect(deps.internals.isBatching).toBe(false);
+			expect(deps.internals.batchDepth).toBe(0);
 		});
 
 		it('should handle nested batches correctly', () => {

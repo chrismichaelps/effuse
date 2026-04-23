@@ -28,7 +28,6 @@ import type {
 	SetValueInput,
 	UpdateStateInput,
 } from './types.js';
-import { runAdapter } from '../persistence/index.js';
 
 const getSnapshot = (
 	signalMap: Map<string, Signal<unknown>>
@@ -40,8 +39,11 @@ const getSnapshot = (
 	return snapshot;
 };
 
+const isBatched = (deps: StoreHandlerDeps): boolean =>
+	deps.internals.batchDepth > 0;
+
 const notifyAll = (deps: StoreHandlerDeps): void => {
-	if (deps.internals.isBatching) return;
+	if (isBatched(deps)) return;
 	for (const callback of deps.internals.subscribers) callback();
 };
 
@@ -50,22 +52,27 @@ const notifyKey = (
 	key: string,
 	value: unknown
 ): void => {
-	if (deps.internals.isBatching) return;
+	if (isBatched(deps)) return;
 	const subs = deps.internals.keySubscribers.get(key);
 	if (subs) for (const cb of subs) cb(value);
 };
 
 const persist = (deps: StoreHandlerDeps): void => {
+	if (isBatched(deps)) return;
 	if (!deps.config.shouldPersist) return;
-	const snapshot = getSnapshot(deps.internals.signalMap);
-	runAdapter.setItem(
-		deps.config.adapter,
-		deps.config.storageKey,
-		JSON.stringify(snapshot)
-	);
+	try {
+		const snapshot = getSnapshot(deps.internals.signalMap);
+		deps.config.adapter.setItem(
+			deps.config.storageKey,
+			JSON.stringify(snapshot)
+		);
+	} catch {
+		// Ignore storage errors (e.g. quota exceeded)
+	}
 };
 
 const updateComputed = (deps: StoreHandlerDeps): void => {
+	if (isBatched(deps)) return;
 	const snapshot = getSnapshot(deps.internals.signalMap);
 	for (const [selector, sig] of deps.internals.computedSelectors) {
 		const newValue = selector(snapshot);
@@ -165,15 +172,17 @@ export const batchUpdates = (
 	deps: StoreHandlerDeps,
 	updates: () => void
 ): void => {
-	deps.internals.isBatching = true;
+	deps.internals.batchDepth++;
 	try {
 		updates();
 	} finally {
-		deps.internals.isBatching = false;
+		deps.internals.batchDepth--;
 	}
-	notifyAll(deps);
-	persist(deps);
-	updateComputed(deps);
+	if (deps.internals.batchDepth === 0) {
+		notifyAll(deps);
+		persist(deps);
+		updateComputed(deps);
+	}
 };
 
 export const updateState = (
@@ -188,7 +197,7 @@ export const updateState = (
 	const draft = { ...getSnapshot(internals.signalMap) };
 	input.updater(draft);
 
-	internals.isBatching = true;
+	internals.batchDepth++;
 	for (const [key, val] of Object.entries(draft)) {
 		const sig = internals.signalMap.get(key);
 		if (sig && sig.value !== val) {
@@ -196,7 +205,7 @@ export const updateState = (
 			atomicState.update((s) => ({ ...s, [key]: val }));
 		}
 	}
-	internals.isBatching = false;
+	internals.batchDepth--;
 
 	logDevtools(
 		deps,
@@ -206,9 +215,11 @@ export const updateState = (
 		getSnapshot(internals.signalMap)
 	);
 
-	notifyAll(deps);
-	persist(deps);
-	updateComputed(deps);
+	if (internals.batchDepth === 0) {
+		notifyAll(deps);
+		persist(deps);
+		updateComputed(deps);
+	}
 };
 
 export { getSnapshot };
