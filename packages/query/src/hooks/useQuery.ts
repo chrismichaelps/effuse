@@ -37,6 +37,7 @@ import {
 import { executeQuery } from '../request/index.js';
 import { DEFAULT_STALE_TIME_MS, DEFAULT_TIMEOUT_MS } from '../config/index.js';
 import { TimeoutError } from '../errors/index.js';
+import { deepEqual } from '../utils/index.js';
 
 // Network request status
 export type FetchStatus = 'idle' | 'fetching' | 'paused';
@@ -66,6 +67,7 @@ export interface UseQueryResult<T> {
 
 	readonly refetch: () => Promise<void>;
 	readonly cancel: () => void;
+	readonly dispose: () => void;
 
 	readonly failureCount: Signal<number>;
 	readonly failureReason: Signal<Error | undefined>;
@@ -78,10 +80,6 @@ const normalizeRetryConfig = (
 	if (retry === true) return undefined;
 	if (typeof retry === 'number') return { times: retry };
 	return retry;
-};
-
-const structuralEquals = <T>(a: T, b: T): boolean => {
-	return JSON.stringify(a) === JSON.stringify(b);
 };
 
 // Reactive query hook
@@ -130,6 +128,8 @@ export const useQuery = <TData>(
 	let activeFiber: Fiber.RuntimeFiber<unknown, unknown> | null = null;
 	let refetchIntervalFiber: Fiber.RuntimeFiber<unknown, unknown> | null = null;
 	let isInternalUpdate = false;
+
+	const cleanupFns: Array<() => void> = [];
 
 	const updateDerivedState = (): void => {
 		const status = statusSignal.value;
@@ -195,9 +195,10 @@ export const useQuery = <TData>(
 			effect.pipe(
 				Effect.tap((data) =>
 					Effect.sync(() => {
+						const current = dataSignal.value;
 						const shouldUpdate =
-							!dataSignal.value ||
-							!structuralEquals(dataSignal.value as TData, data as TData);
+							current === undefined ||
+							!deepEqual(current, data);
 
 						if (shouldUpdate) {
 							const entry: CacheEntry<TData> = {
@@ -292,6 +293,13 @@ export const useQuery = <TData>(
 		updateDerivedState();
 	};
 
+	const dispose = (): void => {
+		cancel();
+		for (const fn of cleanupFns) {
+			fn();
+		}
+	};
+
 	const refetch = async (): Promise<void> => {
 		if (!enabled) return;
 		await executeFetch();
@@ -322,13 +330,14 @@ export const useQuery = <TData>(
 		isPlaceholderDataSignal.value = true;
 	}
 
-	client.subscribe(queryKey, () => {
+	const unsubscribe = client.subscribe(queryKey, () => {
 		if (isInternalUpdate) return;
 		isStaleSignal.value = true;
 		if (enabled) {
 			executeFetch();
 		}
 	});
+	cleanupFns.push(unsubscribe);
 
 	if (refetchOnWindowFocus && typeof window !== 'undefined') {
 		const handleFocus = (): void => {
@@ -337,6 +346,7 @@ export const useQuery = <TData>(
 			}
 		};
 		window.addEventListener('focus', handleFocus);
+		cleanupFns.push(() => window.removeEventListener('focus', handleFocus));
 	}
 
 	if (refetchOnReconnect && typeof window !== 'undefined') {
@@ -346,6 +356,7 @@ export const useQuery = <TData>(
 			}
 		};
 		window.addEventListener('online', handleOnline);
+		cleanupFns.push(() => window.removeEventListener('online', handleOnline));
 	}
 
 	if (refetchInterval !== false && refetchInterval > 0) {
@@ -358,6 +369,12 @@ export const useQuery = <TData>(
 			buildRefetchSchedule(refetchInterval)
 		);
 		refetchIntervalFiber = Effect.runFork(intervalEffect);
+		cleanupFns.push(() => {
+			if (refetchIntervalFiber) {
+				Effect.runFork(Fiber.interrupt(refetchIntervalFiber));
+				refetchIntervalFiber = null;
+			}
+		});
 	}
 
 	if (enabled && client.isStale(queryKey, staleTime)) {
@@ -383,5 +400,6 @@ export const useQuery = <TData>(
 		failureReason: failureReasonSignal,
 		refetch,
 		cancel,
+		dispose,
 	};
 };
