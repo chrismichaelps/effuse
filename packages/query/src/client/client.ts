@@ -46,6 +46,7 @@ import {
 } from '../handlers/index.js';
 import { QueryCache, Query } from '../core/index.js';
 import type { QueryConfig } from '../core/types.js';
+import type { DehydratedState, DehydrateOptions } from '../core/hydration.js';
 
 const serializeKey = (key: QueryKey): string => JSON.stringify(key);
 
@@ -105,6 +106,10 @@ export interface QueryClientApi {
 	) => Query<TData, TError>;
 	/** The underlying QueryCache instance. */
 	readonly queryCache: QueryCache;
+	/** Serialize cache state to a dehydrated object for SSR. */
+	readonly dehydrate: (options?: DehydrateOptions) => DehydratedState;
+	/** Restore cache state from a dehydrated object. */
+	readonly hydrate: (state: DehydratedState, options?: DehydrateOptions) => void;
 }
 
 export class QueryClient extends Context.Tag('effuse/query/QueryClient')<
@@ -340,6 +345,14 @@ const createQueryClientImpl = (): QueryClientApi => {
 		},
 
 		queryCache,
+
+		dehydrate: (options?: DehydrateOptions): DehydratedState => {
+			return queryCache.dehydrate(options);
+		},
+
+		hydrate: (state: DehydratedState, options?: DehydrateOptions): void => {
+			queryCache.hydrate(state, options);
+		},
 	};
 };
 

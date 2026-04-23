@@ -25,6 +25,7 @@
 export { Query } from './query.js';
 export { QueryObserver } from './query-observer.js';
 export { QueryCache } from './query-cache.js';
+export { dehydrate, hydrate } from './hydration.js';
 
 export type {
 	QueryKey,
@@ -39,3 +40,10 @@ export type {
 	QueryObserverListener,
 	QuerySnapshot,
 } from './types.js';
+
+export type {
+	DehydratedState,
+	DehydratedQuery,
+	DehydrateOptions,
+	TypeSerializer,
+} from './hydration.js';
