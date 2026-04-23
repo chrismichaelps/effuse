@@ -59,13 +59,18 @@ export type {
 	QueryKey,
 	QueryStatus as CacheQueryStatus,
 	FetchStatus,
+	QueryFunction,
 	CacheEntry,
 	QueryOptions,
 	MutationOptions,
 	QueryClientProviderProps,
 	QueryFilters,
 	QueryInfo,
+	DefinedInitialDataOptions,
+	UndefinedInitialDataOptions,
 } from './client/index.js';
+
+export { queryOptions, keepPreviousData } from './client/index.js';
 
 export {
 	useQuery,
