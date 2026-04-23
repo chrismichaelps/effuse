@@ -22,28 +22,18 @@
  * SOFTWARE.
  */
 
-import { Effect, Fiber, Duration, Exit, Predicate, Option, pipe } from 'effect';
+import { Effect } from 'effect';
 import { signal, computed, type Signal, type ReadonlySignal } from '@effuse/core';
 import {
 	useQueryClient,
 	type QueryOptions,
-	type CacheEntry,
 	type FetchStatus,
 } from '../client/index.js';
-import {
-	buildRetrySchedule,
-	buildRefetchSchedule,
-	type RetryConfig,
-} from '../execution/index.js';
-import { executeQuery } from '../request/index.js';
-import { DEFAULT_STALE_TIME_MS, DEFAULT_TIMEOUT_MS } from '../config/index.js';
-import { TimeoutError } from '../errors/index.js';
-import { deepEqual } from '../utils/index.js';
+import { QueryObserver } from '../core/index.js';
+import type { QueryFunction as CoreQueryFunction } from '../core/types.js';
 
-// Query result status
 export type QueryStatus = 'pending' | 'success' | 'error';
 
-// Query result data and state
 export interface UseQueryResult<T> {
 	readonly data: Signal<T | undefined>;
 	readonly error: Signal<Error | undefined>;
@@ -71,25 +61,36 @@ export interface UseQueryResult<T> {
 	readonly failureReason: Signal<Error | undefined>;
 }
 
-const normalizeRetryConfig = (
-	retry: RetryConfig | number | boolean | undefined
-): RetryConfig | undefined => {
-	if (retry === false) return { times: 0 };
-	if (retry === true) return undefined;
-	if (typeof retry === 'number') return { times: retry };
-	return retry;
+const wrapQueryFn = <T>(
+	queryFn: () => Promise<T> | Effect.Effect<T, Error, never>
+): CoreQueryFunction<T> => {
+	return ({ signal }: { signal: AbortSignal }) => {
+		const result = queryFn();
+
+		if (Effect.isEffect(result)) {
+			// For Effect, run it and return the promise
+			return Effect.runPromise(result).catch((error) => {
+				if (signal.aborted) {
+					throw new Error('Query was cancelled');
+				}
+				throw error;
+			});
+		}
+
+		return result;
+	};
 };
 
-// Reactive query hook
 export const useQuery = <TData>(
 	options: QueryOptions<TData>
 ): UseQueryResult<TData> => {
 	const {
 		queryKey,
 		queryFn,
-		staleTime = DEFAULT_STALE_TIME_MS,
+		staleTime,
+		cacheTime,
 		retry,
-		timeout = DEFAULT_TIMEOUT_MS,
+		timeout,
 		enabled = true,
 		refetchOnWindowFocus = true,
 		refetchOnReconnect = true,
@@ -104,21 +105,19 @@ export const useQuery = <TData>(
 
 	const client = options.client ?? useQueryClient();
 
+	// Signals mirroring the observer result
 	const dataSignal = signal<TData | undefined>(undefined);
 	const errorSignal = signal<Error | undefined>(undefined);
 	const statusSignal = signal<QueryStatus>('pending');
 	const fetchStatusSignal = signal<FetchStatus>('idle');
-
 	const isStaleSignal = signal<boolean>(true);
 	const isPlaceholderDataSignal = signal<boolean>(false);
-
 	const dataUpdatedAtSignal = signal<number | undefined>(undefined);
 	const errorUpdatedAtSignal = signal<number | undefined>(undefined);
-
 	const failureCountSignal = signal<number>(0);
 	const failureReasonSignal = signal<Error | undefined>(undefined);
 
-	// Derived state — automatically reactive via computed()
+	// Derived state
 	const isPendingSignal = computed(() => statusSignal.value === 'pending');
 	const isLoadingSignal = computed(
 		() => statusSignal.value === 'pending' && fetchStatusSignal.value === 'fetching'
@@ -130,256 +129,146 @@ export const useQuery = <TData>(
 		() => dataSignal.value !== undefined && fetchStatusSignal.value === 'fetching'
 	);
 
-	let activeFiber: Fiber.RuntimeFiber<unknown, unknown> | null = null;
-	let refetchIntervalFiber: Fiber.RuntimeFiber<unknown, unknown> | null = null;
-	let isInternalUpdate = false;
+	// Get or create the query
+	const query = client.getQuery<TData, Error>({
+		queryKey,
+		queryFn: wrapQueryFn(queryFn),
+		staleTime,
+		gcTime: cacheTime,
+		retry,
+		timeout,
+	});
 
-	const cleanupFns: Array<() => void> = [];
+	// Create the observer
+	const observer = new QueryObserver(query, {
+		queryKey,
+		queryFn: wrapQueryFn(queryFn),
+		staleTime,
+		gcTime: cacheTime,
+		retry,
+		timeout,
+		enabled,
+		select,
+		placeholderData,
+		initialData,
+		refetchOnWindowFocus,
+		refetchOnReconnect,
+		refetchInterval,
+	});
 
-	const buildFetchEffect = (): Effect.Effect<TData, Error, never> => {
-		const retryConfig = normalizeRetryConfig(retry);
-		const schedule = buildRetrySchedule(retryConfig);
+	// Sync signals from observer result
+	const syncResult = (result: ReturnType<typeof observer.getCurrentResult>): void => {
+		dataSignal.value = result.data as TData | undefined;
+		errorSignal.value = result.error ?? undefined;
+		statusSignal.value = result.status;
+		fetchStatusSignal.value = result.fetchStatus;
+		isStaleSignal.value = result.isStale;
+		isPlaceholderDataSignal.value = result.isPlaceholderData;
+		dataUpdatedAtSignal.value = result.dataUpdatedAt || undefined;
+		errorUpdatedAtSignal.value = result.errorUpdatedAt || undefined;
 
-		let effect: Effect.Effect<TData, Error, never> = executeQuery(
-			queryKey,
-			queryFn
-		);
+		if (result.isError && result.error) {
+			failureCountSignal.value += 1;
+			failureReasonSignal.value = result.error;
+		} else if (result.isSuccess) {
+			failureCountSignal.value = 0;
+			failureReasonSignal.value = undefined;
+		}
 
-		effect = effect.pipe(
-			Effect.timeoutFail({
-				duration: Duration.millis(timeout),
-				onTimeout: () => new TimeoutError({ durationMs: timeout }),
-			})
-		);
-
-		if (!Predicate.isNotNullable(retryConfig) || retryConfig.times !== 0) {
-			effect = effect.pipe(
-				Effect.retry(schedule),
-				Effect.tapError((error) =>
-					Effect.sync(() => {
-						failureCountSignal.value += 1;
-						failureReasonSignal.value = error;
-					})
-				)
+		if (result.isSuccess && onSuccess) {
+			onSuccess(result.data as TData);
+		}
+		if (result.isError && onError && result.error) {
+			onError(result.error);
+		}
+		if (onSettled) {
+			onSettled(
+				result.isSuccess ? (result.data as TData) : undefined,
+				result.isError ? result.error : undefined
 			);
 		}
-
-		if (select) {
-			effect = effect.pipe(Effect.map(select));
-		}
-
-		return effect;
 	};
 
-	const executeFetch = async (): Promise<void> => {
-		if (activeFiber) {
-			Effect.runFork(Fiber.interrupt(activeFiber));
-			activeFiber = null;
-		}
+	// Initial sync
+	syncResult(observer.getCurrentResult());
 
-		fetchStatusSignal.value = 'fetching';
+	// Subscribe to changes
+	const unsubscribe = observer.subscribe((result) => {
+		syncResult(result);
+	});
 
-		const effect = buildFetchEffect();
-
-		const fiber = Effect.runFork(
-			effect.pipe(
-				Effect.tap((data) =>
-					Effect.sync(() => {
-						const current = dataSignal.value;
-						const shouldUpdate =
-							current === undefined || !deepEqual(current, data);
-
-						if (shouldUpdate) {
-							const entry: CacheEntry<TData> = {
-								data,
-								dataUpdatedAt: Date.now(),
-								status: 'success',
-								fetchCount:
-									pipe(
-										Option.fromNullable(client.get<TData>(queryKey)),
-										Option.flatMap((e) => Option.fromNullable(e.fetchCount)),
-										Option.getOrElse(() => 0)
-									) + 1,
-							};
-							isInternalUpdate = true;
-							client.set(queryKey, entry);
-							isInternalUpdate = false;
-							dataSignal.value = data;
-						}
-
-						errorSignal.value = undefined;
-						statusSignal.value = 'success';
-						fetchStatusSignal.value = 'idle';
-						dataUpdatedAtSignal.value = Date.now();
-						isPlaceholderDataSignal.value = false;
-						failureCountSignal.value = 0;
-						failureReasonSignal.value = undefined;
-						isStaleSignal.value = client.isStale(queryKey, staleTime);
-
-						if (Predicate.isNotNullable(onSuccess)) {
-							onSuccess(data);
-						}
-						if (Predicate.isNotNullable(onSettled)) {
-							onSettled(data, undefined);
-						}
-					})
-				),
-				Effect.catchAll((error: Error) =>
-					Effect.sync(() => {
-						const entry: CacheEntry<TData> = {
-							data: dataSignal.value as TData,
-							dataUpdatedAt: Date.now(),
-							status: 'error',
-							error,
-							fetchCount:
-								pipe(
-									Option.fromNullable(client.get<TData>(queryKey)),
-									Option.flatMap((e) => Option.fromNullable(e.fetchCount)),
-									Option.getOrElse(() => 0)
-								) + 1,
-						};
-						isInternalUpdate = true;
-						client.set(queryKey, entry);
-						isInternalUpdate = false;
-
-						errorSignal.value = error;
-						statusSignal.value = 'error';
-						fetchStatusSignal.value = 'idle';
-						errorUpdatedAtSignal.value = Date.now();
-						isStaleSignal.value = client.isStale(queryKey, staleTime);
-
-						if (Predicate.isNotNullable(onError)) {
-							onError(error);
-						}
-						if (Predicate.isNotNullable(onSettled)) {
-							onSettled(undefined, error);
-						}
-					})
-				),
-				Effect.scoped
-			)
-		);
-
-		activeFiber = fiber;
-
-		const exit = await Effect.runPromiseExit(Fiber.join(fiber));
-		if (Exit.isFailure(exit)) {
-			fetchStatusSignal.value = 'idle';
-			isStaleSignal.value = client.isStale(queryKey, staleTime);
-		}
-	};
-
-	const cancel = (): void => {
-		if (activeFiber) {
-			Effect.runFork(Fiber.interrupt(activeFiber));
-			activeFiber = null;
-		}
-		if (refetchIntervalFiber) {
-			Effect.runFork(Fiber.interrupt(refetchIntervalFiber));
-			refetchIntervalFiber = null;
-		}
-		fetchStatusSignal.value = 'idle';
-		isStaleSignal.value = client.isStale(queryKey, staleTime);
-	};
-
-	const dispose = (): void => {
-		cancel();
-		for (const fn of cleanupFns) {
-			fn();
-		}
-	};
-
-	const refetch = async (): Promise<void> => {
-		if (!enabled) return;
-		await executeFetch();
-	};
-
-	const cached = client.get<TData>(queryKey);
-	if (cached) {
-		dataSignal.value = cached.data;
-
-		if (cached.status === 'success') {
-			statusSignal.value = 'success';
-		} else if (cached.status === 'error') {
-			statusSignal.value = 'error';
-		} else {
-			statusSignal.value = 'pending';
-		}
-		dataUpdatedAtSignal.value = cached.dataUpdatedAt;
-		if (cached.error) {
-			errorSignal.value = cached.error as Error;
-		}
-		isStaleSignal.value = client.isStale(queryKey, staleTime);
-	} else if (initialData !== undefined) {
-		const initial =
-			typeof initialData === 'function'
-				? (initialData as () => TData)()
-				: initialData;
-		dataSignal.value = initial;
-		statusSignal.value = 'success';
-		dataUpdatedAtSignal.value = Date.now();
-		isStaleSignal.value = client.isStale(queryKey, staleTime);
-	} else if (placeholderData !== undefined) {
-		const placeholder =
-			typeof placeholderData === 'function'
-				? (placeholderData as (previousData: TData | undefined) => TData)(
-						undefined
-					)
-				: placeholderData;
-		dataSignal.value = placeholder;
-		isPlaceholderDataSignal.value = true;
+	// Refetch if stale and enabled
+	if (enabled && query.isStale) {
+		query.fetch().catch(() => {
+			// Errors are handled by the observer
+		});
 	}
 
-	const unsubscribe = client.subscribe(queryKey, () => {
-		if (isInternalUpdate) return;
-		isStaleSignal.value = true;
-		if (enabled) {
-			executeFetch();
-		}
-	});
-	cleanupFns.push(unsubscribe);
+	// Window focus refetch
+	const cleanupFns: Array<() => void> = [unsubscribe];
 
 	if (refetchOnWindowFocus && typeof window !== 'undefined') {
 		const handleFocus = (): void => {
-			if (enabled && client.isStale(queryKey, staleTime)) {
-				executeFetch();
+			if (enabled && query.isStale) {
+				query.fetch().catch(() => {
+					// Errors handled by observer
+				});
 			}
 		};
 		window.addEventListener('focus', handleFocus);
 		cleanupFns.push(() => window.removeEventListener('focus', handleFocus));
 	}
 
+	// Reconnect refetch
 	if (refetchOnReconnect && typeof window !== 'undefined') {
 		const handleOnline = (): void => {
-			if (enabled && client.isStale(queryKey, staleTime)) {
-				executeFetch();
+			if (enabled && query.isStale) {
+				query.fetch().catch(() => {
+					// Errors handled by observer
+				});
 			}
 		};
 		window.addEventListener('online', handleOnline);
 		cleanupFns.push(() => window.removeEventListener('online', handleOnline));
 	}
 
+	// Refetch interval
+	let intervalId: ReturnType<typeof setInterval> | null = null;
 	if (refetchInterval !== false && refetchInterval > 0) {
-		const intervalEffect = Effect.repeat(
-			Effect.sync(() => {
-				if (enabled) {
-					executeFetch();
-				}
-			}),
-			buildRefetchSchedule(refetchInterval)
-		);
-		refetchIntervalFiber = Effect.runFork(intervalEffect);
+		intervalId = setInterval(() => {
+			if (enabled) {
+				query.fetch().catch(() => {
+					// Errors handled by observer
+				});
+			}
+		}, refetchInterval);
 		cleanupFns.push(() => {
-			if (refetchIntervalFiber) {
-				Effect.runFork(Fiber.interrupt(refetchIntervalFiber));
-				refetchIntervalFiber = null;
+			if (intervalId) {
+				clearInterval(intervalId);
+				intervalId = null;
 			}
 		});
 	}
 
-	if (enabled && client.isStale(queryKey, staleTime)) {
-		executeFetch();
-	}
+	const cancel = (): void => {
+		query.cancel();
+	};
+
+	const dispose = (): void => {
+		observer.destroy();
+		for (const fn of cleanupFns) {
+			fn();
+		}
+		if (intervalId) {
+			clearInterval(intervalId);
+			intervalId = null;
+		}
+	};
+
+	const refetch = async (): Promise<void> => {
+		if (!enabled) return;
+		await query.fetch();
+	};
 
 	return {
 		data: dataSignal,

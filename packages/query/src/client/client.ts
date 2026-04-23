@@ -44,6 +44,8 @@ import {
 	type QueryCacheInternals,
 	type QueryHandlerDeps,
 } from '../handlers/index.js';
+import { QueryCache, Query } from '../core/index.js';
+import type { QueryConfig } from '../core/types.js';
 
 const serializeKey = (key: QueryKey): string => JSON.stringify(key);
 
@@ -97,6 +99,12 @@ export interface QueryClientApi {
 	readonly getQueryState: <T>(key: QueryKey) => CacheEntry<T> | undefined;
 	/** Remove queries matching the given filters. */
 	readonly removeQueries: (filters: QueryFilters | QueryKey) => void;
+	/** Get or create a Query from the new QueryCache. */
+	readonly getQuery: <TData, TError = Error>(
+		config: QueryConfig<TData, TError>
+	) => Query<TData, TError>;
+	/** The underlying QueryCache instance. */
+	readonly queryCache: QueryCache;
 }
 
 export class QueryClient extends Context.Tag('effuse/query/QueryClient')<
@@ -118,6 +126,8 @@ const createQueryClientImpl = (): QueryClientApi => {
 			staleTimeMs: DEFAULT_STALE_TIME_MS,
 		},
 	};
+
+	const queryCache = new QueryCache();
 
 	return {
 		get: <T>(key: QueryKey): CacheEntry<T> | undefined => {
@@ -300,6 +310,36 @@ const createQueryClientImpl = (): QueryClientApi => {
 		removeQueries: (filters: QueryFilters | QueryKey): void => {
 			removeWithFilters(deps, normalizeFilters(filters));
 		},
+
+		getQuery: <TData, TError = Error>(
+			config: QueryConfig<TData, TError>
+		): Query<TData, TError> => {
+			const query = queryCache.getOrCreate(config);
+
+			// Seed from old cache if present and query is fresh
+			const keyStr = serializeKey(config.queryKey);
+			const existing = getEntry<TData>(deps, { keyStr });
+			if (
+				existing &&
+				query.currentState.fetchCount === 0 &&
+				existing.data !== undefined
+			) {
+				query.setState({
+					data: existing.data,
+					status: existing.status === 'error' ? 'error' : 'success',
+					dataUpdatedAt: existing.dataUpdatedAt,
+					fetchCount: existing.fetchCount ?? 0,
+					isInvalidated: existing.isInvalidated ?? false,
+					...(existing.error
+						? { error: existing.error as TError, errorUpdatedAt: existing.errorUpdatedAt ?? Date.now() }
+						: {}),
+				});
+			}
+
+			return query;
+		},
+
+		queryCache,
 	};
 };
 

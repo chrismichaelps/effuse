@@ -112,3 +112,19 @@ export {
 } from './errors/index.js';
 
 export type { RetryConfig, BackoffStrategy } from './execution/index.js';
+
+export { Query, QueryObserver, QueryCache } from './core/index.js';
+
+export type {
+	QueryKey as CoreQueryKey,
+	QueryStatus as CoreQueryStatus,
+	FetchStatus as CoreFetchStatus,
+	QueryFunction as CoreQueryFunction,
+	QueryState,
+	QueryAction,
+	QueryConfig,
+	QueryObserverOptions,
+	QueryObserverResult,
+	QueryObserverListener,
+	QuerySnapshot,
+} from './core/index.js';
