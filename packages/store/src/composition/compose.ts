@@ -168,26 +168,35 @@ export const defineSlice = <T extends object, P extends object>(
 	};
 };
 
+type MergeSnapshots<S extends readonly Store<unknown>[]> = S extends [
+	infer Head,
+	...infer Tail,
+]
+	? Head extends Store<unknown>
+		? ReturnType<Head['getSnapshot']> &
+				(Tail extends readonly Store<unknown>[] ? MergeSnapshots<Tail> : Record<string, never>)
+		: Record<string, never>
+	: Record<string, never>;
+
 // Merge multiple stores
-export const mergeStores = <A, B>(
-	storeA: Store<A>,
-	storeB: Store<B>
+export const mergeStores = <S extends readonly Store<unknown>[]>(
+	...stores: S
 ): {
-	getSnapshot: () => ReturnType<Store<A>['getSnapshot']> &
-		ReturnType<Store<B>['getSnapshot']>;
+	getSnapshot: () => MergeSnapshots<S>;
 	subscribe: (callback: () => void) => () => void;
 } => {
 	return {
-		getSnapshot: () => ({
-			...storeA.getSnapshot(),
-			...storeB.getSnapshot(),
-		}),
+		getSnapshot: () => {
+			const snapshot: Record<string, unknown> = {};
+			for (const store of stores) {
+				Object.assign(snapshot, store.getSnapshot());
+			}
+			return snapshot as MergeSnapshots<S>;
+		},
 		subscribe: (callback: () => void) => {
-			const unsubA = storeA.subscribe(callback);
-			const unsubB = storeB.subscribe(callback);
+			const unsubs = stores.map((store) => store.subscribe(callback));
 			return () => {
-				unsubA();
-				unsubB();
+				for (const unsub of unsubs) unsub();
 			};
 		},
 	};

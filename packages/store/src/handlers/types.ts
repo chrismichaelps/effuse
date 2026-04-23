@@ -41,9 +41,14 @@ export interface StoreInternals {
 		(s: Record<string, unknown>) => unknown,
 		Signal<unknown>
 	>;
+	computedSelectorCleanups: Map<
+		(s: Record<string, unknown>) => unknown,
+		(() => void)[]
+	>;
 	batchDepth: number;
 	cancellationScope: CancellationScope;
 	pendingActions: Map<string, CancellationToken>;
+	destroyed: boolean;
 }
 
 export interface StoreConfig {

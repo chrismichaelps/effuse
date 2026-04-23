@@ -33,6 +33,7 @@ export {
 	type InferStoreState,
 	type ActionContext,
 	type Middleware,
+	type StoreSnapshot,
 	type CreateStoreOptions,
 	type AtomicState,
 } from './core/index.js';

@@ -53,6 +53,12 @@ export type StoreDefinition<T> = {
 
 export type ActionContext<T> = StoreContext<T>;
 
+export type StoreSnapshot<T> = {
+	[K in keyof T as T[K] extends (...args: unknown[]) => unknown
+		? never
+		: K]: T[K];
+};
+
 export type Middleware<T> = (
 	state: T,
 	action: string,
@@ -63,37 +69,40 @@ export interface Store<T> {
 	readonly name: string;
 	readonly state: StoreState<T>;
 	subscribe: (callback: () => void) => () => void;
-	subscribeToKey: <K extends keyof T>(
+	subscribeToKey: <K extends keyof StoreSnapshot<T>>(
 		key: K,
-		callback: (value: T[K]) => void
+		callback: (value: StoreSnapshot<T>[K]) => void
 	) => () => void;
-	getSnapshot: () => {
-		[K in keyof T]: T[K] extends (...args: unknown[]) => unknown ? never : T[K];
-	};
+	subscribeToKeys: <K extends keyof StoreSnapshot<T>>(
+		keys: readonly K[],
+		callback: (snapshot: Pick<StoreSnapshot<T>, K>) => void
+	) => () => void;
+	getSnapshot: () => StoreSnapshot<T>;
+	get: <K extends keyof StoreSnapshot<T>>(key: K) => StoreSnapshot<T>[K];
+	set: <K extends keyof StoreSnapshot<T>>(
+		key: K,
+		value: StoreSnapshot<T>[K]
+	) => void;
+	patch: (partial: Partial<StoreSnapshot<T>>) => void;
+	toggle: (key: keyof StoreSnapshot<T>) => void;
+	// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters
+	resetKey: <K extends keyof StoreSnapshot<T>>(key: K) => void;
+	watch: <R>(
+		selector: (snapshot: StoreSnapshot<T>) => R,
+		callback: (newValue: R, oldValue: R | undefined) => void,
+		equalityFn?: (a: R, b: R) => boolean
+	) => () => void;
 	computed: <R>(
 		selector: (snapshot: Record<string, unknown>) => R
 	) => Signal<R>;
-	batch: (updates: () => void) => void;
+	batch: <R>(updates: () => R) => R;
 	reset: () => void;
-	use: (middleware: Middleware<Record<string, unknown>>) => () => void;
-	toJSON: () => {
-		[K in keyof T]: T[K] extends (...args: unknown[]) => unknown ? never : T[K];
-	};
-	update: (
-		updater: (draft: {
-			[K in keyof T]: T[K] extends (...args: unknown[]) => unknown
-				? never
-				: T[K];
-		}) => void
-	) => void;
+	use: (middleware: Middleware<T>) => () => void;
+	toJSON: () => StoreSnapshot<T>;
+	update: (updater: (draft: StoreSnapshot<T>) => void) => void;
 	select: <R>(selector: (snapshot: Record<string, unknown>) => R) => Signal<R>;
+	destroy: () => void;
 }
 
 export type InferStoreState<S> =
-	S extends Store<infer T>
-		? {
-				[K in keyof T]: T[K] extends (...args: unknown[]) => unknown
-					? never
-					: T[K];
-			}
-		: never;
+	S extends Store<infer T> ? StoreSnapshot<T> : never;

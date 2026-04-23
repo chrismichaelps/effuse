@@ -34,6 +34,32 @@ export interface ValidationResult<T> {
 	errors: string[];
 }
 
+const formatParseError = (error: unknown): string[] => {
+	const errors: string[] = [];
+	if (error && typeof error === 'object') {
+		if ('errors' in error && Array.isArray((error as Record<string, unknown>).errors)) {
+			for (const e of (error as { errors: unknown[] }).errors) {
+				errors.push(formatSingleError(e));
+			}
+		} else if ('message' in error) {
+			errors.push(String((error as { message: unknown }).message));
+		} else {
+			errors.push(error instanceof Error ? error.message : JSON.stringify(error));
+		}
+	} else {
+		errors.push(String(error));
+	}
+	return errors.length > 0 ? errors : ['Validation failed'];
+};
+
+const formatSingleError = (error: unknown): string => {
+	if (error && typeof error === 'object') {
+		if ('message' in error) return String((error as { message: unknown }).message);
+		if ('_tag' in error) return String((error as { _tag: unknown })._tag);
+	}
+	return String(error);
+};
+
 export const validateState = <T>(
 	schema: StateSchema<T>,
 	state: unknown
@@ -49,7 +75,7 @@ export const validateState = <T>(
 				Effect.succeed({
 					success: false as const,
 					data: null,
-					errors: [String(error)],
+					errors: formatParseError(error),
 				})
 			)
 		)
@@ -77,11 +103,10 @@ export const validateStateAsync = <T>(
 				Effect.succeed({
 					success: false as const,
 					data: null,
-					errors: [
+					errors:
 						error instanceof TimeoutError
-							? `Validation timed out after ${String(timeoutMs)}ms`
-							: String(error),
-					],
+							? [`Validation timed out after ${String(timeoutMs)}ms`]
+							: formatParseError(error),
 				})
 			)
 		)

@@ -29,11 +29,12 @@ import type {
 	StoreDefinition,
 	StoreOptions,
 	Middleware,
+	StoreSnapshot,
 } from './types.js';
 import { createAtomicState } from './state.js';
 import { getStoreConfig } from '../config/index.js';
 import { createMiddlewareManager } from '../middleware/index.js';
-import { registerStore } from '../registry/index.js';
+import { registerStore, removeStore } from '../registry/index.js';
 import {
 	type StorageAdapter,
 	localStorageAdapter,
@@ -81,9 +82,11 @@ export const createStore = <T extends object>(
 		subscribers: new Set(),
 		keySubscribers: new Map(),
 		computedSelectors: new Map(),
+		computedSelectorCleanups: new Map(),
 		batchDepth: 0,
 		cancellationScope: createCancellationScope(),
 		pendingActions: new Map(),
+		destroyed: false,
 	};
 
 	const middlewareManager = createMiddlewareManager<Record<string, unknown>>();
@@ -144,6 +147,12 @@ export const createStore = <T extends object>(
 	const boundActions: Record<string, (...args: unknown[]) => unknown> = {};
 	for (const [key, action] of Object.entries(internals.actions)) {
 		boundActions[key] = (...args: unknown[]) => {
+			if (internals.destroyed) {
+				throw new Error(
+					`Cannot call action "${key}" on destroyed store "${name}"`
+				);
+			}
+
 			const prevState = enableDevtools
 				? getSnapshot(internals.signalMap)
 				: undefined;
@@ -182,10 +191,14 @@ export const createStore = <T extends object>(
 									prevState
 								);
 								// eslint-disable-next-line no-console
-								console.log('%caction', 'color: #03A9F4; font-weight: bold;', {
-									type: `${name}/${key}`,
-									payload: args,
-								});
+								console.log(
+									'%caction',
+									'color: #03A9F4; font-weight: bold;',
+									{
+										type: `${name}/${key}`,
+										payload: args,
+									}
+								);
 								// eslint-disable-next-line no-console
 								console.log(
 									'%cnext state',
@@ -196,7 +209,8 @@ export const createStore = <T extends object>(
 								console.groupEnd();
 							}
 
-							for (const callback of internals.subscribers) callback();
+							for (const callback of internals.subscribers)
+								callback();
 						}
 						return value;
 					})
@@ -250,6 +264,110 @@ export const createStore = <T extends object>(
 	for (const [key, action] of Object.entries(boundActions))
 		storeState[key] = action;
 
+	const getSnapshotTyped = (): StoreSnapshot<T> =>
+		getSnapshot(internals.signalMap) as StoreSnapshot<T>;
+
+	const getTyped = <K extends keyof StoreSnapshot<T>>(
+		key: K
+	): StoreSnapshot<T>[K] => {
+		const sig = internals.signalMap.get(key as string);
+		return (sig?.value ?? undefined) as StoreSnapshot<T>[K];
+	};
+
+	const setTyped = <K extends keyof StoreSnapshot<T>>(
+		key: K,
+		value: StoreSnapshot<T>[K]
+	): void => {
+		setValue(handlerDeps, { prop: key as string, value });
+	};
+
+	const patch = (partial: Partial<StoreSnapshot<T>>): void => {
+		batchUpdates(handlerDeps, () => {
+			for (const [key, value] of Object.entries(partial)) {
+				setValue(handlerDeps, { prop: key, value });
+			}
+		});
+	};
+
+	const toggle = (key: keyof StoreSnapshot<T>): void => {
+		const sig = internals.signalMap.get(key as string);
+		if (sig && typeof sig.value === 'boolean') {
+			setValue(handlerDeps, { prop: key as string, value: !sig.value });
+		}
+	};
+
+	// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters
+	const resetKey = <K extends keyof StoreSnapshot<T>>(key: K): void => {
+		const initial = internals.initialState[key as string];
+		if (initial !== undefined) {
+			setValue(handlerDeps, { prop: key as string, value: initial });
+		}
+	};
+
+	const watch = <R>(
+		selector: (snapshot: StoreSnapshot<T>) => R,
+		callback: (newValue: R, oldValue: R | undefined) => void,
+		equalityFn: (a: R, b: R) => boolean = Object.is
+	): (() => void) => {
+		let lastValue: R | undefined;
+		const update = () => {
+			const snapshot = getSnapshotTyped();
+			const newValue = selector(snapshot);
+			if (lastValue === undefined || !equalityFn(newValue, lastValue)) {
+				const oldValue = lastValue;
+				lastValue = newValue;
+				callback(newValue, oldValue);
+			}
+		};
+		update();
+		return addSubscriber(internals, { callback: update });
+	};
+
+	const selectOrCompute = <R>(
+		selector: (snapshot: Record<string, unknown>) => R
+	): Signal<R> => {
+		const selectorKey = selector as (s: Record<string, unknown>) => unknown;
+		const existing = internals.computedSelectors.get(selectorKey);
+		if (existing) return existing as Signal<R>;
+
+		const initial = selector(getSnapshot(internals.signalMap));
+		const sig = signal<R>(initial);
+		internals.computedSelectors.set(selectorKey, sig as Signal<unknown>);
+
+		const update = () => {
+			const snapshot = getSnapshot(internals.signalMap);
+			const newValue = selector(snapshot);
+			if (sig.value !== newValue) {
+				sig.value = newValue;
+			}
+		};
+		const unsub = addSubscriber(internals, { callback: update });
+
+		let cleanups = internals.computedSelectorCleanups.get(selectorKey);
+		if (!cleanups) {
+			cleanups = [];
+			internals.computedSelectorCleanups.set(selectorKey, cleanups);
+		}
+		cleanups.push(unsub);
+
+		return sig;
+	};
+
+	const destroy = (): void => {
+		if (internals.destroyed) return;
+		internals.destroyed = true;
+		internals.cancellationScope.dispose();
+		internals.subscribers.clear();
+		internals.keySubscribers.clear();
+		internals.pendingActions.clear();
+		for (const cleanups of internals.computedSelectorCleanups.values()) {
+			for (const cleanup of cleanups) cleanup();
+		}
+		internals.computedSelectors.clear();
+		internals.computedSelectorCleanups.clear();
+		removeStore(name);
+	};
+
 	const store: Store<T> = {
 		name,
 		state: storeState as StoreState<T>,
@@ -265,24 +383,47 @@ export const createStore = <T extends object>(
 			});
 		},
 
-		getSnapshot: () =>
-			getSnapshot(internals.signalMap) as ReturnType<Store<T>['getSnapshot']>,
-
-		computed: <R>(
-			selector: (snapshot: Record<string, unknown>) => R
-		): Signal<R> => {
-			const selectorKey = selector as (s: Record<string, unknown>) => unknown;
-			const existing = internals.computedSelectors.get(selectorKey);
-			if (existing) return existing as Signal<R>;
-
-			const initial = selector(getSnapshot(internals.signalMap));
-			const sig = signal<R>(initial);
-			internals.computedSelectors.set(selectorKey, sig as Signal<unknown>);
-			return sig;
+		subscribeToKeys: (keys, callback) => {
+			const lastValues: Record<string, unknown> = {};
+			const checkAndNotify = () => {
+				const snapshot = getSnapshot(internals.signalMap);
+				let changed = false;
+				for (const key of keys) {
+					const newValue = snapshot[key as string];
+					if (newValue !== lastValues[key as string]) {
+						lastValues[key as string] = newValue;
+						changed = true;
+					}
+				}
+				if (changed) {
+					const picked: Record<string, unknown> = {};
+					for (const key of keys) {
+						picked[key as string] = snapshot[key as string];
+					}
+					callback(picked as Pick<StoreSnapshot<T>, typeof keys[number]>);
+				}
+			};
+			return addSubscriber(internals, { callback: checkAndNotify });
 		},
 
-		batch: (updates) => {
-			batchUpdates(handlerDeps, updates);
+		getSnapshot: getSnapshotTyped,
+
+		get: getTyped,
+
+		set: setTyped,
+
+		patch,
+
+		toggle,
+
+		resetKey,
+
+		watch,
+
+		computed: selectOrCompute,
+
+		batch: <R>(updates: () => R): R => {
+			return batchUpdates(handlerDeps, updates);
 		},
 
 		reset: () => {
@@ -292,8 +433,7 @@ export const createStore = <T extends object>(
 		use: (middleware: Middleware<Record<string, unknown>>) =>
 			middlewareManager.add(middleware),
 
-		toJSON: () =>
-			getSnapshot(internals.signalMap) as ReturnType<Store<T>['getSnapshot']>,
+		toJSON: getSnapshotTyped,
 
 		update: (updater) => {
 			updateState(handlerDeps, {
@@ -301,19 +441,9 @@ export const createStore = <T extends object>(
 			});
 		},
 
-		select: <R>(
-			selector: (snapshot: Record<string, unknown>) => R
-		): Signal<R> => {
-			const selectorKey = selector as (s: Record<string, unknown>) => unknown;
-			const existing = internals.computedSelectors.get(selectorKey);
-			if (existing) return existing as Signal<R>;
+		select: selectOrCompute,
 
-			const initial = selector(getSnapshot(internals.signalMap));
-			const sig = signal<R>(initial);
-			internals.computedSelectors.set(selectorKey, sig as Signal<unknown>);
-
-			return sig;
-		},
+		destroy,
 	};
 
 	const storeProxy = new Proxy(store as unknown as Record<string, unknown>, {

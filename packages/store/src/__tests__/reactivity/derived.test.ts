@@ -33,7 +33,7 @@ describe('reactivity / derived', () => {
 			const storeB = createStore('deriveB', { b: 2 });
 			const sum = deriveFrom(
 				[storeA, storeB],
-				(snapA, snapB) => snapA.a + snapB.b
+				(snapA, snapB) => (snapA.a as number) + (snapB.b as number)
 			);
 			expect(sum.value).toBe(3);
 		});

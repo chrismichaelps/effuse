@@ -32,5 +32,6 @@ export {
 	type StoreOptions,
 	type ActionContext,
 	type Middleware,
+	type StoreSnapshot,
 	type InferStoreState,
 } from './types.js';

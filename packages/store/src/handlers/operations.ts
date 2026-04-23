@@ -168,13 +168,14 @@ export const resetState = (deps: StoreHandlerDeps): void => {
 	updateComputed(deps);
 };
 
-export const batchUpdates = (
+export const batchUpdates = <R>(
 	deps: StoreHandlerDeps,
-	updates: () => void
-): void => {
+	updates: () => R
+): R => {
 	deps.internals.batchDepth++;
+	let result: R;
 	try {
-		updates();
+		result = updates();
 	} finally {
 		deps.internals.batchDepth--;
 	}
@@ -183,6 +184,7 @@ export const batchUpdates = (
 		persist(deps);
 		updateComputed(deps);
 	}
+	return result;
 };
 
 export const updateState = (

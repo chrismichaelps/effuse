@@ -30,21 +30,21 @@ export interface ConcurrencyOptions {
 	throttleMs?: number;
 }
 
-interface RunningTask {
+interface RunningTask<R> {
 	abort: () => void;
-	promise: Promise<unknown>;
+	promise: Promise<R>;
 }
 
 export function useConcurrency<A extends unknown[], R>(
 	action: (...args: A) => Promise<R>,
 	options: ConcurrencyOptions = {}
-): (...args: A) => void {
+): (...args: A) => Promise<R> | undefined {
 	const { strategy = 'switch', debounceMs, throttleMs } = options;
 
-	let runningTask: RunningTask | null = null;
+	let runningTask: RunningTask<R> | null = null;
 	let debounceTimeout: ReturnType<typeof setTimeout> | null = null;
 	let lastCallTime = 0;
-	const queue: A[] = [];
+	const queue: { args: A; resolve: (value: R) => void; reject: (error: unknown) => void }[] = [];
 	let isProcessingQueue = false;
 	let destroyed = false;
 
@@ -53,18 +53,19 @@ export function useConcurrency<A extends unknown[], R>(
 		isProcessingQueue = true;
 		while (queue.length > 0) {
 			if (destroyed) break;
-			const args = queue.shift() as A;
+			const item = queue.shift() as typeof queue[number];
 			try {
-				await Promise.resolve(action(...args));
-			} catch {
-				// Ignore errors so the queue doesn't stall
+				const result = await Promise.resolve(action(...item.args));
+				item.resolve(result);
+			} catch (error) {
+				item.reject(error);
 			}
 		}
 		isProcessingQueue = false;
 	};
 
-	const execute = (...args: A): void => {
-		if (destroyed) return;
+	const execute = (...args: A): Promise<R> | undefined => {
+		if (destroyed) return undefined;
 
 		switch (strategy) {
 			case 'switch': {
@@ -73,28 +74,30 @@ export function useConcurrency<A extends unknown[], R>(
 				}
 				const controller = new AbortController();
 				const promise = Promise.resolve(action(...args));
-					runningTask = {
-						abort: () => {
-							controller.abort();
-						},
-						promise: promise.then(
-						() => {
+				runningTask = {
+					abort: () => {
+						controller.abort();
+					},
+					promise: promise.then(
+						(value) => {
 							if (runningTask?.promise === promise) {
 								runningTask = null;
 							}
+							return value;
 						},
-						() => {
+						(error: unknown) => {
 							if (runningTask?.promise === promise) {
 								runningTask = null;
 							}
+							throw error;
 						}
 					),
 				};
-				break;
+				return runningTask.promise;
 			}
 
 			case 'exhaust': {
-				if (runningTask) return;
+				if (runningTask) return runningTask.promise;
 				const promise = Promise.resolve(action(...args));
 				runningTask = {
 					abort: () => {},
@@ -102,30 +105,31 @@ export function useConcurrency<A extends unknown[], R>(
 						runningTask = null;
 					}),
 				};
-				break;
+				return runningTask.promise;
 			}
 
 			case 'merge': {
-				// Unbounded concurrency: fire and forget
-				Promise.resolve(action(...args)).catch(() => {});
-				break;
+				return Promise.resolve(action(...args)).catch((error: unknown) => {
+					throw error;
+				});
 			}
 
 			case 'concat': {
-				queue.push(args);
-				void processQueue();
-				break;
+				return new Promise((resolve, reject) => {
+					queue.push({ args, resolve, reject });
+					void processQueue();
+				});
 			}
 		}
 	};
 
-	const wrapped = (...args: A): void => {
-		if (destroyed) return;
+	const wrapped = (...args: A): Promise<R> | undefined => {
+		if (destroyed) return undefined;
 		const now = Date.now();
 
 		if (throttleMs !== undefined && throttleMs > 0) {
 			if (now - lastCallTime < throttleMs) {
-				return;
+				return undefined;
 			}
 			lastCallTime = now;
 		}
@@ -134,13 +138,18 @@ export function useConcurrency<A extends unknown[], R>(
 			if (debounceTimeout) {
 				clearTimeout(debounceTimeout);
 			}
-			debounceTimeout = setTimeout(() => {
-				execute(...args);
-			}, debounceMs);
-			return;
+			return new Promise((resolve, reject) => {
+				debounceTimeout = setTimeout(() => {
+					debounceTimeout = null;
+					const result = execute(...args);
+					if (result) {
+						result.then(resolve).catch(reject);
+					}
+				}, debounceMs);
+			});
 		}
 
-		execute(...args);
+		return execute(...args);
 	};
 
 	(wrapped as unknown as { destroy: () => void }).destroy = () => {

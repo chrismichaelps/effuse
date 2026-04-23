@@ -22,7 +22,6 @@
  * SOFTWARE.
  */
 
-import { Array as Arr } from 'effect';
 import type { Middleware } from '../core/types.js';
 
 // Middleware pipeline manager
@@ -53,8 +52,14 @@ export const createMiddlewareManager = <
 			if (idx > -1) middlewares.splice(idx, 1);
 		},
 
-		execute: (state: T, action: string, args: unknown[]): T =>
-			Arr.reduce(middlewares, state, (acc, mw) => mw(acc, action, args) ?? acc),
+		execute: (state: T, action: string, args: unknown[]): T => {
+			let currentState = state;
+			for (const mw of middlewares) {
+				const result = mw(currentState, action, args);
+				if (result !== undefined) currentState = result;
+			}
+			return currentState;
+		},
 
 		getAll: () => [...middlewares],
 	};

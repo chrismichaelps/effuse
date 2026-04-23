@@ -23,9 +23,9 @@ describe('useConcurrency', () => {
 
 			const wrappedAction = useConcurrency(action, { strategy: 'merge' });
 
-			wrappedAction(1);
-			wrappedAction(2);
-			wrappedAction(3);
+			void wrappedAction(1);
+			void wrappedAction(2);
+			void wrappedAction(3);
 
 			await Promise.resolve();
 			expect(executedArgs).toEqual([1, 2, 3]);
@@ -40,11 +40,11 @@ describe('useConcurrency', () => {
 
 			const wrappedAction = useConcurrency(action, { strategy: 'switch' });
 
-			wrappedAction(1);
+			void wrappedAction(1);
 			await vi.advanceTimersByTimeAsync(50);
-			wrappedAction(2); // 1 becomes stale
+			void wrappedAction(2); // 1 becomes stale
 			await vi.advanceTimersByTimeAsync(50);
-			wrappedAction(3); // 2 becomes stale
+			void wrappedAction(3); // 2 becomes stale
 			await vi.advanceTimersByTimeAsync(100); // 3 finishes
 
 			// All actions run to completion (Promises cannot be forcibly interrupted),
@@ -61,11 +61,11 @@ describe('useConcurrency', () => {
 
 			const wrappedAction = useConcurrency(action, { strategy: 'exhaust' });
 
-			wrappedAction(1);
+			void wrappedAction(1);
 			await vi.advanceTimersByTimeAsync(50);
-			wrappedAction(2); // Should be ignored
+			void wrappedAction(2); // Should be ignored
 			await vi.advanceTimersByTimeAsync(100); // 1 finishes running
-			wrappedAction(3); // runs after 1 completes
+			void wrappedAction(3); // runs after 1 completes
 			await vi.advanceTimersByTimeAsync(100); // 3 finishes
 
 			expect(completedArgs).toEqual([1, 3]);
@@ -80,9 +80,9 @@ describe('useConcurrency', () => {
 
 			const wrappedAction = useConcurrency(action, { strategy: 'concat' });
 
-			wrappedAction(1);
-			wrappedAction(2);
-			wrappedAction(3);
+			void wrappedAction(1);
+			void wrappedAction(2);
+			void wrappedAction(3);
 
 			await vi.advanceTimersByTimeAsync(50); // 1 finishes
 			await Promise.resolve();
@@ -114,11 +114,11 @@ describe('useConcurrency', () => {
 				debounceMs: 100,
 			});
 
-			wrappedAction(1);
+			void wrappedAction(1);
 			await vi.advanceTimersByTimeAsync(50);
-			wrappedAction(2);
+			void wrappedAction(2);
 			await vi.advanceTimersByTimeAsync(50);
-			wrappedAction(3); // Resets timer
+			void wrappedAction(3); // Resets timer
 
 			expect(executedArgs).toEqual([]); // Not executed yet
 
@@ -139,14 +139,14 @@ describe('useConcurrency', () => {
 				throttleMs: 100,
 			});
 
-			wrappedAction(1); // Executed immediately
-			wrappedAction(2); // Ignored
+			void wrappedAction(1); // Executed immediately
+			void wrappedAction(2); // Ignored
 
 			await vi.advanceTimersByTimeAsync(50);
-			wrappedAction(3); // Still ignored (50ms < 100ms)
+			void wrappedAction(3); // Still ignored (50ms < 100ms)
 
 			await vi.advanceTimersByTimeAsync(60); // Total 110ms elapsed
-			wrappedAction(4); // Executed
+			void wrappedAction(4); // Executed
 
 			await Promise.resolve();
 
@@ -165,14 +165,14 @@ describe('useConcurrency', () => {
 				debounceMs: 50,
 			});
 
-			wrappedAction(1); // Throttle allows, debounce delays by 50ms
+			void wrappedAction(1); // Throttle allows, debounce delays by 50ms
 
 			await vi.advanceTimersByTimeAsync(60); // 1 gets executed
 			await Promise.resolve();
 			expect(executedArgs).toEqual([1]);
 
 			// We are at 60ms since last execution. Throttle is 100ms.
-			wrappedAction(2); // Ignored by throttle
+			void wrappedAction(2); // Ignored by throttle
 
 			await vi.advanceTimersByTimeAsync(100);
 
@@ -192,8 +192,8 @@ describe('useConcurrency', () => {
 				debounceMs: 0,
 			});
 
-			wrappedAction(1);
-			wrappedAction(2);
+			void wrappedAction(1);
+			void wrappedAction(2);
 
 			await Promise.resolve();
 			expect(executedArgs).toEqual([1, 2]);
@@ -210,7 +210,7 @@ describe('useConcurrency', () => {
 				debounceMs: -100,
 			});
 
-			wrappedAction(1);
+			void wrappedAction(1);
 
 			await Promise.resolve();
 			expect(executedArgs).toEqual([1]);
@@ -253,7 +253,7 @@ describe('Generative Permutation Matrix (500 cases)', () => {
 			});
 
 			for (let i = 0; i < calls; i++) {
-				wrapped(i);
+				void wrapped(i);
 				await vi.advanceTimersByTimeAsync(1);
 			}
 
