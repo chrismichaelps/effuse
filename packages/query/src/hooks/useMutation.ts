@@ -208,7 +208,21 @@ export const useMutation = <TData, TVariables = void, TContext = unknown>(
 				const result = onMutate(variables);
 				context = result instanceof Promise ? await result : result;
 				contextSignal.value = context;
-			} catch {}
+			} catch (mutateError) {
+				errorSignal.value =
+					mutateError instanceof Error
+						? mutateError
+						: new Error(String(mutateError));
+				statusSignal.value = 'error';
+				updateDerivedState();
+				if (Predicate.isNotNullable(onError)) {
+					onError(errorSignal.value, variables, context);
+				}
+				if (Predicate.isNotNullable(onSettled)) {
+					onSettled(undefined, errorSignal.value, variables, context);
+				}
+				throw errorSignal.value;
+			}
 		}
 
 		return new Promise<TData>((resolve, reject) => {
@@ -287,7 +301,11 @@ export const useMutation = <TData, TVariables = void, TContext = unknown>(
 		variables: TVariables,
 		options?: MutateOptions<TData, TVariables>
 	): void => {
-		executeMutationWithContext(variables, options).catch(() => {});
+		executeMutationWithContext(variables, options).catch((error) => {
+			// Errors are already written to errorSignal and onError is called.
+			// Re-throw so unhandled rejections can be caught by global handlers.
+			throw error;
+		});
 	};
 
 	const mutateAsync = (
