@@ -71,12 +71,12 @@ describe('hydration', () => {
 				queryKey: ['date'],
 				queryFn: async () => 'data',
 			});
-			query.dispatch({ type: 'success', data: { createdAt: new Date('2024-01-15') } });
+			query.dispatch({ type: 'success', data: { createdAt: new Date('2026-01-15') } });
 
 			const state = cache.dehydrate();
 			expect((state.queries[0].state.data as { createdAt: unknown }).createdAt).toEqual({
 				__type: 'Date',
-				__value: '2024-01-15T00:00:00.000Z',
+				__value: '2026-01-15T00:00:00.000Z',
 			});
 		});
 
@@ -138,7 +138,7 @@ describe('hydration', () => {
 						queryHash: '["date"]',
 						queryKey: ['date'],
 						state: {
-							data: { createdAt: { __type: 'Date', __value: '2024-01-15T00:00:00.000Z' } },
+							data: { createdAt: { __type: 'Date', __value: '2026-01-15T00:00:00.000Z' } },
 							dataUpdatedAt: Date.now(),
 							error: null,
 							errorUpdatedAt: 0,
@@ -161,7 +161,7 @@ describe('hydration', () => {
 			const query = cache.get(['date'])!;
 			const data = query.currentState.data as { createdAt: Date };
 			expect(data.createdAt).toBeInstanceOf(Date);
-			expect(data.createdAt.toISOString()).toBe('2024-01-15T00:00:00.000Z');
+			expect(data.createdAt.toISOString()).toBe('2026-01-15T00:00:00.000Z');
 		});
 
 		it('should handle custom serializers', () => {
@@ -241,7 +241,7 @@ describe('hydration', () => {
 			});
 			query.dispatch({
 				type: 'success',
-				data: { items: [{ created: new Date('2024-06-01') }] },
+				data: { items: [{ created: new Date('2026-06-01') }] },
 			});
 
 			const dehydrated = cache1.dehydrate();
@@ -255,7 +255,7 @@ describe('hydration', () => {
 			const query2 = cache2.get(['dates'])!;
 			const data = query2.currentState.data as { items: Array<{ created: Date }> };
 			expect(data.items[0].created).toBeInstanceOf(Date);
-			expect(data.items[0].created.toISOString()).toBe('2024-06-01T00:00:00.000Z');
+			expect(data.items[0].created.toISOString()).toBe('2026-06-01T00:00:00.000Z');
 		});
 	});
 
