@@ -23,7 +23,7 @@
  */
 
 import { Effect, Fiber, Duration, Predicate } from 'effect';
-import { signal, type Signal } from '@effuse/core';
+import { signal, computed, type Signal, type ReadonlySignal } from '@effuse/core';
 import { useQueryClient, type QueryKey, type CacheEntry } from '../client/index.js';
 import { buildRetrySchedule, type RetryConfig } from '../execution/index.js';
 import { DEFAULT_STALE_TIME_MS, DEFAULT_TIMEOUT_MS } from '../config/index.js';
@@ -72,15 +72,15 @@ export interface UseInfiniteQueryResult<TData> {
 	readonly hasNextPage: Signal<boolean>;
 	readonly hasPreviousPage: Signal<boolean>;
 
-	readonly isPending: Signal<boolean>;
-	readonly isSuccess: Signal<boolean>;
-	readonly isError: Signal<boolean>;
+	readonly isPending: ReadonlySignal<boolean>;
+	readonly isSuccess: ReadonlySignal<boolean>;
+	readonly isError: ReadonlySignal<boolean>;
 
 	readonly fetchNextPage: () => Promise<void>;
 	readonly fetchPreviousPage: () => Promise<void>;
 	readonly refetch: () => Promise<void>;
 
-	readonly allPagesData: Signal<TData[] | undefined>;
+	readonly allPagesData: ReadonlySignal<TData[] | undefined>;
 	readonly dispose: () => void;
 }
 
@@ -127,11 +127,11 @@ export const useInfiniteQuery = <TData, TPageParam = number>(
 	const hasNextPageSignal = signal<boolean>(false);
 	const hasPreviousPageSignal = signal<boolean>(false);
 
-	const isPendingSignal = signal<boolean>(true);
-	const isSuccessSignal = signal<boolean>(false);
-	const isErrorSignal = signal<boolean>(false);
-
-	const allPagesDataSignal = signal<TData[] | undefined>(undefined);
+	// Derived state — automatically reactive via computed()
+	const isPendingSignal = computed(() => statusSignal.value === 'pending');
+	const isSuccessSignal = computed(() => statusSignal.value === 'success');
+	const isErrorSignal = computed(() => statusSignal.value === 'error');
+	const allPagesDataSignal = computed(() => dataSignal.value?.pages);
 
 	let currentPageParams: TPageParam[] = [];
 
@@ -150,18 +150,6 @@ export const useInfiniteQuery = <TData, TPageParam = number>(
 			fetchCount: (existing?.fetchCount ?? 0) + 1,
 		};
 		client.set(cacheKey, entry);
-	};
-
-	const updateDerivedState = (): void => {
-		const status = statusSignal.value;
-		isPendingSignal.value = status === 'pending';
-		isSuccessSignal.value = status === 'success';
-		isErrorSignal.value = status === 'error';
-
-		const currentData = dataSignal.value;
-		allPagesDataSignal.value = Predicate.isNotNullable(currentData)
-			? currentData.pages
-			: undefined;
 	};
 
 	const fetchPage = (
@@ -236,7 +224,6 @@ export const useInfiniteQuery = <TData, TPageParam = number>(
 
 			statusSignal.value = 'success';
 			writeCache(newData);
-			updateDerivedState();
 			isInternalUpdate = false;
 		} catch (error) {
 			errorSignal.value =
@@ -244,7 +231,6 @@ export const useInfiniteQuery = <TData, TPageParam = number>(
 					? error
 					: new InfiniteQueryError({ message: String(error), cause: error });
 			statusSignal.value = 'error';
-			updateDerivedState();
 		} finally {
 			isFetchingSignal.value = false;
 			isFetchingNextPageSignal.value = false;
@@ -289,7 +275,6 @@ export const useInfiniteQuery = <TData, TPageParam = number>(
 
 			statusSignal.value = 'success';
 			writeCache(newData);
-			updateDerivedState();
 			isInternalUpdate = false;
 		} catch (error) {
 			errorSignal.value =
@@ -297,7 +282,6 @@ export const useInfiniteQuery = <TData, TPageParam = number>(
 					? error
 					: new InfiniteQueryError({ message: String(error), cause: error });
 			statusSignal.value = 'error';
-			updateDerivedState();
 		} finally {
 			isFetchingSignal.value = false;
 			isFetchingPreviousPageSignal.value = false;
@@ -337,7 +321,6 @@ export const useInfiniteQuery = <TData, TPageParam = number>(
 			statusSignal.value = 'success';
 			errorSignal.value = undefined;
 			writeCache(newData);
-			updateDerivedState();
 			isInternalUpdate = false;
 		} catch (error) {
 			errorSignal.value =
@@ -345,7 +328,6 @@ export const useInfiniteQuery = <TData, TPageParam = number>(
 					? error
 					: new InfiniteQueryError({ message: String(error), cause: error });
 			statusSignal.value = 'error';
-			updateDerivedState();
 		} finally {
 			isFetchingSignal.value = false;
 		}
@@ -362,7 +344,6 @@ export const useInfiniteQuery = <TData, TPageParam = number>(
 		} else {
 			statusSignal.value = 'pending';
 		}
-		updateDerivedState();
 	}
 
 	const unsubscribe = client.subscribe(cacheKey, () => {

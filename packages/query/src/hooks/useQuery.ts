@@ -23,7 +23,7 @@
  */
 
 import { Effect, Fiber, Duration, Exit, Predicate, Option, pipe } from 'effect';
-import { signal, type Signal } from '@effuse/core';
+import { signal, computed, type Signal, type ReadonlySignal } from '@effuse/core';
 import {
 	useQueryClient,
 	type QueryOptions,
@@ -51,13 +51,13 @@ export interface UseQueryResult<T> {
 	readonly status: Signal<QueryStatus>;
 	readonly fetchStatus: Signal<FetchStatus>;
 
-	readonly isPending: Signal<boolean>;
-	readonly isLoading: Signal<boolean>;
-	readonly isSuccess: Signal<boolean>;
-	readonly isError: Signal<boolean>;
-	readonly isFetching: Signal<boolean>;
+	readonly isPending: ReadonlySignal<boolean>;
+	readonly isLoading: ReadonlySignal<boolean>;
+	readonly isSuccess: ReadonlySignal<boolean>;
+	readonly isError: ReadonlySignal<boolean>;
+	readonly isFetching: ReadonlySignal<boolean>;
 	readonly isStale: Signal<boolean>;
-	readonly isRefetching: Signal<boolean>;
+	readonly isRefetching: ReadonlySignal<boolean>;
 	readonly isPlaceholderData: Signal<boolean>;
 
 	readonly dataUpdatedAt: Signal<number | undefined>;
@@ -108,13 +108,7 @@ export const useQuery = <TData>(
 	const statusSignal = signal<QueryStatus>('pending');
 	const fetchStatusSignal = signal<FetchStatus>('idle');
 
-	const isPendingSignal = signal<boolean>(true);
-	const isLoadingSignal = signal<boolean>(true);
-	const isSuccessSignal = signal<boolean>(false);
-	const isErrorSignal = signal<boolean>(false);
-	const isFetchingSignal = signal<boolean>(false);
 	const isStaleSignal = signal<boolean>(true);
-	const isRefetchingSignal = signal<boolean>(false);
 	const isPlaceholderDataSignal = signal<boolean>(false);
 
 	const dataUpdatedAtSignal = signal<number | undefined>(undefined);
@@ -123,25 +117,23 @@ export const useQuery = <TData>(
 	const failureCountSignal = signal<number>(0);
 	const failureReasonSignal = signal<Error | undefined>(undefined);
 
+	// Derived state — automatically reactive via computed()
+	const isPendingSignal = computed(() => statusSignal.value === 'pending');
+	const isLoadingSignal = computed(
+		() => statusSignal.value === 'pending' && fetchStatusSignal.value === 'fetching'
+	);
+	const isSuccessSignal = computed(() => statusSignal.value === 'success');
+	const isErrorSignal = computed(() => statusSignal.value === 'error');
+	const isFetchingSignal = computed(() => fetchStatusSignal.value === 'fetching');
+	const isRefetchingSignal = computed(
+		() => dataSignal.value !== undefined && fetchStatusSignal.value === 'fetching'
+	);
+
 	let activeFiber: Fiber.RuntimeFiber<unknown, unknown> | null = null;
 	let refetchIntervalFiber: Fiber.RuntimeFiber<unknown, unknown> | null = null;
 	let isInternalUpdate = false;
 
 	const cleanupFns: Array<() => void> = [];
-
-	const updateDerivedState = (): void => {
-		const status = statusSignal.value;
-		const fetchStatus = fetchStatusSignal.value;
-		const hasData = dataSignal.value !== undefined;
-
-		isPendingSignal.value = status === 'pending';
-		isLoadingSignal.value = status === 'pending' && fetchStatus === 'fetching';
-		isSuccessSignal.value = status === 'success';
-		isErrorSignal.value = status === 'error';
-		isFetchingSignal.value = fetchStatus === 'fetching';
-		isRefetchingSignal.value = hasData && fetchStatus === 'fetching';
-		isStaleSignal.value = client.isStale(queryKey, staleTime);
-	};
 
 	const buildFetchEffect = (): Effect.Effect<TData, Error, never> => {
 		const retryConfig = normalizeRetryConfig(retry);
@@ -185,7 +177,6 @@ export const useQuery = <TData>(
 		}
 
 		fetchStatusSignal.value = 'fetching';
-		updateDerivedState();
 
 		const effect = buildFetchEffect();
 
@@ -195,8 +186,7 @@ export const useQuery = <TData>(
 					Effect.sync(() => {
 						const current = dataSignal.value;
 						const shouldUpdate =
-							current === undefined ||
-							!deepEqual(current, data);
+							current === undefined || !deepEqual(current, data);
 
 						if (shouldUpdate) {
 							const entry: CacheEntry<TData> = {
@@ -223,7 +213,7 @@ export const useQuery = <TData>(
 						isPlaceholderDataSignal.value = false;
 						failureCountSignal.value = 0;
 						failureReasonSignal.value = undefined;
-						updateDerivedState();
+						isStaleSignal.value = client.isStale(queryKey, staleTime);
 
 						if (Predicate.isNotNullable(onSuccess)) {
 							onSuccess(data);
@@ -255,7 +245,7 @@ export const useQuery = <TData>(
 						statusSignal.value = 'error';
 						fetchStatusSignal.value = 'idle';
 						errorUpdatedAtSignal.value = Date.now();
-						updateDerivedState();
+						isStaleSignal.value = client.isStale(queryKey, staleTime);
 
 						if (Predicate.isNotNullable(onError)) {
 							onError(error);
@@ -274,7 +264,7 @@ export const useQuery = <TData>(
 		const exit = await Effect.runPromiseExit(Fiber.join(fiber));
 		if (Exit.isFailure(exit)) {
 			fetchStatusSignal.value = 'idle';
-			updateDerivedState();
+			isStaleSignal.value = client.isStale(queryKey, staleTime);
 		}
 	};
 
@@ -288,7 +278,7 @@ export const useQuery = <TData>(
 			refetchIntervalFiber = null;
 		}
 		fetchStatusSignal.value = 'idle';
-		updateDerivedState();
+		isStaleSignal.value = client.isStale(queryKey, staleTime);
 	};
 
 	const dispose = (): void => {
@@ -318,7 +308,7 @@ export const useQuery = <TData>(
 		if (cached.error) {
 			errorSignal.value = cached.error as Error;
 		}
-		updateDerivedState();
+		isStaleSignal.value = client.isStale(queryKey, staleTime);
 	} else if (placeholderData !== undefined) {
 		const placeholder =
 			typeof placeholderData === 'function'
