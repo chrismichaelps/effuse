@@ -24,10 +24,6 @@
 
 import type { QueryKey } from '../core/types.js';
 
-// ------------------------------------------------------------------
-// Type machinery
-// ------------------------------------------------------------------
-
 type KeyDefinition = null | ((...args: readonly unknown[]) => readonly unknown[]);
 
 type KeyOutput<TKey extends string, TDef extends KeyDefinition> = TDef extends null
@@ -45,10 +41,6 @@ type KeyFactory<TKey extends string, TDefs extends Record<string, KeyDefinition>
 			? (...args: A) => KeyOutput<TKey, TDefs[K]>
 			: never;
 };
-
-// ------------------------------------------------------------------
-// Implementation
-// ------------------------------------------------------------------
 
 /**
  * Creates a type-safe query key factory.
