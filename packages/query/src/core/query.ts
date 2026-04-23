@@ -32,6 +32,7 @@ import type {
 	QuerySnapshot,
 } from './types.js';
 import { deepEqual } from '../utils/index.js';
+import type { QueryCache } from './query-cache.js';
 
 let queryIdCounter = 0;
 
@@ -124,13 +125,15 @@ export class Query<TData = unknown, TError = Error> {
 	private queryId: number;
 	private fetchId = 0;
 	private cancelledFetchId = 0;
+	private cache: QueryCache | null = null;
 
-	constructor(options: QueryConfig<TData, TError>) {
+	constructor(options: QueryConfig<TData, TError>, cache?: QueryCache) {
 		this.queryKey = options.queryKey;
 		this.queryHash = hashKey(options.queryKey);
 		this.options = options;
 		this.state = createInitialState<TData, TError>();
 		this.queryId = ++queryIdCounter;
+		this.cache = cache ?? null;
 	}
 
 	get id(): number {
@@ -194,6 +197,7 @@ export class Query<TData = unknown, TError = Error> {
 
 		if (prevState !== this.state) {
 			this.notifyObservers();
+			this.cache?.notify();
 		}
 	}
 

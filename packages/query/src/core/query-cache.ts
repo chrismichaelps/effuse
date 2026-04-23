@@ -34,6 +34,7 @@ const hashKey = (key: QueryKey): string => JSON.stringify(key);
  */
 export class QueryCache {
 	private queries: Map<string, Query<unknown, Error>> = new Map();
+	private subscribers: Set<() => void> = new Set();
 
 	/**
 	 * Get or create a query for the given key and config.
@@ -50,7 +51,7 @@ export class QueryCache {
 			return existing as Query<TData, TError>;
 		}
 
-		const query = new Query<TData, TError>(config);
+		const query = new Query<TData, TError>(config, this);
 		this.queries.set(hash, query as Query<unknown, Error>);
 		return query;
 	}
@@ -119,6 +120,26 @@ export class QueryCache {
 	 */
 	get size(): number {
 		return this.queries.size;
+	}
+
+	/**
+	 * Subscribe to all query state changes in this cache.
+	 * Returns an unsubscribe function.
+	 */
+	subscribe(callback: () => void): () => void {
+		this.subscribers.add(callback);
+		return () => {
+			this.subscribers.delete(callback);
+		};
+	}
+
+	/**
+	 * Notify all subscribers that a query changed.
+	 */
+	notify(): void {
+		for (const subscriber of this.subscribers) {
+			subscriber();
+		}
 	}
 
 	/**
