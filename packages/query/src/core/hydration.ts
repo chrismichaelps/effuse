@@ -60,7 +60,9 @@ const BUILTIN_SERIALIZERS: TypeSerializer<unknown>[] = [
 		deserialize: (value) => {
 			const obj = value as { message: string; stack?: string; name?: string };
 			const err = new Error(obj.message);
-			err.stack = obj.stack;
+			if (obj.stack !== undefined) {
+				err.stack = obj.stack;
+			}
 			err.name = obj.name ?? 'Error';
 			return err;
 		},

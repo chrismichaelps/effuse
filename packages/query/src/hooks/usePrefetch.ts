@@ -23,11 +23,7 @@
  */
 
 import { Predicate, Option, pipe } from 'effect';
-import {
-	useQueryClient,
-	getGlobalQueryClient,
-	type QueryKey,
-} from '../client/index.js';
+import { useQueryClient, type QueryKey } from '../client/index.js';
 import type { QueryClientApi } from '../client/client.js';
 import { DEFAULT_STALE_TIME_MS } from '../config/index.js';
 
@@ -37,8 +33,12 @@ export interface PrefetchOptions {
 	readonly client?: QueryClientApi;
 }
 
-const resolveClient = (options?: PrefetchOptions): QueryClientApi =>
-	options?.client ?? getGlobalQueryClient();
+const resolveClient = (options?: PrefetchOptions): QueryClientApi => {
+	if (options?.client) return options.client;
+	throw new Error(
+		'prefetchQuery requires a client. Pass it via options.client or use within a QueryClientProvider.'
+	);
+};
 
 // Prefetch query data
 export const prefetchQuery = <T>(

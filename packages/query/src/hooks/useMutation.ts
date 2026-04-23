@@ -349,8 +349,8 @@ export interface OptimisticQueryConfig<TData, TVariables> {
 	) => TData;
 }
 
-// Options for optimistic mutation
-export interface OptimisticMutationOptions<TData, TVariables> {
+// Options for optimistic mutation hook
+export interface OptimisticMutationHookOptions<TData, TVariables> {
 	readonly mutationFn: (variables: TVariables) => Promise<TData>;
 	/** Queries to optimistically update. */
 	readonly queries: ReadonlyArray<OptimisticQueryConfig<TData, TVariables>>;
@@ -369,7 +369,7 @@ interface OptimisticContext<TData> {
 
 // Optimistic update hook
 export const useOptimisticMutation = <TData, TVariables>(
-	options: OptimisticMutationOptions<TData, TVariables>
+	options: OptimisticMutationHookOptions<TData, TVariables>
 ): UseMutationResult<TData, TVariables, OptimisticContext<TData>> => {
 	const {
 		mutationFn,

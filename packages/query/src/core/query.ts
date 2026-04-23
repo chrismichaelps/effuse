@@ -115,10 +115,10 @@ const queryReducer = <TData, TError = Error>(
 export class Query<TData = unknown, TError = Error> {
 	readonly queryHash: string;
 	readonly queryKey: QueryKey;
-	options: QueryConfig<TData, TError>;
+	options: QueryConfig<TData>;
 
 	private state: QueryState<TData, TError>;
-	private observers: Set<QueryObserver<TData, TError>> = new Set();
+	private observers: Set<QueryObserver> = new Set();
 	private abortController: AbortController | null = null;
 	private gcTimeout: ReturnType<typeof setTimeout> | null = null;
 	private promise: Promise<unknown> | null = null;
@@ -127,7 +127,7 @@ export class Query<TData = unknown, TError = Error> {
 	private cancelledFetchId = 0;
 	private cache: QueryCache | null = null;
 
-	constructor(options: QueryConfig<TData, TError>, cache?: QueryCache) {
+	constructor(options: QueryConfig<TData>, cache?: QueryCache) {
 		this.queryKey = options.queryKey;
 		this.queryHash = hashKey(options.queryKey);
 		this.options = options;
@@ -177,7 +177,7 @@ export class Query<TData = unknown, TError = Error> {
 	 * Subscribe an observer to this query.
 	 * Returns an unsubscribe function.
 	 */
-	addObserver(observer: QueryObserver<TData, TError>): () => void {
+	addObserver(observer: QueryObserver): () => void {
 		this.observers.add(observer);
 		this.cancelGc();
 		return () => {
@@ -258,8 +258,8 @@ export class Query<TData = unknown, TError = Error> {
 				// Fetch was cancelled, ignore result
 				return data as TData;
 			}
-			this.dispatch({ type: 'success', data });
-			return data;
+			this.dispatch({ type: 'success', data: data as TData });
+			return data as TData;
 		} catch (error) {
 			if (currentFetchId <= this.cancelledFetchId) {
 				// Fetch was cancelled, ignore error

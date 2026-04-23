@@ -34,21 +34,21 @@ const hashKey = (key: readonly unknown[]): string => JSON.stringify(key);
 export class MutationCache {
 	private mutations: Map<string, Mutation<unknown, Error, unknown, unknown>> = new Map();
 	private subscribers: Set<() => void> = new Set();
-	private globalListeners?: {
+	private globalListeners: {
 		onSuccess?: (data: unknown, variables: unknown, context: unknown | undefined) => void;
 		onError?: (error: Error, variables: unknown, context: unknown | undefined) => void;
 		onSettled?: (data: unknown | undefined, error: Error | null, variables: unknown, context: unknown | undefined) => void;
-	};
+	} | undefined;
 
 	constructor(options?: {
 		onSuccess?: (data: unknown, variables: unknown, context: unknown | undefined) => void;
 		onError?: (error: Error, variables: unknown, context: unknown | undefined) => void;
 		onSettled?: (data: unknown | undefined, error: Error | null, variables: unknown, context: unknown | undefined) => void;
 	}) {
-		this.globalListeners = options;
+		this.globalListeners = options ?? undefined;
 	}
 
-	build<TData, TError = Error, TVariables = unknown, TContext = unknown>(
+	build<TData, TError extends Error = Error, TVariables = unknown, TContext = unknown>(
 		config: MutationConfig<TData, TError, TVariables, TContext>
 	): Mutation<TData, TError, TVariables, TContext> {
 		const key = config.mutationKey ?? [];
@@ -56,7 +56,7 @@ export class MutationCache {
 		const existing = this.mutations.get(hash);
 
 		if (existing) {
-			return existing as Mutation<TData, TError, TVariables, TContext>;
+			return existing as unknown as Mutation<TData, TError, TVariables, TContext>;
 		}
 
 		const mergedConfig: MutationConfig<TData, TError, TVariables, TContext> = {
@@ -76,7 +76,7 @@ export class MutationCache {
 		};
 
 		const mutation = new Mutation<TData, TError, TVariables, TContext>(mergedConfig);
-		this.mutations.set(hash, mutation as Mutation<unknown, Error, unknown, unknown>);
+		this.mutations.set(hash, mutation as unknown as Mutation<unknown, Error, unknown, unknown>);
 
 		const originalDispatch = mutation.dispatch.bind(mutation);
 		mutation.dispatch = (action) => {
@@ -87,11 +87,11 @@ export class MutationCache {
 		return mutation;
 	}
 
-	get<TData, TError = Error, TVariables = unknown, TContext = unknown>(
+	get<TData, TError extends Error = Error, TVariables = unknown, TContext = unknown>(
 		key: readonly unknown[]
 	): Mutation<TData, TError, TVariables, TContext> | undefined {
 		const hash = hashKey(key);
-		return this.mutations.get(hash) as Mutation<TData, TError, TVariables, TContext> | undefined;
+		return this.mutations.get(hash) as unknown as Mutation<TData, TError, TVariables, TContext> | undefined;
 	}
 
 	remove(key: readonly unknown[]): boolean {

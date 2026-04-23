@@ -133,27 +133,27 @@ export const useQuery = <TData>(
 	const query = client.getQuery<TData, Error>({
 		queryKey,
 		queryFn: wrapQueryFn(queryFn),
-		staleTime,
-		gcTime: cacheTime,
-		retry,
-		timeout,
+		...(staleTime !== undefined && { staleTime }),
+		...(cacheTime !== undefined && { gcTime: cacheTime }),
+		...(retry !== undefined && { retry }),
+		...(timeout !== undefined && { timeout }),
 	});
 
 	// Create the observer
 	const observer = new QueryObserver(query, {
 		queryKey,
 		queryFn: wrapQueryFn(queryFn),
-		staleTime,
-		gcTime: cacheTime,
-		retry,
-		timeout,
+		...(staleTime !== undefined && { staleTime }),
+		...(cacheTime !== undefined && { gcTime: cacheTime }),
+		...(retry !== undefined && { retry }),
+		...(timeout !== undefined && { timeout }),
 		enabled,
-		select,
-		placeholderData,
-		initialData,
+		...(select !== undefined && { select }),
+		...(placeholderData !== undefined && { placeholderData }),
+		...(initialData !== undefined && { initialData }),
 		refetchOnWindowFocus,
 		refetchOnReconnect,
-		refetchInterval,
+		...(refetchInterval !== false && { refetchInterval }),
 	});
 
 	// Sync signals from observer result

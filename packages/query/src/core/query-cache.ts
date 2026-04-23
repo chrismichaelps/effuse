@@ -40,7 +40,7 @@ export class QueryCache {
 	 * Get or create a query for the given key and config.
 	 */
 	getOrCreate<TData, TError = Error>(
-		config: QueryConfig<TData, TError>
+		config: QueryConfig<TData>
 	): Query<TData, TError> {
 		const hash = hashKey(config.queryKey);
 		const existing = this.queries.get(hash);

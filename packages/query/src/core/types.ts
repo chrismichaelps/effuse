@@ -57,7 +57,7 @@ export type QueryAction<TData = unknown, TError = Error> =
 	| { readonly type: 'setState'; readonly state: Partial<QueryState<TData, TError>> };
 
 /** Base options for configuring a Query. */
-export interface QueryConfig<TData = unknown, TError = Error> {
+export interface QueryConfig<TData = unknown> {
 	readonly queryKey: QueryKey;
 	readonly queryFn: QueryFunction<TData>;
 	readonly staleTime?: number;
@@ -72,7 +72,7 @@ export interface QueryObserverOptions<
 	TData = unknown,
 	TError = Error,
 	TSelected = TData,
-> extends QueryConfig<TData, TError> {
+> extends QueryConfig<TData> {
 	readonly enabled?: boolean;
 	readonly select?: (data: TData) => TSelected;
 	readonly placeholderData?:
@@ -119,6 +119,6 @@ export interface QuerySnapshot<TData = unknown, TError = Error> {
 }
 
 /** Interface that the Query class expects from observers. */
-export interface QueryObserver<TData = unknown, TError = Error> {
+export interface QueryObserver {
 	readonly onQueryUpdate: () => void;
 }
