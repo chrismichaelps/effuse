@@ -23,7 +23,6 @@
  */
 
 import type {
-	QueryState,
 	QueryObserverOptions,
 	QueryObserverResult,
 	QueryObserverListener,
@@ -42,9 +41,15 @@ const getPlaceholderData = <T>(
 	return placeholderData;
 };
 
+interface MemoState<TData, TSelected> {
+	lastSourceData: TData | undefined;
+	lastSelectedData: TSelected | undefined;
+}
+
 const createResult = <TData, TError, TSelected>(
 	query: Query<TData, TError>,
 	options: QueryObserverOptions<TData, TError, TSelected>,
+	memo: MemoState<TData, TSelected>,
 	previousResult?: QueryObserverResult<TSelected, TError>
 ): QueryObserverResult<TSelected, TError> => {
 	const { currentState } = query;
@@ -57,12 +62,15 @@ const createResult = <TData, TError, TSelected>(
 		if (select) {
 			// Memoized select: only re-run if source data changed
 			if (
-				previousResult &&
-				query.currentState.data === (query as unknown as { _lastData: unknown })._lastData
+				memo.lastSourceData !== undefined &&
+				memo.lastSelectedData !== undefined &&
+				memo.lastSourceData === currentState.data
 			) {
-				data = previousResult.data;
+				data = memo.lastSelectedData;
 			} else {
 				data = select(currentState.data);
+				memo.lastSourceData = currentState.data;
+				memo.lastSelectedData = data;
 			}
 		} else {
 			data = currentState.data as unknown as TSelected;
@@ -95,9 +103,6 @@ const createResult = <TData, TError, TSelected>(
 	const isError = status === 'error';
 	const isFetching = currentState.fetchStatus === 'fetching';
 	const isRefetching = isFetching && data !== undefined;
-
-	// Store last data reference for select memoization
-	(query as unknown as { _lastData: unknown })._lastData = currentState.data;
 
 	return {
 		data,
@@ -149,6 +154,10 @@ export class QueryObserver<TData = unknown, TError = Error, TSelected = TData> {
 	private listener: QueryObserverListener<TSelected, TError> | null = null;
 	private unsubscribeQuery: (() => void) | null = null;
 	private previousSelectError: Error | null = null;
+	private memo: MemoState<TData, TSelected> = {
+		lastSourceData: undefined,
+		lastSelectedData: undefined,
+	};
 
 	constructor(
 		query: Query<TData, TError>,
@@ -157,7 +166,7 @@ export class QueryObserver<TData = unknown, TError = Error, TSelected = TData> {
 		this.query = query;
 		this.options = options;
 		try {
-			this.currentResult = createResult(query, options);
+			this.currentResult = createResult(query, options, this.memo);
 		} catch (error) {
 			const err = error instanceof Error ? error : new Error(String(error));
 			this.currentResult = {
@@ -215,7 +224,7 @@ export class QueryObserver<TData = unknown, TError = Error, TSelected = TData> {
 		this.options = { ...this.options, ...options };
 		if (selectChanged) {
 			// Force select re-evaluation by clearing memoization
-			(this.query as unknown as { _lastData?: unknown })._lastData = undefined;
+			this.memo = { lastSourceData: undefined, lastSelectedData: undefined };
 		}
 		this.updateResult();
 	}
@@ -246,7 +255,7 @@ export class QueryObserver<TData = unknown, TError = Error, TSelected = TData> {
 		const prevResult = this.currentResult;
 
 		try {
-			this.currentResult = createResult(this.query, this.options, prevResult);
+			this.currentResult = createResult(this.query, this.options, this.memo, prevResult);
 			this.previousSelectError = null;
 		} catch (error) {
 			// If select throws, we treat it as an error state
