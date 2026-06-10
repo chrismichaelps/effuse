@@ -23,18 +23,61 @@
  */
 
 import { Layer, Effect, Context, Scope } from 'effect';
-import type { EffuseLayer, LayerProvides } from '../types.js';
+import type {
+	AnyLayer,
+	AnyResolvedLayer,
+	EffuseLayer,
+	LayerProvides,
+	ServerHandler,
+	ServerMethodHandlers,
+	ServerRoute,
+} from '../types.js';
+import { resolveLayerOrder } from '../utils/index.js';
 
 const TAG_NS = 'effuse/layer/';
 
 type ResultOf<T> = T extends () => infer R ? R : never;
 
+type ProvidesOf<T> = T extends { readonly provides?: infer P }
+	? NonNullable<P> extends LayerProvides
+		? NonNullable<P>
+		: {}
+	: {};
+
+type ServicesOf<T> = T extends { readonly services?: infer P }
+	? NonNullable<P> extends LayerProvides
+		? NonNullable<P>
+		: {}
+	: {};
+
+type ProvidersFor<T> = ProvidesOf<T> & ServicesOf<T>;
+
 export type EffuseServices<T extends EffuseLayer> =
-	T['provides'] extends infer P extends LayerProvides
+	ProvidersFor<T> extends infer P extends LayerProvides
 		? { [K in keyof P]: ResultOf<P[K]> }
 		: {};
 
-export interface CompiledLayer<T extends EffuseLayer, N extends string = string> extends EffuseLayer {
+export interface LayerFactoryContext<N extends string> {
+	readonly name: N;
+	service: <T>(factory: () => T) => () => T;
+	route: <S extends Record<string, unknown> = Record<string, unknown>>(
+		path: string,
+		methods: ServerMethodHandlers<S> | ServerHandler<S>
+	) => ServerRoute<S>;
+	action: <S extends Record<string, unknown> = Record<string, unknown>>(
+		handler: ServerHandler<S>
+	) => ServerHandler<S>;
+}
+
+export type LayerFactory<
+	N extends string,
+	T extends Omit<EffuseLayer, 'name'>,
+> = (ctx: LayerFactoryContext<N>) => T;
+
+export interface CompiledLayer<
+	T extends EffuseLayer,
+	N extends string = string,
+> extends EffuseLayer {
 	readonly name: N;
 	readonly effectLayer: Layer.Layer<EffuseServices<T>, never, Scope.Scope>;
 	readonly tags: {
@@ -43,14 +86,74 @@ export interface CompiledLayer<T extends EffuseLayer, N extends string = string>
 			EffuseServices<T>[K]
 		>;
 	};
+	readonly serviceKeys: readonly string[];
 	readonly _resolved: true;
 }
 
-export function defineLayer<N extends string, T extends Omit<EffuseLayer, 'name'>>(
-	definition: { name: N } & T
+const createLayerFactoryContext = <N extends string>(
+	name: N
+): LayerFactoryContext<N> => ({
+	name,
+	service: (factory) => factory,
+	route: (path, methods) => ({
+		path,
+		methods: typeof methods === 'function' ? { GET: methods } : methods,
+	}),
+	action: (handler) => handler,
+});
+
+const resolveDefinition = <
+	N extends string,
+	T extends Omit<EffuseLayer, 'name'>,
+>(
+	nameOrDefinition: ({ name: N } & T) | N,
+	definitionOrFactory?: T | LayerFactory<N, T>
+): { name: N } & T => {
+	if (typeof nameOrDefinition !== 'string') {
+		return nameOrDefinition;
+	}
+
+	const fragment =
+		typeof definitionOrFactory === 'function'
+			? definitionOrFactory(createLayerFactoryContext(nameOrDefinition))
+			: (definitionOrFactory ?? ({} as T));
+
+	return {
+		...fragment,
+		name: nameOrDefinition,
+	};
+};
+
+const normalizeProvides = (definition: EffuseLayer): LayerProvides => ({
+	...(definition.services ?? {}),
+	...(definition.provides ?? {}),
+});
+
+export function defineLayer<
+	N extends string,
+	T extends Omit<EffuseLayer, 'name'>,
+>(definition: { name: N } & T): CompiledLayer<T & EffuseLayer, N>;
+export function defineLayer<
+	N extends string,
+	T extends Omit<EffuseLayer, 'name'>,
+>(name: N, definition: T): CompiledLayer<T & EffuseLayer, N>;
+export function defineLayer<
+	N extends string,
+	T extends Omit<EffuseLayer, 'name'>,
+>(name: N, factory: LayerFactory<N, T>): CompiledLayer<T & EffuseLayer, N>;
+export function defineLayer<
+	N extends string,
+	T extends Omit<EffuseLayer, 'name'>,
+>(
+	nameOrDefinition: ({ name: N } & T) | N,
+	definitionOrFactory?: T | LayerFactory<N, T>
 ): CompiledLayer<T & EffuseLayer, N> {
-	const def = definition as unknown as T & EffuseLayer;
-	const provides = def.provides ?? ({} as LayerProvides);
+	const definition = resolveDefinition(nameOrDefinition, definitionOrFactory);
+	const provides = normalizeProvides(definition);
+	const def = {
+		...definition,
+		provides,
+	} as unknown as T & EffuseLayer;
 	const keys = Object.keys(provides) as (keyof LayerProvides)[];
 
 	if (keys.length === 0) {
@@ -70,6 +173,7 @@ export function defineLayer<N extends string, T extends Omit<EffuseLayer, 'name'
 					EffuseServices<T & EffuseLayer>[K]
 				>;
 			},
+			serviceKeys: [],
 			_resolved: true as const,
 		} as unknown as CompiledLayer<T & EffuseLayer, N>;
 	}
@@ -119,11 +223,30 @@ export function defineLayer<N extends string, T extends Omit<EffuseLayer, 'name'
 	return {
 		...def,
 		name: definition.name,
-		effectLayer: final as Layer.Layer<EffuseServices<T & EffuseLayer>, never, Scope.Scope>,
+		effectLayer: final as Layer.Layer<
+			EffuseServices<T & EffuseLayer>,
+			never,
+			Scope.Scope
+		>,
 		tags: tagMap,
+		serviceKeys: entries.map((e) => e.key),
 		_resolved: true as const,
 	} as unknown as CompiledLayer<T & EffuseLayer, N>;
 }
+
+export type LayerInput = AnyLayer | CompiledLayer<any>;
+
+export const isCompiledLayer = (
+	layer: LayerInput
+): layer is CompiledLayer<any> => 'effectLayer' in layer && 'tags' in layer;
+
+export const compileLayer = (layer: LayerInput): CompiledLayer<any> =>
+	isCompiledLayer(layer) ? layer : defineLayer(layer);
+
+export const resolveLayerDefinitions = (
+	layers: readonly LayerInput[]
+): AnyResolvedLayer[] =>
+	resolveLayerOrder(layers.map((layer) => compileLayer(layer)));
 
 export type MergeServices<Layers extends readonly CompiledLayer<any>[]> =
 	Layers extends readonly [infer L, ...infer R]

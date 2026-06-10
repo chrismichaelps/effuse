@@ -5,7 +5,14 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, writeFileSync, rmSync, existsSync, readFileSync, mkdirSync } from 'node:fs';
+import {
+	mkdtempSync,
+	writeFileSync,
+	rmSync,
+	existsSync,
+	readFileSync,
+	mkdirSync,
+} from 'node:fs';
 import { resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { EntryGenerator } from '../services/entry-generator.js';
@@ -37,7 +44,11 @@ describe('EntryGenerator', () => {
 
 	it('should auto-generate entries when app.ts exists but no user entries', () => {
 		mkdirSync(resolve(tempDir, 'src'), { recursive: true });
-		writeFileSync(resolve(tempDir, 'src/app.ts'), 'export const app = {};', 'utf-8');
+		writeFileSync(
+			resolve(tempDir, 'src/app.ts'),
+			'export const app = {};',
+			'utf-8'
+		);
 
 		const result = generator.generate(tempDir);
 
@@ -45,21 +56,33 @@ describe('EntryGenerator', () => {
 		expect(result.client).toBe('.effuse/entry-client.ts');
 		expect(result.server).toBe('.effuse/entry-server.ts');
 
-		const clientContent = readFileSync(resolve(tempDir, '.effuse/entry-client.ts'), 'utf-8');
+		const clientContent = readFileSync(
+			resolve(tempDir, '.effuse/entry-client.ts'),
+			'utf-8'
+		);
 		expect(clientContent).toContain("import { app } from '../src/app.ts'");
 		expect(clientContent).toContain("await app.mount('#app')");
 
-		const serverContent = readFileSync(resolve(tempDir, '.effuse/entry-server.ts'), 'utf-8');
+		const serverContent = readFileSync(
+			resolve(tempDir, '.effuse/entry-server.ts'),
+			'utf-8'
+		);
 		expect(serverContent).toContain("import { app } from '../src/app.ts'");
+		expect(serverContent).toContain(
+			"import type { AssetManifest } from '@effuse/core'"
+		);
 		expect(serverContent).toContain('export async function handleRequest');
-		expect(serverContent).toContain('app.getServerApp');
+		expect(serverContent).toContain('app.handleRequest');
 		expect(serverContent).toContain('manifest');
-		expect(serverContent).toContain('renderToStream');
 	});
 
 	it('should only generate missing entries when one exists', () => {
 		mkdirSync(resolve(tempDir, 'src'), { recursive: true });
-		writeFileSync(resolve(tempDir, 'src/app.ts'), 'export const app = {};', 'utf-8');
+		writeFileSync(
+			resolve(tempDir, 'src/app.ts'),
+			'export const app = {};',
+			'utf-8'
+		);
 		writeFileSync(resolve(tempDir, 'src/entry-client.ts'), '', 'utf-8');
 
 		const result = generator.generate(tempDir);

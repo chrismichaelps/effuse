@@ -42,7 +42,7 @@ import {
 } from '../layers/tracing/index.js';
 import { TracingService } from '../layers/tracing/index.js';
 import { CoreServicesLive } from '../layers/internal/runtime.js';
-import { defineLayer } from '../layers/api/defineLayer.js';
+import { resolveLayerDefinitions } from '../layers/api/defineLayer.js';
 
 export interface SSRRuntime {
 	/** Resolved layers in topological order. */
@@ -75,13 +75,7 @@ export const createSSRRuntime = async (
 ): Promise<SSRRuntime> => {
 	const { runSetup = true } = options;
 
-	// Compile any raw EffuseLayer definitions into CompiledLayer
-	const layers: AnyResolvedLayer[] = rawLayers.map((l) => {
-		if ('effectLayer' in l && 'tags' in l) {
-			return l as unknown as AnyResolvedLayer;
-		}
-		return defineLayer(l as AnyLayer) as unknown as AnyResolvedLayer;
-	});
+	const layers: AnyResolvedLayer[] = resolveLayerDefinitions(rawLayers);
 
 	const headStack: HeadProps[] = [];
 	const state = new Map<string, unknown>();

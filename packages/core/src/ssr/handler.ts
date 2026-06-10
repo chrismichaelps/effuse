@@ -28,6 +28,7 @@ import type { CompiledLayer } from '../layers/api/defineLayer.js';
 import type { RequestContext, ServerAppOptions } from './types.js';
 import { createServerApp } from './server-app.js';
 import { createHash } from 'node:crypto';
+import { handleLayerServerRequest } from './server-routing.js';
 
 export interface HandlerConfig {
 	root: Component;
@@ -55,6 +56,14 @@ export const createHandler = (config: HandlerConfig) => {
 
 			const url = new URL(req.url);
 			const pathname = url.pathname;
+
+			const serverResponse = await handleLayerServerRequest(
+				req,
+				config.layers ?? []
+			);
+			if (serverResponse) {
+				return serverResponse;
+			}
 
 			if (shouldSkip(pathname)) {
 				return new Response(null, { status: 404 });
@@ -130,6 +139,14 @@ export const createStreamingHandler = (config: HandlerConfig) => {
 
 			const url = new URL(req.url);
 			const pathname = url.pathname;
+
+			const serverResponse = await handleLayerServerRequest(
+				req,
+				config.layers ?? []
+			);
+			if (serverResponse) {
+				return serverResponse;
+			}
 
 			if (shouldSkip(pathname)) {
 				return new Response(null, { status: 404 });

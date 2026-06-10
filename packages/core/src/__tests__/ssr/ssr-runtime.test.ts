@@ -147,5 +147,29 @@ describe('SSRRuntime', () => {
 
 			await runtime.dispose();
 		});
+
+		it('should resolve extended raw layers before request setup', async () => {
+			const BaseLayer = {
+				name: 'base-raw',
+				services: {
+					config: () => ({ env: 'test' }),
+				},
+			};
+
+			const FeatureLayer = defineLayer({
+				name: 'feature-compiled',
+				extends: [BaseLayer],
+				dependencies: ['base-raw'] as const,
+			});
+
+			const runtime = await createSSRRuntime([FeatureLayer]);
+
+			expect(runtime.layers.map((layer) => layer.name)).toEqual([
+				'base-raw',
+				'feature-compiled',
+			]);
+
+			await runtime.dispose();
+		});
 	});
 });

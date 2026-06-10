@@ -69,6 +69,78 @@ export type LayerProps = Record<string, Signal<unknown>>;
 
 export type LayerProvides = Record<string, () => unknown>;
 
+export type HttpMethod =
+	| 'GET'
+	| 'POST'
+	| 'PUT'
+	| 'PATCH'
+	| 'DELETE'
+	| 'OPTIONS'
+	| 'HEAD';
+
+export type ServerResult =
+	| Response
+	| BodyInit
+	| Record<string, unknown>
+	| readonly unknown[]
+	| number
+	| boolean
+	| null
+	| undefined;
+
+export interface ServerResponseHelpers {
+	// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters -- callers provide the serialized payload shape.
+	json: <T>(data: T, init?: ResponseInit) => Response;
+	text: (body: string, init?: ResponseInit) => Response;
+	redirect: (url: string | URL, status?: number) => Response;
+}
+
+export interface ServerLayerContext<
+	S extends Record<string, unknown> = Record<string, unknown>,
+> {
+	readonly request: Request;
+	readonly url: URL;
+	readonly params: Record<string, string>;
+	readonly query: Record<string, string>;
+	readonly services: S;
+	readonly layerServices: Record<string, Record<string, unknown>>;
+	// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters -- handlers can narrow the service by call site.
+	getService: <T = unknown>(key: string) => T | undefined;
+	json: <T = unknown>() => Promise<T>;
+	text: () => Promise<string>;
+	formData: () => Promise<FormData>;
+	readonly response: ServerResponseHelpers;
+}
+
+export type ServerHandler<
+	S extends Record<string, unknown> = Record<string, unknown>,
+> = (ctx: ServerLayerContext<S>) => MaybePromise<ServerResult>;
+
+export type ServerMethodHandlers<
+	S extends Record<string, unknown> = Record<string, unknown>,
+> = Partial<Record<HttpMethod, ServerHandler<S>>>;
+
+export interface ServerRoute<
+	S extends Record<string, unknown> = Record<string, unknown>,
+> {
+	readonly path: string;
+	readonly methods: ServerMethodHandlers<S>;
+}
+
+export type ServerRouteInput<
+	S extends Record<string, unknown> = Record<string, unknown>,
+> = ServerHandler<S> | ServerMethodHandlers<S> | ServerRoute<S>;
+
+export interface ServerLayerConfig<
+	S extends Record<string, unknown> = Record<string, unknown>,
+> {
+	readonly api?:
+		| Record<string, ServerRouteInput<S>>
+		| readonly ServerRoute<S>[];
+	readonly routes?: readonly ServerRoute<S>[];
+	readonly actions?: Record<string, ServerHandler<S>>;
+}
+
 export interface LayerDependency<P extends LayerProps = LayerProps> {
 	readonly name: string;
 	readonly props: P;
@@ -139,6 +211,8 @@ export interface EffuseLayer<
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any -- components may have various prop types
 	readonly components?: Record<string, Component<any>>;
 	readonly provides?: LayerProvides;
+	readonly services?: LayerProvides;
+	readonly server?: ServerLayerConfig;
 
 	readonly setup?: LayerSetupFn<P, D, S>;
 	readonly onMount?: LifecycleHook<P, D, S>;

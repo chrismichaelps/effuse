@@ -25,16 +25,17 @@
 import type { Component } from '../render/node.js';
 import type { AnyLayer, AnyResolvedLayer } from '../layers/types.js';
 import {
-	defineLayer,
 	type CompiledLayer,
 	createLayerRuntime,
 	type LayerRuntime,
 	type LayerRuntimeOptions,
+	resolveLayerDefinitions,
 } from '../layers/index.js';
 import { Predicate } from 'effect';
 import { mount as mountComponent } from '../canvas/canvas.js';
 import { createServerApp, type ServerApp } from '../ssr/server-app.js';
-import type { RenderResult } from '../ssr/types.js';
+import { createStreamingHandler } from '../ssr/handler.js';
+import type { RenderResult, ServerAppOptions } from '../ssr/types.js';
 
 export interface AppInstance {
 	unmount: () => Promise<void>;
@@ -65,12 +66,10 @@ export class EffuseApp {
 		selector: string,
 		options: MountOptions = {}
 	): Promise<AppInstance> {
-		this.layers = this.layers.map((l) =>
-			'effectLayer' in l && 'tags' in l ? l : defineLayer(l as AnyLayer)
-		);
-
+		const resolvedLayers = resolveLayerDefinitions(this.layers);
+		this.layers = resolvedLayers;
 		this.layerRuntime = await createLayerRuntime(
-			this.layers as AnyResolvedLayer[],
+			resolvedLayers as AnyResolvedLayer[],
 			options
 		);
 
@@ -118,6 +117,22 @@ export class EffuseApp {
 	}
 
 	/**
+	 * Handle a Fetch API request with layer-owned API routes/actions first,
+	 * then stream the app shell as SSR fallback.
+	 */
+	async handleRequest(
+		request: Request,
+		options: ServerAppOptions = {}
+	): Promise<Response> {
+		const handler = createStreamingHandler({
+			root: this.rootComponent,
+			layers: this.layers,
+			options,
+		});
+		return handler(request);
+	}
+
+	/**
 	 * Get the underlying ServerApp for advanced SSR configuration.
 	 */
 	getServerApp(): ServerApp {
@@ -131,4 +146,3 @@ export class EffuseApp {
 		}
 	}
 }
-

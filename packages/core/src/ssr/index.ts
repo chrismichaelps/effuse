@@ -32,6 +32,8 @@ export type {
 	RenderResult,
 	SSRContext,
 	ServerAppOptions,
+	AssetManifest,
+	AssetManifestChunk,
 	RequestContext,
 } from './types.js';
 
@@ -54,6 +56,12 @@ export {
 	createRequestContext,
 	type HandlerConfig,
 } from './handler.js';
+
+export {
+	handleLayerServerRequest,
+	matchLayerServerRequest,
+	normalizeServerResult,
+} from './server-routing.js';
 
 export {
 	mergeHeadProps,

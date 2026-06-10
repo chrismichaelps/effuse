@@ -53,8 +53,11 @@ import {
 	type LayerContext,
 } from '../layers/context.js';
 import type { CompiledLayer } from '../layers/api/defineLayer.js';
+import type { LayerServicesFrom } from '../layers/api/defineLayer.js';
 import {
+	resolveLayerEntry,
 	resolveLayersAccessor,
+	type LayerEntryFrom,
 	type LayersAccessor,
 } from '../layers/api/layersAccessor.js';
 import { RouterNotConfiguredError } from '../layers/errors.js';
@@ -68,10 +71,17 @@ export interface EffuseRegistry {}
 type RouterType = EffuseRegistry extends { router: infer R } ? R : unknown;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export interface ScriptContext<P, L extends readonly CompiledLayer<any>[] = []> {
+export interface ScriptContext<
+	P,
+	L extends readonly CompiledLayer<any>[] = [],
+> {
 	readonly props: Readonly<P>;
 
 	readonly layers: LayersAccessor<L>;
+
+	useLayer: <Layer extends CompiledLayer<any, any>>(
+		layer: Layer
+	) => LayerEntryFrom<Layer>;
 
 	expose: (values: ExposedValues) => void;
 
@@ -134,7 +144,16 @@ export interface ScriptContext<P, L extends readonly CompiledLayer<any>[] = []> 
 
 	useStore: (key: string) => unknown;
 
-	useService: (key: string) => unknown;
+	useService: {
+		(key: string): unknown;
+		<
+			Layer extends CompiledLayer<any, any>,
+			Key extends Extract<keyof LayerServicesFrom<Layer>, string>,
+		>(
+			layer: Layer,
+			key: Key
+		): LayerServicesFrom<Layer>[Key];
+	};
 
 	useComponent: (name: string) => Component | undefined;
 
@@ -197,6 +216,8 @@ export const createScriptContext = <
 		props: reactiveProps as Readonly<P>,
 
 		layers: resolvedLayers,
+
+		useLayer: (layer) => resolveLayerEntry(layer),
 
 		expose: (values: ExposedValues): void => {
 			Object.assign(state.exposed, values);
@@ -292,12 +313,18 @@ export const createScriptContext = <
 			return getLayerService(key);
 		},
 
-		useService: (key: string): unknown => {
+		useService: ((
+			keyOrLayer: string | CompiledLayer<any, any>,
+			maybeKey?: string
+		): unknown => {
 			if (!isLayerRuntimeReady()) {
 				return undefined;
 			}
-			return getLayerService(key);
-		},
+
+			const key = typeof keyOrLayer === 'string' ? keyOrLayer : maybeKey;
+
+			return key ? getLayerService(key) : undefined;
+		}) as ScriptContext<P, L>['useService'],
 
 		useComponent: (name: string): Component | undefined => {
 			if (!isLayerRuntimeReady()) {

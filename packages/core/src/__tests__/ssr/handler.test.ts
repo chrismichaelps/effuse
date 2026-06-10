@@ -1,5 +1,10 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { createHandler, createStreamingHandler, parseQuery, createRequestContext } from '../../ssr/handler.js';
+import {
+	createHandler,
+	createStreamingHandler,
+	parseQuery,
+	createRequestContext,
+} from '../../ssr/handler.js';
 import { defineLayer } from '../../layers/api/defineLayer.js';
 import { clearGlobalLayerContext } from '../../layers/context.js';
 import { clearGlobalTracing } from '../../layers/tracing/index.js';
@@ -136,6 +141,130 @@ describe('SSR handler', () => {
 			expect(contentLength).toBeTruthy();
 			expect(Number(contentLength)).toBeGreaterThan(0);
 		});
+
+		it('should serve layer API routes before SSR fallback', async () => {
+			const ApiLayer = defineLayer({
+				name: 'api',
+				services: {
+					clock: () => ({ now: () => 123 }),
+				},
+				server: {
+					api: {
+						'/api/time': ({ services }) => ({
+							now: (services.clock as { now: () => number }).now(),
+						}),
+					},
+				},
+			});
+
+			const handler = createHandler({
+				root: createRoot() as any,
+				layers: [ApiLayer],
+			});
+
+			const response = await handler(
+				new Request('http://localhost:3000/api/time')
+			);
+
+			expect(response.status).toBe(200);
+			expect(response.headers.get('Content-Type')).toContain(
+				'application/json'
+			);
+			expect(await response.json()).toEqual({ now: 123 });
+		});
+
+		it('should pass route params and query to layer API handlers', async () => {
+			const ApiLayer = defineLayer({
+				name: 'api-params',
+				server: {
+					api: {
+						'/api/users/:id': ({ params, query }) => ({
+							id: params.id,
+							tab: query.tab,
+						}),
+					},
+				},
+			});
+
+			const handler = createHandler({
+				root: createRoot() as any,
+				layers: [ApiLayer],
+			});
+
+			const response = await handler(
+				new Request('http://localhost:3000/api/users/u1?tab=settings')
+			);
+
+			expect(response.status).toBe(200);
+			expect(await response.json()).toEqual({
+				id: 'u1',
+				tab: 'settings',
+			});
+		});
+
+		it('should return 405 when a layer API route exists but method is missing', async () => {
+			const ApiLayer = defineLayer({
+				name: 'api-methods',
+				server: {
+					api: {
+						'/api/read-only': {
+							GET: () => ({ ok: true }),
+						},
+					},
+				},
+			});
+
+			const handler = createHandler({
+				root: createRoot() as any,
+				layers: [ApiLayer],
+			});
+
+			const response = await handler(
+				new Request('http://localhost:3000/api/read-only', {
+					method: 'POST',
+				})
+			);
+
+			expect(response.status).toBe(405);
+			expect(response.headers.get('Allow')).toBe('GET');
+		});
+
+		it('should dispatch layer actions through the reserved action endpoint', async () => {
+			const ActionLayer = defineLayer({
+				name: 'actions',
+				services: {
+					math: () => ({ double: (value: number) => value * 2 }),
+				},
+				server: {
+					actions: {
+						double: async ({ json, services }) => {
+							const input = await json<{ value: number }>();
+							return {
+								value: (
+									services.math as { double: (value: number) => number }
+								).double(input.value),
+							};
+						},
+					},
+				},
+			});
+
+			const handler = createHandler({
+				root: createRoot() as any,
+				layers: [ActionLayer],
+			});
+
+			const response = await handler(
+				new Request('http://localhost:3000/_effuse/actions/double', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ value: 21 }),
+				})
+			);
+
+			expect(response.status).toBe(200);
+			expect(await response.json()).toEqual({ value: 42 });
+		});
 	});
 
 	describe('createStreamingHandler', () => {
@@ -170,6 +299,32 @@ describe('SSR handler', () => {
 				new Request('http://localhost:3000/style.css')
 			);
 			expect(response.status).toBe(404);
+		});
+
+		it('should serve layer API routes before streaming SSR fallback', async () => {
+			const ApiLayer = defineLayer({
+				name: 'stream-api',
+				server: {
+					api: {
+						'/api/stream': () => ({ ok: true }),
+					},
+				},
+			});
+
+			const handler = createStreamingHandler({
+				root: createRoot() as any,
+				layers: [ApiLayer],
+			});
+
+			const response = await handler(
+				new Request('http://localhost:3000/api/stream')
+			);
+
+			expect(response.status).toBe(200);
+			expect(response.headers.get('Content-Type')).toContain(
+				'application/json'
+			);
+			expect(await response.json()).toEqual({ ok: true });
 		});
 	});
 
@@ -234,7 +389,9 @@ describe('SSR handler', () => {
 		});
 
 		it('should console.error when createHandler throws without onError', async () => {
-			const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+			const consoleSpy = vi
+				.spyOn(console, 'error')
+				.mockImplementation(() => {});
 			const handler = createHandler({
 				root: createRoot() as any,
 				layers: [],
@@ -248,7 +405,9 @@ describe('SSR handler', () => {
 
 			expect(response.status).toBe(500);
 			expect(consoleSpy).toHaveBeenCalledOnce();
-			expect(consoleSpy.mock.calls[0][0]).toContain('[effuse-ssr] Render error:');
+			expect(consoleSpy.mock.calls[0][0]).toContain(
+				'[effuse-ssr] Render error:'
+			);
 			expect(consoleSpy.mock.calls[0][1]).toBeInstanceOf(Error);
 
 			consoleSpy.mockRestore();
@@ -276,7 +435,9 @@ describe('SSR handler', () => {
 		});
 
 		it('should console.error when createStreamingHandler throws without onError', async () => {
-			const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+			const consoleSpy = vi
+				.spyOn(console, 'error')
+				.mockImplementation(() => {});
 			const handler = createStreamingHandler({
 				root: createRoot() as any,
 				layers: [],
@@ -290,7 +451,9 @@ describe('SSR handler', () => {
 
 			expect(response.status).toBe(500);
 			expect(consoleSpy).toHaveBeenCalledOnce();
-			expect(consoleSpy.mock.calls[0][0]).toContain('[effuse-ssr] Streaming render error:');
+			expect(consoleSpy.mock.calls[0][0]).toContain(
+				'[effuse-ssr] Streaming render error:'
+			);
 			expect(consoleSpy.mock.calls[0][1]).toBeInstanceOf(Error);
 
 			consoleSpy.mockRestore();

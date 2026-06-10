@@ -35,6 +35,15 @@ export type {
 	LayerRestriction,
 	MergedConfig,
 	LayerProvides,
+	HttpMethod,
+	ServerResult,
+	ServerResponseHelpers,
+	ServerLayerContext,
+	ServerHandler,
+	ServerMethodHandlers,
+	ServerRoute,
+	ServerRouteInput,
+	ServerLayerConfig,
 	LayerSetupFn,
 	LayerProps,
 	LayerDependency,
@@ -46,10 +55,7 @@ export type {
 	AnyResolvedLayer,
 } from './types.js';
 
-export type {
-	PropsRegistry,
-	LayerRegistry,
-} from './services/index.js';
+export type { PropsRegistry, LayerRegistry } from './services/index.js';
 
 export {
 	resolveLayerOrder,
@@ -61,13 +67,21 @@ export {
 	defineLayer,
 	type EffuseServices,
 	type CompiledLayer,
+	type LayerFactory,
+	type LayerFactoryContext,
+	type LayerInput,
+	isCompiledLayer,
+	compileLayer,
+	resolveLayerDefinitions,
 	combineLayers,
 	type MergeServices,
 	type LayerServicesFrom,
 	type ExtractServices,
+	resolveLayerEntry,
 	resolveLayersAccessor,
 	type LayersAccessor,
 	type LayerEntry,
+	type LayerEntryFrom,
 } from './api/index.js';
 
 export {

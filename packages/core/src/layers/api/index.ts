@@ -26,6 +26,12 @@ export {
 	defineLayer,
 	type EffuseServices,
 	type CompiledLayer,
+	type LayerFactory,
+	type LayerFactoryContext,
+	type LayerInput,
+	isCompiledLayer,
+	compileLayer,
+	resolveLayerDefinitions,
 	combineLayers,
 	type MergeServices,
 	type LayerServicesFrom,
@@ -34,6 +40,8 @@ export {
 
 export {
 	resolveLayersAccessor,
+	resolveLayerEntry,
 	type LayersAccessor,
 	type LayerEntry,
+	type LayerEntryFrom,
 } from './layersAccessor.js';

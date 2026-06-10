@@ -152,11 +152,7 @@ export {
 	type ProvideScope,
 } from './blueprint/index.js';
 
-export {
-	canvas,
-	mount,
-	type Canvas,
-} from './canvas/index.js';
+export { canvas, mount, type Canvas } from './canvas/index.js';
 
 export {
 	defineHook,
@@ -189,11 +185,19 @@ export {
 	defineLayer,
 	type EffuseServices,
 	type CompiledLayer,
+	type LayerFactory,
+	type LayerFactoryContext,
+	type LayerInput,
+	isCompiledLayer,
+	compileLayer,
+	resolveLayerDefinitions,
 	combineLayers,
 	type MergeServices,
+	resolveLayerEntry,
 	resolveLayersAccessor,
 	type LayersAccessor,
 	type LayerEntry,
+	type LayerEntryFrom,
 	resolveLayerOrder,
 	mergeLayerConfigs,
 	createLayerRuntime,
@@ -214,6 +218,15 @@ export {
 	type LayerRestriction,
 	type MergedConfig,
 	type LayerProvides,
+	type HttpMethod,
+	type ServerResult,
+	type ServerResponseHelpers,
+	type ServerLayerContext,
+	type ServerHandler,
+	type ServerMethodHandlers,
+	type ServerRoute,
+	type ServerRouteInput,
+	type ServerLayerConfig,
 	type SetupContext,
 	type LayerSetupFn,
 	type LayerProps,
@@ -247,6 +260,9 @@ export {
 	createHandler,
 	createStreamingHandler,
 	type HandlerConfig,
+	handleLayerServerRequest,
+	matchLayerServerRequest,
+	normalizeServerResult,
 	mergeHeadProps,
 	headToHtml,
 	mergeLayerHeads,
@@ -265,6 +281,8 @@ export {
 	type RenderResult,
 	type SSRContext,
 	type ServerAppOptions,
+	type AssetManifest,
+	type AssetManifestChunk,
 	type HydrationData,
 	type SSRError,
 } from './ssr/index.js';

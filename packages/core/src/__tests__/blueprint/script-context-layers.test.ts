@@ -1,7 +1,8 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, expectTypeOf, vi, afterEach } from 'vitest';
 import { createScriptContext } from '../../blueprint/script-context.js';
 import { runWithLayerContext } from '../../layers/context.js';
 import { defineLayer } from '../../layers/api/defineLayer.js';
+import type { LayerServicesFrom } from '../../layers/api/defineLayer.js';
 import type { PropsRegistry } from '../../layers/services/PropsService.js';
 import type { LayerRegistry } from '../../layers/services/RegistryService.js';
 import type { AnyResolvedLayer, LayerProps } from '../../layers/types.js';
@@ -56,7 +57,6 @@ const createResolvedLayer = (
 	}) as AnyResolvedLayer;
 
 describe('ScriptContext - layers accessor', () => {
-
 	describe('layers property', () => {
 		it('should expose an empty accessor when no layers are passed', () => {
 			const { context } = createScriptContext({}, undefined, []);
@@ -78,7 +78,10 @@ describe('ScriptContext - layers accessor', () => {
 			const store = { propsRegistry, layerRegistry, layers: [resolvedLayer] };
 
 			const { context } = createScriptContext({}, undefined, [themeLayer]);
-			const themeProps = runWithLayerContext(store, () => context.layers.theme.props);
+			const themeProps = runWithLayerContext(
+				store,
+				() => context.layers.theme.props
+			);
 
 			expect(themeProps).toBeDefined();
 			expect(themeProps.mode).toBe(modeSignal);
@@ -104,9 +107,84 @@ describe('ScriptContext - layers accessor', () => {
 			const store = { propsRegistry, layerRegistry, layers: [resolvedLayer] };
 
 			const { context } = createScriptContext({}, undefined, [authLayer]);
-			const services = runWithLayerContext(store, () => context.layers.auth.services);
+			const services = runWithLayerContext(
+				store,
+				() => context.layers.auth.services
+			);
 
 			expect(services.authService).toBe(authService);
+		});
+
+		it('should expose typed layer entries directly from the layer object', () => {
+			const authService = { token: 'abc', currentUser: 'chris' };
+			const modeSignal = signal('strict');
+			const authLayer = defineLayer({
+				name: 'auth-direct',
+				services: {
+					authService: () => authService,
+				},
+			});
+			const resolvedLayer = createResolvedLayer({
+				name: 'auth-direct',
+				provides: { authService: () => authService },
+			});
+			const propsRegistry = createMockPropsRegistry({
+				'auth-direct': { mode: modeSignal },
+			});
+			const layerRegistry = createMockLayerRegistry(
+				{ 'auth-direct': resolvedLayer },
+				{ authService }
+			);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedLayer] };
+
+			const { context } = createScriptContext({});
+
+			expectTypeOf<
+				LayerServicesFrom<typeof authLayer>['authService']
+			>().toEqualTypeOf<{
+				token: string;
+				currentUser: string;
+			}>();
+			const snapshot = runWithLayerContext(store, () => {
+				const entry = context.useLayer(authLayer);
+				return {
+					service: entry.services.authService,
+					mode: entry.props.mode,
+				};
+			});
+
+			expect(snapshot.service).toBe(authService);
+			expect(snapshot.mode).toBe(modeSignal);
+		});
+
+		it('should read a typed service directly from a layer object', () => {
+			const authService = { token: 'abc' };
+			const authLayer = defineLayer({
+				name: 'auth-service-direct',
+				services: {
+					authService: () => authService,
+				},
+			});
+			const resolvedLayer = createResolvedLayer({
+				name: 'auth-service-direct',
+				provides: { authService: () => authService },
+			});
+			const propsRegistry = createMockPropsRegistry({
+				'auth-service-direct': {},
+			});
+			const layerRegistry = createMockLayerRegistry(
+				{ 'auth-service-direct': resolvedLayer },
+				{ authService }
+			);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedLayer] };
+
+			const { context } = createScriptContext({});
+			const service = runWithLayerContext(store, () =>
+				context.useService(authLayer, 'authService')
+			);
+
+			expectTypeOf(service).toEqualTypeOf<{ token: string }>();
+			expect(service).toBe(authService);
 		});
 
 		it('should return cached service instances (not re-invoke factory)', () => {
@@ -130,8 +208,18 @@ describe('ScriptContext - layers accessor', () => {
 
 			const { context } = createScriptContext({}, undefined, [myLayer]);
 
-			expect(runWithLayerContext(store, () => context.layers.myLayer.services.myService)).toBe(cachedInstance);
-			expect(runWithLayerContext(store, () => context.layers.myLayer.services.myService)).toBe(cachedInstance);
+			expect(
+				runWithLayerContext(
+					store,
+					() => context.layers.myLayer.services.myService
+				)
+			).toBe(cachedInstance);
+			expect(
+				runWithLayerContext(
+					store,
+					() => context.layers.myLayer.services.myService
+				)
+			).toBe(cachedInstance);
 			expect(factorySpy).not.toHaveBeenCalled();
 		});
 
@@ -162,12 +250,26 @@ describe('ScriptContext - layers accessor', () => {
 				{ auth: resolvedAuth, log: resolvedLog },
 				{ authService: authService, logService: logService }
 			);
-			const store = { propsRegistry, layerRegistry, layers: [resolvedAuth, resolvedLog] };
+			const store = {
+				propsRegistry,
+				layerRegistry,
+				layers: [resolvedAuth, resolvedLog],
+			};
 
-			const { context } = createScriptContext({}, undefined, [authLayer, logLayer]);
+			const { context } = createScriptContext({}, undefined, [
+				authLayer,
+				logLayer,
+			]);
 
-			expect(runWithLayerContext(store, () => context.layers.auth.services.authService)).toBe(authService);
-			expect(runWithLayerContext(store, () => context.layers.log.services.logService)).toBe(logService);
+			expect(
+				runWithLayerContext(
+					store,
+					() => context.layers.auth.services.authService
+				)
+			).toBe(authService);
+			expect(
+				runWithLayerContext(store, () => context.layers.log.services.logService)
+			).toBe(logService);
 		});
 	});
 
@@ -191,7 +293,9 @@ describe('ScriptContext - layers accessor', () => {
 			const store = { propsRegistry, layerRegistry, layers: [layer] };
 
 			const { context } = createScriptContext({});
-			const result = runWithLayerContext(store, () => context.useService('myCmd'));
+			const result = runWithLayerContext(store, () =>
+				context.useService('myCmd')
+			);
 
 			expect(result).toBe(cachedService);
 		});
@@ -222,7 +326,9 @@ describe('ScriptContext - layers accessor', () => {
 			const store = { propsRegistry, layerRegistry, layers: [layer] };
 
 			const { context } = createScriptContext({});
-			const result = runWithLayerContext(store, () => context.useStore('counter'));
+			const result = runWithLayerContext(store, () =>
+				context.useStore('counter')
+			);
 
 			expect(result).toBe(cachedStore);
 		});
@@ -509,7 +615,9 @@ describe('ScriptContext - layers accessor', () => {
 			const store = { propsRegistry, layerRegistry, layers: [layer] };
 
 			const { context } = createScriptContext({});
-			const result = runWithLayerContext(store, () => context.useComponent('Header'));
+			const result = runWithLayerContext(store, () =>
+				context.useComponent('Header')
+			);
 
 			expect(result).toBe(mockComponent);
 		});
@@ -531,7 +639,9 @@ describe('ScriptContext - layers accessor', () => {
 			const store = { propsRegistry, layerRegistry, layers: [layer] };
 
 			const { context } = createScriptContext({});
-			const result = runWithLayerContext(store, () => context.useComponent('NonExistent'));
+			const result = runWithLayerContext(store, () =>
+				context.useComponent('NonExistent')
+			);
 
 			expect(result).toBeUndefined();
 		});
@@ -557,11 +667,23 @@ describe('ScriptContext - layers accessor', () => {
 
 			const { context } = createScriptContext({});
 
-			expect(runWithLayerContext(store, () => context.useComponent('MyHeader'))).toBe(HeaderComponent);
-			expect(runWithLayerContext(store, () => context.useComponent('MyFooter'))).toBe(FooterComponent);
+			expect(
+				runWithLayerContext(store, () => context.useComponent('MyHeader'))
+			).toBe(HeaderComponent);
+			expect(
+				runWithLayerContext(store, () => context.useComponent('MyFooter'))
+			).toBe(FooterComponent);
 
-			expect(runWithLayerContext(store, () => context.useComponent('HeaderComponent'))).toBeUndefined();
-			expect(runWithLayerContext(store, () => context.useComponent('FooterComponent'))).toBeUndefined();
+			expect(
+				runWithLayerContext(store, () =>
+					context.useComponent('HeaderComponent')
+				)
+			).toBeUndefined();
+			expect(
+				runWithLayerContext(store, () =>
+					context.useComponent('FooterComponent')
+				)
+			).toBeUndefined();
 		});
 	});
 
@@ -616,8 +738,12 @@ describe('ScriptContext - layers accessor', () => {
 			capturedLayers = runWithLayerContext(store, () => context.layers);
 
 			expect(capturedLayers).toBeDefined();
-			const typedLayers = capturedLayers as { auth: { services: Record<string, unknown> } };
-			expect(runWithLayerContext(store, () => typedLayers.auth.services.authService)).toBe(authService);
+			const typedLayers = capturedLayers as {
+				auth: { services: Record<string, unknown> };
+			};
+			expect(
+				runWithLayerContext(store, () => typedLayers.auth.services.authService)
+			).toBe(authService);
 		});
 	});
 });

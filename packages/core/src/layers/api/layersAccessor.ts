@@ -31,19 +31,38 @@ export interface LayerEntry<T extends EffuseLayer> {
 	readonly services: EffuseServices<T>;
 }
 
-type LayerNameOf<L> =
-	L extends CompiledLayer<any, infer N> ? N : never;
+export type LayerEntryFrom<L extends CompiledLayer<any, any>> =
+	L extends CompiledLayer<infer T, string> ? LayerEntry<T> : never;
 
-type LayerByName<
-	U extends CompiledLayer<any, any>,
-	N extends string,
-> = U extends CompiledLayer<infer T, N>
-	? LayerEntry<T>
-	: never;
+type LayerNameOf<L> = L extends CompiledLayer<any, infer N> ? N : never;
+
+type LayerByName<U extends CompiledLayer<any, any>, N extends string> =
+	U extends CompiledLayer<infer T, N> ? LayerEntry<T> : never;
 
 export type LayersAccessor<L extends readonly CompiledLayer<any, any>[]> = {
 	[N in LayerNameOf<L[number]>]: LayerByName<L[number], N>;
 };
+
+export function resolveLayerEntry<L extends CompiledLayer<any, any>>(
+	compiledLayer: L
+): LayerEntryFrom<L> {
+	const name = compiledLayer.name as string;
+
+	return {
+		get props(): LayerProps {
+			return getLayerContext(name).props;
+		},
+		get services(): Record<string, unknown> {
+			const services: Record<string, unknown> = {};
+			if (compiledLayer.provides) {
+				for (const key of Object.keys(compiledLayer.provides)) {
+					services[key] = getLayerService(key);
+				}
+			}
+			return services;
+		},
+	} as LayerEntryFrom<L>;
+}
 
 export function resolveLayersAccessor<
 	L extends readonly CompiledLayer<any, any>[],
@@ -52,21 +71,7 @@ export function resolveLayersAccessor<
 
 	for (const compiledLayer of layers) {
 		const name = compiledLayer.name as string;
-
-		accessor[name] = {
-			get props(): LayerProps {
-				return getLayerContext(name).props;
-			},
-			get services(): Record<string, unknown> {
-				const services: Record<string, unknown> = {};
-				if (compiledLayer.provides) {
-					for (const key of Object.keys(compiledLayer.provides)) {
-						services[key] = getLayerService(key);
-					}
-				}
-				return services;
-			},
-		};
+		accessor[name] = resolveLayerEntry(compiledLayer);
 	}
 
 	return accessor as LayersAccessor<L>;

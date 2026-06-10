@@ -1,5 +1,9 @@
 import { describe, it, expect, expectTypeOf } from 'vitest';
-import { defineLayer, combineLayers } from '../../layers/api/defineLayer.js';
+import {
+	defineLayer,
+	combineLayers,
+	resolveLayerDefinitions,
+} from '../../layers/api/defineLayer.js';
 import type { CompiledLayer } from '../../layers/api/index.js';
 import type { LayerProvides } from '../../layers/types.js';
 
@@ -76,6 +80,69 @@ describe('defineLayer', () => {
 				provides: manyProvides,
 			});
 			expect(Object.keys(layer.tags)).toHaveLength(10);
+		});
+
+		it('should accept services as the DX alias for provides', () => {
+			const layer = defineLayer({
+				name: 'service-alias',
+				services: {
+					auth: () => ({ userId: 'u1' }),
+				},
+			});
+
+			expect(layer.provides).toHaveProperty('auth');
+			expect(layer.tags).toHaveProperty('auth');
+			expect(layer.serviceKeys).toEqual(['auth']);
+		});
+
+		it('should let provides override services when both define the same key', () => {
+			const layer = defineLayer({
+				name: 'service-override',
+				services: {
+					config: () => ({ source: 'services' }),
+				},
+				provides: {
+					config: () => ({ source: 'provides' }),
+				},
+			});
+
+			expect(layer.provides!.config()).toEqual({ source: 'provides' });
+		});
+	});
+
+	describe('factory form', () => {
+		it('should create a layer from name plus definition', () => {
+			const layer = defineLayer('named', {
+				services: {
+					settings: () => ({ theme: 'dark' }),
+				},
+			});
+
+			expect(layer.name).toBe('named');
+			expect(layer.tags.settings.key).toContain('named/settings');
+		});
+
+		it('should create a layer from a factory helper context', () => {
+			const layer = defineLayer('factory', ({ service, route, action }) => ({
+				services: {
+					auth: service(() => ({ token: 'abc' })),
+				},
+				server: {
+					api: {
+						'/api/session': route('/api/session', {
+							GET: ({ services }) => ({ token: services.auth }),
+						}),
+					},
+					actions: {
+						login: action(() => ({ ok: true })),
+					},
+				},
+			}));
+
+			expect(layer.name).toBe('factory');
+			expect(layer.provides!.auth()).toEqual({ token: 'abc' });
+			expect(layer.server?.api).toHaveProperty('/api/session');
+			expect(layer.server?.actions?.login).toBeTypeOf('function');
 		});
 	});
 
@@ -180,6 +247,33 @@ describe('combineLayers', () => {
 			);
 		}
 		expect(() => combineLayers(...layers)).not.toThrow();
+	});
+});
+
+describe('resolveLayerDefinitions', () => {
+	it('should compile raw layers and preserve dependency order', () => {
+		const base = { name: 'base', services: { base: () => ({}) } };
+		const feature = defineLayer({
+			name: 'feature',
+			extends: [base],
+			dependencies: ['base'] as const,
+		});
+
+		const resolved = resolveLayerDefinitions([feature]);
+
+		expect(resolved.map((layer) => layer.name)).toEqual(['base', 'feature']);
+		expect(resolved[0]?._order).toBe(0);
+		expect(resolved[1]?._order).toBe(1);
+	});
+
+	it('should allow shared extended layers without treating reuse as a cycle', () => {
+		const shared = defineLayer({ name: 'shared' });
+		const a = defineLayer({ name: 'a', extends: [shared] });
+		const b = defineLayer({ name: 'b', extends: [shared] });
+
+		const resolved = resolveLayerDefinitions([a, b]);
+
+		expect(resolved.map((layer) => layer.name)).toEqual(['shared', 'a', 'b']);
 	});
 });
 
