@@ -70,6 +70,8 @@ export {
 	type LayerFactory,
 	type LayerFactoryContext,
 	type LayerInput,
+	type LayerInputSource,
+	layerInputSourceToList,
 	isCompiledLayer,
 	compileLayer,
 	resolveLayerDefinitions,
@@ -82,6 +84,10 @@ export {
 	type LayersAccessor,
 	type LayerEntry,
 	type LayerEntryFrom,
+	type LayerList,
+	type LayerAliases,
+	type LayerSource,
+	layerSourceToList,
 } from './api/index.js';
 
 export {

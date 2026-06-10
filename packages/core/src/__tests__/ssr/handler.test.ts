@@ -173,6 +173,34 @@ describe('SSR handler', () => {
 			expect(await response.json()).toEqual({ now: 123 });
 		});
 
+		it('should serve layer API routes from aliased layer records', async () => {
+			const ApiLayer = defineLayer({
+				name: 'api-via-alias',
+				services: {
+					clock: () => ({ now: () => 456 }),
+				},
+				server: {
+					api: {
+						'/api/aliased-time': ({ services }) => ({
+							now: (services.clock as { now: () => number }).now(),
+						}),
+					},
+				},
+			});
+
+			const handler = createHandler({
+				root: createRoot() as any,
+				layers: { api: ApiLayer },
+			});
+
+			const response = await handler(
+				new Request('http://localhost:3000/api/aliased-time')
+			);
+
+			expect(response.status).toBe(200);
+			expect(await response.json()).toEqual({ now: 456 });
+		});
+
 		it('should pass route params and query to layer API handlers', async () => {
 			const ApiLayer = defineLayer({
 				name: 'api-params',

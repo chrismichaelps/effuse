@@ -33,7 +33,7 @@ import type { ScriptContext, ExposedValues } from './script-context.js';
 import { createScriptContext, runMountCallbacks } from './script-context.js';
 import type { ComponentLifecycle } from './lifecycle.js';
 import { withActiveLifecycle } from './lifecycle.js';
-import type { CompiledLayer } from '../layers/api/defineLayer.js';
+import type { LayerSource } from '../layers/api/layersAccessor.js';
 import {
 	createProvideScope,
 	runWithProvideScope,
@@ -56,8 +56,7 @@ export type TemplateContext<E extends ExposedValues, P> = E & Readonly<P> & {
 export interface DefineOptionsWithInferredProps<
 	P,
 	E extends ExposedValues,
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	L extends readonly CompiledLayer<any>[] = [],
+	L extends LayerSource = readonly never[],
 > {
 	name?: string;
 	props: P;
@@ -71,8 +70,7 @@ export interface DefineOptionsWithInferredProps<
 export interface DefineOptions<
 	P,
 	E extends ExposedValues,
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	L extends readonly CompiledLayer<any>[] = [],
+	L extends LayerSource = readonly never[],
 > {
 	name?: string;
 	props?: undefined;
@@ -97,8 +95,7 @@ interface DefineState<E extends ExposedValues> {
 export function define<
 	P = Record<string, unknown>,
 	E extends ExposedValues = ExposedValues,
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	L extends readonly CompiledLayer<any>[] = [],
+	L extends LayerSource = readonly never[],
 >(
 	options: DefineOptions<P, E, L> | DefineOptionsWithInferredProps<P, E, L>
 ): Component<P> {

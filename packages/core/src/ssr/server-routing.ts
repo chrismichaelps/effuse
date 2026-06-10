@@ -35,7 +35,7 @@ import type {
 import { getLayerService } from '../layers/context.js';
 import {
 	resolveLayerDefinitions,
-	type LayerInput,
+	type LayerInputSource,
 } from '../layers/api/defineLayer.js';
 import { createSSRRuntime } from './runtime.js';
 
@@ -387,7 +387,7 @@ export const matchLayerServerRequest = (
 
 export const handleLayerServerRequest = async (
 	request: Request,
-	rawLayers: readonly LayerInput[]
+	rawLayers: LayerInputSource
 ): Promise<Response | null> => {
 	const layers = resolveLayerDefinitions(rawLayers);
 	const match = matchLayerServerRequest(request, layers);

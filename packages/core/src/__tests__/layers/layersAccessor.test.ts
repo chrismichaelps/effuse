@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, expectTypeOf, vi, afterEach } from 'vitest';
 import { defineHook } from '../../hooks/defineHook.js';
 import { createHookContext } from '../../hooks/context.js';
 import { defineLayer } from '../../layers/api/defineLayer.js';
@@ -59,6 +59,39 @@ describe('LayersAccessor — comprehensive regression tests', () => {
 			expect(resolved).toHaveProperty('a');
 			expect(resolved).toHaveProperty('b');
 			expect(Object.keys(resolved).sort()).toEqual(['a', 'b']);
+		});
+
+		it('should key alias records by local alias instead of layer name', () => {
+			const authSvc = { token: 'abc' };
+			const modeSignal = signal('strict');
+			const identityLayer = defineLayer({
+				name: 'platformIdentity',
+				services: { authSvc: () => authSvc },
+			});
+			const resolvedLayer = createResolvedLayer({
+				name: 'platformIdentity',
+				provides: { authSvc: () => authSvc },
+			});
+
+			const propsRegistry = createMockPropsRegistry({
+				platformIdentity: { mode: modeSignal },
+			});
+			const layerRegistry = createMockLayerRegistry(
+				{ platformIdentity: resolvedLayer },
+				{ authSvc }
+			);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedLayer] };
+
+			const accessor = resolveLayersAccessor({ auth: identityLayer } as const);
+
+			expect(Object.keys(accessor)).toEqual(['auth']);
+			expect('platformIdentity' in accessor).toBe(false);
+			expect(
+				runWithLayerContext(store, () => accessor.auth.services.authSvc)
+			).toBe(authSvc);
+			expect(
+				runWithLayerContext(store, () => accessor.auth.props.mode)
+			).toBe(modeSignal);
 		});
 
 		it('should expose props getter that lazily resolves from global context', () => {
@@ -304,6 +337,29 @@ describe('LayersAccessor — comprehensive regression tests', () => {
 			expect(a).toBe(authSvc);
 			expect(l).toBe(logSvc);
 		});
+
+		it('should infer service types from alias record keys', () => {
+			const authLayer = defineLayer({
+				name: 'platformAuth',
+				services: { authSvc: () => ({ token: 'abc' }) },
+			});
+			const logLayer = defineLayer({
+				name: 'platformLog',
+				services: { logSvc: () => ({ log: () => undefined }) },
+			});
+
+			const accessor = resolveLayersAccessor({
+				auth: authLayer,
+				logger: logLayer,
+			} as const);
+
+			expectTypeOf<
+				typeof accessor.auth.services.authSvc
+			>().toEqualTypeOf<{ token: string }>();
+			expectTypeOf<
+				typeof accessor.logger.services.logSvc
+			>().toEqualTypeOf<{ log: () => undefined }>();
+		});
 	});
 
 	describe('defineHook — layers accessor integration', () => {
@@ -329,6 +385,35 @@ describe('LayersAccessor — comprehensive regression tests', () => {
 				layers: [authLayer] as const,
 				setup(ctx) {
 					return ctx.layers.auth.services.authSvc;
+				},
+			});
+
+			const result = runWithLayerContext(store, () => useHook());
+			expect(result).toBe(authSvc);
+		});
+
+		it('should support aliased layer records in defineHook setup', () => {
+			const authSvc = { token: 'abc' };
+			const identityLayer = defineLayer({
+				name: 'platformIdentity',
+				services: { authSvc: () => authSvc },
+			});
+			const resolvedLayer = createResolvedLayer({
+				name: 'platformIdentity',
+				provides: { authSvc: () => authSvc },
+			});
+
+			const propsRegistry = createMockPropsRegistry({ platformIdentity: {} });
+			const layerRegistry = createMockLayerRegistry(
+				{ platformIdentity: resolvedLayer },
+				{ authSvc }
+			);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedLayer] };
+
+			const useHook = defineHook({
+				layers: { auth: identityLayer } as const,
+				setup({ layers: { auth } }) {
+					return auth.services.authSvc;
 				},
 			});
 

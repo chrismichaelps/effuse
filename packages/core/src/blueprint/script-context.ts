@@ -59,6 +59,7 @@ import {
 	resolveLayersAccessor,
 	type LayerEntryFrom,
 	type LayersAccessor,
+	type LayerSource,
 } from '../layers/api/layersAccessor.js';
 import { RouterNotConfiguredError } from '../layers/errors.js';
 import { StoreGetterNotConfiguredError } from '../errors.js';
@@ -73,7 +74,7 @@ type RouterType = EffuseRegistry extends { router: infer R } ? R : unknown;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export interface ScriptContext<
 	P,
-	L extends readonly CompiledLayer<any>[] = [],
+	L extends LayerSource = readonly never[],
 > {
 	readonly props: Readonly<P>;
 
@@ -185,8 +186,7 @@ export const setGlobalRouter = (router: unknown): void => {
 export const createScriptContext = <
 	P,
 	E extends ExposedValues,
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	L extends readonly CompiledLayer<any>[] = [],
+	L extends LayerSource = readonly never[],
 >(
 	props: P,
 	storeGetter?: (name: string) => unknown,
@@ -353,4 +353,4 @@ export const runUnmountCallbacks = <E extends ExposedValues>(
 	state.lifecycle.runCleanup();
 };
 
-export type { LayerContext, CompiledLayer, LayersAccessor };
+export type { LayerContext, CompiledLayer, LayersAccessor, LayerSource };

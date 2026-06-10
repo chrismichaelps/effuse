@@ -29,6 +29,7 @@ import {
 	createLayerRuntime,
 	type LayerRuntime,
 	type LayerRuntimeOptions,
+	type LayerInputSource,
 	resolveLayerDefinitions,
 } from '../layers/index.js';
 import { Predicate } from 'effect';
@@ -43,8 +44,25 @@ export interface AppInstance {
 
 export type MountOptions = LayerRuntimeOptions;
 
+export type AppLayerInput = AnyLayer | CompiledLayer<any>;
+
+export type LazyAppLayerInput =
+	| AppLayerInput
+	| (() => Promise<AppLayerInput>);
+
+export type AppLayerSource =
+	| readonly LazyAppLayerInput[]
+	| Readonly<Record<string, LazyAppLayerInput>>;
+
+const appLayerSourceToList = (
+	layers: AppLayerSource
+): readonly LazyAppLayerInput[] =>
+	Array.isArray(layers)
+		? layers
+		: (Object.values(layers) as readonly LazyAppLayerInput[]);
+
 export class EffuseApp {
-	private layers: Array<AnyLayer | CompiledLayer<any>> = [];
+	private layers: LayerInputSource = [];
 	private rootComponent: Component;
 	private layerRuntime: LayerRuntime | null = null;
 
@@ -52,11 +70,11 @@ export class EffuseApp {
 		this.rootComponent = root;
 	}
 
-	async useLayers(
-		layers: (AnyLayer | CompiledLayer<any> | (() => Promise<AnyLayer | CompiledLayer<any>>))[]
-	): Promise<this> {
+	async useLayers(layers: AppLayerSource): Promise<this> {
 		const resolved = await Promise.all(
-			layers.map((l) => (Predicate.isFunction(l) ? l() : Promise.resolve(l)))
+			appLayerSourceToList(layers).map((l) =>
+				Predicate.isFunction(l) ? l() : Promise.resolve(l)
+			)
 		);
 		this.layers = resolved;
 		return this;

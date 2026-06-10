@@ -26,6 +26,12 @@ import { getLayerContext, getLayerService } from '../context.js';
 import type { CompiledLayer, EffuseServices } from './defineLayer.js';
 import type { LayerProps, EffuseLayer } from '../types.js';
 
+export type LayerList = readonly CompiledLayer<any, any>[];
+
+export type LayerAliases = Readonly<Record<string, CompiledLayer<any, any>>>;
+
+export type LayerSource = LayerList | LayerAliases;
+
 export interface LayerEntry<T extends EffuseLayer> {
 	readonly props: LayerProps;
 	readonly services: EffuseServices<T>;
@@ -39,9 +45,20 @@ type LayerNameOf<L> = L extends CompiledLayer<any, infer N> ? N : never;
 type LayerByName<U extends CompiledLayer<any, any>, N extends string> =
 	U extends CompiledLayer<infer T, N> ? LayerEntry<T> : never;
 
-export type LayersAccessor<L extends readonly CompiledLayer<any, any>[]> = {
+type LayersAccessorFromList<L extends LayerList> = {
 	[N in LayerNameOf<L[number]>]: LayerByName<L[number], N>;
 };
+
+type LayersAccessorFromAliases<L extends LayerAliases> = {
+	readonly [K in keyof L]: LayerEntryFrom<L[K]>;
+};
+
+export type LayersAccessor<L extends LayerSource> =
+	L extends LayerList
+		? LayersAccessorFromList<L>
+		: L extends LayerAliases
+			? LayersAccessorFromAliases<L>
+			: never;
 
 export function resolveLayerEntry<L extends CompiledLayer<any, any>>(
 	compiledLayer: L
@@ -64,14 +81,27 @@ export function resolveLayerEntry<L extends CompiledLayer<any, any>>(
 	} as LayerEntryFrom<L>;
 }
 
-export function resolveLayersAccessor<
-	L extends readonly CompiledLayer<any, any>[],
->(layers: L): LayersAccessor<L> {
+export const layerSourceToList = <L extends LayerSource>(
+	layers: L
+): readonly CompiledLayer<any, any>[] =>
+	Array.isArray(layers)
+		? layers
+		: (Object.values(layers) as readonly CompiledLayer<any, any>[]);
+
+export function resolveLayersAccessor<L extends LayerSource>(
+	layers: L
+): LayersAccessor<L> {
 	const accessor: Record<string, LayerEntry<any>> = {};
 
-	for (const compiledLayer of layers) {
-		const name = compiledLayer.name as string;
-		accessor[name] = resolveLayerEntry(compiledLayer);
+	if (Array.isArray(layers)) {
+		for (const compiledLayer of layers) {
+			const name = compiledLayer.name as string;
+			accessor[name] = resolveLayerEntry(compiledLayer);
+		}
+	} else {
+		for (const [alias, compiledLayer] of Object.entries(layers)) {
+			accessor[alias] = resolveLayerEntry(compiledLayer);
+		}
 	}
 
 	return accessor as LayersAccessor<L>;

@@ -115,6 +115,42 @@ describe('ScriptContext - layers accessor', () => {
 			expect(services.authService).toBe(authService);
 		});
 
+		it('should expose aliased layers through the script context', () => {
+			const authService = { token: 'abc', currentUser: 'chris' };
+			const modeSignal = signal('strict');
+			const identityLayer = defineLayer({
+				name: 'platformIdentity',
+				services: {
+					authService: () => authService,
+				},
+			});
+			const resolvedLayer = createResolvedLayer({
+				name: 'platformIdentity',
+				provides: { authService: () => authService },
+			});
+			const propsRegistry = createMockPropsRegistry({
+				platformIdentity: { mode: modeSignal },
+			});
+			const layerRegistry = createMockLayerRegistry(
+				{ platformIdentity: resolvedLayer },
+				{ authService }
+			);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedLayer] };
+
+			const { context } = createScriptContext({}, undefined, {
+				auth: identityLayer,
+			} as const);
+			const snapshot = runWithLayerContext(store, () => ({
+				keys: Object.keys(context.layers),
+				service: context.layers.auth.services.authService,
+				mode: context.layers.auth.props.mode,
+			}));
+
+			expect(snapshot.keys).toEqual(['auth']);
+			expect(snapshot.service).toBe(authService);
+			expect(snapshot.mode).toBe(modeSignal);
+		});
+
 		it('should expose typed layer entries directly from the layer object', () => {
 			const authService = { token: 'abc', currentUser: 'chris' };
 			const modeSignal = signal('strict');

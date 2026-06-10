@@ -23,8 +23,10 @@
  */
 
 import type { Signal, ReadonlySignal } from '../types/index.js';
-import type { CompiledLayer } from '../layers/api/defineLayer.js';
-import type { LayersAccessor } from '../layers/api/layersAccessor.js';
+import type {
+	LayerSource,
+	LayersAccessor,
+} from '../layers/api/layersAccessor.js';
 
 export type HookCleanup = () => void;
 
@@ -39,7 +41,7 @@ export interface HookScope {
 
 export interface HookContext<
 	C = unknown,
-	L extends readonly CompiledLayer<any>[] = readonly never[],
+	L extends LayerSource = readonly never[],
 > {
 	readonly config: C;
 	readonly signal: <T>(initial: T) => Signal<T>;
@@ -55,13 +57,13 @@ export interface HookContext<
 export type HookSetupFn<
 	C,
 	R,
-	L extends readonly CompiledLayer<any>[] = readonly never[],
+	L extends LayerSource = readonly never[],
 > = (ctx: HookContext<C, L>) => R;
 
 export interface HookDefinition<
 	C = unknown,
 	R = unknown,
-	L extends readonly CompiledLayer<any>[] = readonly never[],
+	L extends LayerSource = readonly never[],
 > {
 	readonly layers?: L;
 	readonly setup: HookSetupFn<C, R, L>;

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, expectTypeOf, vi, afterEach } from 'vitest';
 import { define } from '../../blueprint/define.js';
 import { defineLayer } from '../../layers/api/defineLayer.js';
 import { runWithLayerContext } from '../../layers/context.js';
@@ -92,6 +92,51 @@ describe('define() + layers — full integration', () => {
 			expect(state.exposed.user).toBe('chris');
 		});
 
+		it('should support aliased layers with destructured script access', () => {
+			const authSvc = { token: 'abc', user: 'chris' };
+			const identityLayer = defineLayer({
+				name: 'platformIdentity',
+				services: { authSvc: () => authSvc },
+			});
+			const resolvedLayer = createResolvedLayer({
+				name: 'platformIdentity',
+				provides: { authSvc: () => authSvc },
+			});
+
+			const propsRegistry = createMockPropsRegistry({
+				platformIdentity: { requiredRole: 'admin' },
+			});
+			const layerRegistry = createMockLayerRegistry(
+				{ platformIdentity: resolvedLayer },
+				{ authSvc }
+			);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedLayer] };
+
+			const Component = define({
+				props: {},
+				layers: { auth: identityLayer } as const,
+				script({ layers: { auth } }) {
+					const svc = auth.services.authSvc;
+					expectTypeOf(svc).toEqualTypeOf<{
+						token: string;
+						user: string;
+					}>();
+					return {
+						user: svc.user,
+						requiredRole: auth.props.requiredRole,
+					};
+				},
+				template: () => null,
+			});
+
+			const blueprint = extractBlueprint(Component);
+			const state = runWithLayerContext(store, () => blueprint.state({})) as {
+				exposed: Record<string, unknown>;
+			};
+			expect(state.exposed.user).toBe('chris');
+			expect(state.exposed.requiredRole).toBe('admin');
+		});
+
 		it('should access a layer directly without duplicating it in define options', () => {
 			const authSvc = { token: 'abc', user: 'chris' };
 			const authLayer = defineLayer({
@@ -125,6 +170,54 @@ describe('define() + layers — full integration', () => {
 			};
 			expect(state.exposed.isAuthenticated).toBe(true);
 			expect(state.exposed.user).toBe('chris');
+		});
+
+		it('should support destructured direct helpers in script', () => {
+			const authSvc = { token: 'abc', user: 'chris' };
+			const modeSignal = signal('strict');
+			const authLayer = defineLayer({
+				name: 'auth-helpers',
+				services: { authSvc: () => authSvc },
+			});
+			const resolvedLayer = createResolvedLayer({
+				name: 'auth-helpers',
+				provides: { authSvc: () => authSvc },
+			});
+
+			const propsRegistry = createMockPropsRegistry({
+				'auth-helpers': { mode: modeSignal },
+			});
+			const layerRegistry = createMockLayerRegistry(
+				{ 'auth-helpers': resolvedLayer },
+				{ authSvc }
+			);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedLayer] };
+
+			const Component = define({
+				props: {},
+				script({ useLayer, useService }) {
+					const auth = useLayer(authLayer);
+					const svc = useService(authLayer, 'authSvc');
+					return {
+						user: svc.user,
+						mode: auth.props.mode,
+						sameInstance: auth.services.authSvc === svc,
+					};
+				},
+				template: () => null,
+			});
+
+			const blueprint = extractBlueprint(Component);
+			const state = runWithLayerContext(store, () => blueprint.state({})) as {
+				exposed: {
+					user: string;
+					mode: { value: string };
+					sameInstance: boolean;
+				};
+			};
+			expect(state.exposed.user).toBe('chris');
+			expect(state.exposed.mode).toBe(modeSignal);
+			expect(state.exposed.sameInstance).toBe(true);
 		});
 
 		it('should expose layer props via ctx.layers in script', () => {

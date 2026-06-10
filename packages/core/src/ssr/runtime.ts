@@ -23,8 +23,8 @@
  */
 
 import { Effect, Layer, ManagedRuntime, Predicate } from 'effect';
-import type { AnyLayer, AnyResolvedLayer, CleanupFn } from '../layers/types.js';
-import type { CompiledLayer } from '../layers/api/defineLayer.js';
+import type { AnyResolvedLayer, CleanupFn } from '../layers/types.js';
+import type { LayerInputSource } from '../layers/api/defineLayer.js';
 import type { HeadProps } from './types.js';
 import { PropsService } from '../layers/services/PropsService.js';
 import { RegistryService } from '../layers/services/RegistryService.js';
@@ -70,7 +70,7 @@ export interface SSRRuntimeOptions {
  * context that follows the render lifecycle (init → render → cleanup).
  */
 export const createSSRRuntime = async (
-	rawLayers: readonly (AnyLayer | CompiledLayer<any>)[],
+	rawLayers: LayerInputSource,
 	options: SSRRuntimeOptions = {}
 ): Promise<SSRRuntime> => {
 	const { runSetup = true } = options;

@@ -144,6 +144,41 @@ describe('defineLayer', () => {
 			expect(layer.server?.api).toHaveProperty('/api/session');
 			expect(layer.server?.actions?.login).toBeTypeOf('function');
 		});
+
+		it('should type server handlers from the layer services contract', () => {
+			defineLayer({
+				name: 'typed-server',
+				services: {
+					auth: () => ({
+						currentUser: () => ({ id: 'u1', name: 'Chris' }),
+					}),
+				},
+				server: {
+					api: {
+						'/api/me': ({ services }) => {
+							expectTypeOf(
+								services.auth.currentUser()
+							).toEqualTypeOf<{
+								id: string;
+								name: string;
+							}>();
+							return services.auth.currentUser();
+						},
+					},
+					actions: {
+						refreshSession: ({ services }) => {
+							expectTypeOf(
+								services.auth.currentUser()
+							).toEqualTypeOf<{
+								id: string;
+								name: string;
+							}>();
+							return services.auth.currentUser();
+						},
+					},
+				},
+			});
+		});
 	});
 
 	describe('tag generation', () => {

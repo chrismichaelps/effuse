@@ -23,8 +23,7 @@
  */
 
 import type { Component } from '../render/node.js';
-import type { AnyLayer } from '../layers/types.js';
-import type { CompiledLayer } from '../layers/api/defineLayer.js';
+import type { LayerInputSource } from '../layers/api/defineLayer.js';
 import type { RequestContext, ServerAppOptions } from './types.js';
 import { createServerApp } from './server-app.js';
 import { createHash } from 'node:crypto';
@@ -32,7 +31,7 @@ import { handleLayerServerRequest } from './server-routing.js';
 
 export interface HandlerConfig {
 	root: Component;
-	layers?: readonly (AnyLayer | CompiledLayer<any>)[];
+	layers?: LayerInputSource;
 	options?: ServerAppOptions;
 	transform?: (req: Request) => Request;
 	notFound?: () => Response;
