@@ -9,6 +9,8 @@ import { resolveLayersAccessor } from '../../layers/api/layersAccessor.js';
 import type { LayersAccessor } from '../../layers/api/layersAccessor.js';
 import {
 	clearGlobalLayerContext,
+	getGlobalLayerContextStore,
+	getLayerService,
 	runWithLayerContext,
 } from '../../layers/context.js';
 import {
@@ -347,6 +349,49 @@ describe('LayersAccessor — comprehensive regression tests', () => {
 				expect(accessor.runtime.services.runtimeSvc).toBe(svc);
 			} finally {
 				await runtime.dispose();
+			}
+		});
+
+		it('should isolate registry instances across app runtimes', async () => {
+			const firstSvc = { source: 'first-runtime' };
+			const secondSvc = { source: 'second-runtime' };
+			const firstLayer = defineLayer({
+				name: 'firstRuntime',
+				services: { firstSvc: () => firstSvc },
+			});
+			const secondLayer = defineLayer({
+				name: 'secondRuntime',
+				services: { secondSvc: () => secondSvc },
+			});
+
+			const firstRuntime = await createLayerRuntime(
+				resolveLayerDefinitions([firstLayer])
+			);
+			const firstStore = getGlobalLayerContextStore();
+			expect(firstStore).toBeDefined();
+
+			const secondRuntime = await createLayerRuntime(
+				resolveLayerDefinitions([secondLayer])
+			);
+			const secondStore = getGlobalLayerContextStore();
+			expect(secondStore).toBeDefined();
+
+			try {
+				expect(
+					runWithLayerContext(firstStore!, () => getLayerService('firstSvc'))
+				).toBe(firstSvc);
+				expect(
+					runWithLayerContext(firstStore!, () => getLayerService('secondSvc'))
+				).toBeUndefined();
+				expect(
+					runWithLayerContext(secondStore!, () => getLayerService('secondSvc'))
+				).toBe(secondSvc);
+				expect(
+					runWithLayerContext(secondStore!, () => getLayerService('firstSvc'))
+				).toBeUndefined();
+			} finally {
+				await secondRuntime.dispose();
+				await firstRuntime.dispose();
 			}
 		});
 

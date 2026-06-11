@@ -75,6 +75,6 @@ const createLayerRegistry = (): LayerRegistry => {
 export class RegistryService extends Effect.Service<RegistryService>()(
 	'effuse/layer/Registry',
 	{
-		effect: Effect.succeed(createLayerRegistry()),
+		effect: Effect.sync(createLayerRegistry),
 	}
 ) {}

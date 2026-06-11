@@ -79,6 +79,12 @@ export const createSSRRuntime = async (
 	const { runSetup = true } = options;
 	const previousLayerContextStore = getGlobalLayerContextStore();
 	const previousTracingService = getGlobalTracing();
+	const hasExistingLayerContext = Predicate.isNotNullable(
+		previousLayerContextStore
+	);
+	const shouldInstallGlobalTracing = !Predicate.isNotNullable(
+		previousTracingService
+	);
 
 	const layers: AnyResolvedLayer[] = resolveLayerDefinitions(rawLayers);
 
@@ -109,7 +115,9 @@ export const createSSRRuntime = async (
 			const tracingService = yield* TracingService;
 
 			layerRegistry.registerService('tracing', tracingService);
-			setGlobalTracing(tracingService);
+			if (shouldInstallGlobalTracing) {
+				setGlobalTracing(tracingService);
+			}
 
 			return yield* buildAllLayersEffect(layers);
 		});
@@ -121,8 +129,10 @@ export const createSSRRuntime = async (
 		const initContextEffect = Effect.gen(function* () {
 			const propsRegistry = yield* PropsService;
 			const layerRegistry = yield* RegistryService;
-			initGlobalLayerContext(propsRegistry, layerRegistry, layers);
 			layerContextStore = { propsRegistry, layerRegistry, layers };
+			if (!hasExistingLayerContext) {
+				initGlobalLayerContext(propsRegistry, layerRegistry, layers);
+			}
 		});
 
 		await managedRuntime.runPromise(initContextEffect);

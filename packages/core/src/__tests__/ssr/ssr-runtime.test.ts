@@ -77,6 +77,8 @@ describe('SSRRuntime', () => {
 				expect(getLayerService('app')).toBe(appService);
 
 				ssrRuntime = await createSSRRuntime([ServerLayer]);
+				expect(getLayerService('app')).toBe(appService);
+				expect(getLayerService('server')).toBeUndefined();
 				expect(ssrRuntime.run(() => getLayerService('server'))).toBe(
 					serverService
 				);
