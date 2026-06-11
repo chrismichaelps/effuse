@@ -110,6 +110,50 @@ describe('defineHook — typed layers accessor', () => {
 			expect(services.authService).toBe(authService);
 		});
 
+		it('should expose typed layer entry helpers in hook setup', () => {
+			const themeService = { label: 'dark' };
+			const modeSignal = signal('dark');
+			const themeLayer = defineLayer({
+				name: 'theme-entry-helper-hook',
+				props: { mode: modeSignal },
+				services: { themeService: () => themeService },
+			});
+			const resolvedLayer = createResolvedLayer({
+				name: 'theme-entry-helper-hook',
+				provides: { themeService: () => themeService },
+			});
+			const propsRegistry = createMockPropsRegistry({
+				'theme-entry-helper-hook': { mode: modeSignal },
+			});
+			const layerRegistry = createMockLayerRegistry(
+				{ 'theme-entry-helper-hook': resolvedLayer },
+				{ themeService }
+			);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedLayer] };
+
+			const useHook = defineHook({
+				layers: { theme: themeLayer } as const,
+				setup(ctx) {
+					const service = ctx.layers.theme.service('themeService');
+					const mode = ctx.layers.theme.prop('mode');
+					expectTypeOf(service).toEqualTypeOf<{ label: string }>();
+					expectTypeOf(mode).toEqualTypeOf<typeof modeSignal>();
+					return {
+						service,
+						mode,
+						legacyService: ctx.layers.theme.services.themeService,
+						legacyMode: ctx.layers.theme.props.mode,
+					};
+				},
+			});
+
+			const result = runWithLayerContext(store, () => useHook());
+			expect(result.service).toBe(themeService);
+			expect(result.mode).toBe(modeSignal);
+			expect(result.legacyService).toBe(themeService);
+			expect(result.legacyMode).toBe(modeSignal);
+		});
+
 		it('should return cached service, not re-invoke factory', () => {
 			const factorySpy = vi.fn(() => ({ value: 'fresh' }));
 			const cachedInstance = { value: 'cached' };

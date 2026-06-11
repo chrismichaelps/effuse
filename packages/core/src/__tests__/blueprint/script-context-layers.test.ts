@@ -157,6 +157,7 @@ describe('ScriptContext - layers accessor', () => {
 			const modeSignal = signal('strict');
 			const authLayer = defineLayer({
 				name: 'auth-direct',
+				props: { mode: modeSignal },
 				services: {
 					authService: () => authService,
 				},
@@ -185,18 +186,29 @@ describe('ScriptContext - layers accessor', () => {
 			const snapshot = runWithLayerContext(store, () => {
 				const entry = context.useLayer(authLayer);
 				const sameEntry = context.useLayer(authLayer);
+				const service = entry.service('authService');
+				const mode = entry.prop('mode');
+				expectTypeOf(service).toEqualTypeOf<{
+					token: string;
+					currentUser: string;
+				}>();
+				expectTypeOf(mode).toEqualTypeOf<typeof modeSignal>();
 				return {
 					sameEntry: entry === sameEntry,
 					sameServices: entry.services === sameEntry.services,
-					service: entry.services.authService,
-					mode: entry.props.mode,
+					service,
+					mode,
+					legacyService: entry.services.authService,
+					legacyMode: entry.props.mode,
 				};
 			});
 
 			expect(snapshot.sameEntry).toBe(true);
 			expect(snapshot.sameServices).toBe(true);
 			expect(snapshot.service).toBe(authService);
+			expect(snapshot.legacyService).toBe(authService);
 			expect(snapshot.mode).toBe(modeSignal);
+			expect(snapshot.legacyMode).toBe(modeSignal);
 		});
 
 		it('should read a typed service directly from a layer object', () => {
@@ -227,6 +239,51 @@ describe('ScriptContext - layers accessor', () => {
 
 			expectTypeOf(service).toEqualTypeOf<{ token: string }>();
 			expect(service).toBe(authService);
+		});
+
+		it('should read typed services and props through layer entry helpers', () => {
+			const themeService = { label: 'dark' };
+			const modeSignal = signal('dark');
+			const themeLayer = defineLayer({
+				name: 'theme-entry-helper',
+				props: { mode: modeSignal },
+				services: {
+					themeService: () => themeService,
+				},
+			});
+			const resolvedLayer = createResolvedLayer({
+				name: 'theme-entry-helper',
+				provides: { themeService: () => themeService },
+			});
+			const propsRegistry = createMockPropsRegistry({
+				'theme-entry-helper': { mode: modeSignal },
+			});
+			const layerRegistry = createMockLayerRegistry(
+				{ 'theme-entry-helper': resolvedLayer },
+				{ themeService }
+			);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedLayer] };
+
+			const { context } = createScriptContext({}, undefined, {
+				theme: themeLayer,
+			} as const);
+			const snapshot = runWithLayerContext(store, () => {
+				const service = context.layers.theme.service('themeService');
+				const mode = context.layers.theme.prop('mode');
+				expectTypeOf(service).toEqualTypeOf<{ label: string }>();
+				expectTypeOf(mode).toEqualTypeOf<typeof modeSignal>();
+				return {
+					service,
+					mode,
+					legacyService: context.layers.theme.services.themeService,
+					legacyMode: context.layers.theme.props.mode,
+				};
+			});
+
+			expect(snapshot.service).toBe(themeService);
+			expect(snapshot.mode).toBe(modeSignal);
+			expect(snapshot.legacyService).toBe(themeService);
+			expect(snapshot.legacyMode).toBe(modeSignal);
 		});
 
 		it('should reject service keys that are not provided by the given layer', () => {
@@ -264,6 +321,41 @@ describe('ScriptContext - layers accessor', () => {
 				runWithLayerContext(store, () =>
 					unsafeUseService(authLayer, 'billingService')
 				)
+			).toThrow('registered with app.useLayers()');
+		});
+
+		it('should reject invalid service keys through layer entry helpers', () => {
+			const authLayer = defineLayer({
+				name: 'auth-helper-boundary',
+				services: {
+					authService: () => ({ token: 'abc' }),
+				},
+			});
+			const resolvedLayer = createResolvedLayer({
+				name: 'auth-helper-boundary',
+				provides: { authService: () => ({ token: 'abc' }) },
+			});
+			const propsRegistry = createMockPropsRegistry({
+				'auth-helper-boundary': {},
+			});
+			const layerRegistry = createMockLayerRegistry(
+				{ 'auth-helper-boundary': resolvedLayer },
+				{ authService: { token: 'abc' }, billingService: { total: 10 } }
+			);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedLayer] };
+
+			const { context } = createScriptContext({}, undefined, {
+				auth: authLayer,
+			} as const);
+			const unsafeService = context.layers.auth.service as unknown as (
+				key: string
+			) => unknown;
+
+			expect(() =>
+				runWithLayerContext(store, () => unsafeService('billingService'))
+			).toThrow(ServiceNotFoundError);
+			expect(() =>
+				runWithLayerContext(store, () => unsafeService('billingService'))
 			).toThrow('registered with app.useLayers()');
 		});
 
