@@ -345,6 +345,70 @@ describe('RouterView', () => {
 		).toBe('lazy: chunk missing');
 	});
 
+	it('renders a legacy Promise-returning route function', async () => {
+		const LazyPage = define({
+			script: () => ({}),
+			template: () =>
+				CreateElementNode({
+					[EFFUSE_NODE]: true,
+					tag: 'section',
+					props: { 'data-testid': 'legacy-lazy-page' },
+					children: ['Legacy lazy page'],
+				}),
+		});
+		let resolveLegacy:
+			| ((module: { readonly default: typeof LazyPage }) => void)
+			| undefined;
+
+		const Shell = define({
+			script: () => ({}),
+			template: () =>
+				CreateElementNode({
+					[EFFUSE_NODE]: true,
+					tag: 'main',
+					props: null,
+					children: [
+						CreateBlueprintNode({
+							[EFFUSE_NODE]: true,
+							blueprint: RouterView,
+							props: {},
+							portals: null,
+						}),
+					],
+				}),
+		});
+
+		const LegacyLazyRoute = () =>
+			new Promise<{ readonly default: typeof LazyPage }>((resolve) => {
+				resolveLegacy = resolve;
+			});
+		const router = createRouter({
+			history: createMemoryHistory('/legacy'),
+			routes: [
+				{
+					path: '/legacy',
+					name: 'legacy',
+					component: LegacyLazyRoute,
+				},
+			],
+		});
+
+		installRouter(router);
+
+		await createApp(Shell).mount('#app');
+
+		expect(document.querySelector('.router-view-loading')).not.toBeNull();
+
+		resolveLegacy?.({ default: LazyPage });
+		await Promise.resolve();
+		await Promise.resolve();
+		await Promise.resolve();
+
+		expect(
+			document.querySelector('[data-testid="legacy-lazy-page"]')?.textContent
+		).toBe('Legacy lazy page');
+	});
+
 	it('renders a named route outlet', async () => {
 		const MainPage = define({
 			script: () => ({}),
@@ -536,6 +600,68 @@ describe('RouterView', () => {
 			'user:42'
 		);
 		expect(document.querySelector('[data-testid="details-page"]')).toBeNull();
+	});
+
+	it('passes function route components to slots without executing them first', async () => {
+		let renderCount = 0;
+		const FunctionPage = () => {
+			renderCount += 1;
+			return CreateElementNode({
+				[EFFUSE_NODE]: true,
+				tag: 'section',
+				props: { 'data-testid': 'function-page' },
+				children: ['Function page'],
+			});
+		};
+
+		const Shell = define({
+			script: () => ({}),
+			template: () =>
+				CreateElementNode({
+					[EFFUSE_NODE]: true,
+					tag: 'main',
+					props: null,
+					children: [
+						CreateBlueprintNode({
+							[EFFUSE_NODE]: true,
+							blueprint: RouterView,
+							props: {
+								slot: (_component, route) =>
+									CreateElementNode({
+										[EFFUSE_NODE]: true,
+										tag: 'p',
+										props: { 'data-testid': 'route-slot' },
+										children: ['slotted ', route.name ?? 'route'],
+									}),
+							},
+							portals: null,
+						}),
+					],
+				}),
+		});
+
+		const router = createRouter({
+			history: createMemoryHistory('/function'),
+			routes: [
+				{
+					path: '/function',
+					name: 'function',
+					component: FunctionPage,
+				},
+			],
+		});
+
+		installRouter(router);
+
+		await createApp(Shell).mount('#app');
+		await Promise.resolve();
+		await Promise.resolve();
+
+		expect(document.querySelector('[data-testid="route-slot"]')?.textContent).toBe(
+			'slotted function'
+		);
+		expect(document.querySelector('[data-testid="function-page"]')).toBeNull();
+		expect(renderCount).toBe(0);
 	});
 
 	it('updates the rendered route component after client navigation', async () => {

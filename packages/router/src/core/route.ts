@@ -30,7 +30,15 @@ import { RouteNotFoundError } from '../errors.js';
 export type RouteComponent =
 	| ((props?: Record<string, unknown>) => EffuseChild)
 	| BlueprintDef;
-export type LazyRouteComponent = () => Promise<{ default: RouteComponent }>;
+
+export const EFFUSE_LAZY_ROUTE: unique symbol = Symbol.for(
+	'effuse.router.lazy-route'
+) as never;
+
+export interface LazyRouteComponent {
+	(): Promise<{ default: RouteComponent }>;
+	readonly [EFFUSE_LAZY_ROUTE]?: true;
+}
 
 export interface LazyRouteComponentOptions {
 	readonly export?: string;
@@ -45,6 +53,13 @@ const isBlueprintComponent = (value: unknown): value is BlueprintDef =>
 const isRouteComponent = (value: unknown): value is RouteComponent =>
 	typeof value === 'function' || isBlueprintComponent(value);
 
+export const isLazyRouteComponent = (
+	value: unknown
+): value is LazyRouteComponent =>
+	typeof value === 'function' &&
+	(value as { readonly [EFFUSE_LAZY_ROUTE]?: unknown })[EFFUSE_LAZY_ROUTE] ===
+		true;
+
 export const lazyRouteComponent = (
 	loader: () => Promise<Readonly<Record<string, unknown>>>,
 	options: LazyRouteComponentOptions = {}
@@ -52,7 +67,7 @@ export const lazyRouteComponent = (
 	let cachedModule: Promise<{ default: RouteComponent }> | undefined;
 	const exportName = options.export ?? 'default';
 
-	return () => {
+	const lazyComponent = (() => {
 		cachedModule ??= loader().then((module) => {
 			const component = module[exportName];
 			if (!isRouteComponent(component)) {
@@ -64,7 +79,15 @@ export const lazyRouteComponent = (
 		});
 
 		return cachedModule;
-	};
+	}) as LazyRouteComponent;
+
+	Object.defineProperty(lazyComponent, EFFUSE_LAZY_ROUTE, {
+		value: true,
+		enumerable: false,
+		configurable: false,
+	});
+
+	return lazyComponent;
 };
 
 export const lazyRoute = lazyRouteComponent;

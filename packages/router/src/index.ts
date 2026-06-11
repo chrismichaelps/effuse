@@ -45,6 +45,8 @@ export {
 	type RouteComponent,
 	type LazyRouteComponent,
 	type LazyRouteComponentOptions,
+	EFFUSE_LAZY_ROUTE,
+	isLazyRouteComponent,
 	lazyRoute,
 	lazyRouteComponent,
 } from './core/route.js';

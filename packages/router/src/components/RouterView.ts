@@ -35,11 +35,12 @@ import {
 } from '@effuse/core';
 import { getGlobalRouter } from '../core/router.js';
 import { injectDepth, getRouteSignal } from '../core/context.js';
-import type {
-	Route,
-	NormalizedRouteRecord,
-	RouteComponent,
-	LazyRouteComponent,
+import {
+	isLazyRouteComponent,
+	type Route,
+	type NormalizedRouteRecord,
+	type RouteComponent,
+	type LazyRouteComponent,
 } from '../core/route.js';
 import { InvalidRouterStateError } from '../errors.js';
 
@@ -248,6 +249,60 @@ export const RouterView = define<RouterViewProps, RouterViewState>({
 		const getActiveRoute = (): Route => viewProps.route ?? routeSignal.value;
 		const getActiveViewName = (): string => viewProps.name ?? 'default';
 
+		const renderLazyComponent = (
+			result: Promise<unknown>,
+			route: Route,
+			viewName: string,
+			currentViewKey: string,
+			componentProps: Record<string, unknown>
+		): void => {
+			lastViewKey = currentViewKey;
+			matchedView.value = renderFallback(viewProps.fallback, route);
+
+			result
+				.then((mod) => {
+					if (
+						createViewKey(depth, getActiveViewName(), getActiveRoute()) !==
+						currentViewKey
+					)
+						return;
+					if (!isLazyRouteModule(mod)) {
+						matchedView.value = renderErrorFallback(
+							viewProps.errorFallback,
+							new TypeError(
+								'Effuse lazy route expected a default route component.'
+							),
+							route
+						);
+						return;
+					}
+					const rendered = renderRouteContent(
+						mod.default,
+						route,
+						componentProps,
+						viewProps.slot
+					);
+					matchedView.value = createRouteContentNode(
+						depth,
+						viewName,
+						route,
+						rendered
+					);
+				})
+				.catch((error: unknown) => {
+					if (
+						createViewKey(depth, getActiveViewName(), getActiveRoute()) !==
+						currentViewKey
+					)
+						return;
+					matchedView.value = renderErrorFallback(
+						viewProps.errorFallback,
+						error,
+						route
+					);
+				});
+		};
+
 		const updateView = () => {
 			const route = getActiveRoute();
 			const viewName = getActiveViewName();
@@ -268,64 +323,54 @@ export const RouterView = define<RouterViewProps, RouterViewState>({
 
 			const componentProps = getComponentProps(route, matched);
 
-			// Handle lazy components
-			if (Predicate.isFunction(component)) {
-				const result = component({ ...componentProps, ...route.params });
-				if (result instanceof Promise) {
-					lastViewKey = currentViewKey;
-					matchedView.value = renderFallback(viewProps.fallback, route);
+			if (isLazyRouteComponent(component)) {
+				renderLazyComponent(
+					component(),
+					route,
+					viewName,
+					currentViewKey,
+					componentProps
+				);
+				return;
+			}
 
-					result
-						.then((mod) => {
-							if (
-								createViewKey(depth, getActiveViewName(), getActiveRoute()) !==
-								currentViewKey
-							)
-								return;
-							if (!isLazyRouteModule(mod)) {
-								matchedView.value = renderErrorFallback(
-									viewProps.errorFallback,
-									new TypeError(
-										'Effuse lazy route expected a default route component.'
-									),
-									route
-								);
-								return;
-							}
-							const rendered = renderRouteContent(
-								mod.default,
-								route,
-								componentProps,
-								viewProps.slot
-							);
-							matchedView.value = createRouteContentNode(
-								depth,
-								viewName,
-								route,
-								rendered
-							);
-						})
-						.catch((error: unknown) => {
-							if (
-								createViewKey(depth, getActiveViewName(), getActiveRoute()) !==
-								currentViewKey
-							)
-								return;
-							matchedView.value = renderErrorFallback(
-								viewProps.errorFallback,
-								error,
-								route
-							);
-						});
+			if (Predicate.isFunction(component)) {
+				const routeFunction = component as (
+					props?: Record<string, unknown>
+				) => EffuseChild | Promise<unknown>;
+
+				if (Predicate.isNotNullable(viewProps.slot)) {
+					const rendered = viewProps.slot(
+						routeFunction as RouteComponent,
+						route,
+						componentProps
+					);
+					const content = createRouteContentNode(
+						depth,
+						viewName,
+						route,
+						rendered
+					);
+
+					lastViewKey = currentViewKey;
+					matchedView.value = content;
+					return;
+				}
+
+				const result = routeFunction({ ...componentProps, ...route.params });
+				if (result instanceof Promise) {
+					renderLazyComponent(
+						result,
+						route,
+						viewName,
+						currentViewKey,
+						componentProps
+					);
 					return;
 				}
 
 				// Sync function component
-				const syncComponent = component as RouteComponent;
-				const rendered = Predicate.isNotNullable(viewProps.slot)
-					? viewProps.slot(syncComponent, route, componentProps)
-					: result;
-				const content = createRouteContentNode(depth, viewName, route, rendered);
+				const content = createRouteContentNode(depth, viewName, route, result);
 
 				lastViewKey = currentViewKey;
 				matchedView.value = content;

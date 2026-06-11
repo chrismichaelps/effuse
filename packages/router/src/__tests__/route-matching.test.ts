@@ -14,6 +14,8 @@ import {
 	parseUrl,
 	lazyRoute,
 	lazyRouteComponent,
+	isLazyRouteComponent,
+	EFFUSE_LAZY_ROUTE,
 } from '../core/route.js';
 
 const makeRoutes = (paths: string[]) =>
@@ -138,6 +140,29 @@ describe('route matching', () => {
 			const lazyComponent = lazyRoute(() => Promise.resolve({ default: Page }));
 
 			await expect(lazyComponent()).resolves.toEqual({ default: Page });
+		});
+
+		it('should identify lazy route helper outputs without calling the loader', async () => {
+			let loadCount = 0;
+			const Page = () => 'marked lazy page';
+			const lazyComponent = lazyRouteComponent(async () => {
+				loadCount += 1;
+				return { default: Page };
+			});
+
+			expect(isLazyRouteComponent(lazyComponent)).toBe(true);
+			expect(lazyComponent[EFFUSE_LAZY_ROUTE]).toBe(true);
+			expect(loadCount).toBe(0);
+
+			await lazyComponent();
+
+			expect(loadCount).toBe(1);
+		});
+
+		it('should not identify ordinary route functions as lazy routes', () => {
+			const Page = () => 'plain page';
+
+			expect(isLazyRouteComponent(Page)).toBe(false);
 		});
 
 		it('should resolve named lazy route exports', async () => {
