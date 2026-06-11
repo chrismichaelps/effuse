@@ -18,6 +18,12 @@ export default tseslint.config(
 		},
 	},
 	{
+		files: ['src/bin.ts', 'src/cli.ts'],
+		rules: {
+			'no-console': 'off',
+		},
+	},
+	{
 		ignores: ['dist/**', '**/*.test.ts', 'src/__tests__/node/**'],
 	}
 );
