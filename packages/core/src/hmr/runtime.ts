@@ -22,6 +22,8 @@
  * SOFTWARE.
  */
 
+/* eslint-disable no-console -- HMR reports dev-server lifecycle diagnostics in the browser console. */
+
 import type { BlueprintDef } from '../render/node.js';
 import { instantiateBlueprint } from '../blueprint/blueprint.js';
 import {
