@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
+import { withIntegrationAppLock } from './integration-app-lock.mjs';
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(scriptDir, '..');
@@ -55,9 +56,11 @@ const run = (command, args) =>
 console.log(`Checking ignored Effuse app with ${runner}.`);
 console.log('Order: core build -> app typecheck -> app build.');
 
-for (const [command, args] of commands) {
-	console.log(`\n> ${command} ${args.join(' ')}`);
-	await run(command, args);
-}
+await withIntegrationAppLock({ repoRoot }, async () => {
+	for (const [command, args] of commands) {
+		console.log(`\n> ${command} ${args.join(' ')}`);
+		await run(command, args);
+	}
+});
 
 console.log('\nEffuse app integration check passed.');
