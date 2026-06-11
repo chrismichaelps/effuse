@@ -11,6 +11,8 @@
 Effuse core is moving toward a capability-first framework model: typed layers,
 local layer aliases in `define({ script })`, shared hook/component layer DX, and
 layer-owned server APIs/actions with client-side action helpers and server
-manifests for typed clients.
+manifests for typed clients. Server handlers also receive validation helpers for
+params, query, headers, JSON bodies, and form data so request contracts live next
+to the layer that owns the capability.
 
 Read the detailed proposal in [FRAMEWORK_DX_PROPOSAL.md](./FRAMEWORK_DX_PROPOSAL.md).

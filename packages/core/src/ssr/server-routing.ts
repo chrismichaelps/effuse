@@ -41,6 +41,11 @@ import {
 	getServerRouteMethods,
 	isHttpMethod,
 } from './server-routes.js';
+import {
+	createServerValidationHelpers,
+	isServerValidationError,
+	serverValidationErrorResponse,
+} from './validation.js';
 
 export const EFFUSE_ACTION_PREFIX = '/_effuse/actions/';
 
@@ -315,12 +320,13 @@ const createContext = (
 ): ServerLayerContext => {
 	const url = new URL(request.url);
 	const { services, layerServices } = collectServices(layers);
+	const query = parseQuery(url);
 
 	return {
 		request,
 		url,
 		params,
-		query: parseQuery(url),
+		query,
 		services,
 		layerServices,
 		// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters -- call sites choose the expected service shape.
@@ -329,6 +335,7 @@ const createContext = (
 		json: <T = unknown>() => request.json() as Promise<T>,
 		text: () => request.text(),
 		formData: () => request.formData(),
+		validate: createServerValidationHelpers(request, params, query),
 		response: {
 			// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters -- preserves the response payload type for helper users.
 			json: <T>(data: T, init?: ResponseInit) => Response.json(data, init),
@@ -364,6 +371,11 @@ export const handleLayerServerRequest = async (
 			const result = await match.handler(ctx);
 			return normalizeServerResult(result);
 		});
+	} catch (error) {
+		if (isServerValidationError(error)) {
+			return serverValidationErrorResponse(error);
+		}
+		throw error;
 	} finally {
 		await runtime.dispose();
 	}

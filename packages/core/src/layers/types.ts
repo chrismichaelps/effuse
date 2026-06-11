@@ -24,6 +24,7 @@
 
 import type { Component } from '../render/node.js';
 import type { HeadProps } from '../ssr/types.js';
+import type { ServerValidationHelpers } from '../ssr/validation.js';
 import type { Signal } from '../reactivity/signal.js';
 
 export type MaybePromise<T> = T | Promise<T>;
@@ -109,6 +110,7 @@ export interface ServerLayerContext<
 	json: <T = unknown>() => Promise<T>;
 	text: () => Promise<string>;
 	formData: () => Promise<FormData>;
+	readonly validate: ServerValidationHelpers;
 	readonly response: ServerResponseHelpers;
 }
 

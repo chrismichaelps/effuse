@@ -193,6 +193,32 @@ await client.route('/api/users/[id]', { params: { id: 'u1' } });
 await client.action('user', 'refreshUser', { id: 'u1' });
 ```
 
+Server handlers now receive `ctx.validate`, a schema-library-friendly request
+validation helper that keeps params, query, headers, JSON, and form data on the
+same layer context:
+
+```ts
+server: {
+  api: {
+    '/api/users/[id]': ({ validate, services }) => {
+      const params = validate.params<{ id: string }>(UserParams);
+      const query = validate.query<{ tab: string }>(UserQuery);
+      return services.users.findById(params.id, query.tab);
+    },
+  },
+  actions: {
+    saveUser: async ({ validate, services }) => {
+      const body = await validate.json<{ name: string }>(SaveUserBody);
+      return services.users.save(body);
+    },
+  },
+}
+```
+
+Validation failures return a stable `400` response with
+`EFFUSE_VALIDATION_FAILED`, `source`, and `issues`. That gives adapters and
+client helpers one error shape before domain-specific typed action errors land.
+
 File-system API folders should be an optional manifest source:
 
 - `src/server/api/**/route.ts` or `src/server/api/**/*.ts` for request handlers.
@@ -233,8 +259,9 @@ These are the next gaps that matter for production users:
 - **File-system server adapter**: support `src/server/api` and
   `src/server/actions` as an optional convention that maps into layer-owned
   routes/actions.
-- **Validation and typed failure**: add request schema validation, typed
-  action errors, and a standard error response shape.
+- **Validation and typed failure**: request schema validation and a standard
+  `EFFUSE_VALIDATION_FAILED` response shape have started in core. The next
+  layer is typed domain/action errors with client-side discriminated handling.
 - **Middleware and cache metadata**: layer-level and route-level middleware,
   auth guards, cache tags, revalidation, runtime/region hints, and CORS.
 - **Observability**: first-class tracing hooks for route/action duration,
@@ -270,6 +297,8 @@ This core PR lands the runtime and type foundation:
   `createLayerActionClient`.
 - layer server manifests expose routes/actions for future adapters and generated
   clients.
+- server handlers receive `ctx.validate` for params, query, headers, JSON, and
+  form data, with structured validation responses.
 - README explains why Effuse should exist as a framework.
 
 The docs repo should then receive a focused follow-up PR around this contract.

@@ -120,6 +120,23 @@ export {
 } from './client.js';
 
 export {
+	createServerValidationErrorBody,
+	createServerValidationHelpers,
+	isServerValidationError,
+	serverValidationErrorResponse,
+	ServerValidationError,
+	validateServerValue,
+	type ServerValidationErrorBody,
+	type ServerValidationFailure,
+	type ServerValidationHelpers,
+	type ServerValidationIssue,
+	type ServerValidationResult,
+	type ServerValidationSource,
+	type ServerValidationSuccess,
+	type ServerValidator,
+} from './validation.js';
+
+export {
 	mergeHeadProps,
 	headToHtml,
 	mergeLayerHeads,
