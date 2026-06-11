@@ -4,129 +4,285 @@
  * Copyright (c) 2025 Chris M. Perez
  */
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
-import { resolve } from 'node:path';
-import { writeFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
-import { exec } from 'node:child_process';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import {
+	existsSync,
+	mkdirSync,
+	readdirSync,
+	rmSync,
+	writeFileSync,
+} from 'node:fs';
+import { dirname, resolve } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
+import { fileURLToPath } from 'node:url';
 
-const FIXTURE_DIR = resolve(process.cwd(), 'packages/cli/src/__tests__/fixtures/app');
-const CLI_BIN = resolve(process.cwd(), 'packages/cli/dist/cli.cjs');
+const TEST_FILE_DIR = dirname(fileURLToPath(import.meta.url));
+const PACKAGE_ROOT = resolve(TEST_FILE_DIR, '../..');
+const REPO_ROOT = resolve(PACKAGE_ROOT, '../..');
+const FIXTURE_DIR = resolve(REPO_ROOT, '.cli-e2e-test-tmp');
+const CLI_BIN = resolve(PACKAGE_ROOT, 'dist/bin.cjs');
 const TEST_PORT = 3456;
-const SERVER_URL = `http://localhost:${TEST_PORT}`;
+const SERVER_URL = `http://127.0.0.1:${TEST_PORT}`;
 
 const cliExists = existsSync(CLI_BIN);
-const fixtureExists = existsSync(FIXTURE_DIR);
 
-const startServer = async (): Promise<{ pid: number }> => {
-	await sleep(500);
-	const child = exec(`node "${CLI_BIN}" dev --port ${TEST_PORT}`, {
-		cwd: FIXTURE_DIR,
-	});
-	child.unref();
-	await sleep(2000);
-	return { pid: child.pid ?? 0 };
+interface CliResult {
+	readonly code: number | null;
+	readonly stdout: string;
+	readonly stderr: string;
+}
+
+interface DevServerHandle {
+	readonly process: ChildProcessWithoutNullStreams;
+	readonly logs: () => string;
+}
+
+const writeFixtureApp = (): void => {
+	rmSync(FIXTURE_DIR, { recursive: true, force: true });
+	mkdirSync(resolve(FIXTURE_DIR, 'src'), { recursive: true });
+
+	writeFileSync(
+		resolve(FIXTURE_DIR, 'package.json'),
+		JSON.stringify(
+			{
+				name: '@effuse/cli-e2e-fixture',
+				version: '1.0.0',
+				type: 'module',
+				private: true,
+			},
+			null,
+			2
+		)
+	);
+
+	writeFileSync(
+		resolve(FIXTURE_DIR, 'index.html'),
+		[
+			'<!DOCTYPE html>',
+			'<html lang="en">',
+			'<head>',
+			'\t<meta charset="UTF-8">',
+			'\t<meta name="viewport" content="width=device-width, initial-scale=1.0">',
+			'\t<title>Effuse CLI E2E</title>',
+			'</head>',
+			'<body>',
+			'\t<div id="app">Loading...</div>',
+			'\t<script type="module" src="/src/entry-client.ts"></script>',
+			'</body>',
+			'</html>',
+			'',
+		].join('\n')
+	);
+
+	writeFileSync(
+		resolve(FIXTURE_DIR, 'src/entry-client.ts'),
+		[
+			"const root = document.getElementById('app');",
+			'if (root) {',
+			"\troot.dataset.ready = 'true';",
+			"\troot.textContent = 'Effuse CLI Client Ready';",
+			'}',
+			'',
+		].join('\n')
+	);
+
+	writeFileSync(
+		resolve(FIXTURE_DIR, 'src/entry-server.ts'),
+		[
+			'export async function handleRequest(request: Request): Promise<Response> {',
+			'\tconst url = new URL(request.url);',
+			'\tconst html = `<!DOCTYPE html>',
+			'<html lang="en">',
+			'<head>',
+			'\t<meta charset="UTF-8">',
+			'\t<title>Effuse CLI E2E</title>',
+			'</head>',
+			'<body>',
+			'\t<div id="app">',
+			'\t\t<h1>Effuse CLI Fixture</h1>',
+			'\t\t<p data-path="${url.pathname}">Served by the Effuse CLI dev server.</p>',
+			'\t</div>',
+			'</body>',
+			'</html>`;',
+			'\treturn new Response(html, {',
+			'\t\tstatus: 200,',
+			"\t\theaders: { 'Content-Type': 'text/html; charset=utf-8' },",
+			'\t});',
+			'}',
+			'',
+		].join('\n')
+	);
 };
 
-const stopServer = async (pid: number) => {
-	try {
-		process.kill(pid, 'SIGTERM');
-	} catch {
-		// Process may have already exited
-	}
-	await sleep(500);
-	try {
-		process.kill(pid, 0);
-		process.kill(pid, 'SIGKILL');
-	} catch {
-		// Already dead
-	}
+const cleanupFixtureApp = (): void => {
+	rmSync(FIXTURE_DIR, { recursive: true, force: true });
 };
 
-const httpGet = async (url: string): Promise<{ status: number; body: string; headers: Record<string, string> }> => {
-	const res = await fetch(url);
-	const body = await res.text();
-	const headers: Record<string, string> = {};
-	res.headers.forEach((v, k) => { headers[k] = v; });
-	return { status: res.status, body, headers };
-};
-
-describe.skipIf(!cliExists || !fixtureExists)('E2E: dev server', () => {
-	let serverPid: number | null = null;
-
-	beforeAll(async () => {
-		mkdirSync(resolve(FIXTURE_DIR, 'src'), { recursive: true });
-		writeFileSync(resolve(FIXTURE_DIR, 'index.html'), `<!DOCTYPE html>
-<html><head><meta charset="UTF-8"><title>E2E Test</title></head>
-<body><div id="app"><h1>Loading...</h1></div></body></html>`);
-	}, 10000);
-
-	afterAll(async () => {
-		if (serverPid) await stopServer(serverPid);
-		rmSync(resolve(FIXTURE_DIR, 'src'), { recursive: true, force: true });
-	}, 10000);
-
-	describe('server startup', () => {
-		it('should start dev server without crashing', async () => {
-			const child = exec(`node "${CLI_BIN}" dev --port ${TEST_PORT}`, {
-				cwd: FIXTURE_DIR,
-			});
-			child.unref();
-			await sleep(2000);
-			serverPid = child.pid ?? 0;
-			expect(serverPid).toBeGreaterThan(0);
-		}, 15000);
-	});
-
-	describe('HTTP responses', () => {
-		beforeEach(async () => {
-			if (!serverPid) {
-				const child = exec(`node "${CLI_BIN}" dev --port ${TEST_PORT}`, {
-					cwd: FIXTURE_DIR,
-				});
-				child.unref();
-				serverPid = child.pid!;
-				await sleep(2000);
-			}
+const runCli = (
+	args: readonly string[],
+	timeoutMs = 30_000
+): Promise<CliResult> =>
+	new Promise((resolveResult) => {
+		const child = spawn(process.execPath, [CLI_BIN, ...args], {
+			cwd: FIXTURE_DIR,
+			env: {
+				...process.env,
+				CI: 'true',
+				VITE_CJS_IGNORE_WARNING: 'true',
+			},
 		});
 
-		it('should respond with HTTP 200 on root path', async () => {
-			try {
-				const { status } = await httpGet(SERVER_URL);
-				expect(status).toBe(200);
-			} catch { expect(true).toBe(true); }
-		}, 10000);
+		let stdout = '';
+		let stderr = '';
+		const timeout = setTimeout(() => {
+			child.kill('SIGKILL');
+		}, timeoutMs);
 
-		it('should return HTML content', async () => {
-			try {
-				const { body } = await httpGet(SERVER_URL);
-				expect(body).toContain('<html');
-				expect(body).toContain('<body>');
-			} catch { expect(true).toBe(true); }
-		}, 10000);
-
-		it('should set Content-Type header', async () => {
-			try {
-				const { headers } = await httpGet(SERVER_URL);
-				expect(headers['content-type']).toBeDefined();
-			} catch { expect(true).toBe(true); }
-		}, 10000);
-	});
-});
-
-describe.skipIf(!cliExists || !fixtureExists)('E2E: build output', () => {
-	it('should create dist/client directory', async () => {
-		mkdirSync(resolve(FIXTURE_DIR, 'src'), { recursive: true });
-		writeFileSync(resolve(FIXTURE_DIR, 'index.html'), '<!DOCTYPE html><html><body><div id="app"></div></body></html>');
-
-		const { stderr } = await new Promise<{ stdout: string; stderr: string }>((res) => {
-			exec(`node "${CLI_BIN}" build --preset node`, { cwd: FIXTURE_DIR }, (_, __, stderr) => res({ stdout: '', stderr }));
+		child.stdout.on('data', (chunk) => {
+			stdout += String(chunk);
 		});
+		child.stderr.on('data', (chunk) => {
+			stderr += String(chunk);
+		});
+		child.on('close', (code) => {
+			clearTimeout(timeout);
+			resolveResult({ code, stdout, stderr });
+		});
+	});
 
-		if (stderr && !stderr.includes('Error') && !stderr.includes('error')) {
-			expect(true).toBe(true);
+const listFiles = (dir: string): string[] =>
+	readdirSync(dir, { recursive: true }).map((entry) => String(entry));
+
+const httpGet = async (
+	url: string,
+	timeoutMs = 1_000
+): Promise<{ status: number; body: string; headers: Headers }> => {
+	const controller = new AbortController();
+	const timeout = setTimeout(() => {
+		controller.abort();
+	}, timeoutMs);
+
+	try {
+		const response = await fetch(url, { signal: controller.signal });
+		const body = await response.text();
+		return {
+			status: response.status,
+			body,
+			headers: response.headers,
+		};
+	} finally {
+		clearTimeout(timeout);
+	}
+};
+
+const startDevServer = async (): Promise<DevServerHandle> => {
+	const child = spawn(
+		process.execPath,
+		[
+			CLI_BIN,
+			'dev',
+			'--host',
+			'127.0.0.1',
+			'--port',
+			String(TEST_PORT),
+			'--no-open',
+		],
+		{
+			cwd: FIXTURE_DIR,
+			env: {
+				...process.env,
+				CI: 'true',
+				VITE_CJS_IGNORE_WARNING: 'true',
+			},
 		}
-	}, 30000);
+	);
+
+	let output = '';
+	child.stdout.on('data', (chunk) => {
+		output += String(chunk);
+	});
+	child.stderr.on('data', (chunk) => {
+		output += String(chunk);
+	});
+
+	const deadline = Date.now() + 10_000;
+	while (Date.now() < deadline) {
+		if (child.exitCode !== null) {
+			throw new Error(`Effuse dev server exited early.\n${output}`);
+		}
+
+		try {
+			const response = await httpGet(SERVER_URL, 250);
+			if (response.status === 200) {
+				return {
+					process: child,
+					logs: () => output,
+				};
+			}
+		} catch {
+			// Server is still starting.
+		}
+
+		await sleep(100);
+	}
+
+	child.kill('SIGKILL');
+	throw new Error(`Timed out waiting for Effuse dev server.\n${output}`);
+};
+
+const stopDevServer = async (
+	server: DevServerHandle | undefined
+): Promise<void> => {
+	if (!server || server.process.killed) {
+		return;
+	}
+
+	server.process.kill('SIGTERM');
+	await sleep(250);
+	if (server.process.exitCode === null) {
+		server.process.kill('SIGKILL');
+	}
+};
+
+describe.skipIf(!cliExists)('E2E: Effuse CLI binary', () => {
+	let devServer: DevServerHandle | undefined;
+
+	beforeEach(() => {
+		writeFixtureApp();
+	});
+
+	afterEach(async () => {
+		await stopDevServer(devServer);
+		devServer = undefined;
+		cleanupFixtureApp();
+	});
+
+	it('should build client and server outputs from explicit entries', async () => {
+		const result = await runCli(['build', '--preset', 'node'], 60_000);
+
+		expect(result.code, result.stderr || result.stdout).toBe(0);
+
+		const clientFiles = listFiles(resolve(FIXTURE_DIR, 'dist/client'));
+		const serverFiles = listFiles(resolve(FIXTURE_DIR, 'dist/server'));
+
+		expect(clientFiles.some((file) => file.endsWith('.js'))).toBe(true);
+		expect(clientFiles.some((file) => file.endsWith('manifest.json'))).toBe(true);
+		expect(serverFiles.some((file) => file.endsWith('.js'))).toBe(true);
+		expect(existsSync(resolve(FIXTURE_DIR, 'ecosystem.config.js'))).toBe(true);
+	}, 60_000);
+
+	it('should serve HTML through the real dev server binary', async () => {
+		devServer = await startDevServer();
+
+		const { status, body, headers } = await httpGet(`${SERVER_URL}/settings`);
+
+		expect(status, devServer.logs()).toBe(200);
+		expect(headers.get('content-type')).toContain('text/html');
+		expect(body).toContain('<h1>Effuse CLI Fixture</h1>');
+		expect(body).toContain('data-path="/settings"');
+		expect(body).toContain('Served by the Effuse CLI dev server.');
+	}, 20_000);
 });
 
 describe('E2E: CLI command parsing', () => {
