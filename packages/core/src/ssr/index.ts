@@ -88,6 +88,17 @@ export {
 } from './manifest.js';
 
 export {
+	fromServerFiles,
+	serverFileToActionName,
+	serverFileToRoutePath,
+	type ServerActionFileModule,
+	type ServerApiFileModule,
+	type ServerFileSource,
+	type ServerFilesInput,
+	type ServerFilesOptions,
+} from './server-files.js';
+
+export {
 	mergeHeadProps,
 	headToHtml,
 	mergeLayerHeads,

@@ -279,7 +279,10 @@ export {
 	createLayerActionUrl,
 	createLayerServerManifest,
 	createLayerServerManifestFromLayers,
+	fromServerFiles,
 	LayerActionError,
+	serverFileToActionName,
+	serverFileToRoutePath,
 	mergeHeadProps,
 	headToHtml,
 	mergeLayerHeads,
@@ -312,6 +315,11 @@ export {
 	type LayerServerManifestAction,
 	type LayerServerManifestLayer,
 	type LayerServerManifestRoute,
+	type ServerActionFileModule,
+	type ServerApiFileModule,
+	type ServerFileSource,
+	type ServerFilesInput,
+	type ServerFilesOptions,
 } from './ssr/index.js';
 
 export {
