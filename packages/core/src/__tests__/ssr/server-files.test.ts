@@ -34,10 +34,30 @@ describe('server file routes', () => {
 		expect(
 			serverFileToRoutePath('./src/server/api/users/[id]/route.ts')
 		).toBe('/api/users/[id]');
+		expect(serverFileToRoutePath('./app/api/users/[id]/route.ts')).toBe(
+			'/api/users/[id]'
+		);
+		expect(serverFileToRoutePath('./src/api/health.ts')).toBe('/api/health');
+		expect(
+			serverFileToRoutePath('./routes/api/users/[id].ts', {
+				apiDir: ['routes/api', 'server/api'],
+			})
+		).toBe('/api/users/[id]');
 		expect(serverFileToRoutePath('./src/server/api/index.ts')).toBe('/api');
 		expect(serverFileToRoutePath('./users/[id].ts')).toBe('/api/users/[id]');
 		expect(
 			serverFileToActionName('./src/server/actions/users/refresh.ts')
+		).toBe('users/refresh');
+		expect(
+			serverFileToActionName('./app/actions/users/refresh.ts')
+		).toBe('users/refresh');
+		expect(serverFileToActionName('./src/actions/users/index.ts')).toBe(
+			'users'
+		);
+		expect(
+			serverFileToActionName('./commands/users/refresh.ts', {
+				actionsDir: ['commands', 'server/actions'],
+			})
 		).toBe('users/refresh');
 		expect(serverFileToActionName('./src/server/actions/users/index.ts')).toBe(
 			'users'
@@ -115,6 +135,50 @@ describe('server file routes', () => {
 			}
 		);
 		expect(actionResult).toEqual({ refreshed: true });
+	});
+
+	it('should dispatch Next-style app/api files and app/actions files by default', async () => {
+		const ProjectsLayer = defineLayer({
+			name: 'next-style-files',
+			server: fromServerFiles({
+				'./app/api/projects/[id]/route.ts': {
+					GET: ({ params }) => ({
+						id: params.id,
+						source: 'app-api',
+					}),
+				},
+				'./app/actions/projects/archive.ts': {
+					default: () => ({ archived: true, source: 'app-actions' }),
+				},
+			}),
+		});
+		const handler = createHandler({
+			root: createRoot() as any,
+			layers: [ProjectsLayer],
+		});
+
+		const routeResponse = await handler(
+			new Request('http://localhost:3000/api/projects/p1')
+		);
+		expect(routeResponse.status).toBe(200);
+		expect(await routeResponse.json()).toEqual({
+			id: 'p1',
+			source: 'app-api',
+		});
+
+		const actionResult = await callLayerAction(
+			ProjectsLayer,
+			'projects/archive',
+			undefined,
+			{
+				baseUrl: 'http://localhost:3000',
+				fetch: createHandlerFetch(handler),
+			}
+		);
+		expect(actionResult).toEqual({
+			archived: true,
+			source: 'app-actions',
+		});
 	});
 
 	it('should expose file routes and actions in the server manifest', () => {

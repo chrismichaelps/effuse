@@ -85,13 +85,17 @@ export interface ServerFilesInput {
 }
 
 export interface ServerFilesOptions {
-	readonly apiDir?: string;
-	readonly actionsDir?: string;
+	readonly apiDir?: string | readonly string[];
+	readonly actionsDir?: string | readonly string[];
 	readonly apiBasePath?: string;
 }
 
-const DEFAULT_API_DIR = 'src/server/api';
-const DEFAULT_ACTIONS_DIR = 'src/server/actions';
+const DEFAULT_API_DIRS = ['src/server/api', 'app/api', 'src/api'] as const;
+const DEFAULT_ACTIONS_DIRS = [
+	'src/server/actions',
+	'app/actions',
+	'src/actions',
+] as const;
 const DEFAULT_API_BASE_PATH = '/api';
 
 const normalizeFilePath = (path: string): string =>
@@ -99,6 +103,14 @@ const normalizeFilePath = (path: string): string =>
 
 const normalizeDir = (path: string): string =>
 	normalizeFilePath(path).replace(/\/+$/g, '');
+
+const normalizeDirs = (
+	input: string | readonly string[] | undefined,
+	defaults: readonly string[]
+): readonly string[] =>
+	(input === undefined ? defaults : Array.isArray(input) ? input : [input]).map(
+		normalizeDir
+	);
 
 const stripExtension = (path: string): string =>
 	path.replace(/\.(?:[cm]?[jt]sx?)$/i, '');
@@ -120,6 +132,22 @@ const stripRoot = (filePath: string, root: string): string => {
 	return normalizedFile;
 };
 
+const stripFirstMatchingRoot = (
+	filePath: string,
+	roots: readonly string[]
+): string => {
+	const normalizedFile = normalizeFilePath(filePath);
+
+	for (const root of roots) {
+		const stripped = stripRoot(normalizedFile, root);
+		if (stripped !== normalizedFile) {
+			return stripped;
+		}
+	}
+
+	return normalizedFile;
+};
+
 const trimRouteFileSegment = (path: string): string =>
 	path.replace(/\/(?:route|index)$/i, '').replace(/^(?:route|index)$/i, '');
 
@@ -133,9 +161,11 @@ export const serverFileToRoutePath = (
 	filePath: string,
 	options: ServerFilesOptions = {}
 ): string => {
-	const apiDir = options.apiDir ?? DEFAULT_API_DIR;
+	const apiDirs = normalizeDirs(options.apiDir, DEFAULT_API_DIRS);
 	const apiBasePath = options.apiBasePath ?? DEFAULT_API_BASE_PATH;
-	const path = trimRouteFileSegment(stripExtension(stripRoot(filePath, apiDir)));
+	const path = trimRouteFileSegment(
+		stripExtension(stripFirstMatchingRoot(filePath, apiDirs))
+	);
 	return joinPath(apiBasePath, path);
 };
 
@@ -143,9 +173,9 @@ export const serverFileToActionName = (
 	filePath: string,
 	options: ServerFilesOptions = {}
 ): string => {
-	const actionsDir = options.actionsDir ?? DEFAULT_ACTIONS_DIR;
+	const actionsDirs = normalizeDirs(options.actionsDir, DEFAULT_ACTIONS_DIRS);
 	return trimRouteFileSegment(
-		stripExtension(stripRoot(filePath, actionsDir))
+		stripExtension(stripFirstMatchingRoot(filePath, actionsDirs))
 	).replace(/^\/+|\/+$/g, '');
 };
 
@@ -403,14 +433,16 @@ const partitionFlatInput = (
 ): ServerFilesInput => {
 	const api: Record<string, ServerApiFileModule> = {};
 	const actions: Record<string, ServerActionFileModule> = {};
-	const actionsDir = normalizeDir(options.actionsDir ?? DEFAULT_ACTIONS_DIR);
+	const actionsDirs = normalizeDirs(options.actionsDir, DEFAULT_ACTIONS_DIRS);
 
 	for (const [filePath, module] of Object.entries(files)) {
 		const normalizedPath = normalizeFilePath(filePath);
-		if (
-			normalizedPath.startsWith(`${actionsDir}/`) ||
-			normalizedPath.includes(`/${actionsDir}/`)
-		) {
+		const isActionFile = actionsDirs.some(
+			(actionsDir) =>
+				normalizedPath.startsWith(`${actionsDir}/`) ||
+				normalizedPath.includes(`/${actionsDir}/`)
+		);
+		if (isActionFile) {
 			actions[filePath] = module as ServerActionFileModule;
 		} else {
 			api[filePath] = module as ServerApiFileModule;
