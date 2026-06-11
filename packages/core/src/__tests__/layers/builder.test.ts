@@ -4,6 +4,10 @@ import {
 	buildAllLayersEffect,
 	buildLayerEffect,
 } from '../../layers/internal/builder.js';
+import {
+	defineLayer,
+	resolveLayerDefinitions,
+} from '../../layers/api/defineLayer.js';
 import { PropsService } from '../../layers/services/PropsService.js';
 import { RegistryService } from '../../layers/services/RegistryService.js';
 import { TracingServiceLive } from '../../layers/tracing/index.js';
@@ -108,6 +112,46 @@ describe('buildLayerEffect', () => {
 			)
 		);
 
+		expect(result.checkoutUser()).toBe('u1');
+	});
+
+	it('should treat extended layers as service factory dependencies', async () => {
+		const AuthLayer = defineLayer({
+			name: 'auth',
+			services: {
+				auth: () => ({ userId: 'u1' }),
+			},
+		});
+		const CommerceLayer = defineLayer('commerce', ({ service }) => ({
+			extends: [AuthLayer],
+			services: {
+				commerce: service(({ deps, requireService }) => {
+					const auth = requireService<{ readonly userId: string }>('auth');
+					return {
+						dependencyName: () => deps.auth.name,
+						checkoutUser: () => auth.userId,
+					};
+				}),
+			},
+		}));
+		const layers = resolveLayerDefinitions([CommerceLayer]);
+
+		const result = await Effect.runPromise(
+			Effect.provide(
+				Effect.gen(function* () {
+					yield* buildAllLayersEffect(layers);
+					const registry = yield* RegistryService;
+					return registry.getService('commerce') as {
+						dependencyName: () => string;
+						checkoutUser: () => string;
+					};
+				}),
+				testLayer
+			)
+		);
+
+		expect(layers.map((layer) => layer.name)).toEqual(['auth', 'commerce']);
+		expect(result.dependencyName()).toBe('auth');
 		expect(result.checkoutUser()).toBe('u1');
 	});
 

@@ -37,6 +37,7 @@ import {
 	LayerRuntimeNotInitializedError,
 } from './errors.js';
 import { devWarn } from '../utils/dev-warnings.js';
+import { getLayerDependencyNames } from './utils/dependencies.js';
 
 export interface LayerContext<P extends LayerProps = LayerProps> {
 	readonly name: string;
@@ -138,13 +139,11 @@ export function getLayerContext(name: string): LayerContext {
 	const props = store.propsRegistry.get(name) ?? ({} as LayerProps);
 
 	const deps: Record<string, LayerContext> = {};
-	if (layer.dependencies) {
-		for (const depName of layer.dependencies as readonly string[]) {
-			Object.defineProperty(deps, depName, {
-				get: () => getLayerContext(depName),
-				enumerable: true,
-			});
-		}
+	for (const depName of getLayerDependencyNames(layer)) {
+		Object.defineProperty(deps, depName, {
+			get: () => getLayerContext(depName),
+			enumerable: true,
+		});
 	}
 
 	return {

@@ -48,6 +48,7 @@ import {
 	traceFiberBuildPhase,
 } from '../tracing/index.js';
 import { buildTopologyLevels, getMaxParallelism } from './topology.js';
+import { getLayerDependencyNames } from '../utils/dependencies.js';
 
 const resolveLayerProps = (layer: AnyResolvedLayer): LayerProps =>
 	layer.deriveProps
@@ -83,10 +84,8 @@ export const createSetupContext = (
 	};
 
 	const deps: Record<string, LayerDependency> = {};
-	if (layer.dependencies) {
-		for (const depName of layer.dependencies) {
-			deps[depName] = getLayerDependency(depName);
-		}
+	for (const depName of getLayerDependencyNames(layer)) {
+		deps[depName] = getLayerDependency(depName);
 	}
 
 	const requireService = <T = unknown>(key: string): T => {
