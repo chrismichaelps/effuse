@@ -23,6 +23,7 @@
  */
 
 export { For, type ForProps } from './For.js';
+export { View, type ViewProps } from './View.js';
 export { Show, type ShowProps } from './Show.js';
 export { Switch, type SwitchProps } from './Switch.js';
 export { Dynamic, type DynamicProps } from './Dynamic.js';

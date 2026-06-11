@@ -91,6 +91,8 @@ export {
 export {
 	For,
 	type ForProps,
+	View,
+	type ViewProps,
 	Show,
 	type ShowProps,
 	Switch,
