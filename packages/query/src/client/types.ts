@@ -24,6 +24,7 @@
 
 import type { Effect } from 'effect';
 import type { RetryConfig } from '../execution/index.js';
+import type { QueryClientApi } from './client.js';
 
 export type QueryKey = readonly unknown[];
 
@@ -81,7 +82,7 @@ export interface QueryOptions<T = unknown> {
 	 * from the nearest Effuse component scope via provideQueryClient(),
 	 * falling back to the global singleton.
 	 */
-	readonly client?: import('./client.js').QueryClientApi;
+	readonly client?: QueryClientApi;
 }
 
 export interface MutationOptions<TData = unknown, TVariables = unknown> {
@@ -102,7 +103,7 @@ export interface MutationOptions<TData = unknown, TVariables = unknown> {
 	 * from the nearest Effuse component scope via provideQueryClient(),
 	 * falling back to the global singleton.
 	 */
-	readonly client?: import('./client.js').QueryClientApi;
+	readonly client?: QueryClientApi;
 }
 
 export interface QueryState<T = unknown> {

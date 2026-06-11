@@ -24,6 +24,9 @@
 
 import type { QueryKey } from '../client/types.js';
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+	typeof value === 'object' && value !== null;
+
 /**
  * Checks if key `b` partially matches key `a`.
  *
@@ -34,8 +37,7 @@ import type { QueryKey } from '../client/types.js';
  * For objects, every own property of `b` must deeply equal the corresponding
  * property of `a`.
  */
-export function partialMatchKey(a: QueryKey, b: QueryKey): boolean;
-export function partialMatchKey(a: any, b: any): boolean {
+const partialMatchValue = (a: unknown, b: unknown): boolean => {
 	if (a === b) {
 		return true;
 	}
@@ -44,16 +46,12 @@ export function partialMatchKey(a: any, b: any): boolean {
 		return false;
 	}
 
-	if (a === null || b === null) {
+	if (!isRecord(a) || !isRecord(b)) {
 		return false;
 	}
 
-	if (typeof a === 'object' && typeof b === 'object') {
-		const bKeys = Object.keys(b);
-		return bKeys.every((key) =>
-			partialMatchKey((a as any)[key], (b as any)[key])
-		);
-	}
+	return Object.keys(b).every((key) => partialMatchValue(a[key], b[key]));
+};
 
-	return false;
-}
+export const partialMatchKey = (a: QueryKey, b: QueryKey): boolean =>
+	partialMatchValue(a, b);

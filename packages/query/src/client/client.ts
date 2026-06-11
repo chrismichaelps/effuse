@@ -44,7 +44,7 @@ import {
 	type QueryCacheInternals,
 	type QueryHandlerDeps,
 } from '../handlers/index.js';
-import { QueryCache, Query, MutationCache } from '../core/index.js';
+import { QueryCache, MutationCache, type Query } from '../core/index.js';
 import type { QueryConfig } from '../core/types.js';
 import type { DehydratedState, DehydrateOptions } from '../core/hydration.js';
 

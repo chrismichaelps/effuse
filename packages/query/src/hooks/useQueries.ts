@@ -25,7 +25,7 @@
 import { Effect } from 'effect';
 import { signal, type Signal } from '@effuse/core';
 import { useQuery } from './useQuery.js';
-import type { QueryKey } from '../client/index.js';
+import type { QueryKey, QueryClientApi } from '../client/index.js';
 
 // Parallel query configuration
 export interface UseQueriesOptions<T> {
@@ -37,7 +37,7 @@ export interface UseQueriesOptions<T> {
 	 * from the nearest Effuse component scope via provideQueryClient(),
 	 * falling back to the global singleton.
 	 */
-	readonly client?: import('../client/client.js').QueryClientApi;
+	readonly client?: QueryClientApi;
 }
 
 // Parallel query result

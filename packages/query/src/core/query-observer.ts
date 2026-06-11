@@ -27,7 +27,7 @@ import type {
 	QueryObserverResult,
 	QueryObserverListener,
 } from './types.js';
-import { Query } from './query.js';
+import type { Query } from './query.js';
 import { deepEqual } from '../utils/index.js';
 
 const getPlaceholderData = <T>(

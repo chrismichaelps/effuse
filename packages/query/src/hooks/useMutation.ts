@@ -29,6 +29,7 @@ import {
 	type MutationOptions,
 	type CacheEntry,
 	type QueryKey,
+	type QueryClientApi,
 } from '../client/index.js';
 import { buildRetrySchedule, type RetryConfig } from '../execution/index.js';
 import { executeMutation } from '../request/index.js';
@@ -357,7 +358,7 @@ export interface OptimisticMutationHookOptions<TData, TVariables> {
 	/** Keys to invalidate after successful mutation. */
 	readonly invalidateKeys?: ReadonlyArray<QueryKey>;
 	readonly timeout?: number;
-	readonly client?: import('../client/client.js').QueryClientApi;
+	readonly client?: QueryClientApi;
 }
 
 interface OptimisticContext<TData> {
