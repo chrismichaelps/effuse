@@ -151,7 +151,7 @@ describe('SSR handler', () => {
 				server: {
 					api: {
 						'/api/time': ({ services }) => ({
-							now: (services.clock as { now: () => number }).now(),
+							now: services.clock.now(),
 						}),
 					},
 				},
@@ -182,7 +182,7 @@ describe('SSR handler', () => {
 				server: {
 					api: {
 						'/api/aliased-time': ({ services }) => ({
-							now: (services.clock as { now: () => number }).now(),
+							now: services.clock.now(),
 						}),
 					},
 				},
@@ -268,9 +268,7 @@ describe('SSR handler', () => {
 						double: async ({ json, services }) => {
 							const input = await json<{ value: number }>();
 							return {
-								value: (
-									services.math as { double: (value: number) => number }
-								).double(input.value),
+								value: services.math.double(input.value),
 							};
 						},
 					},

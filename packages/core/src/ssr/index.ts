@@ -61,7 +61,22 @@ export {
 	handleLayerServerRequest,
 	matchLayerServerRequest,
 	normalizeServerResult,
+	EFFUSE_ACTION_PREFIX,
 } from './server-routing.js';
+
+export {
+	callLayerAction,
+	createLayerActionClient,
+	createLayerActionPath,
+	createLayerActionUrl,
+	LayerActionError,
+	type LayerActionCallOptions,
+	type LayerActionClient,
+	type LayerActionName,
+	type LayerActionResponseMode,
+	type LayerActionResult,
+	type LayerActionsFrom,
+} from './actions.js';
 
 export {
 	mergeHeadProps,

@@ -272,6 +272,12 @@ export {
 	handleLayerServerRequest,
 	matchLayerServerRequest,
 	normalizeServerResult,
+	EFFUSE_ACTION_PREFIX,
+	callLayerAction,
+	createLayerActionClient,
+	createLayerActionPath,
+	createLayerActionUrl,
+	LayerActionError,
 	mergeHeadProps,
 	headToHtml,
 	mergeLayerHeads,
@@ -294,6 +300,12 @@ export {
 	type AssetManifestChunk,
 	type HydrationData,
 	type SSRError,
+	type LayerActionCallOptions,
+	type LayerActionClient,
+	type LayerActionName,
+	type LayerActionResponseMode,
+	type LayerActionResult,
+	type LayerActionsFrom,
 } from './ssr/index.js';
 
 export {

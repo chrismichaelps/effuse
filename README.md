@@ -30,7 +30,7 @@ const ProfileButton = define({
 - **Typed layers** keep app capabilities explicit instead of scattering hidden imports and context.
 - **Fine-grained signals** update only dependent UI instead of rerendering a component tree by default.
 - **Local layer aliases** make component scripts readable without coupling them to global layer names.
-- **Layer-owned APIs/actions** bring Next-like server power to the capability that owns the data.
+- **Layer-owned APIs/actions** bring Next-like server power to the capability that owns the data, with client helpers for calling actions.
 
 Read the framework rationale in [Why Effuse](docs/why-effuse.md).
 

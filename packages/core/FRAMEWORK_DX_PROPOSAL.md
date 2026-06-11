@@ -137,9 +137,23 @@ Layer server APIs should provide `server.api`, `server.actions`, dynamic params,
 typed `query`, typed body helpers, response helpers, generated server entry
 support, and SSR fallback after API/action matching.
 
+The core package now also provides client helpers for this surface:
+
+```ts
+const result = await callLayerAction(UserLayer, 'refreshUser', {
+  id: 'u1',
+});
+
+const users = createLayerActionClient(UserLayer);
+await users.refreshUser({ id: 'u1' });
+```
+
+Layer-scoped action URLs use `/_effuse/actions/<layer>/<action>` to avoid
+collisions, while the legacy `/_effuse/actions/<action>` path remains supported.
+
 Next roadmap:
 
-- typed client action helpers generated from layer actions.
+- generated client action modules for build-time route manifests.
 - middleware per layer and per route.
 - route-level cache/revalidate metadata.
 - streaming responses and event streams.
@@ -177,6 +191,8 @@ This core PR lands the runtime and type foundation:
 - layer accessors preserve alias keys while resolving through real layer names.
 - app and server layer inputs accept alias records.
 - `defineLayer` server handlers infer services from the layer service contract.
+- layer actions have scoped URLs and client helpers via `callLayerAction` and
+  `createLayerActionClient`.
 - README explains why Effuse should exist as a framework.
 
 The docs repo should then receive a focused follow-up PR around this contract.

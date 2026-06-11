@@ -39,7 +39,7 @@ import {
 } from '../layers/api/defineLayer.js';
 import { createSSRRuntime } from './runtime.js';
 
-const ACTION_PREFIX = '/_effuse/actions/';
+export const EFFUSE_ACTION_PREFIX = '/_effuse/actions/';
 
 const HTTP_METHODS = new Set<HttpMethod>([
 	'GET',
@@ -241,11 +241,19 @@ const findActionHandler = (
 	layers: readonly AnyResolvedLayer[]
 ): MatchedServerHandler | null => {
 	const url = new URL(request.url);
-	if (!url.pathname.startsWith(ACTION_PREFIX)) {
+	if (!url.pathname.startsWith(EFFUSE_ACTION_PREFIX)) {
 		return null;
 	}
 
-	const actionName = decodeSegment(url.pathname.slice(ACTION_PREFIX.length));
+	const actionSegments = splitPath(url.pathname.slice(EFFUSE_ACTION_PREFIX.length));
+	const decodedSegments = actionSegments.map(decodeSegment);
+	const layerName =
+		decodedSegments.length > 1 ? decodedSegments[0] : undefined;
+	const actionName =
+		decodedSegments.length > 1
+			? decodedSegments.slice(1).join('/')
+			: decodedSegments[0];
+
 	if (!actionName) {
 		return null;
 	}
@@ -260,6 +268,19 @@ const findActionHandler = (
 			params: { action: actionName },
 			allowedMethods: ['POST'],
 		};
+	}
+
+	if (layerName) {
+		const layer = layers.find((candidate) => candidate.name === layerName);
+		const handler = layer?.server?.actions?.[actionName];
+		if (handler) {
+			return {
+				handler,
+				params: { layer: layerName, action: actionName },
+				allowedMethods: ['POST'],
+			};
+		}
+		return null;
 	}
 
 	for (const layer of layers) {
