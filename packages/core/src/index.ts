@@ -183,6 +183,7 @@ export { jsx, jsxs, jsxDEV, Fragment } from './jsx/index.js';
 
 export {
 	defineLayer,
+	layerService,
 	type EffuseServices,
 	type CompiledLayer,
 	type LayerFactory,

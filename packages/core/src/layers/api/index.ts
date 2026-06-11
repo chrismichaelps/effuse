@@ -24,6 +24,7 @@
 
 export {
 	defineLayer,
+	layerService,
 	type EffuseServices,
 	type CompiledLayer,
 	type LayerFactory,

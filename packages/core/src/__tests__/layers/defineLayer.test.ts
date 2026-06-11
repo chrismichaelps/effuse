@@ -1,6 +1,7 @@
 import { describe, it, expect, expectTypeOf } from 'vitest';
 import {
 	defineLayer,
+	layerService,
 	combineLayers,
 	resolveLayerDefinitions,
 	type LayerServicesFrom,
@@ -129,6 +130,24 @@ describe('defineLayer', () => {
 					}),
 				},
 			}));
+
+			expectTypeOf<LayerServicesFrom<typeof layer>['commerce']>().toEqualTypeOf<{
+				currentUser: () => string;
+			}>();
+		});
+
+		it('should contextually type object-form factories through layerService', () => {
+			const layer = defineLayer({
+				name: 'object-helper-composed-service',
+				services: {
+					commerce: layerService(({ requireService }) => {
+						const auth = requireService<{ readonly userId: string }>('auth');
+						return {
+							currentUser: () => auth.userId,
+						};
+					}),
+				},
+			});
 
 			expectTypeOf<LayerServicesFrom<typeof layer>['commerce']>().toEqualTypeOf<{
 				currentUser: () => string;

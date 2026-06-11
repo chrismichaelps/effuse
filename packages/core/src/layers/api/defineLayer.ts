@@ -185,6 +185,10 @@ const createLayerFactoryContext = <N extends string>(
 	action: (handler) => handler,
 });
 
+export const layerService = <T>(
+	factory: LayerServiceFactory<T>
+): LayerServiceFactory<T> => factory;
+
 const resolveDefinition = <
 	N extends string,
 	T extends LayerDefinitionBase,
@@ -244,6 +248,22 @@ const createStandaloneServiceContext = (
 	};
 };
 
+export function defineLayer<
+	N extends string,
+	T extends LayerDefinitionBase,
+	Services extends LayerProvides,
+	Provides extends LayerProvides | undefined = undefined,
+	Server extends
+		| DefinitionServer<Provides, Services>
+		| undefined = DefinitionServer<Provides, Services> | undefined,
+>(
+	definition: NamedLayerDefinition<N, T, Provides, Services, Server> & {
+		readonly services: Services;
+	}
+): CompiledLayer<
+	ConcreteLayerDefinition<N, T, Provides, Services, Server>,
+	N
+>;
 export function defineLayer<
 	N extends string,
 	T extends LayerDefinitionBase,
