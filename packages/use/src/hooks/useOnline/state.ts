@@ -24,11 +24,13 @@
 
 import { Data } from 'effect';
 
+/* eslint-disable @typescript-eslint/no-empty-object-type -- Effect Data.TaggedEnum uses {} for no-payload variants. */
 export type NetworkState = Data.TaggedEnum<{
 	readonly Online: {};
 	readonly Offline: {};
 	readonly Unknown: {};
 }>;
+/* eslint-enable @typescript-eslint/no-empty-object-type */
 
 export const NetworkState = Data.taggedEnum<NetworkState>();
 

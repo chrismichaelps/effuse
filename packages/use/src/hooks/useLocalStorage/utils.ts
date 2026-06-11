@@ -48,7 +48,11 @@ export const writeStorage = (key: string, value: string): boolean =>
 	pipe(
 		getLocalStorage(),
 		Option.map((storage) =>
-			Either.isRight(Either.try(() => storage.setItem(key, value)))
+			Either.isRight(
+				Either.try(() => {
+					storage.setItem(key, value);
+				})
+			)
 		),
 		Option.getOrElse(() => false)
 	);
@@ -57,7 +61,11 @@ export const removeStorage = (key: string): boolean =>
 	pipe(
 		getLocalStorage(),
 		Option.map((storage) =>
-			Either.isRight(Either.try(() => storage.removeItem(key)))
+			Either.isRight(
+				Either.try(() => {
+					storage.removeItem(key);
+				})
+			)
 		),
 		Option.getOrElse(() => false)
 	);

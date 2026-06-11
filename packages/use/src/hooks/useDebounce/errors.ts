@@ -33,4 +33,6 @@ export class DebounceError extends Data.TaggedError('DebounceError')<{
 }
 
 export const debounceInvalidDelay = (delay: number): DebounceError =>
-	new DebounceError({ reason: `Invalid delay: ${delay}ms. Must be >= 0` });
+	new DebounceError({
+		reason: `Invalid delay: ${String(delay)}ms. Must be >= 0`,
+	});
