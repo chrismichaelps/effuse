@@ -51,6 +51,17 @@ const validateFilePath = (filePath: unknown): string | undefined => {
 	return filePath;
 };
 
+const validateOptionalString = (
+	value: unknown,
+	label: string
+): string | undefined => {
+	if (value === undefined) return undefined;
+	if (typeof value !== 'string' || value.length === 0) {
+		throw new CliError({ message: `${label} must be a non-empty string.` });
+	}
+	return value;
+};
+
 const printHelp = (version: string) => {
 	console.log(`${APP_NAME}/${version}`);
 	console.log();
@@ -85,6 +96,11 @@ const printHelp = (version: string) => {
 	console.log();
 	console.log('Manifest Options:');
 	console.log(`  -f, --file <path>      Server manifest JSON file (default: ${DEFAULT_SERVER_MANIFEST_PATH})`);
+	console.log('  --client-out <path>   Write a typed server client module');
+	console.log('  --client-factory <id> Client factory export name');
+	console.log('  --client-manifest <id> Manifest export name');
+	console.log('  --client-type <id>    Client type export name');
+	console.log('  --client-import <pkg> Import source for Effuse runtime helpers');
 };
 
 export const runCli = async (args: string[]) => {
@@ -166,13 +182,45 @@ export const runCli = async (args: string[]) => {
 	}
 
 	if (commandName === COMMANDS.MANIFEST) {
-		const filePath = validateFilePath(parsed.options.f ?? parsed.options.file);
+		const opts = parsed.options;
+		const filePath = validateFilePath(opts.f ?? opts.file);
+		const clientOut = validateFilePath(opts.client_out ?? opts['client-out']);
+		const clientFactory = validateOptionalString(
+			opts.client_factory ?? opts['client-factory'],
+			'Client factory name'
+		);
+		const clientManifest = validateOptionalString(
+			opts.client_manifest ?? opts['client-manifest'],
+			'Client manifest name'
+		);
+		const clientType = validateOptionalString(
+			opts.client_type ?? opts['client-type'],
+			'Client type name'
+		);
+		const clientImportSource = validateOptionalString(
+			opts.client_import ?? opts['client-import'],
+			'Client import source'
+		);
 		try {
 			const manifest = manifestResolver.resolveLayerServerManifestFile(cwd, filePath);
 			if (!manifest) {
 				throw new CliError({
 					message: `Server manifest not found or invalid: ${filePath ?? DEFAULT_SERVER_MANIFEST_PATH}`,
 				});
+			}
+			if (clientOut) {
+				const outputPath = manifestResolver.writeLayerServerClientModule(
+					cwd,
+					clientOut,
+					manifest,
+					{
+						...(clientFactory ? { factoryName: clientFactory } : {}),
+						...(clientManifest ? { manifestName: clientManifest } : {}),
+						...(clientType ? { clientTypeName: clientType } : {}),
+						...(clientImportSource ? { importSource: clientImportSource } : {}),
+					}
+				);
+				console.log(`[${APP_NAME}] Generated server client: ${outputPath}`);
 			}
 			console.log(manifestResolver.formatLayerServerManifest(manifest));
 		} catch (error: unknown) {

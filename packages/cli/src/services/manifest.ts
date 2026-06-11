@@ -1,5 +1,9 @@
-import { join, resolve } from 'node:path';
-import { readFileSync, existsSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
+import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import {
+	generateLayerServerClientModule,
+	type GenerateLayerServerClientModuleOptions,
+} from '@effuse/core';
 import type {
 	LayerServerManifest,
 	LayerServerManifestAction,
@@ -23,6 +27,9 @@ export interface ManifestChunk {
 }
 
 export type AssetManifest = Record<string, ManifestChunk>;
+
+export type LayerServerClientGenerationOptions =
+	GenerateLayerServerClientModuleOptions;
 
 export const DEFAULT_SERVER_MANIFEST_PATH = join(
 	DEFAULT_CONFIG.outDirServer,
@@ -220,6 +227,29 @@ export class ManifestResolver {
 		appendDiagnostics(lines, manifest.diagnostics);
 
 		return lines.join('\n');
+	}
+
+	generateLayerServerClientModule(
+		manifest: LayerServerManifest,
+		options?: LayerServerClientGenerationOptions
+	): string {
+		return generateLayerServerClientModule(manifest, options);
+	}
+
+	writeLayerServerClientModule(
+		cwd: string,
+		outputPath: string,
+		manifest: LayerServerManifest,
+		options?: LayerServerClientGenerationOptions
+	): string {
+		const resolvedOutputPath = resolve(cwd, outputPath);
+		mkdirSync(dirname(resolvedOutputPath), { recursive: true });
+		writeFileSync(
+			resolvedOutputPath,
+			this.generateLayerServerClientModule(manifest, options),
+			'utf-8'
+		);
+		return resolvedOutputPath;
 	}
 
 	private isValidManifest(value: unknown): value is AssetManifest {

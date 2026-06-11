@@ -310,9 +310,10 @@ adapters should translate those events into logs, spans, or metrics, and use
 behavior.
 
 The CLI now provides `effuse manifest --file <path>` to inspect generated
-server manifests. The output groups routes and actions by layer, prints runtime,
-cache, CORS, region, and duration metadata, and surfaces manifest diagnostics
-such as metadata conflicts.
+server manifests and `--client-out <path>` to write a typed server client
+module from the same manifest. The output groups routes and actions by layer,
+prints runtime, cache, CORS, region, and duration metadata, and surfaces
+manifest diagnostics such as metadata conflicts.
 
 File-system API folders should be an optional manifest source:
 
@@ -325,7 +326,7 @@ File-system API folders should be an optional manifest source:
 
 Next roadmap:
 
-- CLI generation and watch mode around `generateLayerServerClientModule()`.
+- watch mode around manifest generation and `--client-out`.
 - richer adapter use of layer and route/action middleware.
 - generated deployment config from cache/revalidate/runtime metadata.
 - streaming responses and event streams.
@@ -348,9 +349,10 @@ also add a server APIs page and fix quick-start template examples.
 
 These are the next gaps that matter for production users:
 
-- **Routing manifest/typegen**: generate typed API/action clients from
-  `createLayerServerManifest()` and fail builds on duplicate routes, ambiguous
-  params, or invalid methods.
+- **Routing manifest/typegen**: core can generate typed API/action clients from
+  `createLayerServerManifest()`, and the CLI can write them via
+  `effuse manifest --client-out`. The next layer is duplicate route checks,
+  ambiguous params, invalid method diagnostics, and richer error unions.
 - **File-system server adapter**: support `src/server/api` and
   `src/server/actions` as an optional convention that maps into layer-owned
   routes/actions.
@@ -366,9 +368,9 @@ These are the next gaps that matter for production users:
   layer, target, and error state. The next layer is adapter packages for
   OpenTelemetry/logging vendors and service-level spans.
 - **CLI/dev server**: `effuse manifest --file <path>` now prints routes,
-  actions, metadata, and diagnostics. The next layer is watch mode, route
-  collision checks, endpoint previews, and generated manifest output during
-  `dev`/`build`.
+  actions, metadata, and diagnostics, and `--client-out` writes typed client
+  modules for CI. The next layer is watch mode, route collision checks,
+  endpoint previews, and generated manifest output during `dev`/`build`.
 - **Docs and examples**: replace string layer docs with alias-record docs and
   add complete examples for auth, forms, API routes, actions, redirects, and
   uploads.

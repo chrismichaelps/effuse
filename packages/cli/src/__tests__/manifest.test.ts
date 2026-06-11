@@ -5,7 +5,14 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { mkdtempSync, writeFileSync, rmSync, existsSync, mkdirSync } from 'node:fs';
+import {
+	mkdtempSync,
+	writeFileSync,
+	rmSync,
+	existsSync,
+	mkdirSync,
+	readFileSync,
+} from 'node:fs';
 import { resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import type {
@@ -166,6 +173,42 @@ describe('ManifestResolver', () => {
 		expect(output).toContain('metadata_conflict admin /api/admin runtime');
 	});
 
+	it('should generate a deterministic typed server client module', () => {
+		const output = resolver.generateLayerServerClientModule(serverManifest, {
+			factoryName: 'createServerClient',
+			manifestName: 'serverManifest',
+			clientTypeName: 'ServerClient',
+			importSource: '@effuse/core',
+		});
+
+		expect(output).toContain(
+			'import { createLayerServerManifestClient, type LayerActionCallOptions, type LayerServerManifest } from "@effuse/core";'
+		);
+		expect(output).toContain('export const serverManifest = {');
+		expect(output).toContain('"path": "/api/users"');
+		expect(output).toContain('export const createServerClient = (options?: LayerActionCallOptions) =>');
+		expect(output).toContain('export type ServerClient = ReturnType<typeof createServerClient>;');
+	});
+
+	it('should write generated server clients to nested output paths', () => {
+		const outputPath = resolver.writeLayerServerClientModule(
+			tempDir,
+			'src/generated/effuse-server-client.ts',
+			serverManifest,
+			{
+				factoryName: 'createServerClient',
+				manifestName: 'serverManifest',
+				clientTypeName: 'ServerClient',
+			}
+		);
+
+		expect(outputPath).toBe(resolve(tempDir, 'src/generated/effuse-server-client.ts'));
+		expect(existsSync(outputPath)).toBe(true);
+		expect(readFileSync(outputPath, 'utf-8')).toContain(
+			'createLayerServerManifestClient(serverManifest, options)'
+		);
+	});
+
 	it('should print a formatted server manifest from the CLI', async () => {
 		const manifestPath = resolve(tempDir, 'server-manifest.json');
 		writeFileSync(manifestPath, JSON.stringify(serverManifest), 'utf-8');
@@ -177,5 +220,36 @@ describe('ManifestResolver', () => {
 		expect(error).not.toHaveBeenCalled();
 		expect(log).toHaveBeenCalledWith(expect.stringContaining('Effuse server manifest'));
 		expect(log).toHaveBeenCalledWith(expect.stringContaining('/api/users'));
+	});
+
+	it('should generate a typed server client from the CLI', async () => {
+		const manifestPath = resolve(tempDir, 'server-manifest.json');
+		const clientPath = resolve(tempDir, 'src/generated/client.ts');
+		writeFileSync(manifestPath, JSON.stringify(serverManifest), 'utf-8');
+		const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+		const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+		await runCli([
+			'manifest',
+			'--file',
+			manifestPath,
+			'--client-out',
+			clientPath,
+			'--client-factory',
+			'createServerClient',
+			'--client-manifest',
+			'serverManifest',
+			'--client-type',
+			'ServerClient',
+		]);
+
+		expect(error).not.toHaveBeenCalled();
+		expect(existsSync(clientPath)).toBe(true);
+		expect(readFileSync(clientPath, 'utf-8')).toContain(
+			'export const createServerClient = (options?: LayerActionCallOptions) =>'
+		);
+		expect(log).toHaveBeenCalledWith(
+			expect.stringContaining('Generated server client:')
+		);
 	});
 });
