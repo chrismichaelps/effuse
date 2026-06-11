@@ -4,11 +4,66 @@
  * Copyright (c) 2025 Chris M. Perez
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mkdtempSync, writeFileSync, rmSync, existsSync, mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { tmpdir } from 'node:os';
+import type {
+	LayerServerManifest,
+	LayerServerManifestAction,
+	LayerServerManifestRoute,
+	ServerMetadataDiagnostic,
+} from '@effuse/core';
+import { runCli } from '../cli.js';
 import { ManifestResolver } from '../services/manifest.js';
+
+const metadataConflict: ServerMetadataDiagnostic = {
+	code: 'metadata_conflict',
+	key: 'runtime',
+	layer: 'admin',
+	message: 'Server metadata "runtime" on /api/admin overrides layer metadata from admin.',
+	target: '/api/admin',
+};
+
+const usersRoute: LayerServerManifestRoute = {
+	layer: 'users',
+	metadata: {
+		cache: { revalidate: 60, tags: ['users'] },
+		cors: { methods: ['GET'], origin: ['https://app.example.com'] },
+		runtime: 'edge',
+	},
+	methods: ['GET', 'POST'],
+	path: '/api/users',
+	source: 'api',
+};
+
+const adminRoute: LayerServerManifestRoute = {
+	diagnostics: [metadataConflict],
+	layer: 'admin',
+	metadata: { runtime: 'node' },
+	methods: ['GET'],
+	path: '/api/admin',
+	source: 'routes',
+};
+
+const refreshAction: LayerServerManifestAction = {
+	layer: 'users',
+	legacyPath: '/_effuse/actions/refresh',
+	metadata: { runtime: 'node' },
+	method: 'POST',
+	name: 'refresh',
+	path: '/_effuse/actions/users/refresh',
+};
+
+const serverManifest: LayerServerManifest = {
+	actions: [refreshAction],
+	diagnostics: [metadataConflict],
+	layers: [
+		{ actions: [refreshAction], name: 'users', routes: [usersRoute] },
+		{ actions: [], name: 'admin', routes: [adminRoute] },
+	],
+	routes: [usersRoute, adminRoute],
+};
 
 describe('ManifestResolver', () => {
 	let tempDir: string;
@@ -21,6 +76,8 @@ describe('ManifestResolver', () => {
 
 	afterEach(() => {
 		rmSync(tempDir, { recursive: true, force: true });
+		vi.restoreAllMocks();
+		process.exitCode = undefined;
 	});
 
 	it('should return null when manifest.json does not exist', () => {
@@ -79,5 +136,46 @@ describe('ManifestResolver', () => {
 		};
 		const serialized = resolver.serialize(manifest);
 		expect(JSON.parse(serialized)).toEqual(manifest);
+	});
+
+	it('should parse an Effuse server manifest file', () => {
+		const manifestPath = resolve(tempDir, 'server-manifest.json');
+		writeFileSync(manifestPath, JSON.stringify(serverManifest), 'utf-8');
+
+		const result = resolver.resolveLayerServerManifestFile(tempDir, manifestPath);
+
+		expect(result).toEqual(serverManifest);
+	});
+
+	it('should format routes, actions, metadata, and diagnostics by layer', () => {
+		const output = resolver.formatLayerServerManifest(serverManifest);
+
+		expect(output).toContain('Effuse server manifest');
+		expect(output).toContain('Layers: 2');
+		expect(output).toContain('Routes: 2');
+		expect(output).toContain('Actions: 1');
+		expect(output).toContain('  users');
+		expect(output).toContain(
+			'GET,POST /api/users [api] runtime=edge revalidate=60 tags=users cors=https://app.example.com cors-methods=GET'
+		);
+		expect(output).toContain(
+			'POST /_effuse/actions/users/refresh (refresh) runtime=node'
+		);
+		expect(output).toContain('GET /api/admin [routes] runtime=node conflicts');
+		expect(output).toContain('Diagnostics');
+		expect(output).toContain('metadata_conflict admin /api/admin runtime');
+	});
+
+	it('should print a formatted server manifest from the CLI', async () => {
+		const manifestPath = resolve(tempDir, 'server-manifest.json');
+		writeFileSync(manifestPath, JSON.stringify(serverManifest), 'utf-8');
+		const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+		const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+		await runCli(['manifest', '--file', manifestPath]);
+
+		expect(error).not.toHaveBeenCalled();
+		expect(log).toHaveBeenCalledWith(expect.stringContaining('Effuse server manifest'));
+		expect(log).toHaveBeenCalledWith(expect.stringContaining('/api/users'));
 	});
 });

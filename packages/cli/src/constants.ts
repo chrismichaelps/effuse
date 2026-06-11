@@ -4,6 +4,7 @@ export const COMMANDS = {
 	DEV: 'dev',
 	BUILD: 'build',
 	TYPECHECK: 'typecheck',
+	MANIFEST: 'manifest',
 } as const;
 
 export const DEFAULT_CONFIG = {
