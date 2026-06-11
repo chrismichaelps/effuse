@@ -637,6 +637,47 @@ describe('define() + layers — full integration', () => {
 			expect(instanceB).toBe(cachedInstance);
 			expect(factorySpy).not.toHaveBeenCalled();
 		});
+
+		it('should return the same services bag across repeated script reads', () => {
+			const cachedInstance = { id: 999 };
+			const cacheLayer = defineLayer({
+				name: 'cache',
+				provides: { cachedSvc: () => cachedInstance },
+			});
+			const resolvedLayer = createResolvedLayer({
+				name: 'cache',
+				provides: { cachedSvc: () => cachedInstance },
+			});
+
+			const propsRegistry = createMockPropsRegistry({ cache: {} });
+			const layerRegistry = createMockLayerRegistry(
+				{ cache: resolvedLayer },
+				{ cachedSvc: cachedInstance }
+			);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedLayer] };
+
+			const Component = define({
+				props: {},
+				layers: [cacheLayer] as const,
+				script(ctx) {
+					const firstServices = ctx.layers.cache.services;
+					const secondServices = ctx.layers.cache.services;
+					return {
+						sameBag: firstServices === secondServices,
+						sameService: firstServices.cachedSvc === secondServices.cachedSvc,
+					};
+				},
+				template: () => null,
+			});
+
+			const blueprint = extractBlueprint(Component);
+			const state = runWithLayerContext(store, () => blueprint.state({})) as {
+				exposed: { sameBag: boolean; sameService: boolean };
+			};
+
+			expect(state.exposed.sameBag).toBe(true);
+			expect(state.exposed.sameService).toBe(true);
+		});
 	});
 
 	describe('define() with layers — empty accessor when no layers', () => {

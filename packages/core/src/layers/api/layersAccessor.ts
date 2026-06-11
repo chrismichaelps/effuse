@@ -22,7 +22,11 @@
  * SOFTWARE.
  */
 
-import { getLayerContext, getLayerService } from '../context.js';
+import {
+	getLayerContext,
+	getLayerService,
+	isLayerRuntimeReady,
+} from '../context.js';
 import type { CompiledLayer, EffuseServices } from './defineLayer.js';
 import type { LayerProps, EffuseLayer } from '../types.js';
 
@@ -60,25 +64,59 @@ export type LayersAccessor<L extends LayerSource> =
 			? LayersAccessorFromAliases<L>
 			: never;
 
+const createServicesBag = <L extends CompiledLayer<any, any>>(
+	compiledLayer: L
+): {
+	readonly services: EffuseServices<
+		L extends CompiledLayer<infer T, string> ? T : never
+	>;
+	readonly refresh: () => void;
+} => {
+	const keys = Object.keys(compiledLayer.provides ?? {});
+	const services: Record<string, unknown> = {};
+	const serviceCache: Record<string, unknown> = {};
+
+	for (const key of keys) {
+		Object.defineProperty(services, key, {
+			enumerable: true,
+			get: () => {
+				if (isLayerRuntimeReady()) {
+					serviceCache[key] = getLayerService(key);
+				}
+				return serviceCache[key];
+			},
+		});
+	}
+
+	return {
+		services: services as EffuseServices<
+			L extends CompiledLayer<infer T, string> ? T : never
+		>,
+		refresh: () => {
+			for (const key of keys) {
+				serviceCache[key] = getLayerService(key);
+			}
+		},
+	};
+};
+
 export function resolveLayerEntry<L extends CompiledLayer<any, any>>(
 	compiledLayer: L
 ): LayerEntryFrom<L> {
 	const name = compiledLayer.name as string;
+	const { refresh, services } = createServicesBag(compiledLayer);
 
 	return {
 		get props(): LayerProps {
 			return getLayerContext(name).props;
 		},
-		get services(): Record<string, unknown> {
-			const services: Record<string, unknown> = {};
-			if (compiledLayer.provides) {
-				for (const key of Object.keys(compiledLayer.provides)) {
-					services[key] = getLayerService(key);
-				}
-			}
+		get services(): EffuseServices<
+			L extends CompiledLayer<infer T, string> ? T : never
+		> {
+			refresh();
 			return services;
 		},
-	} as LayerEntryFrom<L>;
+	} as unknown as LayerEntryFrom<L>;
 }
 
 export const layerSourceToList = <L extends LayerSource>(

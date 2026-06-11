@@ -143,6 +143,55 @@ describe('LayersAccessor — comprehensive regression tests', () => {
 			expect(runWithLayerContext(store, () => accessor.auth.services.authService)).toBe(authService);
 		});
 
+		it('should keep services bag identity stable while refreshing values from context', () => {
+			const authServiceA = { token: 'a' };
+			const authServiceB = { token: 'b' };
+			const authLayer = defineLayer({
+				name: 'auth',
+				provides: { authService: () => authServiceA },
+			});
+			const resolvedLayer = createResolvedLayer({
+				name: 'auth',
+				provides: { authService: () => authServiceA },
+			});
+
+			const propsRegistry = createMockPropsRegistry({ auth: {} });
+			const storeA = {
+				propsRegistry,
+				layerRegistry: createMockLayerRegistry(
+					{ auth: resolvedLayer },
+					{ authService: authServiceA }
+				),
+				layers: [resolvedLayer],
+			};
+			const storeB = {
+				propsRegistry,
+				layerRegistry: createMockLayerRegistry(
+					{ auth: resolvedLayer },
+					{ authService: authServiceB }
+				),
+				layers: [resolvedLayer],
+			};
+			const accessor = resolveLayersAccessor([authLayer]);
+
+			const firstServices = runWithLayerContext(
+				storeA,
+				() => accessor.auth.services
+			);
+			const secondServices = runWithLayerContext(
+				storeA,
+				() => accessor.auth.services
+			);
+
+			expect(firstServices).toBe(secondServices);
+			expect(Object.keys(firstServices)).toEqual(['authService']);
+			expect(firstServices.authService).toBe(authServiceA);
+			expect(runWithLayerContext(storeB, () => firstServices.authService)).toBe(
+				authServiceB
+			);
+			expect(firstServices.authService).toBe(authServiceB);
+		});
+
 		it('should return cached service — factory NOT called on repeated access', () => {
 			const factorySpy = vi.fn(() => ({ value: 'fresh' }));
 			const cached = { value: 'cached' };
