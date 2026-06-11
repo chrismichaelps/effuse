@@ -37,6 +37,9 @@ describe('server file routes', () => {
 		expect(serverFileToRoutePath('./app/api/users/[id]/route.ts')).toBe(
 			'/api/users/[id]'
 		);
+		expect(
+			serverFileToRoutePath('./app/api/(admin)/docs/[[...slug]]/route.ts')
+		).toBe('/api/docs/[[...slug]]');
 		expect(serverFileToRoutePath('./src/api/health.ts')).toBe('/api/health');
 		expect(
 			serverFileToRoutePath('./routes/api/users/[id].ts', {
@@ -50,6 +53,9 @@ describe('server file routes', () => {
 		).toBe('users/refresh');
 		expect(
 			serverFileToActionName('./app/actions/users/refresh.ts')
+		).toBe('users/refresh');
+		expect(
+			serverFileToActionName('./app/actions/(admin)/users/refresh.ts')
 		).toBe('users/refresh');
 		expect(serverFileToActionName('./src/actions/users/index.ts')).toBe(
 			'users'
@@ -147,6 +153,18 @@ describe('server file routes', () => {
 						source: 'app-api',
 					}),
 				},
+				'./app/api/[id]/route.ts': {
+					GET: ({ params }) => ({
+						id: params.id,
+						source: 'app-api-dynamic',
+					}),
+				},
+				'./app/api/(docs)/docs/[[...slug]]/route.ts': {
+					GET: ({ params }) => ({
+						slug: params.slug || 'index',
+						source: 'app-api-group',
+					}),
+				},
 				'./app/actions/projects/archive.ts': {
 					default: () => ({ archived: true, source: 'app-actions' }),
 				},
@@ -164,6 +182,24 @@ describe('server file routes', () => {
 		expect(await routeResponse.json()).toEqual({
 			id: 'p1',
 			source: 'app-api',
+		});
+
+		const docsIndexResponse = await handler(
+			new Request('http://localhost:3000/api/docs')
+		);
+		expect(docsIndexResponse.status).toBe(200);
+		expect(await docsIndexResponse.json()).toEqual({
+			slug: 'index',
+			source: 'app-api-group',
+		});
+
+		const docsNestedResponse = await handler(
+			new Request('http://localhost:3000/api/docs/guides/setup')
+		);
+		expect(docsNestedResponse.status).toBe(200);
+		expect(await docsNestedResponse.json()).toEqual({
+			slug: 'guides/setup',
+			source: 'app-api-group',
 		});
 
 		const actionResult = await callLayerAction(

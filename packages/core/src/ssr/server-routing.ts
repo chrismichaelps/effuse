@@ -109,7 +109,9 @@ const matchRoutePath = (
 	const routeSegments = splitPath(routePath);
 	const requestSegments = splitPath(pathname);
 	const catchAllIndex = routeSegments.findIndex(
-		(segment) => segment.startsWith('[...') && segment.endsWith(']')
+		(segment) =>
+			(segment.startsWith('[...') && segment.endsWith(']')) ||
+			(segment.startsWith('[[...') && segment.endsWith(']]'))
 	);
 
 	if (catchAllIndex === -1 && routeSegments.length !== requestSegments.length) {
@@ -125,6 +127,12 @@ const matchRoutePath = (
 	for (let i = 0; i < routeSegments.length; i++) {
 		const routeSegment = routeSegments[i];
 		const requestSegment = requestSegments[i];
+
+		if (routeSegment.startsWith('[[...') && routeSegment.endsWith(']]')) {
+			const name = routeSegment.slice(5, -2);
+			params[name] = requestSegments.slice(i).map(decodeSegment).join('/');
+			return params;
+		}
 
 		if (routeSegment.startsWith('[...') && routeSegment.endsWith(']')) {
 			const name = routeSegment.slice(4, -1);
@@ -150,6 +158,36 @@ const matchRoutePath = (
 	return routeSegments.length === requestSegments.length ? params : null;
 };
 
+const routeSegmentSpecificity = (segment: string): number => {
+	if (segment === '*') return 0;
+	if (
+		(segment.startsWith('[...') && segment.endsWith(']')) ||
+		(segment.startsWith('[[...') && segment.endsWith(']]'))
+	) {
+		return 1;
+	}
+	if (segment.startsWith(':')) return 2;
+	if (segment.startsWith('[') && segment.endsWith(']')) return 2;
+	return 3;
+};
+
+const compareRouteSpecificity = (
+	left: readonly string[],
+	right: readonly string[]
+): number => {
+	const maxLength = Math.max(left.length, right.length);
+	for (let index = 0; index < maxLength; index++) {
+		const leftScore =
+			left[index] === undefined ? -1 : routeSegmentSpecificity(left[index]);
+		const rightScore =
+			right[index] === undefined ? -1 : routeSegmentSpecificity(right[index]);
+		if (leftScore !== rightScore) {
+			return rightScore - leftScore;
+		}
+	}
+	return right.length - left.length;
+};
+
 const getHandlerForMethod = (
 	route: ServerRoute,
 	method: HttpMethod
@@ -170,34 +208,39 @@ const findApiHandler = (
 		return null;
 	}
 
-	for (const layer of layers) {
-		for (const entry of getLayerServerRouteEntries(layer)) {
-			const route = entry.route;
-			const params = matchRoutePath(route.path, url.pathname);
-			if (!params) continue;
-
-			const handler = getHandlerForMethod(route, method);
-			if (handler) {
-				return {
-					handler,
-					kind: 'api',
-					layer,
-					metadata: entry.metadata,
-					middleware: route.middleware ?? [],
-					params,
-					target: route.path,
-					allowedMethods: getServerRouteMethods(route),
-				};
+	const entries = layers
+		.flatMap((layer, layerIndex) =>
+			getLayerServerRouteEntries(layer).map((entry, routeIndex) => ({
+				entry,
+				layer,
+				layerIndex,
+				routeIndex,
+				segments: splitPath(entry.route.path),
+			}))
+		)
+		.sort((left, right) => {
+			const specificity = compareRouteSpecificity(
+				left.segments,
+				right.segments
+			);
+			if (specificity !== 0) {
+				return specificity;
 			}
+			if (left.layerIndex !== right.layerIndex) {
+				return left.layerIndex - right.layerIndex;
+			}
+			return left.routeIndex - right.routeIndex;
+		});
 
+	for (const { entry, layer } of entries) {
+		const route = entry.route;
+		const params = matchRoutePath(route.path, url.pathname);
+		if (!params) continue;
+
+		const handler = getHandlerForMethod(route, method);
+		if (handler) {
 			return {
-				handler: () =>
-					new Response(null, {
-						status: 405,
-						headers: {
-							Allow: getServerRouteMethods(route).join(', '),
-						},
-					}),
+				handler,
 				kind: 'api',
 				layer,
 				metadata: entry.metadata,
@@ -207,6 +250,23 @@ const findApiHandler = (
 				allowedMethods: getServerRouteMethods(route),
 			};
 		}
+
+		return {
+			handler: () =>
+				new Response(null, {
+					status: 405,
+					headers: {
+						Allow: getServerRouteMethods(route).join(', '),
+					},
+				}),
+			kind: 'api',
+			layer,
+			metadata: entry.metadata,
+			middleware: route.middleware ?? [],
+			params,
+			target: route.path,
+			allowedMethods: getServerRouteMethods(route),
+		};
 	}
 
 	return null;

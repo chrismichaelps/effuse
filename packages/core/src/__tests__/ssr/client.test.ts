@@ -113,6 +113,15 @@ describe('layer server manifest client', () => {
 				| boolean
 				| readonly (string | number | boolean)[];
 		}>();
+		expectTypeOf<
+			ManifestRouteParams<'/api/docs/[[...slug]]'>
+		>().toEqualTypeOf<{
+			readonly slug?:
+				| string
+				| number
+				| boolean
+				| readonly (string | number | boolean)[];
+		}>();
 	});
 
 	it('should build route paths and URLs with params and query', () => {
@@ -129,6 +138,17 @@ describe('layer server manifest client', () => {
 				},
 			})
 		).toBe('/api/users/u1/settings/a/b?include=roles&page=2');
+		expect(createLayerRoutePath('/api/docs/[[...slug]]')).toBe('/api/docs');
+		expect(
+			createLayerRoutePath('/api/docs/[[...slug]]', {
+				params: { slug: ['guides', 'setup'] },
+			})
+		).toBe('/api/docs/guides/setup');
+		expect(
+			createLayerRoutePath('/api/docs/[[...slug]]', {
+				params: { slug: [] },
+			})
+		).toBe('/api/docs');
 		expect(
 			createLayerRouteUrl('/api/users/[id]', {
 				baseUrl: 'http://localhost:3000',

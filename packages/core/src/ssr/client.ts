@@ -82,7 +82,9 @@ export type ManifestRouteMethod<
 	: HttpMethod;
 
 type SegmentParam<Segment extends string> =
-	Segment extends `:${infer Name}`
+	Segment extends `[[...${string}]]`
+		? never
+		: Segment extends `:${infer Name}`
 		? Name
 		: Segment extends `[...${infer Name}]`
 			? Name
@@ -90,10 +92,18 @@ type SegmentParam<Segment extends string> =
 				? Name
 				: never;
 
+type OptionalSegmentParam<Segment extends string> =
+	Segment extends `[[...${infer Name}]]` ? Name : never;
+
 type PathParamNames<Path extends string> =
 	Path extends `${infer Head}/${infer Tail}`
 		? SegmentParam<Head> | PathParamNames<Tail>
 		: SegmentParam<Path>;
+
+type OptionalPathParamNames<Path extends string> =
+	Path extends `${infer Head}/${infer Tail}`
+		? OptionalSegmentParam<Head> | OptionalPathParamNames<Tail>
+		: OptionalSegmentParam<Path>;
 
 type RouteParamValue =
 	| string
@@ -101,13 +111,44 @@ type RouteParamValue =
 	| boolean
 	| readonly (string | number | boolean)[];
 
-export type ManifestRouteParams<Path extends string> = [
-	PathParamNames<Path>,
-] extends [never]
-	? Record<string, never>
-	: {
+type SimplifyRouteParams<T> = { readonly [K in keyof T]: T[K] };
+
+export type ManifestRouteParams<Path extends string> = [PathParamNames<Path>] extends [
+	never,
+]
+	? [OptionalPathParamNames<Path>] extends [never]
+		? Record<string, never>
+		: SimplifyRouteParams<{
+				readonly [K in OptionalPathParamNames<Path>]?: RouteParamValue;
+			}>
+	: SimplifyRouteParams<{
 			readonly [K in PathParamNames<Path>]: RouteParamValue;
-		};
+		} & {
+			readonly [K in OptionalPathParamNames<Path>]?: RouteParamValue;
+		}>;
+
+const isOptionalCatchAllSegment = (segment: string): boolean =>
+	segment.startsWith('[[...') && segment.endsWith(']]');
+
+const optionalCatchAllName = (segment: string): string =>
+	segment.slice(5, -2);
+
+const requiredCatchAllName = (segment: string): string =>
+	segment.slice(4, -1);
+
+const bracketParamName = (segment: string): string =>
+	segment.slice(1, -1);
+
+const segmentParamName = (segment: string): string | null =>
+	isOptionalCatchAllSegment(segment)
+		? optionalCatchAllName(segment)
+		: segment.startsWith(':')
+			? segment.slice(1)
+			: segment.startsWith('[...') && segment.endsWith(']')
+				? requiredCatchAllName(segment)
+				: segment.startsWith('[') && segment.endsWith(']')
+					? bracketParamName(segment)
+					: null;
 
 export interface LayerRouteCallOptions<
 	M extends LayerServerManifest,
@@ -224,14 +265,8 @@ const replaceParamSegment = <Path extends string>(
 	segment: string,
 	path: Path,
 	params: ManifestRouteParams<Path> | undefined
-): string => {
-	const name = segment.startsWith(':')
-		? segment.slice(1)
-		: segment.startsWith('[...') && segment.endsWith(']')
-			? segment.slice(4, -1)
-			: segment.startsWith('[') && segment.endsWith(']')
-				? segment.slice(1, -1)
-				: null;
+): string | undefined => {
+	const name = segmentParamName(segment);
 
 	if (!name) {
 		return segment;
@@ -239,10 +274,16 @@ const replaceParamSegment = <Path extends string>(
 
 	const value = params?.[name as keyof ManifestRouteParams<Path>];
 	if (value === undefined) {
+		if (isOptionalCatchAllSegment(segment)) {
+			return undefined;
+		}
 		throw new TypeError(`Missing route param "${name}" for "${path}".`);
 	}
 
-	return toPathPart(value);
+	const pathPart = toPathPart(value);
+	return isOptionalCatchAllSegment(segment) && pathPart.length === 0
+		? undefined
+		: pathPart;
 };
 
 export const createLayerRoutePath = <Path extends string>(
@@ -251,8 +292,10 @@ export const createLayerRoutePath = <Path extends string>(
 ): string => {
 	const segments = path
 		.split('/')
-		.map((segment) => replaceParamSegment(segment, path, options.params));
-	return appendQuery(segments.join('/'), options.query);
+		.map((segment) => replaceParamSegment(segment, path, options.params))
+		.filter((segment): segment is string => segment !== undefined);
+	const resolvedPath = segments.join('/') || '/';
+	return appendQuery(resolvedPath, options.query);
 };
 
 export const createLayerRouteUrl = <Path extends string>(

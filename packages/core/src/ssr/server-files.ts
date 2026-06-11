@@ -151,6 +151,15 @@ const stripFirstMatchingRoot = (
 const trimRouteFileSegment = (path: string): string =>
 	path.replace(/\/(?:route|index)$/i, '').replace(/^(?:route|index)$/i, '');
 
+const isRouteGroupSegment = (segment: string): boolean =>
+	segment.startsWith('(') && segment.endsWith(')');
+
+const stripRouteGroupSegments = (path: string): string =>
+	path
+		.split('/')
+		.filter((segment) => !isRouteGroupSegment(segment))
+		.join('/');
+
 const joinPath = (basePath: string, path: string): string => {
 	const normalizedBase = `/${basePath.replace(/^\/+|\/+$/g, '')}`;
 	const normalizedPath = path.replace(/^\/+|\/+$/g, '');
@@ -163,8 +172,10 @@ export const serverFileToRoutePath = (
 ): string => {
 	const apiDirs = normalizeDirs(options.apiDir, DEFAULT_API_DIRS);
 	const apiBasePath = options.apiBasePath ?? DEFAULT_API_BASE_PATH;
-	const path = trimRouteFileSegment(
-		stripExtension(stripFirstMatchingRoot(filePath, apiDirs))
+	const path = stripRouteGroupSegments(
+		trimRouteFileSegment(
+			stripExtension(stripFirstMatchingRoot(filePath, apiDirs))
+		)
 	);
 	return joinPath(apiBasePath, path);
 };
@@ -174,8 +185,10 @@ export const serverFileToActionName = (
 	options: ServerFilesOptions = {}
 ): string => {
 	const actionsDirs = normalizeDirs(options.actionsDir, DEFAULT_ACTIONS_DIRS);
-	return trimRouteFileSegment(
-		stripExtension(stripFirstMatchingRoot(filePath, actionsDirs))
+	return stripRouteGroupSegments(
+		trimRouteFileSegment(
+			stripExtension(stripFirstMatchingRoot(filePath, actionsDirs))
+		)
 	).replace(/^\/+|\/+$/g, '');
 };
 
@@ -408,6 +421,7 @@ const collectActions = (
 };
 
 const routeSignatureSegment = (segment: string): string => {
+	if (segment.startsWith('[[...') && segment.endsWith(']]')) return '[...]';
 	if (segment.startsWith('[...') && segment.endsWith(']')) return '[...]';
 	if (segment.startsWith('[') && segment.endsWith(']')) return '[]';
 	if (segment.startsWith(':')) return ':';
