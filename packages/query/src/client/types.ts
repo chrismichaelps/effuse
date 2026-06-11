@@ -140,6 +140,22 @@ export interface QueryInfo {
 	readonly isStale: boolean;
 }
 
+/** Reactive metadata for QueryClient cache dashboards and devtools. */
+export interface QueryCacheSnapshot {
+	readonly version: number;
+	/** Keys stored by the imperative QueryClient cache APIs. */
+	readonly queryKeys: QueryKey[];
+	/** Number of entries stored by the imperative QueryClient cache APIs. */
+	readonly queryCount: number;
+	/** Number of Query instances tracked by the observer QueryCache. */
+	readonly observerQueryCount: number;
+	readonly activeQueryCount: number;
+	readonly staleQueryCount: number;
+	readonly fetchingQueryCount: number;
+	readonly mutationCount: number;
+	readonly pendingMutationCount: number;
+}
+
 /** Query filter options used by `invalidateQueries`, `removeQueries`, and `refetchQueries`. */
 export interface QueryFilters {
 	/**

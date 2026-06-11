@@ -47,6 +47,7 @@ export {
 	type MutationOptions,
 	type QueryFilters,
 	type QueryInfo,
+	type QueryCacheSnapshot,
 } from './types.js';
 
 export {

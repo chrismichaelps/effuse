@@ -22,8 +22,15 @@
  * SOFTWARE.
  */
 
+import { computed, signal, type ReadonlySignal } from '@effuse/core';
 import { Context, Effect, Layer, Ref, Option, pipe } from 'effect';
-import type { QueryKey, CacheEntry, QueryStatus, QueryFilters } from './types.js';
+import type {
+	QueryKey,
+	CacheEntry,
+	QueryStatus,
+	QueryFilters,
+	QueryCacheSnapshot,
+} from './types.js';
 import { DEFAULT_GC_TIME_MS, DEFAULT_STALE_TIME_MS } from '../config/index.js';
 import { QueryFetchError } from '../errors/index.js';
 import {
@@ -66,6 +73,12 @@ export interface QueryClientApi {
 	readonly has: (key: QueryKey) => boolean;
 	readonly clear: () => void;
 	readonly getQueryKeys: () => QueryKey[];
+	/** Monotonic signal that changes whenever cache metadata changes. */
+	readonly cacheVersion: ReadonlySignal<number>;
+	/** Reactive cache metadata for dashboards and devtools. */
+	readonly cacheSnapshot: ReadonlySignal<QueryCacheSnapshot>;
+	/** Read cache metadata outside reactive contexts. */
+	readonly getCacheSnapshot: () => QueryCacheSnapshot;
 	readonly invalidate: (key: QueryKey) => Promise<void>;
 	readonly invalidateQueries: (
 		filters: QueryFilters | QueryKey
@@ -120,6 +133,10 @@ export class QueryClient extends Context.Tag('effuse/query/QueryClient')<
 >() {}
 
 const createQueryClientImpl = (): QueryClientApi => {
+	const cacheVersion = signal(0);
+	const bumpCacheVersion = (): void => {
+		cacheVersion.value += 1;
+	};
 	const internals: QueryCacheInternals = {
 		cache: new Map(),
 		subscribers: new Map(),
@@ -132,10 +149,45 @@ const createQueryClientImpl = (): QueryClientApi => {
 			gcTimeMs: DEFAULT_GC_TIME_MS,
 			staleTimeMs: DEFAULT_STALE_TIME_MS,
 		},
+		onCacheChange: bumpCacheVersion,
 	};
 
 	const queryCache = new QueryCache();
 	const mutationCache = new MutationCache();
+	queryCache.subscribe(bumpCacheVersion);
+	mutationCache.subscribe(bumpCacheVersion);
+
+	const getCacheSnapshot = (): QueryCacheSnapshot => {
+		const version = cacheVersion.value;
+		const queryKeys = getQueryKeys(deps).map(parseKey);
+		const cacheEntries = Array.from(internals.cache.values());
+		const observerQueries = queryCache.getAll();
+
+		const staleCacheEntries = cacheEntries.filter((entry) => {
+			if (entry.isInvalidated) return true;
+			return Date.now() - entry.dataUpdatedAt > deps.config.staleTimeMs;
+		});
+		const fetchingCacheEntries = cacheEntries.filter(
+			(entry) => entry.fetchStatus === 'fetching'
+		);
+
+		return {
+			version,
+			queryKeys,
+			queryCount: queryKeys.length,
+			observerQueryCount: queryCache.size,
+			activeQueryCount: observerQueries.filter((query) => query.isActive).length,
+			staleQueryCount:
+				staleCacheEntries.length +
+				observerQueries.filter((query) => query.isStale).length,
+			fetchingQueryCount:
+				fetchingCacheEntries.length +
+				observerQueries.filter((query) => query.isFetching).length,
+			mutationCount: mutationCache.size,
+			pendingMutationCount: mutationCache.pendingCount,
+		};
+	};
+	const cacheSnapshot = computed(getCacheSnapshot);
 
 	return {
 		get: <T>(key: QueryKey): CacheEntry<T> | undefined => {
@@ -165,6 +217,12 @@ const createQueryClientImpl = (): QueryClientApi => {
 		getQueryKeys: (): QueryKey[] => {
 			return getQueryKeys(deps).map(parseKey);
 		},
+
+		cacheVersion,
+
+		cacheSnapshot,
+
+		getCacheSnapshot,
 
 		invalidate: (key: QueryKey): Promise<void> => {
 			const keyStr = serializeKey(key);
