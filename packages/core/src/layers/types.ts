@@ -114,13 +114,31 @@ export interface ServerRouteMetadata {
 	readonly runtime?: ServerRuntimeHint;
 }
 
+export type ServerLayerDiagnosticCode =
+	| 'metadata_conflict'
+	| 'server_file_ambiguous_route'
+	| 'server_file_duplicate_action'
+	| 'server_file_duplicate_route'
+	| 'server_file_invalid_action'
+	| 'server_file_invalid_method'
+	| 'server_file_invalid_route';
+
+export interface ServerLayerDiagnostic {
+	readonly code: ServerLayerDiagnosticCode;
+	readonly filePath?: string;
+	readonly key: string;
+	readonly layer?: string;
+	readonly message: string;
+	readonly target: string;
+}
+
 export interface ServerResponseHelpers {
 	// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters -- callers provide the serialized payload shape.
 	json: <T>(data: T, init?: ResponseInit) => Response;
 	text: (body: string, init?: ResponseInit) => Response;
 	redirect: (url: string | URL, status?: number) => Response;
-	error: <Code extends string, Details = unknown>(
-		code: Code,
+	error: <Details = unknown>(
+		code: string,
 		message: string,
 		options?: LayerServerErrorOptions<Details>
 	) => Response;
@@ -173,6 +191,7 @@ export type ServerRouteDefinition<
 export interface ServerRoute<
 	S extends Record<string, unknown> = Record<string, unknown>,
 > {
+	readonly diagnostics?: readonly ServerLayerDiagnostic[];
 	readonly metadata?: ServerRouteMetadata;
 	readonly path: string;
 	readonly methods: ServerMethodHandlers<S>;
@@ -186,6 +205,7 @@ export type ServerRouteInput<
 export interface ServerActionDefinition<
 	S extends Record<string, unknown> = Record<string, unknown>,
 > {
+	readonly diagnostics?: readonly ServerLayerDiagnostic[];
 	readonly handler: ServerHandler<S>;
 	readonly metadata?: ServerRouteMetadata;
 	readonly middleware?: readonly ServerMiddleware<S>[];
@@ -201,6 +221,7 @@ export interface ServerLayerConfig<
 	readonly api?:
 		| Record<string, ServerRouteInput<S>>
 		| readonly ServerRoute<S>[];
+	readonly diagnostics?: readonly ServerLayerDiagnostic[];
 	readonly metadata?: ServerRouteMetadata;
 	readonly middleware?: readonly ServerMiddleware<S>[];
 	readonly routes?: readonly ServerRoute<S>[];

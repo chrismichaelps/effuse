@@ -40,6 +40,8 @@ export type {
 	ServerRuntimeHint,
 	ServerCacheMetadata,
 	ServerCorsMetadata,
+	ServerLayerDiagnostic,
+	ServerLayerDiagnosticCode,
 	ServerRouteMetadata,
 	ServerResponseHelpers,
 	ServerLayerContext,

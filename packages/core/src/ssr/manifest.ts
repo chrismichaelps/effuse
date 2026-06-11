@@ -34,6 +34,7 @@ import {
 import { createLayerActionPath } from './actions.js';
 import {
 	getLayerServerActionEntries,
+	getLayerServerDiagnostics,
 	getLayerServerRouteEntries,
 	getServerRouteMethods,
 	type LayerServerRouteSource,
@@ -60,6 +61,7 @@ export interface LayerServerManifestAction {
 }
 
 export interface LayerServerManifestLayer {
+	readonly diagnostics?: readonly ServerMetadataDiagnostic[];
 	readonly name: string;
 	readonly routes: readonly LayerServerManifestRoute[];
 	readonly actions: readonly LayerServerManifestAction[];
@@ -113,7 +115,9 @@ export const createLayerServerManifestFromLayers = (
 	const manifestLayers = layers.map((layer) => {
 		const routes = createRouteManifest(layer);
 		const actions = createActionManifest(layer);
+		const diagnostics = getLayerServerDiagnostics(layer);
 		return {
+			...optionalDiagnostics(diagnostics),
 			name: layer.name,
 			routes,
 			actions,
@@ -125,6 +129,7 @@ export const createLayerServerManifestFromLayers = (
 		routes: manifestLayers.flatMap((layer) => layer.routes),
 		actions: manifestLayers.flatMap((layer) => layer.actions),
 		diagnostics: manifestLayers.flatMap((layer) => [
+			...(layer.diagnostics ?? []),
 			...layer.routes.flatMap((route) => route.diagnostics ?? []),
 			...layer.actions.flatMap((action) => action.diagnostics ?? []),
 		]),

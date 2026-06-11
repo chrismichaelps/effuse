@@ -31,6 +31,7 @@ import type {
 	ServerMiddleware,
 	ServerMethodHandlers,
 	ServerRouteMetadata,
+	ServerLayerDiagnostic,
 	ServerRoute,
 	ServerRouteDefinition,
 	ServerRouteInput,
@@ -54,13 +55,7 @@ export interface LayerServerActionEntry {
 	readonly name: string;
 }
 
-export interface ServerMetadataDiagnostic {
-	readonly code: 'metadata_conflict';
-	readonly key: string;
-	readonly layer: string;
-	readonly message: string;
-	readonly target: string;
-}
+export type ServerMetadataDiagnostic = ServerLayerDiagnostic;
 
 const HTTP_METHODS = new Set<HttpMethod>([
 	'GET',
@@ -134,6 +129,22 @@ export const normalizeServerActionInput = (
 const metadataEqual = (left: unknown, right: unknown): boolean =>
 	JSON.stringify(left) === JSON.stringify(right);
 
+const attachDiagnosticLayer = (
+	layer: AnyResolvedLayer,
+	diagnostic: ServerMetadataDiagnostic
+): ServerMetadataDiagnostic => ({
+	...diagnostic,
+	layer: diagnostic.layer ?? layer.name,
+});
+
+const attachDiagnosticLayers = (
+	layer: AnyResolvedLayer,
+	diagnostics: readonly ServerMetadataDiagnostic[] | undefined
+): readonly ServerMetadataDiagnostic[] =>
+	(diagnostics ?? []).map((diagnostic) =>
+		attachDiagnosticLayer(layer, diagnostic)
+	);
+
 export const mergeServerRouteMetadata = (
 	layer: AnyResolvedLayer,
 	target: string,
@@ -180,21 +191,35 @@ export const getLayerServerRouteEntries = (
 
 	if (Array.isArray(api)) {
 		for (const route of api as readonly ServerRoute[]) {
-			const { metadata, diagnostics } = mergeServerRouteMetadata(
+			const {
+				metadata,
+				diagnostics: metadataDiagnostics,
+			} = mergeServerRouteMetadata(
 				layer,
 				route.path,
 				route.metadata
 			);
+			const diagnostics = [
+				...attachDiagnosticLayers(layer, route.diagnostics),
+				...metadataDiagnostics,
+			];
 			routes.push({ layer, source: 'api', route, metadata, diagnostics });
 		}
 	} else if (api) {
 		for (const [path, input] of Object.entries(api)) {
 			const route = normalizeServerRouteInput(path, input);
-			const { metadata, diagnostics } = mergeServerRouteMetadata(
+			const {
+				metadata,
+				diagnostics: metadataDiagnostics,
+			} = mergeServerRouteMetadata(
 				layer,
 				route.path,
 				route.metadata
 			);
+			const diagnostics = [
+				...attachDiagnosticLayers(layer, route.diagnostics),
+				...metadataDiagnostics,
+			];
 			routes.push({
 				layer,
 				source: 'api',
@@ -208,11 +233,18 @@ export const getLayerServerRouteEntries = (
 	const serverRoutes = layer.server?.routes;
 	if (serverRoutes) {
 		for (const route of serverRoutes) {
-			const { metadata, diagnostics } = mergeServerRouteMetadata(
+			const {
+				metadata,
+				diagnostics: metadataDiagnostics,
+			} = mergeServerRouteMetadata(
 				layer,
 				route.path,
 				route.metadata
 			);
+			const diagnostics = [
+				...attachDiagnosticLayers(layer, route.diagnostics),
+				...metadataDiagnostics,
+			];
 			routes.push({ layer, source: 'routes', route, metadata, diagnostics });
 		}
 	}
@@ -235,11 +267,18 @@ export const getLayerServerActionEntries = (
 	const actions = layer.server?.actions ?? {};
 	return Object.entries(actions).map(([name, input]) => {
 		const action = normalizeServerActionInput(input);
-		const { metadata, diagnostics } = mergeServerRouteMetadata(
+		const {
+			metadata,
+			diagnostics: metadataDiagnostics,
+		} = mergeServerRouteMetadata(
 			layer,
 			name,
 			action.metadata
 		);
+		const diagnostics = [
+			...attachDiagnosticLayers(layer, action.diagnostics),
+			...metadataDiagnostics,
+		];
 		return {
 			action,
 			diagnostics,
@@ -253,3 +292,8 @@ export const getLayerServerActionEntries = (
 export const getLayerServerMiddleware = (
 	layer: AnyResolvedLayer
 ): readonly ServerMiddleware[] => layer.server?.middleware ?? [];
+
+export const getLayerServerDiagnostics = (
+	layer: AnyResolvedLayer
+): readonly ServerMetadataDiagnostic[] =>
+	attachDiagnosticLayers(layer, layer.server?.diagnostics);

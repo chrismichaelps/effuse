@@ -4,6 +4,7 @@ import { createHandler } from '../../ssr/handler.js';
 import { createLayerServerManifest } from '../../ssr/manifest.js';
 import {
 	fromServerFiles,
+	type ServerApiFileModule,
 	serverFileToActionName,
 	serverFileToRoutePath,
 } from '../../ssr/server-files.js';
@@ -160,5 +161,87 @@ describe('server file routes', () => {
 				legacyPath: '/_effuse/actions/admin%2Funban',
 			},
 		]);
+	});
+
+	it('should report file route and action diagnostics in the manifest', () => {
+		const DiagnosticsLayer = defineLayer({
+			name: 'file-diagnostics',
+			server: fromServerFiles({
+				api: {
+					'./src/server/api/settings.ts': {
+						path: '/api/settings',
+						GET: () => ({ ok: true }),
+					},
+					'./src/server/api/settings-copy.ts': {
+						path: '/api/settings',
+						GET: () => ({ ok: false }),
+					},
+					'./src/server/api/users/[id].ts': {
+						GET: ({ params }) => ({ id: params.id }),
+					},
+					'./src/server/api/users/[name].ts': {
+						GET: ({ params }) => ({ name: params.name }),
+					},
+					'./src/server/api/empty.ts': {},
+					'./src/server/api/lowercase.ts': {
+						get: () => ({ ok: true }),
+					} as unknown as ServerApiFileModule,
+				},
+				actions: {
+					'./src/server/actions/refresh.ts': {
+						name: 'users/refresh',
+						default: () => ({ ok: true }),
+					},
+					'./src/server/actions/refresh-copy.ts': {
+						name: 'users/refresh',
+						default: () => ({ ok: false }),
+					},
+					'./src/server/actions/empty.ts': {},
+				},
+			}),
+		});
+
+		const manifest = createLayerServerManifest([DiagnosticsLayer]);
+		const diagnostics = manifest.diagnostics ?? [];
+
+		expect(manifest.routes.map((route) => route.path)).toEqual([
+			'/api/settings',
+			'/api/users/[id]',
+		]);
+		expect(manifest.actions.map((action) => action.name)).toEqual([
+			'users/refresh',
+		]);
+		expect(diagnostics.map((diagnostic) => diagnostic.code)).toEqual(
+			expect.arrayContaining([
+				'server_file_duplicate_route',
+				'server_file_ambiguous_route',
+				'server_file_invalid_route',
+				'server_file_invalid_method',
+				'server_file_duplicate_action',
+				'server_file_invalid_action',
+			])
+		);
+		expect(
+			diagnostics.every((diagnostic) => diagnostic.layer === 'file-diagnostics')
+		).toBe(true);
+		expect(diagnostics).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					code: 'server_file_duplicate_route',
+					target: '/api/settings',
+					filePath: './src/server/api/settings-copy.ts',
+				}),
+				expect.objectContaining({
+					code: 'server_file_ambiguous_route',
+					target: '/api/users/[name]',
+					filePath: './src/server/api/users/[name].ts',
+				}),
+				expect.objectContaining({
+					code: 'server_file_duplicate_action',
+					target: 'users/refresh',
+					filePath: './src/server/actions/refresh-copy.ts',
+				}),
+			])
+		);
 	});
 });

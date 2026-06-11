@@ -321,8 +321,9 @@ File-system API folders should be an optional manifest source:
 - `src/server/actions/**/*.ts` for action handlers.
 - generated route entries attach to an owning layer by folder metadata or
   explicit export.
-- conflicts between file routes and layer routes should be diagnostics, not
-  silent last-write-wins behavior.
+- duplicate file routes/actions, ambiguous dynamic route params, invalid method
+  exports, and empty route/action files flow into manifest diagnostics instead
+  of silent last-write-wins behavior.
 
 Next roadmap:
 
@@ -355,7 +356,10 @@ These are the next gaps that matter for production users:
   ambiguous params, invalid method diagnostics, and richer error unions.
 - **File-system server adapter**: support `src/server/api` and
   `src/server/actions` as an optional convention that maps into layer-owned
-  routes/actions.
+  routes/actions. File diagnostics now cover duplicate routes/actions,
+  ambiguous dynamic route params, invalid method exports, and empty handler
+  files. The next layer is CLI discovery/watch mode and docs examples using
+  `import.meta.glob(..., { eager: true })`.
 - **Validation and typed failure**: request schema validation,
   `EFFUSE_VALIDATION_FAILED`, `LayerServerError`, `ctx.response.error`, and
   typed `LayerActionError<T>` parsing now exist in core. The next layer is
@@ -411,6 +415,8 @@ This core PR lands the runtime and type foundation:
 - server handlers can emit isolated trace events via `onServerTrace`, and
   `effuse manifest` gives the CLI a readable view of routes/actions, metadata,
   and diagnostics.
+- file-system server APIs/actions emit manifest diagnostics for duplicates,
+  ambiguous dynamic params, invalid methods, and empty modules.
 - README explains why Effuse should exist as a framework.
 
 The docs repo should then receive a focused follow-up PR around this contract.

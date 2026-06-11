@@ -138,8 +138,9 @@ const appendDiagnostics = (
 
 	lines.push('', 'Diagnostics');
 	for (const diagnostic of diagnostics) {
+		const layer = diagnostic.layer ?? 'unbound';
 		lines.push(
-			`  ${diagnostic.code} ${diagnostic.layer} ${diagnostic.target} ${diagnostic.key}`
+			`  ${diagnostic.code} ${layer} ${diagnostic.target} ${diagnostic.key}`
 		);
 		lines.push(`    ${diagnostic.message}`);
 	}

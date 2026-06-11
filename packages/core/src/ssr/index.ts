@@ -75,6 +75,7 @@ export {
 
 export {
 	getLayerServerActionEntries,
+	getLayerServerDiagnostics,
 	getLayerServerMiddleware,
 	getLayerServerRouteEntries,
 	mergeServerRouteMetadata,

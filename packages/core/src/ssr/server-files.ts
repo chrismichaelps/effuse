@@ -26,6 +26,7 @@ import type {
 	HttpMethod,
 	ServerActionInput,
 	ServerHandler,
+	ServerLayerDiagnostic,
 	ServerLayerConfig,
 	ServerMiddleware,
 	ServerMethodHandlers,
@@ -47,6 +48,8 @@ const HTTP_METHODS: readonly HttpMethod[] = [
 	'OPTIONS',
 	'HEAD',
 ];
+
+const HTTP_METHOD_SET = new Set<string>(HTTP_METHODS);
 
 export interface ServerApiFileModule {
 	readonly path?: string;
@@ -168,6 +171,67 @@ const collectMethodExports = (
 const hasMethods = (methods: ServerMethodHandlers): boolean =>
 	Object.keys(methods).some(isHttpMethod);
 
+const createFileDiagnostic = (
+	code: ServerLayerDiagnostic['code'],
+	filePath: string,
+	target: string,
+	key: string,
+	message: string
+): ServerLayerDiagnostic => ({
+	code,
+	filePath,
+	key,
+	message,
+	target,
+});
+
+const collectInvalidMethodDiagnostics = (
+	filePath: string,
+	module: ServerApiFileModule
+): readonly ServerLayerDiagnostic[] => {
+	const diagnostics: ServerLayerDiagnostic[] = [];
+	const source = module as Record<string, unknown>;
+
+	for (const [key, value] of Object.entries(source)) {
+		const normalizedKey = key.toUpperCase();
+		if (!HTTP_METHOD_SET.has(normalizedKey)) continue;
+		if (key !== normalizedKey || typeof value !== 'function') {
+			diagnostics.push(
+				createFileDiagnostic(
+					'server_file_invalid_method',
+					filePath,
+					filePath,
+					key,
+					`Server file ${filePath} exports invalid HTTP method "${key}". Use uppercase method functions such as GET or POST.`
+				)
+			);
+		}
+	}
+
+	if (module.methods) {
+		for (const [method, handler] of Object.entries(module.methods)) {
+			const normalizedMethod = method.toUpperCase();
+			if (
+				method !== normalizedMethod ||
+				!isHttpMethod(normalizedMethod) ||
+				typeof handler !== 'function'
+			) {
+				diagnostics.push(
+					createFileDiagnostic(
+						'server_file_invalid_method',
+						filePath,
+						filePath,
+						method,
+						`Server file ${filePath} declares invalid method "${method}".`
+					)
+				);
+			}
+		}
+	}
+
+	return diagnostics;
+};
+
 const resolveRouteInput = (
 	module: ServerApiFileModule
 ): ServerRouteInput | null => {
@@ -211,15 +275,66 @@ const resolveRouteInput = (
 	return null;
 };
 
+interface ServerFileRouteResult {
+	readonly diagnostics: readonly ServerLayerDiagnostic[];
+	readonly filePath: string;
+	readonly route?: ServerRoute;
+}
+
+const withRouteDiagnostics = (
+	route: ServerRoute,
+	diagnostics: readonly ServerLayerDiagnostic[]
+): ServerRoute =>
+	diagnostics.length > 0
+		? { ...route, diagnostics: [...(route.diagnostics ?? []), ...diagnostics] }
+		: route;
+
 const createServerFileRoute = (
 	filePath: string,
 	module: ServerApiFileModule,
 	options: ServerFilesOptions
-): ServerRoute | null => {
+): ServerFileRouteResult => {
+	const diagnostics = [...collectInvalidMethodDiagnostics(filePath, module)];
 	const path = module.path ?? serverFileToRoutePath(filePath, options);
 	const input = resolveRouteInput(module);
+	if (!input) {
+		return {
+			diagnostics: [
+				...diagnostics,
+				createFileDiagnostic(
+					'server_file_invalid_route',
+					filePath,
+					path,
+					path,
+					`Server API file ${filePath} does not export a route handler.`
+				),
+			],
+			filePath,
+		};
+	}
 
-	return input ? normalizeServerRouteInput(path, input) : null;
+	const route = normalizeServerRouteInput(path, input);
+	if (!hasMethods(route.methods)) {
+		return {
+			diagnostics: [
+				...diagnostics,
+				createFileDiagnostic(
+					'server_file_invalid_route',
+					filePath,
+					path,
+					path,
+					`Server API file ${filePath} does not export any valid HTTP method handlers.`
+				),
+			],
+			filePath,
+		};
+	}
+
+	return {
+		diagnostics,
+		filePath,
+		route: withRouteDiagnostics(route, diagnostics),
+	};
 };
 
 const joinActionName = (baseName: string, name: string): string => {
@@ -262,6 +377,20 @@ const collectActions = (
 	return actions;
 };
 
+const routeSignatureSegment = (segment: string): string => {
+	if (segment.startsWith('[...') && segment.endsWith(']')) return '[...]';
+	if (segment.startsWith('[') && segment.endsWith(']')) return '[]';
+	if (segment.startsWith(':')) return ':';
+	return segment;
+};
+
+const createRouteSignature = (path: string): string =>
+	path
+		.replace(/^\/+|\/+$/g, '')
+		.split('/')
+		.map(routeSignatureSegment)
+		.join('/');
+
 const isGroupedInput = (
 	files:
 		| ServerFileSource<ServerApiFileModule | ServerActionFileModule>
@@ -302,16 +431,84 @@ export const fromServerFiles = (
 		: partitionFlatInput(files, options);
 	const routes: ServerRoute[] = [];
 	const actions: Record<string, ServerActionInput> = {};
+	const diagnostics: ServerLayerDiagnostic[] = [];
+	const routeFilesByPath = new Map<string, string>();
+	const routeFilesBySignature = new Map<string, { path: string; filePath: string }>();
 
 	for (const [filePath, module] of Object.entries(grouped.api ?? {})) {
-		const route = createServerFileRoute(filePath, module, options);
-		if (route) {
-			routes.push(route);
+		const result = createServerFileRoute(filePath, module, options);
+		if (!result.route) {
+			diagnostics.push(...result.diagnostics);
+			continue;
 		}
+
+		const duplicateFilePath = routeFilesByPath.get(result.route.path);
+		if (duplicateFilePath) {
+			diagnostics.push(
+				...result.diagnostics,
+				createFileDiagnostic(
+					'server_file_duplicate_route',
+					filePath,
+					result.route.path,
+					result.route.path,
+					`Server API file ${filePath} duplicates route ${result.route.path} already defined by ${duplicateFilePath}.`
+				)
+			);
+			continue;
+		}
+
+		const signature = createRouteSignature(result.route.path);
+		const ambiguousRoute = routeFilesBySignature.get(signature);
+		if (ambiguousRoute && ambiguousRoute.path !== result.route.path) {
+			diagnostics.push(
+				...result.diagnostics,
+				createFileDiagnostic(
+					'server_file_ambiguous_route',
+					filePath,
+					result.route.path,
+					signature,
+					`Server API file ${filePath} has the same dynamic route shape as ${ambiguousRoute.filePath}.`
+				)
+			);
+			continue;
+		}
+
+		routeFilesByPath.set(result.route.path, filePath);
+		routeFilesBySignature.set(signature, {
+			filePath,
+			path: result.route.path,
+		});
+		routes.push(result.route);
 	}
 
 	for (const [filePath, module] of Object.entries(grouped.actions ?? {})) {
-		for (const [name, handler] of collectActions(filePath, module, options)) {
+		const collectedActions = collectActions(filePath, module, options);
+		if (collectedActions.length === 0) {
+			const name = module.name ?? serverFileToActionName(filePath, options);
+			diagnostics.push(
+				createFileDiagnostic(
+					'server_file_invalid_action',
+					filePath,
+					name,
+					name,
+					`Server action file ${filePath} does not export an action handler.`
+				)
+			);
+			continue;
+		}
+		for (const [name, handler] of collectedActions) {
+			if (Object.hasOwn(actions, name)) {
+				diagnostics.push(
+					createFileDiagnostic(
+						'server_file_duplicate_action',
+						filePath,
+						name,
+						name,
+						`Server action file ${filePath} duplicates action ${name}.`
+					)
+				);
+				continue;
+			}
 			actions[name] = handler;
 		}
 	}
@@ -319,5 +516,6 @@ export const fromServerFiles = (
 	return {
 		api: routes,
 		actions,
+		...(diagnostics.length > 0 ? { diagnostics } : {}),
 	};
 };
