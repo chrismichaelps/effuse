@@ -225,13 +225,8 @@ const renderBlueprint = (
 ): string => {
 	const state = def.state ? def.state(props) : {};
 
-	// Prefer reactive props proxy created by define() over raw props
-	const reactiveProps =
-		((state as Record<string, unknown>)._reactiveProps as Record<string, unknown> | undefined) ??
-		props;
-
 	const context = {
-		props: reactiveProps,
+		props,
 		state,
 		portals: {},
 	};

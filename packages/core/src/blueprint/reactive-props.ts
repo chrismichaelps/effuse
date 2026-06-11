@@ -35,6 +35,10 @@ export interface ReactiveProps<P extends Record<string, unknown>> {
 	update(newProps: P): void;
 }
 
+export interface ReactivePropsOptions {
+	readonly warnOnMissing?: boolean;
+}
+
 /**
  * Create a readonly reactive proxy backed by signals.
  *
@@ -44,7 +48,8 @@ export interface ReactiveProps<P extends Record<string, unknown>> {
  * Writing a property logs a dev-mode warning (props are readonly by design).
  */
 export const createReactiveProps = <P extends Record<string, unknown>>(
-	initialProps: P
+	initialProps: P,
+	options: ReactivePropsOptions = {}
 ): ReactiveProps<P> => {
 	const signals = new Map<string, Signal<unknown>>();
 
@@ -56,7 +61,7 @@ export const createReactiveProps = <P extends Record<string, unknown>>(
 		get(_, key: string | symbol) {
 			if (typeof key === 'symbol') return undefined;
 			const sig = signals.get(key);
-			if (sig === undefined) {
+			if (sig === undefined && options.warnOnMissing === true) {
 				devWarn(
 					`Accessed missing prop "${key}". ` +
 						`Did you forget to pass it, or is this a typo?`
