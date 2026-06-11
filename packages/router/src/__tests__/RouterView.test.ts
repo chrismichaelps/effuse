@@ -207,6 +207,337 @@ describe('RouterView', () => {
 		expect(loadCount).toBe(1);
 	});
 
+	it('renders a custom lazy fallback until the route chunk resolves', async () => {
+		const LazyPage = define({
+			script: () => ({}),
+			template: () =>
+				CreateElementNode({
+					[EFFUSE_NODE]: true,
+					tag: 'section',
+					props: { 'data-testid': 'lazy-page' },
+					children: ['Lazy page'],
+				}),
+		});
+		let resolveModule:
+			| ((module: { readonly default: typeof LazyPage }) => void)
+			| undefined;
+
+		const Shell = define({
+			script: () => ({}),
+			template: () =>
+				CreateElementNode({
+					[EFFUSE_NODE]: true,
+					tag: 'main',
+					props: null,
+					children: [
+						CreateBlueprintNode({
+							[EFFUSE_NODE]: true,
+							blueprint: RouterView,
+							props: {
+								fallback: (route) =>
+									CreateElementNode({
+										[EFFUSE_NODE]: true,
+										tag: 'p',
+										props: { 'data-testid': 'custom-route-fallback' },
+										children: ['Loading ', route.name ?? 'route'],
+									}),
+							},
+							portals: null,
+						}),
+					],
+				}),
+		});
+
+		const LazyRoute = lazyRoute(
+			() =>
+				new Promise<{ readonly default: typeof LazyPage }>((resolve) => {
+					resolveModule = resolve;
+				})
+		);
+
+		const router = createRouter({
+			history: createMemoryHistory('/lazy'),
+			routes: [
+				{
+					path: '/lazy',
+					name: 'lazy',
+					component: LazyRoute,
+				},
+			],
+		});
+
+		installRouter(router);
+
+		await createApp(Shell).mount('#app');
+		await Promise.resolve();
+
+		expect(document.querySelector('.router-view-loading')).toBeNull();
+		expect(
+			document.querySelector('[data-testid="custom-route-fallback"]')?.textContent
+		).toBe('Loading lazy');
+
+		resolveModule?.({ default: LazyPage });
+		await Promise.resolve();
+		await Promise.resolve();
+		await Promise.resolve();
+
+		expect(document.querySelector('[data-testid="lazy-page"]')?.textContent).toBe(
+			'Lazy page'
+		);
+	});
+
+	it('renders a custom lazy error fallback when the route chunk fails', async () => {
+		const Shell = define({
+			script: () => ({}),
+			template: () =>
+				CreateElementNode({
+					[EFFUSE_NODE]: true,
+					tag: 'main',
+					props: null,
+					children: [
+						CreateBlueprintNode({
+							[EFFUSE_NODE]: true,
+							blueprint: RouterView,
+							props: {
+								errorFallback: (error, route) =>
+									CreateElementNode({
+										[EFFUSE_NODE]: true,
+										tag: 'p',
+										props: { 'data-testid': 'custom-route-error' },
+										children: [
+											route.name ?? 'route',
+											': ',
+											error instanceof Error ? error.message : 'unknown',
+										],
+									}),
+							},
+							portals: null,
+						}),
+					],
+				}),
+		});
+
+		const LazyRoute = lazyRoute(async () => {
+			throw new Error('chunk missing');
+		});
+
+		const router = createRouter({
+			history: createMemoryHistory('/lazy'),
+			routes: [
+				{
+					path: '/lazy',
+					name: 'lazy',
+					component: LazyRoute,
+				},
+			],
+		});
+
+		installRouter(router);
+
+		await createApp(Shell).mount('#app');
+		await Promise.resolve();
+		await Promise.resolve();
+		await Promise.resolve();
+
+		expect(document.querySelector('.router-view-error')).toBeNull();
+		expect(
+			document.querySelector('[data-testid="custom-route-error"]')?.textContent
+		).toBe('lazy: chunk missing');
+	});
+
+	it('renders a named route outlet', async () => {
+		const MainPage = define({
+			script: () => ({}),
+			template: () =>
+				CreateElementNode({
+					[EFFUSE_NODE]: true,
+					tag: 'section',
+					props: { 'data-testid': 'main-page' },
+					children: ['Main page'],
+				}),
+		});
+		const SidebarPage = define({
+			script: () => ({}),
+			template: () =>
+				CreateElementNode({
+					[EFFUSE_NODE]: true,
+					tag: 'aside',
+					props: { 'data-testid': 'sidebar-page' },
+					children: ['Sidebar page'],
+				}),
+		});
+
+		const Shell = define({
+			script: () => ({}),
+			template: () =>
+				CreateElementNode({
+					[EFFUSE_NODE]: true,
+					tag: 'main',
+					props: null,
+					children: [
+						CreateBlueprintNode({
+							[EFFUSE_NODE]: true,
+							blueprint: RouterView,
+							props: { name: 'sidebar' },
+							portals: null,
+						}),
+					],
+				}),
+		});
+
+		const router = createRouter({
+			history: createMemoryHistory('/dashboard'),
+			routes: [
+				{
+					path: '/dashboard',
+					name: 'dashboard',
+					components: {
+						default: MainPage,
+						sidebar: SidebarPage,
+					},
+				},
+			],
+		});
+
+		installRouter(router);
+
+		await createApp(Shell).mount('#app');
+		await Promise.resolve();
+		await Promise.resolve();
+
+		expect(
+			document.querySelector('[data-testid="sidebar-page"]')?.textContent
+		).toBe('Sidebar page');
+		expect(document.querySelector('[data-testid="main-page"]')).toBeNull();
+	});
+
+	it('renders an explicit route override', async () => {
+		const HomePage = define({
+			script: () => ({}),
+			template: () =>
+				CreateElementNode({
+					[EFFUSE_NODE]: true,
+					tag: 'section',
+					props: { 'data-testid': 'home-page' },
+					children: ['Home page'],
+				}),
+		});
+		const PreviewPage = define({
+			script: () => ({}),
+			template: () =>
+				CreateElementNode({
+					[EFFUSE_NODE]: true,
+					tag: 'section',
+					props: { 'data-testid': 'preview-page' },
+					children: ['Preview page'],
+				}),
+		});
+
+		const router = createRouter({
+			history: createMemoryHistory('/'),
+			routes: [
+				{ path: '/', name: 'home', component: HomePage },
+				{ path: '/preview', name: 'preview', component: PreviewPage },
+			],
+		});
+		const previewRoute = router.resolve('/preview');
+
+		const Shell = define({
+			script: () => ({}),
+			template: () =>
+				CreateElementNode({
+					[EFFUSE_NODE]: true,
+					tag: 'main',
+					props: null,
+					children: [
+						CreateBlueprintNode({
+							[EFFUSE_NODE]: true,
+							blueprint: RouterView,
+							props: { route: previewRoute },
+							portals: null,
+						}),
+					],
+				}),
+		});
+
+		installRouter(router);
+
+		await createApp(Shell).mount('#app');
+		await Promise.resolve();
+		await Promise.resolve();
+
+		expect(
+			document.querySelector('[data-testid="preview-page"]')?.textContent
+		).toBe('Preview page');
+		expect(document.querySelector('[data-testid="home-page"]')).toBeNull();
+	});
+
+	it('renders resolved route components through a custom slot', async () => {
+		const DetailsPage = define({
+			script: () => ({}),
+			template: () =>
+				CreateElementNode({
+					[EFFUSE_NODE]: true,
+					tag: 'section',
+					props: { 'data-testid': 'details-page' },
+					children: ['Details page'],
+				}),
+		});
+
+		const Shell = define({
+			script: () => ({}),
+			template: () =>
+				CreateElementNode({
+					[EFFUSE_NODE]: true,
+					tag: 'main',
+					props: null,
+					children: [
+						CreateBlueprintNode({
+							[EFFUSE_NODE]: true,
+							blueprint: RouterView,
+							props: {
+								slot: (_component, route, props) =>
+									CreateElementNode({
+										[EFFUSE_NODE]: true,
+										tag: 'p',
+										props: { 'data-testid': 'route-slot' },
+										children: [
+											route.name ?? 'route',
+											':',
+											String(props.id),
+										],
+									}),
+							},
+							portals: null,
+						}),
+					],
+				}),
+		});
+
+		const router = createRouter({
+			history: createMemoryHistory('/users/42'),
+			routes: [
+				{
+					path: '/users/:id',
+					name: 'user',
+					component: DetailsPage,
+					props: true,
+				},
+			],
+		});
+
+		installRouter(router);
+
+		await createApp(Shell).mount('#app');
+		await Promise.resolve();
+		await Promise.resolve();
+
+		expect(document.querySelector('[data-testid="route-slot"]')?.textContent).toBe(
+			'user:42'
+		);
+		expect(document.querySelector('[data-testid="details-page"]')).toBeNull();
+	});
+
 	it('updates the rendered route component after client navigation', async () => {
 		const HomePage = define({
 			script: () => ({}),

@@ -28,6 +28,7 @@ import {
 	watchEffect,
 	type EffuseChild,
 	type BlueprintDef,
+	type Signal,
 	EFFUSE_NODE,
 	CreateElementNode,
 	CreateBlueprintNode,
@@ -115,9 +116,101 @@ const renderComponent = (
 	return component as EffuseChild;
 };
 
+const renderRouteContent = (
+	component: RouteComponent,
+	route: Route,
+	props: Record<string, unknown>,
+	slot: RouterViewProps['slot'] | undefined
+): EffuseChild => {
+	if (Predicate.isNotNullable(slot)) {
+		return slot(component, route, props);
+	}
+
+	return renderComponent(component, route, props);
+};
+
+const createRouteContentNode = (
+	depth: number,
+	viewName: string,
+	route: Route,
+	rendered: EffuseChild
+): EffuseChild =>
+	CreateElementNode({
+		[EFFUSE_NODE]: true,
+		tag: 'div',
+		key: `route-${String(depth)}-${viewName}-${route.fullPath}`,
+		props: {
+			class: 'router-view-content',
+		},
+		children: [rendered],
+	});
+
+const createDefaultLoadingView = (): EffuseChild =>
+	CreateElementNode({
+		[EFFUSE_NODE]: true,
+		tag: 'div',
+		props: { class: 'router-view-loading' },
+		children: [],
+	});
+
+const createDefaultErrorView = (): EffuseChild =>
+	CreateElementNode({
+		[EFFUSE_NODE]: true,
+		tag: 'div',
+		props: { class: 'router-view-error' },
+		children: ['Failed to load component'],
+	});
+
+const renderFallback = (
+	fallback: RouterViewFallback | undefined,
+	route: Route
+): EffuseChild => {
+	if (!Predicate.isNotNullable(fallback)) {
+		return createDefaultLoadingView();
+	}
+
+	if (Predicate.isFunction(fallback)) {
+		return (fallback as (route: Route) => EffuseChild)(route);
+	}
+
+	return fallback;
+};
+
+const renderErrorFallback = (
+	errorFallback: RouterViewErrorFallback | undefined,
+	error: unknown,
+	route: Route
+): EffuseChild => {
+	if (!Predicate.isNotNullable(errorFallback)) {
+		return createDefaultErrorView();
+	}
+
+	if (Predicate.isFunction(errorFallback)) {
+		return (errorFallback as (error: unknown, route: Route) => EffuseChild)(
+			error,
+			route
+		);
+	}
+
+	return errorFallback;
+};
+
+const createViewKey = (depth: number, viewName: string, route: Route): string =>
+	`${String(depth)}:${viewName}:${route.fullPath}`;
+
+export type RouterViewFallback =
+	| EffuseChild
+	| ((route: Route) => EffuseChild);
+
+export type RouterViewErrorFallback =
+	| EffuseChild
+	| ((error: unknown, route: Route) => EffuseChild);
+
 export interface RouterViewProps {
 	readonly name?: string;
 	readonly route?: Route;
+	readonly fallback?: RouterViewFallback;
+	readonly errorFallback?: RouterViewErrorFallback;
 	readonly slot?: (
 		component: RouteComponent,
 		route: Route,
@@ -125,8 +218,12 @@ export interface RouterViewProps {
 	) => EffuseChild;
 }
 
-export const RouterView = define({
-	script: ({ signal: createSignal }) => {
+interface RouterViewState {
+	readonly matchedView: Signal<EffuseChild>;
+}
+
+export const RouterView = define<RouterViewProps, RouterViewState>({
+	script: ({ props: viewProps, signal: createSignal }) => {
 		const router = getGlobalRouter();
 		if (!router) {
 			throw new InvalidRouterStateError({
@@ -144,117 +241,118 @@ export const RouterView = define({
 
 		const depth = injectDepth();
 
-		const viewName = createSignal('default');
-
 		const matchedView = createSignal<EffuseChild>(null);
 
-		let lastRoutePath: string | null = null;
+		let lastViewKey: string | null = null;
+
+		const getActiveRoute = (): Route => viewProps.route ?? routeSignal.value;
+		const getActiveViewName = (): string => viewProps.name ?? 'default';
 
 		const updateView = () => {
-			const route = routeSignal.value;
-			const currentRoutePath = route.fullPath;
+			const route = getActiveRoute();
+			const viewName = getActiveViewName();
+			const currentViewKey = createViewKey(depth, viewName, route);
 
-			if (lastRoutePath === currentRoutePath) {
+			if (lastViewKey === currentViewKey) {
 				return;
 			}
 
 			const matched = route.matched[depth];
-			const component = getMatchedComponent(route, depth, viewName.value);
+			const component = getMatchedComponent(route, depth, viewName);
 
 			if (!component) {
-				lastRoutePath = currentRoutePath;
+				lastViewKey = currentViewKey;
 				matchedView.value = null;
 				return;
 			}
 
-			const props = getComponentProps(route, matched);
+			const componentProps = getComponentProps(route, matched);
 
 			// Handle lazy components
 			if (Predicate.isFunction(component)) {
-				const result = component({ ...props, ...route.params });
+				const result = component({ ...componentProps, ...route.params });
 				if (result instanceof Promise) {
-					lastRoutePath = currentRoutePath;
-					matchedView.value = CreateElementNode({
-						[EFFUSE_NODE]: true,
-						tag: 'div',
-						props: { class: 'router-view-loading' },
-						children: [],
-					});
+					lastViewKey = currentViewKey;
+					matchedView.value = renderFallback(viewProps.fallback, route);
 
 					result
 						.then((mod) => {
-							if (routeSignal.value.fullPath !== currentRoutePath) return;
+							if (
+								createViewKey(depth, getActiveViewName(), getActiveRoute()) !==
+								currentViewKey
+							)
+								return;
 							if (!isLazyRouteModule(mod)) {
-								matchedView.value = CreateElementNode({
-									[EFFUSE_NODE]: true,
-									tag: 'div',
-									props: { class: 'router-view-error' },
-									children: ['Failed to load component'],
-								});
+								matchedView.value = renderErrorFallback(
+									viewProps.errorFallback,
+									new TypeError(
+										'Effuse lazy route expected a default route component.'
+									),
+									route
+								);
 								return;
 							}
-							const rendered = renderComponent(mod.default, route, props);
-							matchedView.value = CreateElementNode({
-								[EFFUSE_NODE]: true,
-								tag: 'div',
-								key: `route-${String(depth)}-${currentRoutePath}`,
-								props: {
-									class: 'router-view-content',
-								},
-								children: [rendered],
-							});
+							const rendered = renderRouteContent(
+								mod.default,
+								route,
+								componentProps,
+								viewProps.slot
+							);
+							matchedView.value = createRouteContentNode(
+								depth,
+								viewName,
+								route,
+								rendered
+							);
 						})
-						.catch(() => {
-							if (routeSignal.value.fullPath !== currentRoutePath) return;
-							matchedView.value = CreateElementNode({
-								[EFFUSE_NODE]: true,
-								tag: 'div',
-								props: { class: 'router-view-error' },
-								children: ['Failed to load component'],
-							});
+						.catch((error: unknown) => {
+							if (
+								createViewKey(depth, getActiveViewName(), getActiveRoute()) !==
+								currentViewKey
+							)
+								return;
+							matchedView.value = renderErrorFallback(
+								viewProps.errorFallback,
+								error,
+								route
+							);
 						});
 					return;
 				}
 
 				// Sync function component
-				const content = CreateElementNode({
-					[EFFUSE_NODE]: true,
-					tag: 'div',
-					key: `route-${String(depth)}-${currentRoutePath}`,
-					props: {
-						class: 'router-view-content',
-					},
-					children: [result],
-				});
+				const syncComponent = component as RouteComponent;
+				const rendered = Predicate.isNotNullable(viewProps.slot)
+					? viewProps.slot(syncComponent, route, componentProps)
+					: result;
+				const content = createRouteContentNode(depth, viewName, route, rendered);
 
-				lastRoutePath = currentRoutePath;
+				lastViewKey = currentViewKey;
 				matchedView.value = content;
 				return;
 			}
 
-			const rendered = renderComponent(component, route, props);
+			const rendered = renderRouteContent(
+				component,
+				route,
+				componentProps,
+				viewProps.slot
+			);
 
-			const content = CreateElementNode({
-				[EFFUSE_NODE]: true,
-				tag: 'div',
-				key: `route-${String(depth)}-${currentRoutePath}`,
-				props: {
-					class: 'router-view-content',
-				},
-				children: [rendered],
-			});
+			const content = createRouteContentNode(depth, viewName, route, rendered);
 
-			lastRoutePath = currentRoutePath;
+			lastViewKey = currentViewKey;
 			matchedView.value = content;
 		};
 
 		updateView();
 
 		const checkRouteChange = () => {
-			const route = routeSignal.value;
-			const currentPath = route.fullPath;
+			const route = getActiveRoute();
+			const viewName = getActiveViewName();
+			const currentViewKey = createViewKey(depth, viewName, route);
 
-			if (lastRoutePath !== currentPath) {
+			if (lastViewKey !== currentViewKey) {
 				queueMicrotask(updateView);
 			}
 		};
@@ -262,7 +360,6 @@ export const RouterView = define({
 		watchEffect(checkRouteChange);
 
 		return {
-			viewName,
 			matchedView,
 		};
 	},
