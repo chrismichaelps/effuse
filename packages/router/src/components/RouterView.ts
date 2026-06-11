@@ -51,18 +51,10 @@ const getMatchedComponent = (
 	if (!matched) return null;
 
 	if (matched.components) {
-		return (
-			(matched.components[name] as
-				| RouteComponent
-				| LazyRouteComponent
-				| undefined) ?? null
-		);
+		return matched.components[name] ?? null;
 	}
 
-	return name === 'default'
-		? ((matched.component as RouteComponent | LazyRouteComponent | undefined) ??
-				null)
-		: null;
+	return name === 'default' ? (matched.component ?? null) : null;
 };
 
 const getComponentProps = (
@@ -90,30 +82,34 @@ const getComponentProps = (
 	return matched.props;
 };
 
+const isBlueprintComponent = (component: unknown): component is BlueprintDef =>
+	Predicate.isObject(component) &&
+	Predicate.hasProperty(component, '_tag') &&
+	(component as { readonly _tag?: unknown })._tag === 'Blueprint';
+
+const isLazyRouteModule = (
+	value: unknown
+): value is { readonly default: RouteComponent } =>
+	Predicate.isObject(value) &&
+	Predicate.hasProperty(value, 'default') &&
+	(Predicate.isFunction(value.default) || isBlueprintComponent(value.default));
+
 const renderComponent = (
 	component: RouteComponent,
 	route: Route,
 	props: Record<string, unknown>
 ): EffuseChild => {
-	if (
-		Predicate.isObject(component) &&
-		Predicate.hasProperty(component, '_tag')
-	) {
-		if (component._tag === 'Blueprint') {
-			return CreateBlueprintNode({
-				[EFFUSE_NODE]: true,
-				blueprint: component as unknown as BlueprintDef,
-				props: { ...props, ...route.params },
-				portals: null,
-			});
-		}
+	if (isBlueprintComponent(component)) {
+		return CreateBlueprintNode({
+			[EFFUSE_NODE]: true,
+			blueprint: component,
+			props: { ...props, ...route.params },
+			portals: null,
+		});
 	}
 
 	if (Predicate.isFunction(component)) {
-		return (component as (p: Record<string, unknown>) => EffuseChild)({
-			...props,
-			...route.params,
-		});
+		return component({ ...props, ...route.params });
 	}
 
 	return component as EffuseChild;
@@ -187,9 +183,17 @@ export const RouterView = define({
 
 					result
 						.then((mod) => {
-							const resolved = mod.default;
 							if (routeSignal.value.fullPath !== currentRoutePath) return;
-							const rendered = renderComponent(resolved, route, props);
+							if (!isLazyRouteModule(mod)) {
+								matchedView.value = CreateElementNode({
+									[EFFUSE_NODE]: true,
+									tag: 'div',
+									props: { class: 'router-view-error' },
+									children: ['Failed to load component'],
+								});
+								return;
+							}
+							const rendered = renderComponent(mod.default, route, props);
 							matchedView.value = CreateElementNode({
 								[EFFUSE_NODE]: true,
 								tag: 'div',
@@ -220,7 +224,7 @@ export const RouterView = define({
 					props: {
 						class: 'router-view-content',
 					},
-					children: [result as EffuseChild],
+					children: [result],
 				});
 
 				lastRoutePath = currentRoutePath;

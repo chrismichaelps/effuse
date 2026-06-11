@@ -149,8 +149,6 @@ export const createRouter = (options: RouterOptions): RouterInstance => {
 
 	const routeRef = Effect.runSync(SubscriptionRef.make(initialRoute));
 	let navigationId = 0;
-	let routeSignalUpdater: ((route: Route) => void) | null = null;
-
 	const navigate = (
 		to: RouteLocation,
 		opts: NavigateOptions = {}
@@ -263,7 +261,7 @@ export const createRouter = (options: RouterOptions): RouterInstance => {
 
 			yield* SubscriptionRef.set(routeRef, newRoute);
 
-			if (routeSignalUpdater) routeSignalUpdater(newRoute);
+			updateCurrentRouteSignal(newRoute);
 
 			if (typeof window !== 'undefined') {
 				window.dispatchEvent(
@@ -288,11 +286,11 @@ export const createRouter = (options: RouterOptions): RouterInstance => {
 		};
 	};
 
-	let router: RouterInstance;
+	const updateCurrentRouteSignal = (route: Route): void => {
+		updateRouteSignal(router, route);
+	};
 
-	routeSignalUpdater = (route) => updateRouteSignal(router, route);
-
-	router = {
+	const router: RouterInstance = {
 		currentRoute: routeRef,
 		routes: normalizedRoutes,
 		options,
@@ -349,7 +347,7 @@ export const createRouter = (options: RouterOptions): RouterInstance => {
 					fullPath: path,
 				});
 				Effect.runSync(SubscriptionRef.set(routeRef, newRoute));
-				if (routeSignalUpdater) routeSignalUpdater(newRoute);
+				updateCurrentRouteSignal(newRoute);
 			};
 
 			const cleanup = history.listen(syncRoute);

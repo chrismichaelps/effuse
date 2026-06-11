@@ -64,7 +64,11 @@ export { Link, RouterLink } from './components/Link.js';
 export {
 	type TypedRouteRecord,
 	type TypedRoute,
+	type TypedRouteLocation,
 	defineRoutes,
+	createTypedNavigator,
+	validateParams,
+	createParamsGuard,
 } from './types/index.js';
 
 export {

@@ -24,12 +24,12 @@
 
 import { Array as Arr, Option, pipe } from 'effect';
 import type { Effect } from 'effect';
-import type { Component } from '@effuse/core';
+import type { BlueprintDef, EffuseChild } from '@effuse/core';
 import { RouteNotFoundError } from '../errors.js';
 
 export type RouteComponent =
-	| ((props?: Record<string, unknown>) => unknown)
-	| Component<any>;
+	| ((props?: Record<string, unknown>) => EffuseChild)
+	| BlueprintDef;
 export type LazyRouteComponent = () => Promise<{ default: RouteComponent }>;
 
 export interface RouteRecord {
@@ -131,7 +131,7 @@ export const stringifyQuery = (query: Record<string, string | string[]>): string
 			for (const v of value) {
 				params.append(key, v);
 			}
-		} else if (value !== undefined) {
+		} else {
 			params.set(key, value);
 		}
 	}
@@ -242,9 +242,10 @@ export const normalizeRoutes = (
 		const normalized = normalizeRouteRecord(route, parent);
 		result.push(normalized);
 
-		// Generate alias routes that share the same component/guards/meta
-		if (route.alias) {
-			const aliases = Array.isArray(route.alias) ? route.alias : [route.alias];
+	// Generate alias routes that share the same component/guards/meta
+	if (route.alias) {
+		const aliases: readonly string[] =
+			typeof route.alias === 'string' ? [route.alias] : route.alias;
 			for (const alias of aliases) {
 				const { alias: _ignored, ...routeWithoutAlias } = route;
 				void _ignored;
