@@ -34,6 +34,12 @@ const ProfileButton = define({
 
 Read the framework rationale in [Why Effuse](docs/why-effuse.md).
 
+## Development
+
+Effuse requires Node `>=22.14.0` and pnpm `10.32.1`. Run `nvm use` from the
+repo root before running the test suite; `.nvmrc` and `.node-version` both pin
+the expected local runtime.
+
 ## Packages
 
 - **@effuse/core**: The core reactivity engine (Signals) and DOM rendering system.

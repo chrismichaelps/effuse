@@ -16,7 +16,9 @@
 	"type": "module",
 	"scripts": {
 		"build": "pnpm -r --workspace-concurrency=1 build",
+		"check:node": "node scripts/check-node-version.mjs",
 		"dev": "pnpm -r dev",
+		"pretest": "node scripts/check-node-version.mjs",
 		"test": "pnpm -r test",
 		"lint": "pnpm -r lint",
 		"typecheck": "pnpm -r typecheck",
