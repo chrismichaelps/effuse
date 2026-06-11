@@ -6,9 +6,10 @@ import {
 	createRequestContext,
 } from '../../ssr/handler.js';
 import { defineLayer } from '../../layers/api/defineLayer.js';
+import { LayerNameCollisionError } from '../../layers/errors.js';
 import { clearGlobalLayerContext } from '../../layers/context.js';
 import { clearGlobalTracing } from '../../layers/tracing/index.js';
-import { CreateTextNode } from '../../render/node.js';
+import { CreateTextNode, type Component } from '../../render/node.js';
 import { EFFUSE_NODE } from '../../constants.js';
 import type { ServerTraceEvent } from '../../ssr/observability.js';
 
@@ -19,6 +20,14 @@ afterEach(() => {
 
 const createRoot = () =>
 	CreateTextNode({ [EFFUSE_NODE]: true, text: 'Hello SSR' });
+
+const createRootComponent = (): Component => {
+	const textNode = createRoot();
+	return Object.assign(() => textNode, {
+		_tag: 'Blueprint',
+		view: () => textNode,
+	}) as Component;
+};
 
 describe('SSR handler', () => {
 	describe('createHandler', () => {
@@ -200,6 +209,39 @@ describe('SSR handler', () => {
 
 			expect(response.status).toBe(200);
 			expect(await response.json()).toEqual({ now: 456 });
+		});
+
+		it('should report duplicate layer names through onError', async () => {
+			const onError = vi.fn();
+			const FirstLayer = defineLayer({
+				name: 'duplicate-handler',
+				server: {
+					api: {
+						'/api/duplicate-handler': () => ({ ok: true }),
+					},
+				},
+			});
+			const SecondLayer = defineLayer({
+				name: 'duplicate-handler',
+			});
+			const handler = createHandler({
+				root: createRootComponent(),
+				layers: [FirstLayer, SecondLayer],
+				onError,
+			});
+
+			const response = await handler(
+				new Request('http://localhost:3000/api/duplicate-handler')
+			);
+
+			expect(response.status).toBe(500);
+			expect(onError).toHaveBeenCalledOnce();
+			expect(onError.mock.calls[0][0]).toBeInstanceOf(
+				LayerNameCollisionError
+			);
+			expect(String(onError.mock.calls[0][0])).toContain(
+				'Layer "duplicate-handler" is registered more than once'
+			);
 		});
 
 		it('should pass route params and query to layer API handlers', async () => {
@@ -691,6 +733,32 @@ describe('SSR handler', () => {
 				'application/json'
 			);
 			expect(await response.json()).toEqual({ ok: true });
+		});
+
+		it('should report duplicate layer names through streaming onError', async () => {
+			const onError = vi.fn();
+			const FirstLayer = defineLayer({
+				name: 'duplicate-stream',
+			});
+			const SecondLayer = defineLayer({
+				name: 'duplicate-stream',
+			});
+			const handler = createStreamingHandler({
+				root: createRootComponent(),
+				layers: [FirstLayer, SecondLayer],
+				onError,
+			});
+
+			const response = await handler(new Request('http://localhost:3000/'));
+
+			expect(response.status).toBe(500);
+			expect(onError).toHaveBeenCalledOnce();
+			expect(onError.mock.calls[0][0]).toBeInstanceOf(
+				LayerNameCollisionError
+			);
+			expect(String(onError.mock.calls[0][0])).toContain(
+				'Layer "duplicate-stream" is registered more than once'
+			);
 		});
 	});
 

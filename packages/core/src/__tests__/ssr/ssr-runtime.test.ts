@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { createSSRRuntime } from '../../ssr/runtime.js';
 import { defineLayer } from '../../layers/api/defineLayer.js';
+import { LayerNameCollisionError } from '../../layers/errors.js';
 import { signal } from '../../reactivity/signal.js';
 import { isLayerRuntimeReady } from '../../layers/context.js';
 import { clearGlobalTracing } from '../../layers/tracing/index.js';
@@ -170,6 +171,27 @@ describe('SSRRuntime', () => {
 			]);
 
 			await runtime.dispose();
+		});
+
+		it('should reject duplicate layer names before SSR setup runs', async () => {
+			let setupCalled = false;
+			const FirstLayer = defineLayer({
+				name: 'session',
+				setup: () => {
+					setupCalled = true;
+				},
+			});
+			const SecondLayer = defineLayer({
+				name: 'session',
+			});
+
+			await expect(createSSRRuntime([FirstLayer, SecondLayer])).rejects.toThrow(
+				LayerNameCollisionError
+			);
+			await expect(createSSRRuntime([FirstLayer, SecondLayer])).rejects.toThrow(
+				'Layer "session" is registered more than once'
+			);
+			expect(setupCalled).toBe(false);
 		});
 	});
 });
