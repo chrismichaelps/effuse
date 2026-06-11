@@ -59,8 +59,12 @@ export class ServiceNotFoundError extends Data.TaggedError(
 	'ServiceNotFoundError'
 )<{
 	readonly serviceKey: string;
+	readonly layerName?: string;
 }> {
 	get message(): string {
+		if (this.layerName) {
+			return `[Effuse] Layer "${this.layerName}" does not provide service "${this.serviceKey}".`;
+		}
 		return `[Effuse] Service "${this.serviceKey}" not found.`;
 	}
 }

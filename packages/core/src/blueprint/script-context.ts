@@ -61,7 +61,10 @@ import {
 	type LayersAccessor,
 	type LayerSource,
 } from '../layers/api/layersAccessor.js';
-import { RouterNotConfiguredError } from '../layers/errors.js';
+import {
+	RouterNotConfiguredError,
+	ServiceNotFoundError,
+} from '../layers/errors.js';
 import { StoreGetterNotConfiguredError } from '../errors.js';
 
 export type ExposedValues = object;
@@ -322,9 +325,30 @@ export const createScriptContext = <
 				return undefined;
 			}
 
-			const key = typeof keyOrLayer === 'string' ? keyOrLayer : maybeKey;
+			if (typeof keyOrLayer !== 'string') {
+				const key = maybeKey;
+				if (!key || !keyOrLayer.serviceKeys.includes(key)) {
+					throw new ServiceNotFoundError({
+						layerName: keyOrLayer.name,
+						serviceKey: key ?? '<missing>',
+					});
+				}
 
-			return key ? getLayerService(key) : undefined;
+				const services = resolveLayer(keyOrLayer).services as Record<
+					string,
+					unknown
+				>;
+				const service = services[key];
+				if (service === undefined) {
+					throw new ServiceNotFoundError({
+						layerName: keyOrLayer.name,
+						serviceKey: key,
+					});
+				}
+				return service;
+			}
+
+			return getLayerService(keyOrLayer);
 		}) as ScriptContext<P, L>['useService'],
 
 		useComponent: (name: string): Component | undefined => {

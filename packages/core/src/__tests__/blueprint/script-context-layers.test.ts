@@ -1,6 +1,7 @@
 import { describe, it, expect, expectTypeOf, vi, afterEach } from 'vitest';
 import { createScriptContext } from '../../blueprint/script-context.js';
 import { runWithLayerContext } from '../../layers/context.js';
+import { ServiceNotFoundError } from '../../layers/errors.js';
 import { defineLayer } from '../../layers/api/defineLayer.js';
 import type { LayerServicesFrom } from '../../layers/api/defineLayer.js';
 import type { PropsRegistry } from '../../layers/services/PropsService.js';
@@ -226,6 +227,74 @@ describe('ScriptContext - layers accessor', () => {
 
 			expectTypeOf(service).toEqualTypeOf<{ token: string }>();
 			expect(service).toBe(authService);
+		});
+
+		it('should reject service keys that are not provided by the given layer', () => {
+			const authLayer = defineLayer({
+				name: 'auth-service-boundary',
+				services: {
+					authService: () => ({ token: 'abc' }),
+				},
+			});
+			const resolvedLayer = createResolvedLayer({
+				name: 'auth-service-boundary',
+				provides: { authService: () => ({ token: 'abc' }) },
+			});
+			const propsRegistry = createMockPropsRegistry({
+				'auth-service-boundary': {},
+			});
+			const layerRegistry = createMockLayerRegistry(
+				{ 'auth-service-boundary': resolvedLayer },
+				{ authService: { token: 'abc' }, billingService: { total: 10 } }
+			);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedLayer] };
+
+			const { context } = createScriptContext({});
+			const unsafeUseService = context.useService as unknown as (
+				layer: typeof authLayer,
+				key: string
+			) => unknown;
+
+			expect(() =>
+				runWithLayerContext(store, () =>
+					unsafeUseService(authLayer, 'billingService')
+				)
+			).toThrow(ServiceNotFoundError);
+			expect(() =>
+				runWithLayerContext(store, () =>
+					unsafeUseService(authLayer, 'billingService')
+				)
+			).toThrow(
+				'[Effuse] Layer "auth-service-boundary" does not provide service "billingService".'
+			);
+		});
+
+		it('should reject declared layer services missing from the active runtime', () => {
+			const authLayer = defineLayer({
+				name: 'auth-service-missing',
+				services: {
+					authService: () => ({ token: 'abc' }),
+				},
+			});
+			const resolvedLayer = createResolvedLayer({
+				name: 'auth-service-missing',
+				provides: { authService: () => ({ token: 'abc' }) },
+			});
+			const propsRegistry = createMockPropsRegistry({
+				'auth-service-missing': {},
+			});
+			const layerRegistry = createMockLayerRegistry({
+				'auth-service-missing': resolvedLayer,
+			});
+			const store = { propsRegistry, layerRegistry, layers: [resolvedLayer] };
+
+			const { context } = createScriptContext({});
+
+			expect(() =>
+				runWithLayerContext(store, () =>
+					context.useService(authLayer, 'authService')
+				)
+			).toThrow(ServiceNotFoundError);
 		});
 
 		it('should return cached service instances (not re-invoke factory)', () => {

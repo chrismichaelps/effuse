@@ -2,6 +2,7 @@ import { describe, it, expect, expectTypeOf, vi, afterEach } from 'vitest';
 import { define } from '../../blueprint/define.js';
 import { defineLayer } from '../../layers/api/defineLayer.js';
 import { runWithLayerContext } from '../../layers/context.js';
+import { ServiceNotFoundError } from '../../layers/errors.js';
 import type { PropsRegistry } from '../../layers/services/PropsService.js';
 import type { LayerRegistry } from '../../layers/services/RegistryService.js';
 import type { AnyResolvedLayer, LayerProps } from '../../layers/types.js';
@@ -225,6 +226,45 @@ describe('define() + layers — full integration', () => {
 			expect(state.exposed.sameEntry).toBe(true);
 			expect(state.exposed.sameServices).toBe(true);
 			expect(state.exposed.sameInstance).toBe(true);
+		});
+
+		it('should reject direct helper service keys outside the layer contract', () => {
+			const authSvc = { token: 'abc' };
+			const billingSvc = { total: 10 };
+			const authLayer = defineLayer({
+				name: 'auth-boundary',
+				services: { authSvc: () => authSvc },
+			});
+			const resolvedLayer = createResolvedLayer({
+				name: 'auth-boundary',
+				provides: { authSvc: () => authSvc },
+			});
+
+			const propsRegistry = createMockPropsRegistry({ 'auth-boundary': {} });
+			const layerRegistry = createMockLayerRegistry(
+				{ 'auth-boundary': resolvedLayer },
+				{ authSvc, billingSvc }
+			);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedLayer] };
+
+			const Component = define({
+				props: {},
+				script({ useService }) {
+					const unsafeUseService = useService as unknown as (
+						layer: typeof authLayer,
+						key: string
+					) => unknown;
+					unsafeUseService(authLayer, 'billingSvc');
+					return {};
+				},
+				template: () => null,
+			});
+
+			const blueprint = extractBlueprint(Component);
+
+			expect(() =>
+				runWithLayerContext(store, () => blueprint.state({}))
+			).toThrow(ServiceNotFoundError);
 		});
 
 		it('should expose layer props via ctx.layers in script', () => {
