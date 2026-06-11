@@ -55,7 +55,7 @@ export const createSetupContext = (
 	registry: LayerRegistry,
 	allLayers: readonly AnyResolvedLayer[]
 ): SetupContext => {
-	const layerProps = resolveLayerProps(layer);
+	const layerProps = propsRegistry.get(layer.name) ?? resolveLayerProps(layer);
 
 	const getLayerDependency = (name: string): LayerDependency => {
 		const depLayer = registry.getLayer(name);

@@ -374,6 +374,35 @@ describe('LayersAccessor — comprehensive regression tests', () => {
 			}
 		});
 
+		it('should evaluate deriveProps once during runtime initialization', async () => {
+			const modeSignal = signal('dark');
+			const deriveProps = vi.fn(() => ({
+				mode: modeSignal,
+			}));
+			const runtimeLayer = defineLayer({
+				name: 'singleDeriveRuntime',
+				deriveProps,
+				services: {
+					runtimeSvc: () => ({ health: 'ok' }),
+				},
+				setup({ props }) {
+					expect(props.mode).toBe(modeSignal);
+				},
+			});
+			const runtime = await createLayerRuntime(
+				resolveLayerDefinitions([runtimeLayer])
+			);
+
+			try {
+				const accessor = resolveLayersAccessor([runtimeLayer] as const);
+
+				expect(accessor.singleDeriveRuntime.props.mode).toBe(modeSignal);
+				expect(deriveProps).toHaveBeenCalledTimes(1);
+			} finally {
+				await runtime.dispose();
+			}
+		});
+
 		it('should clear createLayerRuntime app context on dispose', async () => {
 			const svc = { health: 'ok' };
 			const runtimeLayer = defineLayer({
