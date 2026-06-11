@@ -32,12 +32,15 @@ import { buildAllLayersEffect } from '../layers/internal/builder.js';
 import {
 	initGlobalLayerContext,
 	clearGlobalLayerContext,
+	getGlobalLayerContextStore,
+	restoreGlobalLayerContext,
 	runWithLayerContext,
 	type LayerContextStore,
 } from '../layers/context.js';
 import {
 	TracingServiceLive,
 	setGlobalTracing,
+	getGlobalTracing,
 	clearGlobalTracing,
 } from '../layers/tracing/index.js';
 import { TracingService } from '../layers/tracing/index.js';
@@ -74,6 +77,8 @@ export const createSSRRuntime = async (
 	options: SSRRuntimeOptions = {}
 ): Promise<SSRRuntime> => {
 	const { runSetup = true } = options;
+	const previousLayerContextStore = getGlobalLayerContextStore();
+	const previousTracingService = getGlobalTracing();
 
 	const layers: AnyResolvedLayer[] = resolveLayerDefinitions(rawLayers);
 
@@ -134,6 +139,10 @@ export const createSSRRuntime = async (
 			try {
 				clearGlobalLayerContext();
 				clearGlobalTracing();
+				restoreGlobalLayerContext(previousLayerContextStore);
+				if (previousTracingService) {
+					setGlobalTracing(previousTracingService);
+				}
 
 				if (Predicate.isFunction(aggregatedCleanup)) {
 					aggregatedCleanup();

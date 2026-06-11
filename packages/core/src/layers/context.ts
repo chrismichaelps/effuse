@@ -61,11 +61,20 @@ export const getLayerContextStore = (): LayerContextStore | undefined => {
 	return layerContextStorage.getStore() ?? globalLayerContextStore;
 };
 
+export const getGlobalLayerContextStore = (): LayerContextStore | undefined =>
+	globalLayerContextStore;
+
 export const runWithLayerContext = <T>(
 	store: LayerContextStore,
 	fn: () => T
 ): T => {
 	return layerContextStorage.run(store, fn);
+};
+
+export const restoreGlobalLayerContext = (
+	store: LayerContextStore | undefined
+): void => {
+	globalLayerContextStore = store;
 };
 
 export const initGlobalLayerContext = (

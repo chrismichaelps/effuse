@@ -70,6 +70,40 @@ export class MountService extends Context.Tag('effuse/MountService')<
 
 type CleanupFn = () => void;
 
+const getRenderErrorMessage = (error: unknown): string => {
+	if (error instanceof Error) {
+		return error.message;
+	}
+	if (Predicate.isObject(error) && Predicate.hasProperty(error, 'message')) {
+		return String(error.message);
+	}
+	return String(error);
+};
+
+const createRenderErrorNode = (error: unknown): HTMLElement => {
+	const node = document.createElement('div');
+	node.className = 'effuse-render-error';
+	node.setAttribute('role', 'alert');
+	node.setAttribute('data-effuse-render-error', 'true');
+	node.textContent = `Effuse render error: ${getRenderErrorMessage(error)}`;
+	return node;
+};
+
+const runCleanups = (cleanups: CleanupFn[]): void => {
+	for (const cleanup of cleanups) {
+		cleanup();
+	}
+};
+
+const insertAfterAnchor = (anchor: Comment, nodes: readonly Node[]): void => {
+	const insertPoint: Node | null = anchor.nextSibling;
+	for (const node of nodes) {
+		if (anchor.parentNode) {
+			anchor.parentNode.insertBefore(node, insertPoint);
+		}
+	}
+};
+
 const mountChild = (
 	child: EffuseChild,
 	cleanups: CleanupFn[]
@@ -96,7 +130,22 @@ const mountChild = (
 
 		const runEffect = () => {
 			effectHandle = watchEffect(() => {
-				const value = fn();
+				let value: unknown;
+				try {
+					value = fn();
+				} catch (err) {
+					for (const node of currentNodes) {
+						if (Predicate.isNotNullable(node.parentNode)) {
+							node.parentNode.removeChild(node);
+						}
+					}
+					runCleanups(fnCleanups);
+					fnCleanups.length = 0;
+					const errorNode = createRenderErrorNode(err);
+					insertAfterAnchor(anchor, [errorNode]);
+					currentNodes = [errorNode];
+					return;
+				}
 
 				for (const node of currentNodes) {
 					if (Predicate.isNotNullable(node.parentNode)) {
@@ -157,15 +206,14 @@ const mountChild = (
 							currentNodes = [];
 							return;
 						}
-						throw err;
+						runCleanups(childCleanups);
+						const errorNode = createRenderErrorNode(err);
+						insertAfterAnchor(anchor, [errorNode]);
+						currentNodes = [errorNode];
+						return;
 					}
 
-					const insertPoint: Node | null = anchor.nextSibling;
-					for (const node of mountResult) {
-						if (anchor.parentNode) {
-							anchor.parentNode.insertBefore(node, insertPoint);
-						}
-					}
+					insertAfterAnchor(anchor, mountResult);
 					currentNodes = mountResult;
 					fnCleanups.push(...childCleanups);
 				});
@@ -256,15 +304,14 @@ const mountChild = (
 							currentNodes = [];
 							return;
 						}
-						throw err;
+						runCleanups(childCleanups);
+						const errorNode = createRenderErrorNode(err);
+						insertAfterAnchor(anchor, [errorNode]);
+						currentNodes = [errorNode];
+						return;
 					}
 
-					const insertPoint: Node | null = anchor.nextSibling;
-					for (const node of mountResult) {
-						if (anchor.parentNode) {
-							anchor.parentNode.insertBefore(node, insertPoint);
-						}
-					}
+					insertAfterAnchor(anchor, mountResult);
 					currentNodes = mountResult;
 					signalCleanups.push(...childCleanups);
 				});
