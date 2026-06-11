@@ -110,6 +110,35 @@ export const UserLayer = defineLayer({
 });
 ```
 
+### File-System APIs
+
+Next succeeds here because a route file is easy to find and easy to deploy.
+Effuse should support that adoption path, but the file system should feed the
+same layer server model instead of becoming a second server framework.
+
+Recommended convention:
+
+```txt
+src/server/api/users/[id].ts
+src/server/actions/users/refresh.ts
+```
+
+Those files should compile to a server manifest entry that can be attached to a
+layer:
+
+```ts
+export const UsersLayer = defineLayer({
+  name: 'users',
+  services: { users: () => usersService },
+  server: fromFiles(import.meta.glob('../server/api/users/**')),
+});
+```
+
+The production rule: file routes are for discoverability and migration; layer
+server config is the canonical capability graph. Generated manifests must point
+back to owning layers so actions, routes, services, middleware, caching, and
+docs stay synchronized.
+
 ## Proposal
 
 1. Make alias records the primary layer DX:
@@ -151,9 +180,21 @@ await users.refreshUser({ id: 'u1' });
 Layer-scoped action URLs use `/_effuse/actions/<layer>/<action>` to avoid
 collisions, while the legacy `/_effuse/actions/<action>` path remains supported.
 
+`createLayerServerManifest()` exposes layer API routes, server routes, and
+actions as a stable manifest for adapters, devtools, and generated clients.
+
+File-system API folders should be an optional manifest source:
+
+- `src/server/api/**/route.ts` or `src/server/api/**/*.ts` for request handlers.
+- `src/server/actions/**/*.ts` for action handlers.
+- generated route entries attach to an owning layer by folder metadata or
+  explicit export.
+- conflicts between file routes and layer routes should be diagnostics, not
+  silent last-write-wins behavior.
+
 Next roadmap:
 
-- generated client action modules for build-time route manifests.
+- generated client action modules from `createLayerServerManifest()`.
 - middleware per layer and per route.
 - route-level cache/revalidate metadata.
 - streaming responses and event streams.
@@ -171,6 +212,30 @@ both should receive `ctx.layers.alias.props` plus
 The docs repo should replace `useLayerProps`, hook `deps`/`layer`, and primary
 `provides` examples with the alias-record/service/server contract. It should
 also add a server APIs page and fix quick-start template examples.
+
+## Production Ecosystem Gaps
+
+These are the next gaps that matter for production users:
+
+- **Routing manifest/typegen**: generate typed API/action clients from
+  `createLayerServerManifest()` and fail builds on duplicate routes, ambiguous
+  params, or invalid methods.
+- **File-system server adapter**: support `src/server/api` and
+  `src/server/actions` as an optional convention that maps into layer-owned
+  routes/actions.
+- **Validation and typed failure**: add request schema validation, typed
+  action errors, and a standard error response shape.
+- **Middleware and cache metadata**: layer-level and route-level middleware,
+  auth guards, cache tags, revalidation, runtime/region hints, and CORS.
+- **Observability**: first-class tracing hooks for route/action duration,
+  status, service usage, and errors.
+- **CLI/dev server**: a Bun/pnpm-first dev command that builds manifests,
+  watches files, shows route collisions, and previews server endpoints.
+- **Docs and examples**: replace string layer docs with alias-record docs and
+  add complete examples for auth, forms, API routes, actions, redirects, and
+  uploads.
+- **Compatibility story**: document which APIs are stable, experimental, or
+  adapter-only so users can upgrade without guessing.
 
 ## Senior Grill
 
@@ -193,6 +258,8 @@ This core PR lands the runtime and type foundation:
 - `defineLayer` server handlers infer services from the layer service contract.
 - layer actions have scoped URLs and client helpers via `callLayerAction` and
   `createLayerActionClient`.
+- layer server manifests expose routes/actions for future adapters and generated
+  clients.
 - README explains why Effuse should exist as a framework.
 
 The docs repo should then receive a focused follow-up PR around this contract.

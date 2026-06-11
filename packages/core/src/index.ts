@@ -277,6 +277,8 @@ export {
 	createLayerActionClient,
 	createLayerActionPath,
 	createLayerActionUrl,
+	createLayerServerManifest,
+	createLayerServerManifestFromLayers,
 	LayerActionError,
 	mergeHeadProps,
 	headToHtml,
@@ -306,6 +308,10 @@ export {
 	type LayerActionResponseMode,
 	type LayerActionResult,
 	type LayerActionsFrom,
+	type LayerServerManifest,
+	type LayerServerManifestAction,
+	type LayerServerManifestLayer,
+	type LayerServerManifestRoute,
 } from './ssr/index.js';
 
 export {

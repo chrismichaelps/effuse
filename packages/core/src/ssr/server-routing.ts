@@ -27,10 +27,8 @@ import type {
 	HttpMethod,
 	ServerHandler,
 	ServerLayerContext,
-	ServerMethodHandlers,
 	ServerResult,
 	ServerRoute,
-	ServerRouteInput,
 } from '../layers/types.js';
 import { getLayerService } from '../layers/context.js';
 import {
@@ -38,18 +36,13 @@ import {
 	type LayerInputSource,
 } from '../layers/api/defineLayer.js';
 import { createSSRRuntime } from './runtime.js';
+import {
+	getLayerServerRoutes,
+	getServerRouteMethods,
+	isHttpMethod,
+} from './server-routes.js';
 
 export const EFFUSE_ACTION_PREFIX = '/_effuse/actions/';
-
-const HTTP_METHODS = new Set<HttpMethod>([
-	'GET',
-	'POST',
-	'PUT',
-	'PATCH',
-	'DELETE',
-	'OPTIONS',
-	'HEAD',
-]);
 
 interface MatchedServerHandler {
 	readonly handler: ServerHandler;
@@ -61,64 +54,11 @@ interface LayerWithServiceKeys {
 	readonly serviceKeys: readonly string[];
 }
 
-const isHttpMethod = (method: string): method is HttpMethod =>
-	HTTP_METHODS.has(method as HttpMethod);
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-	typeof value === 'object' && value !== null;
-
-const isServerRoute = (value: unknown): value is ServerRoute =>
-	isRecord(value) && typeof value.path === 'string' && isRecord(value.methods);
-
 const hasServiceKeys = (
 	layer: AnyResolvedLayer
 ): layer is AnyResolvedLayer & LayerWithServiceKeys =>
 	'serviceKeys' in layer &&
 	Array.isArray((layer as { readonly serviceKeys?: unknown }).serviceKeys);
-
-const toRoute = (path: string, input: ServerRouteInput): ServerRoute => {
-	if (isServerRoute(input)) {
-		return input;
-	}
-
-	if (typeof input === 'function') {
-		return { path, methods: { GET: input } };
-	}
-
-	const methods: ServerMethodHandlers = {};
-	for (const [method, handler] of Object.entries(input)) {
-		const normalizedMethod = method.toUpperCase();
-		if (isHttpMethod(normalizedMethod) && typeof handler === 'function') {
-			methods[normalizedMethod] = handler as ServerHandler;
-		}
-	}
-
-	return { path, methods };
-};
-
-const getLayerRoutes = (layer: AnyResolvedLayer): readonly ServerRoute[] => {
-	const routes: ServerRoute[] = [];
-	const api = layer.server?.api;
-
-	if (Array.isArray(api)) {
-		for (const route of api as readonly ServerRoute[]) {
-			routes.push(route);
-		}
-	} else if (api) {
-		for (const [path, input] of Object.entries(api)) {
-			routes.push(toRoute(path, input));
-		}
-	}
-
-	const serverRoutes = layer.server?.routes;
-	if (serverRoutes) {
-		for (const route of serverRoutes) {
-			routes.push(route);
-		}
-	}
-
-	return routes;
-};
 
 const splitPath = (path: string): readonly string[] => {
 	const trimmed = path.replace(/^\/+|\/+$/g, '');
@@ -206,7 +146,7 @@ const findApiHandler = (
 	}
 
 	for (const layer of layers) {
-		for (const route of getLayerRoutes(layer)) {
+		for (const route of getLayerServerRoutes(layer)) {
 			const params = matchRoutePath(route.path, url.pathname);
 			if (!params) continue;
 
@@ -215,7 +155,7 @@ const findApiHandler = (
 				return {
 					handler,
 					params,
-					allowedMethods: Object.keys(route.methods) as HttpMethod[],
+					allowedMethods: getServerRouteMethods(route),
 				};
 			}
 
@@ -224,11 +164,11 @@ const findApiHandler = (
 					new Response(null, {
 						status: 405,
 						headers: {
-							Allow: Object.keys(route.methods).join(', '),
+							Allow: getServerRouteMethods(route).join(', '),
 						},
 					}),
 				params,
-				allowedMethods: Object.keys(route.methods) as HttpMethod[],
+				allowedMethods: getServerRouteMethods(route),
 			};
 		}
 	}

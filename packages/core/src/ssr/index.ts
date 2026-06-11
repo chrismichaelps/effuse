@@ -79,6 +79,15 @@ export {
 } from './actions.js';
 
 export {
+	createLayerServerManifest,
+	createLayerServerManifestFromLayers,
+	type LayerServerManifest,
+	type LayerServerManifestAction,
+	type LayerServerManifestLayer,
+	type LayerServerManifestRoute,
+} from './manifest.js';
+
+export {
 	mergeHeadProps,
 	headToHtml,
 	mergeLayerHeads,

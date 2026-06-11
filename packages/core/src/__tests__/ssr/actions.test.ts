@@ -46,16 +46,16 @@ describe('layer action client', () => {
 		expect(createLayerActionUrl('refresh', 'http://localhost:3000')).toBe(
 			'http://localhost:3000/_effuse/actions/refresh'
 		);
-			expect(
-				createLayerActionUrl(AuthLayer, 'refresh', 'http://localhost:3000')
-			).toBe('http://localhost:3000/_effuse/actions/auth/refresh');
-			expect(createLayerActionUrl('auth', 'refresh')).toBe(
-				'/_effuse/actions/auth/refresh'
-			);
-			expect(createLayerActionUrl('auth', 'refresh', 'http://localhost:3000')).toBe(
-				'http://localhost:3000/_effuse/actions/auth/refresh'
-			);
-		});
+		expect(
+			createLayerActionUrl(AuthLayer, 'refresh', 'http://localhost:3000')
+		).toBe('http://localhost:3000/_effuse/actions/auth/refresh');
+		expect(createLayerActionUrl('auth', 'refresh')).toBe(
+			'/_effuse/actions/auth/refresh'
+		);
+		expect(createLayerActionUrl('auth', 'refresh', 'http://localhost:3000')).toBe(
+			'http://localhost:3000/_effuse/actions/auth/refresh'
+		);
+	});
 
 	it('should call a typed layer action through the Effuse handler', async () => {
 		const MathLayer = defineLayer({
