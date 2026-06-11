@@ -26,7 +26,10 @@ import { Predicate, pipe } from 'effect';
 import type { EffuseNode, Component, BlueprintDef } from '../render/node.js';
 import { isEffuseNode, matchEffuseNode } from '../render/node.js';
 import { isSignal } from '../reactivity/index.js';
-import { runWithProvideScope } from '../blueprint/provide-inject.js';
+import {
+	runWithProvideScope,
+	type ProvideScope,
+} from '../blueprint/provide-inject.js';
 import { isSuspendToken } from '../suspense/Suspense.js';
 import type { HeadProps, RenderResult, ServerAppOptions } from './types.js';
 import { RenderError } from './errors.js';
@@ -232,7 +235,7 @@ const renderBlueprint = (
 	};
 
 	const provideScope = (state as Record<string, unknown>)._provideScope as
-		| import('../blueprint/provide-inject.js').ProvideScope
+		| ProvideScope
 		| undefined;
 
 	const viewResult = provideScope
@@ -295,7 +298,7 @@ const generateFullHtml = (
 	bodyHtml: string,
 	head: HeadProps,
 	hydrationData: HydrationData,
-	options: import('./types.js').ServerAppOptions = {}
+	options: ServerAppOptions = {}
 ): string => {
 	let headHtml = headToHtml(head);
 	const lang = head.lang ?? 'en';

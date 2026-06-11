@@ -38,6 +38,7 @@ import {
 	createProvideScope,
 	runWithProvideScope,
 	getCurrentProvideScope,
+	type ProvideScope,
 } from './provide-inject.js';
 
 export type TemplateArgs<E extends ExposedValues> = E & {
@@ -84,7 +85,7 @@ interface DefineState<E extends ExposedValues> {
 	/** Reactive props proxy created by script context. */
 	_reactiveProps?: Readonly<Record<string, unknown>>;
 	/** Provide scope for component-level provide/inject. */
-	_provideScope?: import('./provide-inject.js').ProvideScope;
+	_provideScope?: ProvideScope;
 	[key: string]: unknown;
 }
 

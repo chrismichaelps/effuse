@@ -24,7 +24,10 @@
 
 import type { BlueprintDef } from '../render/node.js';
 import { instantiateBlueprint } from '../blueprint/blueprint.js';
-import { runWithProvideScope } from '../blueprint/provide-inject.js';
+import {
+	runWithProvideScope,
+	type ProvideScope,
+} from '../blueprint/provide-inject.js';
 import type { BlueprintContext } from '../render/node.js';
 import {
 	getHMRInstances,
@@ -95,9 +98,7 @@ const rerenderInstance = (instance: HMRInstance, newBlueprint: BlueprintDef): vo
 
 		// 4. Render new view
 		const state = context.state as Record<string, unknown>;
-		const provideScope = state._provideScope as
-			| import('../blueprint/provide-inject.js').ProvideScope
-			| undefined;
+		const provideScope = state._provideScope as ProvideScope | undefined;
 
 		const childView = provideScope
 			? runWithProvideScope(provideScope, () =>
