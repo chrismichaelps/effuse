@@ -110,6 +110,100 @@ describe('blueprint template reactivity', () => {
 		expect(cleanupCalls).toBe(0);
 	});
 
+	it('should preserve child component state during parent template updates', async () => {
+		const parentCount = signal(0);
+		let childMounts = 0;
+		let childUnmounts = 0;
+
+		const Child = define({
+			script: ({ onMount, onUnmount }) => {
+				const output = signal('Ready.');
+				onMount(() => {
+					childMounts++;
+					return undefined;
+				});
+				onUnmount(() => {
+					childUnmounts++;
+				});
+				return {
+					output,
+					update: () => {
+						output.value = 'Updated.';
+						parentCount.value++;
+					},
+				};
+			},
+			template: ({ output, update }) =>
+				CreateElementNode({
+					[EFFUSE_NODE]: true,
+					tag: 'section',
+					props: { 'data-testid': 'child' },
+					children: [
+						CreateElementNode({
+							[EFFUSE_NODE]: true,
+							tag: 'pre',
+							props: { 'data-testid': 'child-output' },
+							children: [output],
+						}),
+						CreateElementNode({
+							[EFFUSE_NODE]: true,
+							tag: 'button',
+							props: { 'data-testid': 'child-update', onClick: update },
+							children: ['Update'],
+						}),
+					],
+				}),
+		});
+
+		const App = define({
+			script: () => ({ parentCount }),
+			template: ({ parentCount }) =>
+				CreateElementNode({
+					[EFFUSE_NODE]: true,
+					tag: 'main',
+					props: { 'data-testid': 'shell' },
+					children: [
+						CreateElementNode({
+							[EFFUSE_NODE]: true,
+							tag: 'small',
+							props: { 'data-testid': 'parent-count' },
+							children: [parentCount.value, ' parent updates'],
+						}),
+						CreateBlueprintNode({
+							[EFFUSE_NODE]: true,
+							blueprint: Child,
+							props: {},
+							portals: null,
+						}),
+					],
+				}),
+		});
+
+		mounted = await createApp(App).mount('#app');
+		await flushRenderer();
+
+		expect(
+			document.querySelector('[data-testid="child-output"]')?.textContent
+		).toBe('Ready.');
+		expect(childMounts).toBe(1);
+
+		(
+			document.querySelector(
+				'[data-testid="child-update"]'
+			) as HTMLButtonElement
+		).click();
+		await flushRenderer();
+
+		expect(
+			document.querySelector('[data-testid="parent-count"]')?.textContent
+		).toBe('1 parent updates');
+		expect(
+			document.querySelector('[data-testid="child-output"]')?.textContent
+		).toBe('Updated.');
+		expect(childMounts).toBe(1);
+		expect(childUnmounts).toBe(0);
+	});
+
 	it('should clean up child subtrees replaced by parent template updates', async () => {
 		const showChild = signal(true);
 		let childUnmounts = 0;
