@@ -61,8 +61,7 @@ import {
 	isServerValidationError,
 	serverValidationErrorResponse,
 } from './validation.js';
-
-export const EFFUSE_ACTION_PREFIX = '/_effuse/actions/';
+import { EFFUSE_ACTION_PREFIX } from './constants.js';
 
 interface MatchedServerHandler {
 	readonly handler: ServerHandler;

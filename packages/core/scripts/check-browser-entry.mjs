@@ -15,7 +15,7 @@ const forbidden = [
 		reason: 'browser entry must not include Node crypto',
 	},
 	{
-		pattern: /\bcreateServerApp\b|\bcreateHandler\b|\bcreateStreamingHandler\b|\brenderToString\b|\bfromServerFiles\b/,
+		pattern: /\bcreateServerApp\b|\bcreateHandler\b|\bcreateStreamingHandler\b|\brenderToString\b|\bfromServerFiles\b|\bhandleLayerServerRequest\b|\bmatchLayerServerRequest\b|\bnormalizeServerResult\b|\b(?:const|let|var|function)\s+createSSRRuntime\b/,
 		reason: 'browser entry must not bundle server-only SSR APIs',
 	},
 ];

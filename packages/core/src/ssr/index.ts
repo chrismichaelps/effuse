@@ -70,8 +70,9 @@ export {
 	handleLayerServerRequest,
 	matchLayerServerRequest,
 	normalizeServerResult,
-	EFFUSE_ACTION_PREFIX,
 } from './server-routing.js';
+
+export { EFFUSE_ACTION_PREFIX } from './constants.js';
 
 export {
 	getLayerServerActionEntries,

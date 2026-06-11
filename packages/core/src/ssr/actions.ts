@@ -28,7 +28,7 @@ import {
 	isLayerServerErrorBody,
 	type LayerServerErrorBody,
 } from './server-errors.js';
-import { EFFUSE_ACTION_PREFIX } from './server-routing.js';
+import { EFFUSE_ACTION_PREFIX } from './constants.js';
 import {
 	isServerValidationErrorBody,
 	type ServerValidationErrorBody,

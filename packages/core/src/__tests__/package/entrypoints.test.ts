@@ -34,8 +34,13 @@ describe('@effuse/core entrypoints', () => {
 		const source = readProjectFile('src/client.ts');
 
 		expect(source).toContain('createLayerServerManifestClient');
-		expect(source).toContain('handleLayerServerRequest');
+		expect(source).toContain('EFFUSE_ACTION_PREFIX');
+		expect(source).not.toContain('handleLayerServerRequest');
+		expect(source).not.toContain('matchLayerServerRequest');
+		expect(source).not.toContain('normalizeServerResult');
+		expect(source).not.toContain("from './ssr/server-routing.js'");
 		expect(source).not.toContain('createServerApp');
+		expect(source).not.toContain('createSSRRuntime');
 		expect(source).not.toContain('createHandler');
 		expect(source).not.toContain('createStreamingHandler');
 		expect(source).not.toContain('renderToString');
