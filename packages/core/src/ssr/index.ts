@@ -69,9 +69,12 @@ export {
 	createLayerActionClient,
 	createLayerActionPath,
 	createLayerActionUrl,
+	isLayerActionError,
+	isLayerActionErrorBody,
 	LayerActionError,
 	type LayerActionCallOptions,
 	type LayerActionClient,
+	type LayerActionErrorBody,
 	type LayerActionName,
 	type LayerActionResponseMode,
 	type LayerActionResult,
@@ -120,8 +123,19 @@ export {
 } from './client.js';
 
 export {
+	createLayerServerErrorBody,
+	isLayerServerError,
+	isLayerServerErrorBody,
+	LayerServerError,
+	layerServerErrorResponse,
+	type LayerServerErrorBody,
+	type LayerServerErrorOptions,
+} from './server-errors.js';
+
+export {
 	createServerValidationErrorBody,
 	createServerValidationHelpers,
+	isServerValidationErrorBody,
 	isServerValidationError,
 	serverValidationErrorResponse,
 	ServerValidationError,

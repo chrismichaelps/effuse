@@ -42,6 +42,11 @@ import {
 	isHttpMethod,
 } from './server-routes.js';
 import {
+	isLayerServerError,
+	LayerServerError,
+	layerServerErrorResponse,
+} from './server-errors.js';
+import {
 	createServerValidationHelpers,
 	isServerValidationError,
 	serverValidationErrorResponse,
@@ -343,6 +348,10 @@ const createContext = (
 				new Response(body, withContentType(init, 'text/plain; charset=utf-8')),
 			redirect: (target: string | URL, status = 302) =>
 				Response.redirect(target, status),
+			error: (code, message, options) =>
+				layerServerErrorResponse(
+					new LayerServerError(code, message, options)
+				),
 		},
 	};
 };
@@ -372,6 +381,9 @@ export const handleLayerServerRequest = async (
 			return normalizeServerResult(result);
 		});
 	} catch (error) {
+		if (isLayerServerError(error)) {
+			return layerServerErrorResponse(error);
+		}
 		if (isServerValidationError(error)) {
 			return serverValidationErrorResponse(error);
 		}

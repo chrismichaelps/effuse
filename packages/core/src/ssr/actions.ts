@@ -24,9 +24,20 @@
 
 import type { CompiledLayer } from '../layers/api/defineLayer.js';
 import type { EffuseLayer, ServerResult } from '../layers/types.js';
+import {
+	isLayerServerErrorBody,
+	type LayerServerErrorBody,
+} from './server-errors.js';
 import { EFFUSE_ACTION_PREFIX } from './server-routing.js';
+import {
+	isServerValidationErrorBody,
+	type ServerValidationErrorBody,
+} from './validation.js';
 
 export type LayerActionResponseMode = 'auto' | 'json' | 'text' | 'response';
+export type LayerActionErrorBody =
+	| LayerServerErrorBody
+	| ServerValidationErrorBody;
 
 export interface LayerActionCallOptions
 	extends Omit<RequestInit, 'body' | 'method'> {
@@ -86,13 +97,15 @@ export type LayerActionClient<L extends AnyCompiledLayer> = {
 	) => Promise<LayerActionResult<L, Name>>;
 };
 
-export class LayerActionError extends Error {
+export class LayerActionError<Body = unknown> extends Error {
 	readonly status: number;
 	readonly statusText: string;
 	readonly body: string;
+	readonly data: Body | undefined;
+	readonly error: unknown;
 	readonly response: Response;
 
-	constructor(response: Response, body: string) {
+	constructor(response: Response, body: string, data?: Body) {
 		super(
 			`Effuse action failed with ${String(response.status)} ${response.statusText}`
 		);
@@ -100,9 +113,23 @@ export class LayerActionError extends Error {
 		this.status = response.status;
 		this.statusText = response.statusText;
 		this.body = body;
+		this.data = data;
+		this.error = isRecord(data) ? data.error : undefined;
 		this.response = response;
 	}
 }
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+	typeof value === 'object' && value !== null;
+
+export const isLayerActionError = <Body = unknown>(
+	error: unknown
+): error is LayerActionError<Body> => error instanceof LayerActionError;
+
+export const isLayerActionErrorBody = (
+	value: unknown
+): value is LayerActionErrorBody =>
+	isLayerServerErrorBody(value) || isServerValidationErrorBody(value);
 
 const encodeActionSegment = (value: string): string => encodeURIComponent(value);
 
@@ -235,7 +262,8 @@ const readActionResponse = async <Result>(
 			.clone()
 			.text()
 			.catch(() => '');
-		throw new LayerActionError(response, body);
+		const data = parseActionErrorBody(response, body);
+		throw new LayerActionError(response, body, data);
 	}
 
 	if (mode === 'response') {
@@ -258,6 +286,20 @@ const readActionResponse = async <Result>(
 	}
 
 	return (await response.text()) as Result;
+};
+
+const parseActionErrorBody = (response: Response, body: string): unknown => {
+	if (!response.headers.get('Content-Type')?.includes('application/json')) {
+		return undefined;
+	}
+	if (body.length === 0) {
+		return undefined;
+	}
+	try {
+		return JSON.parse(body) as unknown;
+	} catch {
+		return undefined;
+	}
 };
 
 export function callLayerAction<

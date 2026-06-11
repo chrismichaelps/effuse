@@ -13,6 +13,8 @@ local layer aliases in `define({ script })`, shared hook/component layer DX, and
 layer-owned server APIs/actions with client-side action helpers and server
 manifests for typed clients. Server handlers also receive validation helpers for
 params, query, headers, JSON bodies, and form data so request contracts live next
-to the layer that owns the capability.
+to the layer that owns the capability. Typed server errors can be returned with
+`ctx.response.error`, thrown with `LayerServerError`, and narrowed from action
+clients through `LayerActionError<T>`.
 
 Read the detailed proposal in [FRAMEWORK_DX_PROPOSAL.md](./FRAMEWORK_DX_PROPOSAL.md).

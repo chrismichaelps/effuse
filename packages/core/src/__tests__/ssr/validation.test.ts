@@ -124,6 +124,44 @@ describe('server request validation', () => {
 		});
 	});
 
+	it('should return structured 400 responses for invalid params', async () => {
+		const ApiLayer = defineLayer({
+			name: 'invalid-param-api',
+			server: {
+				api: {
+					'/api/users/[id]': ({ validate }) => {
+						validate.params<{ id: string }>((value) =>
+							isRecord(value) &&
+							typeof value.id === 'string' &&
+							value.id.startsWith('u_')
+								? success({ id: value.id })
+								: failure('Invalid user id.', 'id')
+						);
+						return { ok: true };
+					},
+				},
+			},
+		});
+		const handler = createHandler({
+			root: createRoot() as any,
+			layers: [ApiLayer],
+		});
+
+		const response = await handler(
+			new Request('http://localhost:3000/api/users/123?tab=settings')
+		);
+
+		expect(response.status).toBe(400);
+		await expect(response.json()).resolves.toEqual({
+			error: {
+				code: 'EFFUSE_VALIDATION_FAILED',
+				issues: [{ message: 'Invalid user id.', path: 'id' }],
+				message: 'Request validation failed.',
+				source: 'params',
+			},
+		});
+	});
+
 	it('should normalize schema safeParse error issues', async () => {
 		const QuerySchema = {
 			safeParse: (

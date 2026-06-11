@@ -217,7 +217,33 @@ server: {
 
 Validation failures return a stable `400` response with
 `EFFUSE_VALIDATION_FAILED`, `source`, and `issues`. That gives adapters and
-client helpers one error shape before domain-specific typed action errors land.
+client helpers one error shape.
+
+Domain/API errors use the same server-owned contract:
+
+```ts
+server: {
+  api: {
+    '/api/users/[id]': ({ params }) => {
+      throw new LayerServerError('USER_NOT_FOUND', 'User not found.', {
+        status: 404,
+        details: { id: params.id },
+      });
+    },
+  },
+  actions: {
+    saveUser: ({ response }) =>
+      response.error('SAVE_DENIED', 'Save denied.', {
+        status: 409,
+        details: { field: 'email' },
+      }),
+  },
+}
+```
+
+Action clients keep the raw error body and parse typed JSON into
+`LayerActionError<T>`, so UI code can narrow on `error.data.error.code` without
+manually parsing response text.
 
 File-system API folders should be an optional manifest source:
 
@@ -259,9 +285,10 @@ These are the next gaps that matter for production users:
 - **File-system server adapter**: support `src/server/api` and
   `src/server/actions` as an optional convention that maps into layer-owned
   routes/actions.
-- **Validation and typed failure**: request schema validation and a standard
-  `EFFUSE_VALIDATION_FAILED` response shape have started in core. The next
-  layer is typed domain/action errors with client-side discriminated handling.
+- **Validation and typed failure**: request schema validation,
+  `EFFUSE_VALIDATION_FAILED`, `LayerServerError`, `ctx.response.error`, and
+  typed `LayerActionError<T>` parsing now exist in core. The next layer is
+  docs/examples and richer generated-client error unions.
 - **Middleware and cache metadata**: layer-level and route-level middleware,
   auth guards, cache tags, revalidation, runtime/region hints, and CORS.
 - **Observability**: first-class tracing hooks for route/action duration,
@@ -299,6 +326,9 @@ This core PR lands the runtime and type foundation:
   clients.
 - server handlers receive `ctx.validate` for params, query, headers, JSON, and
   form data, with structured validation responses.
+- server handlers can return or throw typed domain errors with
+  `ctx.response.error` and `LayerServerError`, and action clients parse those
+  bodies through `LayerActionError<T>`.
 - README explains why Effuse should exist as a framework.
 
 The docs repo should then receive a focused follow-up PR around this contract.

@@ -4,8 +4,13 @@ import {
 	createLayerActionClient,
 	createLayerActionPath,
 	createLayerActionUrl,
+	isLayerActionError,
 	LayerActionError,
 } from '../../ssr/actions.js';
+import {
+	LayerServerError,
+	type LayerServerErrorBody,
+} from '../../ssr/server-errors.js';
 import { createHandler } from '../../ssr/handler.js';
 import { defineLayer } from '../../layers/api/defineLayer.js';
 import { clearGlobalLayerContext } from '../../layers/context.js';
@@ -181,6 +186,92 @@ describe('layer action client', () => {
 				fetch: createHandlerFetch(handler),
 			})
 		).rejects.toBeInstanceOf(LayerActionError);
+	});
+
+	it('should expose typed action error bodies', async () => {
+		type SaveDeniedBody = LayerServerErrorBody<
+			'SAVE_DENIED',
+			{ readonly field: string }
+		>;
+		const FailingLayer = defineLayer({
+			name: 'typed-failing',
+			server: {
+				actions: {
+					save: ({ response }) =>
+						response.error('SAVE_DENIED', 'Save denied.', {
+							details: { field: 'email' },
+							status: 409,
+						}),
+				},
+			},
+		});
+		const handler = createHandler({
+			root: createRoot() as any,
+			layers: [FailingLayer],
+		});
+		let caught: unknown;
+
+		try {
+			await callLayerAction(FailingLayer, 'save', undefined, {
+				baseUrl: 'http://localhost:3000',
+				fetch: createHandlerFetch(handler),
+			});
+		} catch (error) {
+			caught = error;
+		}
+
+		expect(isLayerActionError<SaveDeniedBody>(caught)).toBe(true);
+		if (!isLayerActionError<SaveDeniedBody>(caught)) {
+			throw new Error('Expected a typed layer action error.');
+		}
+		expectTypeOf(caught.data?.error.code).toEqualTypeOf<
+			'SAVE_DENIED' | undefined
+		>();
+		expect(caught.status).toBe(409);
+		expect(caught.data).toEqual({
+			error: {
+				code: 'SAVE_DENIED',
+				details: { field: 'email' },
+				message: 'Save denied.',
+				status: 409,
+			},
+		});
+		expect(caught.error).toEqual(caught.data?.error);
+		expect(caught.body).toContain('SAVE_DENIED');
+	});
+
+	it('should return thrown layer server errors from API routes', async () => {
+		const ApiLayer = defineLayer({
+			name: 'typed-api-errors',
+			server: {
+				api: {
+					'/api/users/[id]': ({ params }) => {
+						throw new LayerServerError('USER_NOT_FOUND', 'User not found.', {
+							details: { id: params.id },
+							status: 404,
+						});
+					},
+				},
+			},
+		});
+		const handler = createHandler({
+			root: createRoot() as any,
+			layers: [ApiLayer],
+		});
+
+		const response = await handler(
+			new Request('http://localhost:3000/api/users/u1')
+		);
+
+		expect(response.status).toBe(404);
+		await expect(response.json()).resolves.toEqual({
+			error: {
+				code: 'USER_NOT_FOUND',
+				details: { id: 'u1' },
+				message: 'User not found.',
+				status: 404,
+			},
+		});
 	});
 
 	it('should reject layer-scoped calls without an action name', async () => {

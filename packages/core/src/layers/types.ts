@@ -24,6 +24,7 @@
 
 import type { Component } from '../render/node.js';
 import type { HeadProps } from '../ssr/types.js';
+import type { LayerServerErrorOptions } from '../ssr/server-errors.js';
 import type { ServerValidationHelpers } from '../ssr/validation.js';
 import type { Signal } from '../reactivity/signal.js';
 
@@ -94,6 +95,11 @@ export interface ServerResponseHelpers {
 	json: <T>(data: T, init?: ResponseInit) => Response;
 	text: (body: string, init?: ResponseInit) => Response;
 	redirect: (url: string | URL, status?: number) => Response;
+	error: <Code extends string, Details = unknown>(
+		code: Code,
+		message: string,
+		options?: LayerServerErrorOptions<Details>
+	) => Response;
 }
 
 export interface ServerLayerContext<

@@ -218,6 +218,16 @@ export const createServerValidationErrorBody = (
 	},
 });
 
+export const isServerValidationErrorBody = (
+	value: unknown
+): value is ServerValidationErrorBody =>
+	isRecord(value) &&
+	isRecord(value.error) &&
+	value.error.code === 'EFFUSE_VALIDATION_FAILED' &&
+	Array.isArray(value.error.issues) &&
+	typeof value.error.message === 'string' &&
+	typeof value.error.source === 'string';
+
 export const serverValidationErrorResponse = (
 	error: ServerValidationError
 ): Response =>
