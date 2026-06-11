@@ -14,6 +14,9 @@ import {
 	createLayerRouteUrl,
 	createLayerServerManifestClient,
 	generateLayerServerClientModule,
+	getLayerClientErrorBody,
+	getLayerClientErrorStatus,
+	isLayerClientError,
 	LayerServerClientError,
 	type ManifestActionName,
 	type ManifestLayerName,
@@ -202,7 +205,8 @@ describe('layer server manifest client', () => {
 					'/api/fail': () => new Response('nope', { status: 400 }),
 				},
 				actions: {
-					save: () => ({ ok: true }),
+					save: ({ response }) =>
+						response.error('SAVE_DENIED', 'Save denied.', { status: 409 }),
 				},
 			},
 		});
@@ -232,6 +236,16 @@ describe('layer server manifest client', () => {
 		await expect(client.route('/api/fail')).rejects.toBeInstanceOf(
 			LayerServerClientError
 		);
+		await client.route('/api/fail').catch((error: unknown) => {
+			expect(isLayerClientError(error)).toBe(true);
+			expect(getLayerClientErrorStatus(error)).toBe(400);
+			expect(getLayerClientErrorBody(error)).toBe('nope');
+		});
+		await client.action('manifest-failing', 'save').catch((error: unknown) => {
+			expect(isLayerClientError(error)).toBe(true);
+			expect(getLayerClientErrorStatus(error)).toBe(409);
+			expect(getLayerClientErrorBody(error)).toContain('SAVE_DENIED');
+		});
 		await expect(
 			client.action('manifest-failing', 'missing' as 'save')
 		).rejects.toThrow('Unknown Effuse action "manifest-failing.missing".');

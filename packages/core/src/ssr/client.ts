@@ -25,6 +25,7 @@
 import type { HttpMethod } from '../layers/types.js';
 import {
 	callLayerAction,
+	LayerActionError,
 	type LayerActionCallOptions,
 	type LayerActionResponseMode,
 } from './actions.js';
@@ -163,6 +164,19 @@ export class LayerServerClientError extends Error {
 		this.response = response;
 	}
 }
+
+export type LayerClientError = LayerServerClientError | LayerActionError;
+
+export const isLayerClientError = (
+	error: unknown
+): error is LayerClientError =>
+	error instanceof LayerServerClientError || error instanceof LayerActionError;
+
+export const getLayerClientErrorBody = (error: unknown): string | undefined =>
+	isLayerClientError(error) ? error.body : undefined;
+
+export const getLayerClientErrorStatus = (error: unknown): number | undefined =>
+	isLayerClientError(error) ? error.status : undefined;
 
 const isBodyPayload = (value: unknown): value is BodyInit =>
 	typeof value === 'string' ||
