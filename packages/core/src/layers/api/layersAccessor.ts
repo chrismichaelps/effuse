@@ -27,7 +27,12 @@ import {
 	getLayerService,
 	isLayerRuntimeReady,
 } from '../context.js';
-import type { CompiledLayer, EffuseServices } from './defineLayer.js';
+import { ServiceNotFoundError } from '../errors.js';
+import type {
+	CompiledLayer,
+	EffuseServices,
+	LayerServicesFrom,
+} from './defineLayer.js';
 import type { LayerProps, EffuseLayer } from '../types.js';
 
 export type LayerList = readonly CompiledLayer<any, any>[];
@@ -138,6 +143,38 @@ export const createLayerEntryResolver = (): (<
 		entries.set(compiledLayer, entry);
 		return entry;
 	};
+};
+
+export const resolveLayerService = <
+	L extends CompiledLayer<any, any>,
+	K extends Extract<keyof LayerServicesFrom<L>, string>,
+>(
+	compiledLayer: L,
+	key: K | string | undefined,
+	resolveEntry: <EntryLayer extends CompiledLayer<any, any>>(
+		layer: EntryLayer
+	) => LayerEntryFrom<EntryLayer> = resolveLayerEntry
+): LayerServicesFrom<L>[K] => {
+	if (!key || !compiledLayer.serviceKeys.includes(key)) {
+		throw new ServiceNotFoundError({
+			layerName: compiledLayer.name,
+			serviceKey: key ?? '<missing>',
+		});
+	}
+
+	const services = resolveEntry(compiledLayer).services as Record<
+		string,
+		unknown
+	>;
+	const service = services[key];
+	if (service === undefined) {
+		throw new ServiceNotFoundError({
+			layerName: compiledLayer.name,
+			serviceKey: key,
+		});
+	}
+
+	return service as LayerServicesFrom<L>[K];
 };
 
 export const layerSourceToList = <L extends LayerSource>(
