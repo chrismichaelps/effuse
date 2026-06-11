@@ -33,39 +33,52 @@ import type {
 	ServerHandler,
 	ServerMethodHandlers,
 	ServerRoute,
+	LayerProps,
 } from '../types.js';
 import { resolveLayerOrder } from '../utils/index.js';
 
 const TAG_NS = 'effuse/layer/';
 
 type ResultOf<T> = T extends () => infer R ? R : never;
+type EmptyLayerContract = Record<string, never>;
 
 type NonEmptyLayerProvides<T> = [NonNullable<T>] extends [never]
-	? {}
+	? EmptyLayerContract
 	: NonNullable<T> extends LayerProvides
 		? NonNullable<T>
-		: {};
+		: EmptyLayerContract;
 
 type ProvidesOf<T> = T extends { readonly provides?: infer P }
 	? NonEmptyLayerProvides<P>
-	: {};
+	: EmptyLayerContract;
 
 type ServicesOf<T> = T extends { readonly services?: infer P }
 	? NonEmptyLayerProvides<P>
-	: {};
+	: EmptyLayerContract;
 
 type ProvidersFor<T> = ProvidesOf<T> & ServicesOf<T>;
 
 export type EffuseServices<T extends EffuseLayer> =
 	ProvidersFor<T> extends infer P extends LayerProvides
 		? { [K in keyof P]: ResultOf<P[K]> }
-		: {};
+		: EmptyLayerContract;
+
+export type LayerPropsFrom<T extends EffuseLayer> =
+	T extends { readonly props?: infer P }
+		? NonNullable<P> extends LayerProps
+			? NonNullable<P>
+			: LayerProps
+		: T extends { readonly deriveProps?: (...args: readonly unknown[]) => infer P }
+			? P extends LayerProps
+				? P
+				: LayerProps
+			: LayerProps;
 
 type DefinitionProviders<
 	Provides extends LayerProvides | undefined,
 	Services extends LayerProvides | undefined,
-> = (Services extends LayerProvides ? Services : {}) &
-	(Provides extends LayerProvides ? Provides : {});
+> = (Services extends LayerProvides ? Services : EmptyLayerContract) &
+	(Provides extends LayerProvides ? Provides : EmptyLayerContract);
 
 type DefinitionServices<
 	Provides extends LayerProvides | undefined,
@@ -73,7 +86,7 @@ type DefinitionServices<
 > =
 	DefinitionProviders<Provides, Services> extends infer P extends LayerProvides
 		? { [K in keyof P]: ResultOf<P[K]> }
-		: {};
+		: EmptyLayerContract;
 
 type DefinitionServer<
 	Provides extends LayerProvides | undefined,
@@ -275,7 +288,7 @@ export function defineLayer<
 	const keys = Object.keys(provides) as (keyof LayerProvides)[];
 
 	if (keys.length === 0) {
-		const emptyCtx = Context.empty() as Context.Context<{}>;
+		const emptyCtx = Context.empty() as Context.Context<EmptyLayerContract>;
 		const emptyLayer = Layer.succeedContext(emptyCtx) as unknown as Layer.Layer<
 			EffuseServices<ConcreteLayerDefinition<N, T, Provides, Services, Server>>,
 			never,
@@ -397,16 +410,18 @@ export type MergeServices<Layers extends readonly CompiledLayer<any>[]> =
 	Layers extends readonly [infer L, ...infer R]
 		? L extends CompiledLayer<infer T>
 			? EffuseServices<T> &
-					(R extends readonly CompiledLayer<any>[] ? MergeServices<R> : {})
+					(R extends readonly CompiledLayer<any>[]
+						? MergeServices<R>
+						: EmptyLayerContract)
 			: never
-		: {};
+		: EmptyLayerContract;
 
 export function combineLayers<Layers extends readonly CompiledLayer<any>[]>(
 	...layers: Layers
 ): Layer.Layer<MergeServices<Layers>, never, Scope.Scope> {
 	if (layers.length === 0) {
 		return Layer.succeedContext(Context.empty()) as unknown as Layer.Layer<
-			{},
+			EmptyLayerContract,
 			never,
 			Scope.Scope
 		>;

@@ -44,19 +44,18 @@ import {
 } from '../tracing/index.js';
 import { buildTopologyLevels, getMaxParallelism } from './topology.js';
 
+const resolveLayerProps = (layer: AnyResolvedLayer): LayerProps =>
+	layer.deriveProps
+		? layer.deriveProps(layer.store)
+		: (layer.props ?? ({} as LayerProps));
+
 export const createSetupContext = (
 	layer: AnyResolvedLayer,
 	propsRegistry: PropsRegistry,
 	registry: LayerRegistry,
 	allLayers: readonly AnyResolvedLayer[]
 ): SetupContext => {
-	let layerProps: LayerProps;
-
-	if (layer.deriveProps && layer.store) {
-		layerProps = layer.deriveProps(layer.store);
-	} else {
-		layerProps = layer.props ?? ({} as LayerProps);
-	}
+	const layerProps = resolveLayerProps(layer);
 
 	const getLayerDependency = (name: string): LayerDependency => {
 		const depLayer = registry.getLayer(name);
@@ -108,15 +107,7 @@ export const buildLayerEffect = (
 
 			registry.registerLayer(layer);
 
-			let derivedProps: LayerProps;
-
-			if (layer.deriveProps && layer.store) {
-				derivedProps = layer.deriveProps(layer.store);
-			} else {
-				derivedProps = layer.props ?? ({} as LayerProps);
-			}
-
-			propsRegistry.set(layer.name, derivedProps);
+			propsRegistry.set(layer.name, resolveLayerProps(layer));
 
 			if (layer.components) {
 				for (const [name, component] of Object.entries(layer.components)) {

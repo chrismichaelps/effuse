@@ -350,6 +350,30 @@ describe('LayersAccessor — comprehensive regression tests', () => {
 			}
 		});
 
+		it('should register derived props even when the layer has no store', async () => {
+			const modeSignal = signal('dark');
+			const runtimeLayer = defineLayer({
+				name: 'derivedPropsRuntime',
+				deriveProps: () => ({
+					mode: modeSignal,
+				}),
+				services: {
+					runtimeSvc: () => ({ health: 'ok' }),
+				},
+			});
+			const runtime = await createLayerRuntime(
+				resolveLayerDefinitions([runtimeLayer])
+			);
+
+			try {
+				const accessor = resolveLayersAccessor([runtimeLayer] as const);
+
+				expect(accessor.derivedPropsRuntime.props.mode).toBe(modeSignal);
+			} finally {
+				await runtime.dispose();
+			}
+		});
+
 		it('should clear createLayerRuntime app context on dispose', async () => {
 			const svc = { health: 'ok' };
 			const runtimeLayer = defineLayer({
@@ -504,6 +528,39 @@ describe('LayersAccessor — comprehensive regression tests', () => {
 			expectTypeOf<
 				typeof accessor.logger.services.logSvc
 			>().toEqualTypeOf<{ log: () => undefined }>();
+		});
+
+		it('should infer layer props from list and alias accessors', () => {
+			const modeSignal = signal('dark');
+			const densitySignal = signal(2);
+			const themeLayer = defineLayer({
+				name: 'typedTheme',
+				props: {
+					mode: modeSignal,
+					density: densitySignal,
+				},
+				services: {
+					theme: () => ({ current: () => modeSignal.value }),
+				},
+			});
+
+			const listAccessor = resolveLayersAccessor([themeLayer] as const);
+			const aliasAccessor = resolveLayersAccessor({
+				theme: themeLayer,
+			} as const);
+
+			expectTypeOf<
+				typeof listAccessor.typedTheme.props.mode
+			>().toEqualTypeOf<typeof modeSignal>();
+			expectTypeOf<
+				typeof listAccessor.typedTheme.props.density
+			>().toEqualTypeOf<typeof densitySignal>();
+			expectTypeOf<
+				typeof aliasAccessor.theme.props.mode
+			>().toEqualTypeOf<typeof modeSignal>();
+			expectTypeOf<
+				typeof aliasAccessor.theme.services.theme
+			>().toEqualTypeOf<{ current: () => string }>();
 		});
 	});
 

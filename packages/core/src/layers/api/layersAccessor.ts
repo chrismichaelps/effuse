@@ -34,9 +34,10 @@ import {
 import type {
 	CompiledLayer,
 	EffuseServices,
+	LayerPropsFrom,
 	LayerServicesFrom,
 } from './defineLayer.js';
-import type { LayerProps, EffuseLayer } from '../types.js';
+import type { EffuseLayer } from '../types.js';
 
 export type LayerList = readonly CompiledLayer<any, any>[];
 
@@ -45,7 +46,7 @@ export type LayerAliases = Readonly<Record<string, CompiledLayer<any, any>>>;
 export type LayerSource = LayerList | LayerAliases;
 
 export interface LayerEntry<T extends EffuseLayer> {
-	readonly props: LayerProps;
+	readonly props: LayerPropsFrom<T>;
 	readonly services: EffuseServices<T>;
 }
 
@@ -125,8 +126,12 @@ export function resolveLayerEntry<L extends CompiledLayer<any, any>>(
 	const { refresh, services } = createServicesBag(compiledLayer);
 
 	return {
-		get props(): LayerProps {
-			return getLayerContext(name).props;
+		get props(): LayerPropsFrom<
+			L extends CompiledLayer<infer T, string> ? T : never
+		> {
+			return getLayerContext(name).props as LayerPropsFrom<
+				L extends CompiledLayer<infer T, string> ? T : never
+			>;
 		},
 		get services(): EffuseServices<
 			L extends CompiledLayer<infer T, string> ? T : never

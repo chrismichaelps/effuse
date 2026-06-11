@@ -669,6 +669,70 @@ describe('define() + layers — full integration', () => {
 			expect(state.exposed.theme.value).toBe('dark');
 			expect(state.exposed.user).toBe('u1');
 		});
+
+		it('should preserve typed layer props inside script context', () => {
+			const themeMode = signal('dark');
+			const accentColor = signal('blue');
+			const themeLayer = defineLayer({
+				name: 'typed-theme',
+				props: {
+					mode: themeMode,
+					accent: accentColor,
+				},
+				services: {
+					theme: () => ({ label: 'typed' }),
+				},
+			});
+			const resolvedTheme = createResolvedLayer({
+				name: 'typed-theme',
+				provides: { theme: () => ({ label: 'typed' }) },
+			});
+
+			const propsRegistry = createMockPropsRegistry({
+				'typed-theme': {
+					mode: themeMode,
+					accent: accentColor,
+				},
+			});
+			const layerRegistry = createMockLayerRegistry(
+				{ 'typed-theme': resolvedTheme },
+				{ theme: { label: 'typed' } }
+			);
+			const store = {
+				propsRegistry,
+				layerRegistry,
+				layers: [resolvedTheme],
+			};
+
+			const Component = define({
+				props: {},
+				layers: { theme: themeLayer } as const,
+				script(ctx) {
+					expectTypeOf<
+						typeof ctx.layers.theme.props.mode
+					>().toEqualTypeOf<typeof themeMode>();
+					expectTypeOf<
+						typeof ctx.layers.theme.props.accent
+					>().toEqualTypeOf<typeof accentColor>();
+					return {
+						mode: ctx.layers.theme.props.mode.value,
+						accent: ctx.layers.theme.props.accent.value,
+						label: ctx.layers.theme.services.theme.label,
+					};
+				},
+				template: () => null,
+			});
+
+			const blueprint = extractBlueprint(Component);
+			const state = runWithLayerContext(store, () => blueprint.state({})) as {
+				exposed: { accent: string; label: string; mode: string };
+			};
+			expect(state.exposed).toEqual({
+				accent: 'blue',
+				label: 'typed',
+				mode: 'dark',
+			});
+		});
 	});
 
 	describe('define() with layers — service caching', () => {
