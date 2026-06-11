@@ -83,13 +83,23 @@ const createServicesBag = <L extends CompiledLayer<any, any>>(
 	const keys = Object.keys(compiledLayer.provides ?? {});
 	const services: Record<string, unknown> = {};
 	const serviceCache: Record<string, unknown> = {};
+	const readService = (key: string): unknown => {
+		const service = getLayerService(key);
+		if (service === undefined) {
+			throw new ServiceNotFoundError({
+				layerName: compiledLayer.name,
+				serviceKey: key,
+			});
+		}
+		return service;
+	};
 
 	for (const key of keys) {
 		Object.defineProperty(services, key, {
 			enumerable: true,
 			get: () => {
 				if (isLayerRuntimeReady()) {
-					serviceCache[key] = getLayerService(key);
+					serviceCache[key] = readService(key);
 				}
 				return serviceCache[key];
 			},
@@ -102,7 +112,7 @@ const createServicesBag = <L extends CompiledLayer<any, any>>(
 		>,
 		refresh: () => {
 			for (const key of keys) {
-				serviceCache[key] = getLayerService(key);
+				serviceCache[key] = readService(key);
 			}
 		},
 	};

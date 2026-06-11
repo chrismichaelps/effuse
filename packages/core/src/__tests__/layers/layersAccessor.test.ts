@@ -11,7 +11,10 @@ import {
 	clearGlobalLayerContext,
 	runWithLayerContext,
 } from '../../layers/context.js';
-import { LayerNameCollisionError } from '../../layers/errors.js';
+import {
+	LayerNameCollisionError,
+	ServiceNotFoundError,
+} from '../../layers/errors.js';
 import { createLayerRuntime } from '../../layers/internal/runtime.js';
 import type { PropsRegistry } from '../../layers/services/PropsService.js';
 import type { LayerRegistry } from '../../layers/services/RegistryService.js';
@@ -162,6 +165,29 @@ describe('LayersAccessor — comprehensive regression tests', () => {
 			const accessor = resolveLayersAccessor([authLayer]);
 
 			expect(runWithLayerContext(store, () => accessor.auth.services.authService)).toBe(authService);
+		});
+
+		it('should throw an actionable error when a declared service is missing from runtime registration', () => {
+			const authLayer = defineLayer({
+				name: 'auth',
+				provides: { authService: () => ({ token: 'abc' }) },
+			});
+			const resolvedLayer = createResolvedLayer({
+				name: 'auth',
+				provides: { authService: () => ({ token: 'abc' }) },
+			});
+
+			const propsRegistry = createMockPropsRegistry({ auth: {} });
+			const layerRegistry = createMockLayerRegistry({ auth: resolvedLayer });
+			const store = { propsRegistry, layerRegistry, layers: [resolvedLayer] };
+			const accessor = resolveLayersAccessor([authLayer]);
+
+			expect(() =>
+				runWithLayerContext(store, () => accessor.auth.services.authService)
+			).toThrow(ServiceNotFoundError);
+			expect(() =>
+				runWithLayerContext(store, () => accessor.auth.services.authService)
+			).toThrow('registered with app.useLayers()');
 		});
 
 		it('should keep services bag identity stable while refreshing values from context', () => {

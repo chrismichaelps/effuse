@@ -264,9 +264,7 @@ describe('ScriptContext - layers accessor', () => {
 				runWithLayerContext(store, () =>
 					unsafeUseService(authLayer, 'billingService')
 				)
-			).toThrow(
-				'[Effuse] Layer "auth-service-boundary" does not provide service "billingService".'
-			);
+			).toThrow('registered with app.useLayers()');
 		});
 
 		it('should reject declared layer services missing from the active runtime', () => {

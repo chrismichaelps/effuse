@@ -73,7 +73,10 @@ export class ServiceNotFoundError extends Data.TaggedError(
 }> {
 	get message(): string {
 		if (this.layerName) {
-			return `[Effuse] Layer "${this.layerName}" does not provide service "${this.serviceKey}".`;
+			return (
+				`[Effuse] Layer "${this.layerName}" does not provide service "${this.serviceKey}". ` +
+				'Ensure the layer is registered with app.useLayers() and exports that service key.'
+			);
 		}
 		return `[Effuse] Service "${this.serviceKey}" not found.`;
 	}
