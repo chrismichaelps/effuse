@@ -302,6 +302,18 @@ route/action middleware. Metadata flows into responses and manifests, and
 conflicting route/action metadata records manifest diagnostics instead of
 silently hiding the override.
 
+Server handlers can also emit route/action trace events through
+`onServerTrace`. Events include kind, layer, method, path, target, status,
+duration, success state, timestamp, and structured error data. Telemetry
+adapters should translate those events into logs, spans, or metrics, and use
+`onServerTraceError` for sink failures so observability never changes request
+behavior.
+
+The CLI now provides `effuse manifest --file <path>` to inspect generated
+server manifests. The output groups routes and actions by layer, prints runtime,
+cache, CORS, region, and duration metadata, and surfaces manifest diagnostics
+such as metadata conflicts.
+
 File-system API folders should be an optional manifest source:
 
 - `src/server/api/**/route.ts` or `src/server/api/**/*.ts` for request handlers.
@@ -350,10 +362,13 @@ These are the next gaps that matter for production users:
   auth guards, cache tags, revalidation, runtime/region hints, CORS, response
   headers, manifest metadata, and conflict diagnostics now exist in core. The
   next layer is adapter deployment output and docs examples.
-- **Observability**: first-class tracing hooks for route/action duration,
-  status, service usage, and errors.
-- **CLI/dev server**: a Bun/pnpm-first dev command that builds manifests,
-  watches files, shows route collisions, and previews server endpoints.
+- **Observability**: route/action trace hooks now report duration, status,
+  layer, target, and error state. The next layer is adapter packages for
+  OpenTelemetry/logging vendors and service-level spans.
+- **CLI/dev server**: `effuse manifest --file <path>` now prints routes,
+  actions, metadata, and diagnostics. The next layer is watch mode, route
+  collision checks, endpoint previews, and generated manifest output during
+  `dev`/`build`.
 - **Docs and examples**: replace string layer docs with alias-record docs and
   add complete examples for auth, forms, API routes, actions, redirects, and
   uploads.
@@ -391,6 +406,9 @@ This core PR lands the runtime and type foundation:
 - server routes/actions support layer and handler middleware plus cache, CORS,
   runtime, region, and max-duration metadata exposed through responses and the
   server manifest.
+- server handlers can emit isolated trace events via `onServerTrace`, and
+  `effuse manifest` gives the CLI a readable view of routes/actions, metadata,
+  and diagnostics.
 - README explains why Effuse should exist as a framework.
 
 The docs repo should then receive a focused follow-up PR around this contract.

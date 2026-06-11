@@ -294,6 +294,7 @@ export {
 	createLayerRouteUrl,
 	createLayerServerManifestClient,
 	createLayerServerErrorBody,
+	createServerTraceError,
 	getLayerServerActionEntries,
 	getLayerServerMiddleware,
 	getLayerServerRouteEntries,
@@ -311,6 +312,7 @@ export {
 	LayerServerClientError,
 	LayerServerError,
 	layerServerErrorResponse,
+	emitServerTrace,
 	mergeServerRouteMetadata,
 	normalizeServerActionInput,
 	normalizeServerRouteInput,
@@ -382,6 +384,10 @@ export {
 	type ServerValidationSuccess,
 	type ServerValidator,
 	type ServerMetadataDiagnostic,
+	type ServerObservabilityHooks,
+	type ServerTraceError,
+	type ServerTraceEvent,
+	type ServerTraceKind,
 } from './ssr/index.js';
 
 export {

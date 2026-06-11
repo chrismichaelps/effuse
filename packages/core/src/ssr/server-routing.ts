@@ -39,6 +39,12 @@ import {
 } from '../layers/api/defineLayer.js';
 import { createSSRRuntime } from './runtime.js';
 import {
+	createServerTraceError,
+	emitServerTrace,
+	type ServerObservabilityHooks,
+	type ServerTraceKind,
+} from './observability.js';
+import {
 	getLayerServerActionEntries,
 	getLayerServerMiddleware,
 	getLayerServerRouteEntries,
@@ -60,10 +66,12 @@ export const EFFUSE_ACTION_PREFIX = '/_effuse/actions/';
 
 interface MatchedServerHandler {
 	readonly handler: ServerHandler;
+	readonly kind: ServerTraceKind;
 	readonly layer?: AnyResolvedLayer;
 	readonly metadata?: ServerRouteMetadata;
 	readonly middleware: readonly ServerMiddleware[];
 	readonly params: Record<string, string>;
+	readonly target: string;
 	readonly allowedMethods: readonly HttpMethod[];
 }
 
@@ -172,10 +180,12 @@ const findApiHandler = (
 			if (handler) {
 				return {
 					handler,
+					kind: 'api',
 					layer,
 					metadata: entry.metadata,
 					middleware: route.middleware ?? [],
 					params,
+					target: route.path,
 					allowedMethods: getServerRouteMethods(route),
 				};
 			}
@@ -188,10 +198,12 @@ const findApiHandler = (
 							Allow: getServerRouteMethods(route).join(', '),
 						},
 					}),
+				kind: 'api',
 				layer,
 				metadata: entry.metadata,
 				middleware: route.middleware ?? [],
 				params,
+				target: route.path,
 				allowedMethods: getServerRouteMethods(route),
 			};
 		}
@@ -229,8 +241,10 @@ const findActionHandler = (
 					status: 405,
 					headers: { Allow: 'POST' },
 				}),
+			kind: 'action',
 			middleware: [],
 			params: { action: actionName },
+			target: actionName,
 			allowedMethods: ['POST'],
 		};
 	}
@@ -245,10 +259,12 @@ const findActionHandler = (
 		if (layer && action) {
 			return {
 				handler: action.action.handler,
+				kind: 'action',
 				layer,
 				metadata: action.metadata,
 				middleware: action.action.middleware ?? [],
 				params: { layer: layerName, action: actionName },
+				target: actionName,
 				allowedMethods: ['POST'],
 			};
 		}
@@ -262,10 +278,12 @@ const findActionHandler = (
 		if (action) {
 			return {
 				handler: action.action.handler,
+				kind: 'action',
 				layer,
 				metadata: action.metadata,
 				middleware: action.action.middleware ?? [],
 				params: { action: actionName },
+				target: actionName,
 				allowedMethods: ['POST'],
 			};
 		}
@@ -533,7 +551,8 @@ export const matchLayerServerRequest = (
 
 export const handleLayerServerRequest = async (
 	request: Request,
-	rawLayers: LayerInputSource
+	rawLayers: LayerInputSource,
+	observability?: ServerObservabilityHooks
 ): Promise<Response | null> => {
 	const layers = resolveLayerDefinitions(rawLayers);
 	const match = matchLayerServerRequest(request, layers);
@@ -542,6 +561,8 @@ export const handleLayerServerRequest = async (
 	}
 
 	const runtime = await createSSRRuntime(layers, { runSetup: true });
+	const startedAt = performance.now();
+	const timestamp = Date.now();
 
 	try {
 		return await runtime.run(async () => {
@@ -554,15 +575,46 @@ export const handleLayerServerRequest = async (
 			const response = await runServerMiddleware(ctx, middleware, async () =>
 				normalizeServerResult(await match.handler(ctx))
 			);
-			return applyServerMetadata(response, match.metadata);
+			const tracedResponse = applyServerMetadata(response, match.metadata);
+			emitServerTrace(observability, {
+				durationMs: performance.now() - startedAt,
+				kind: match.kind,
+				layer: match.layer?.name,
+				method: request.method.toUpperCase(),
+				ok: tracedResponse.ok,
+				path: new URL(request.url).pathname,
+				route: match.kind === 'api' ? match.target : undefined,
+				status: tracedResponse.status,
+				target: match.target,
+				timestamp,
+			});
+			return tracedResponse;
 		});
 	} catch (error) {
+		const createErrorTrace = (status: number): void => {
+			emitServerTrace(observability, {
+				durationMs: performance.now() - startedAt,
+				error: createServerTraceError(error),
+				kind: match.kind,
+				layer: match.layer?.name,
+				method: request.method.toUpperCase(),
+				ok: false,
+				path: new URL(request.url).pathname,
+				route: match.kind === 'api' ? match.target : undefined,
+				status,
+				target: match.target,
+				timestamp,
+			});
+		};
 		if (isLayerServerError(error)) {
+			createErrorTrace(error.status);
 			return layerServerErrorResponse(error);
 		}
 		if (isServerValidationError(error)) {
+			createErrorTrace(error.status);
 			return serverValidationErrorResponse(error);
 		}
+		createErrorTrace(500);
 		throw error;
 	} finally {
 		await runtime.dispose();

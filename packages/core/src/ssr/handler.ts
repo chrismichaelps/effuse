@@ -25,6 +25,7 @@
 import type { Component } from '../render/node.js';
 import type { LayerInputSource } from '../layers/api/defineLayer.js';
 import type { RequestContext, ServerAppOptions } from './types.js';
+import type { ServerTraceEvent } from './observability.js';
 import { createServerApp } from './server-app.js';
 import { createHash } from 'node:crypto';
 import { handleLayerServerRequest } from './server-routing.js';
@@ -41,6 +42,8 @@ export interface HandlerConfig {
 	cacheSMaxAge?: number;
 	/** Optional error handler for logging/monitoring. Called before returning 500. */
 	onError?: (error: unknown, request: Request) => void;
+	onServerTrace?: (event: ServerTraceEvent) => void;
+	onServerTraceError?: (error: unknown, event: ServerTraceEvent) => void;
 }
 
 export const createHandler = (config: HandlerConfig) => {
@@ -58,7 +61,11 @@ export const createHandler = (config: HandlerConfig) => {
 
 			const serverResponse = await handleLayerServerRequest(
 				req,
-				config.layers ?? []
+				config.layers ?? [],
+				{
+					onTrace: config.onServerTrace,
+					onTraceError: config.onServerTraceError,
+				}
 			);
 			if (serverResponse) {
 				return serverResponse;
@@ -85,9 +92,9 @@ export const createHandler = (config: HandlerConfig) => {
 
 			// Build Cache-Control header
 			const cacheDirectives: string[] = ['public'];
-			cacheDirectives.push(`max-age=${config.cacheMaxAge ?? 0}`);
+			cacheDirectives.push(`max-age=${String(config.cacheMaxAge ?? 0)}`);
 			if (config.cacheSMaxAge !== undefined) {
-				cacheDirectives.push(`s-maxage=${config.cacheSMaxAge}`);
+				cacheDirectives.push(`s-maxage=${String(config.cacheSMaxAge)}`);
 			}
 			cacheDirectives.push('must-revalidate');
 
@@ -141,7 +148,11 @@ export const createStreamingHandler = (config: HandlerConfig) => {
 
 			const serverResponse = await handleLayerServerRequest(
 				req,
-				config.layers ?? []
+				config.layers ?? [],
+				{
+					onTrace: config.onServerTrace,
+					onTraceError: config.onServerTraceError,
+				}
 			);
 			if (serverResponse) {
 				return serverResponse;

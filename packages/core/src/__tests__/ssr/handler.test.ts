@@ -10,6 +10,7 @@ import { clearGlobalLayerContext } from '../../layers/context.js';
 import { clearGlobalTracing } from '../../layers/tracing/index.js';
 import { CreateTextNode } from '../../render/node.js';
 import { EFFUSE_NODE } from '../../constants.js';
+import type { ServerTraceEvent } from '../../ssr/observability.js';
 
 afterEach(() => {
 	clearGlobalLayerContext();
@@ -453,6 +454,182 @@ describe('SSR handler', () => {
 			expect(response.headers.get('X-Effuse-Region')).toBe('iad1, sfo1');
 			expect(response.headers.get('X-Effuse-Max-Duration')).toBe('5');
 			expect(await response.json()).toEqual({ ok: true });
+		});
+
+		it('should emit server trace events for successful API routes', async () => {
+			const events: ServerTraceEvent[] = [];
+			const ApiLayer = defineLayer({
+				name: 'trace-api',
+				server: {
+					api: {
+						'/api/traced': () => ({ ok: true }),
+					},
+				},
+			});
+			const handler = createHandler({
+				root: createRoot() as any,
+				layers: [ApiLayer],
+				onServerTrace: (event) => events.push(event),
+			});
+
+			const response = await handler(new Request('http://localhost:3000/api/traced'));
+
+			expect(response.status).toBe(200);
+			expect(events).toHaveLength(1);
+			expect(events[0]).toMatchObject({
+				kind: 'api',
+				layer: 'trace-api',
+				method: 'GET',
+				ok: true,
+				path: '/api/traced',
+				route: '/api/traced',
+				status: 200,
+				target: '/api/traced',
+			});
+			expect(events[0]!.durationMs).toBeGreaterThanOrEqual(0);
+		});
+
+		it('should isolate server trace hook failures', async () => {
+			const onTraceError = vi.fn();
+			const ApiLayer = defineLayer({
+				name: 'trace-isolated',
+				server: {
+					api: {
+						'/api/isolate-trace': () => ({ ok: true }),
+					},
+				},
+			});
+			const handler = createHandler({
+				root: createRoot() as any,
+				layers: [ApiLayer],
+				onServerTrace: () => {
+					throw new Error('trace sink failed');
+				},
+				onServerTraceError: onTraceError,
+			});
+
+			const response = await handler(
+				new Request('http://localhost:3000/api/isolate-trace')
+			);
+
+			expect(response.status).toBe(200);
+			expect(await response.json()).toEqual({ ok: true });
+			expect(onTraceError).toHaveBeenCalledOnce();
+			expect(onTraceError.mock.calls[0][0]).toBeInstanceOf(Error);
+			expect(onTraceError.mock.calls[0][1]).toMatchObject({
+				kind: 'api',
+				ok: true,
+				status: 200,
+				target: '/api/isolate-trace',
+			});
+		});
+
+		it('should emit server trace events for 405 responses', async () => {
+			const events: ServerTraceEvent[] = [];
+			const ApiLayer = defineLayer({
+				name: 'trace-405',
+				server: {
+					api: {
+						'/api/read-only': {
+							GET: () => ({ ok: true }),
+						},
+					},
+				},
+			});
+			const handler = createHandler({
+				root: createRoot() as any,
+				layers: [ApiLayer],
+				onServerTrace: (event) => events.push(event),
+			});
+
+			const response = await handler(
+				new Request('http://localhost:3000/api/read-only', {
+					method: 'POST',
+				})
+			);
+
+			expect(response.status).toBe(405);
+			expect(events[0]).toMatchObject({
+				kind: 'api',
+				layer: 'trace-405',
+				method: 'POST',
+				ok: false,
+				status: 405,
+				target: '/api/read-only',
+			});
+		});
+
+		it('should emit server trace events for action errors', async () => {
+			const events: ServerTraceEvent[] = [];
+			const ActionLayer = defineLayer({
+				name: 'trace-action',
+				server: {
+					actions: {
+						save: ({ response }) =>
+							response.error('SAVE_FAILED', 'Save failed.', { status: 409 }),
+					},
+				},
+			});
+			const handler = createHandler({
+				root: createRoot() as any,
+				layers: [ActionLayer],
+				onServerTrace: (event) => events.push(event),
+			});
+
+			const response = await handler(
+				new Request('http://localhost:3000/_effuse/actions/trace-action/save', {
+					method: 'POST',
+				})
+			);
+
+			expect(response.status).toBe(409);
+			expect(events[0]).toMatchObject({
+				kind: 'action',
+				layer: 'trace-action',
+				method: 'POST',
+				ok: false,
+				path: '/_effuse/actions/trace-action/save',
+				status: 409,
+				target: 'save',
+			});
+		});
+
+		it('should emit server trace events for thrown route errors', async () => {
+			const events: ServerTraceEvent[] = [];
+			const onError = vi.fn();
+			const ApiLayer = defineLayer({
+				name: 'trace-thrown',
+				server: {
+					api: {
+						'/api/boom': () => {
+							throw new Error('boom');
+						},
+					},
+				},
+			});
+			const handler = createHandler({
+				root: createRoot() as any,
+				layers: [ApiLayer],
+				onError,
+				onServerTrace: (event) => events.push(event),
+			});
+
+			const response = await handler(new Request('http://localhost:3000/api/boom'));
+
+			expect(response.status).toBe(500);
+			expect(onError).toHaveBeenCalledOnce();
+			expect(events[0]).toMatchObject({
+				error: {
+					message: 'boom',
+					name: 'Error',
+				},
+				kind: 'api',
+				layer: 'trace-thrown',
+				method: 'GET',
+				ok: false,
+				status: 500,
+				target: '/api/boom',
+			});
 		});
 	});
 

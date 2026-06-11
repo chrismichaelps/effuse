@@ -50,6 +50,15 @@ export { useHead, isServer, runWithSSRContext } from './use-head.js';
 export { useSeoMeta, useServerSeoMeta, type SeoMetaInput } from './seo-meta.js';
 
 export {
+	createServerTraceError,
+	emitServerTrace,
+	type ServerObservabilityHooks,
+	type ServerTraceError,
+	type ServerTraceEvent,
+	type ServerTraceKind,
+} from './observability.js';
+
+export {
 	createHandler,
 	createStreamingHandler,
 	parseQuery,
