@@ -11,6 +11,7 @@ import {
 	clearGlobalLayerContext,
 	getGlobalLayerContextStore,
 	getLayerService,
+	isLayerRuntimeReady,
 	runWithLayerContext,
 } from '../../layers/context.js';
 import {
@@ -20,6 +21,10 @@ import {
 import { createLayerRuntime } from '../../layers/internal/runtime.js';
 import type { PropsRegistry } from '../../layers/services/PropsService.js';
 import type { LayerRegistry } from '../../layers/services/RegistryService.js';
+import {
+	clearGlobalTracing,
+	getGlobalTracing,
+} from '../../layers/tracing/index.js';
 import type { AnyResolvedLayer, LayerProps } from '../../layers/types.js';
 import { signal } from '../../reactivity/signal.js';
 
@@ -63,6 +68,7 @@ const createResolvedLayer = (
 describe('LayersAccessor — comprehensive regression tests', () => {
 	afterEach(() => {
 		clearGlobalLayerContext();
+		clearGlobalTracing();
 	});
 
 	describe('resolveLayersAccessor — runtime behavior', () => {
@@ -393,6 +399,92 @@ describe('LayersAccessor — comprehensive regression tests', () => {
 				await secondRuntime.dispose();
 				await firstRuntime.dispose();
 			}
+		});
+
+		it('should restore the previous app runtime after a nested runtime disposes', async () => {
+			const firstSvc = { source: 'outer-runtime' };
+			const secondSvc = { source: 'nested-runtime' };
+			const firstLayer = defineLayer({
+				name: 'outerRuntime',
+				services: { firstSvc: () => firstSvc },
+			});
+			const secondLayer = defineLayer({
+				name: 'nestedRuntime',
+				services: { secondSvc: () => secondSvc },
+			});
+
+			const firstRuntime = await createLayerRuntime(
+				resolveLayerDefinitions([firstLayer])
+			);
+			let secondRuntime:
+				| Awaited<ReturnType<typeof createLayerRuntime>>
+				| undefined;
+			let secondDisposed = false;
+
+			try {
+				const firstTracing = getGlobalTracing();
+				expect(firstTracing).toBeTruthy();
+				expect(getLayerService('firstSvc')).toBe(firstSvc);
+
+				secondRuntime = await createLayerRuntime(
+					resolveLayerDefinitions([secondLayer])
+				);
+				const secondTracing = getGlobalTracing();
+
+				expect(secondTracing).toBeTruthy();
+				expect(secondTracing).not.toBe(firstTracing);
+				expect(getLayerService('secondSvc')).toBe(secondSvc);
+				expect(getLayerService('firstSvc')).toBeUndefined();
+
+				await secondRuntime.dispose();
+				secondDisposed = true;
+
+				expect(isLayerRuntimeReady()).toBe(true);
+				expect(getLayerService('firstSvc')).toBe(firstSvc);
+				expect(getLayerService('secondSvc')).toBeUndefined();
+				expect(getGlobalTracing()).toBe(firstTracing);
+			} finally {
+				if (secondRuntime && !secondDisposed) {
+					await secondRuntime.dispose();
+				}
+				await firstRuntime.dispose();
+			}
+
+			expect(isLayerRuntimeReady()).toBe(false);
+			expect(getGlobalTracing()).toBeNull();
+		});
+
+		it('should not clobber a newer app runtime when an older runtime disposes first', async () => {
+			const firstSvc = { source: 'older-runtime' };
+			const secondSvc = { source: 'newer-runtime' };
+			const firstLayer = defineLayer({
+				name: 'olderRuntime',
+				services: { firstSvc: () => firstSvc },
+			});
+			const secondLayer = defineLayer({
+				name: 'newerRuntime',
+				services: { secondSvc: () => secondSvc },
+			});
+
+			const firstRuntime = await createLayerRuntime(
+				resolveLayerDefinitions([firstLayer])
+			);
+			const secondRuntime = await createLayerRuntime(
+				resolveLayerDefinitions([secondLayer])
+			);
+
+			expect(getLayerService('secondSvc')).toBe(secondSvc);
+
+			await firstRuntime.dispose();
+
+			expect(isLayerRuntimeReady()).toBe(true);
+			expect(getLayerService('secondSvc')).toBe(secondSvc);
+			expect(getLayerService('firstSvc')).toBeUndefined();
+
+			await secondRuntime.dispose();
+
+			expect(isLayerRuntimeReady()).toBe(false);
+			expect(getGlobalTracing()).toBeNull();
 		});
 
 		it('should register derived props even when the layer has no store', async () => {
