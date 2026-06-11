@@ -104,6 +104,131 @@ const insertAfterAnchor = (anchor: Comment, nodes: readonly Node[]): void => {
 	}
 };
 
+const isSuspendRenderError = (error: unknown): boolean => {
+	if (isSuspendToken(error)) return true;
+	if (!Predicate.isObject(error)) return false;
+
+	const value = error as Record<string, unknown>;
+	if (isSuspendToken(value.cause)) return true;
+	if (isSuspendToken(value.error)) return true;
+	if (isSuspendToken(value.defect)) return true;
+
+	const message = Predicate.isString(value.message) ? value.message : '';
+	return message.includes('"resourceId"') && message.includes('"promise"');
+};
+
+const removeNodes = (nodes: Node[]): void => {
+	for (const node of nodes) {
+		if (Predicate.isNotNullable(node.parentNode)) {
+			node.parentNode.removeChild(node);
+		}
+	}
+	nodes.length = 0;
+};
+
+const mountDynamicValue = (
+	label: string,
+	evaluate: () => unknown,
+	cleanups: CleanupFn[],
+	onRender?: (nodes: Node[], anchor: Comment) => void
+): Effect.Effect<Node[], never, PropService | EventService> => {
+	const anchor = document.createComment(label);
+	const currentNodes: Node[] = [];
+	const dynamicCleanups: CleanupFn[] = [];
+	let effectHandle: EffectHandle | null = null;
+	let didNotifyRender = false;
+
+	const clearMountedValue = (): void => {
+		removeNodes(currentNodes);
+		runCleanups(dynamicCleanups);
+		dynamicCleanups.length = 0;
+	};
+
+	const setMountedNodes = (nodes: Node[]): void => {
+		currentNodes.splice(0, currentNodes.length, ...nodes);
+		if (!didNotifyRender) {
+			didNotifyRender = true;
+			onRender?.(currentNodes, anchor);
+		}
+	};
+
+	const mountResolvedValue = (value: unknown): void => {
+		if (value == null || Predicate.isBoolean(value)) {
+			setMountedNodes([]);
+			return;
+		}
+
+		if (Predicate.isString(value) || Predicate.isNumber(value)) {
+			const textNode = document.createTextNode(String(value));
+			if (Predicate.isNotNullable(anchor.parentNode)) {
+				anchor.parentNode.insertBefore(textNode, anchor.nextSibling);
+			}
+			setMountedNodes([textNode]);
+			return;
+		}
+
+		untrack(() => {
+			const childCleanups: CleanupFn[] = [];
+
+			let mountResult: Node[];
+			try {
+				mountResult = Effect.runSync(
+					pipe(
+						mountChild(value as EffuseChild, childCleanups),
+						Effect.provide(PropServiceLive),
+						Effect.provide(EventServiceLive),
+						mapEffuseErrors
+					)
+				);
+			} catch (error) {
+				if (isSuspendRenderError(error)) {
+					setMountedNodes([]);
+					return;
+				}
+
+				runCleanups(childCleanups);
+				const errorNode = createRenderErrorNode(error);
+				insertAfterAnchor(anchor, [errorNode]);
+				setMountedNodes([errorNode]);
+				return;
+			}
+
+			insertAfterAnchor(anchor, mountResult);
+			setMountedNodes(mountResult);
+			dynamicCleanups.push(...childCleanups);
+		});
+	};
+
+	const runEffect = (): void => {
+		effectHandle = watchEffect(() => {
+			let value: unknown;
+			try {
+				value = evaluate();
+			} catch (error) {
+				clearMountedValue();
+				const errorNode = createRenderErrorNode(error);
+				insertAfterAnchor(anchor, [errorNode]);
+				setMountedNodes([errorNode]);
+				return;
+			}
+
+			clearMountedValue();
+			mountResolvedValue(value);
+		});
+	};
+
+	queueMicrotask(runEffect);
+
+	cleanups.push(() => {
+		if (Predicate.isNotNullable(effectHandle)) {
+			effectHandle.stop();
+		}
+		clearMountedValue();
+	});
+
+	return Effect.succeed([anchor]);
+};
+
 const mountChild = (
 	child: EffuseChild,
 	cleanups: CleanupFn[]
@@ -123,212 +248,12 @@ const mountChild = (
 
 	if (Predicate.isFunction(child)) {
 		const fn = child as () => unknown;
-		const anchor = document.createComment('fn');
-		let currentNodes: Node[] = [];
-		const fnCleanups: CleanupFn[] = [];
-		let effectHandle: EffectHandle | null = null;
-
-		const runEffect = () => {
-			effectHandle = watchEffect(() => {
-				let value: unknown;
-				try {
-					value = fn();
-				} catch (err) {
-					for (const node of currentNodes) {
-						if (Predicate.isNotNullable(node.parentNode)) {
-							node.parentNode.removeChild(node);
-						}
-					}
-					runCleanups(fnCleanups);
-					fnCleanups.length = 0;
-					const errorNode = createRenderErrorNode(err);
-					insertAfterAnchor(anchor, [errorNode]);
-					currentNodes = [errorNode];
-					return;
-				}
-
-				for (const node of currentNodes) {
-					if (Predicate.isNotNullable(node.parentNode)) {
-						node.parentNode.removeChild(node);
-					}
-				}
-
-				for (const cleanup of fnCleanups) {
-					cleanup();
-				}
-				fnCleanups.length = 0;
-
-				if (value == null) {
-					currentNodes = [];
-					return;
-				}
-
-				if (Predicate.isString(value) || Predicate.isNumber(value)) {
-					const textNode = document.createTextNode(String(value));
-					if (Predicate.isNotNullable(anchor.parentNode)) {
-						anchor.parentNode.insertBefore(textNode, anchor.nextSibling);
-					}
-					currentNodes = [textNode];
-					return;
-				}
-
-				if (Predicate.isBoolean(value)) {
-					currentNodes = [];
-					return;
-				}
-
-				untrack(() => {
-					const childCleanups: CleanupFn[] = [];
-
-					let mountResult: Node[];
-					try {
-						mountResult = Effect.runSync(
-							pipe(
-								mountChild(value as EffuseChild, childCleanups),
-								Effect.provide(PropServiceLive),
-								Effect.provide(EventServiceLive),
-								mapEffuseErrors
-							)
-						);
-					} catch (err) {
-						const isSuspendError = (e: unknown): boolean => {
-							if (isSuspendToken(e)) return true;
-							if (Predicate.isObject(e)) {
-								const anyErr = e as Record<string, unknown>;
-								if (isSuspendToken(anyErr.cause)) return true;
-								if (isSuspendToken(anyErr.error)) return true;
-								if (isSuspendToken(anyErr.defect)) return true;
-							}
-							return false;
-						};
-
-						if (isSuspendError(err)) {
-							currentNodes = [];
-							return;
-						}
-						runCleanups(childCleanups);
-						const errorNode = createRenderErrorNode(err);
-						insertAfterAnchor(anchor, [errorNode]);
-						currentNodes = [errorNode];
-						return;
-					}
-
-					insertAfterAnchor(anchor, mountResult);
-					currentNodes = mountResult;
-					fnCleanups.push(...childCleanups);
-				});
-			});
-		};
-
-		queueMicrotask(runEffect);
-
-		cleanups.push(() => {
-			if (Predicate.isNotNullable(effectHandle)) {
-				effectHandle.stop();
-			}
-			for (const cleanup of fnCleanups) {
-				cleanup();
-			}
-		});
-		return Effect.succeed([anchor]);
+		return mountDynamicValue('fn', fn, cleanups);
 	}
 
 	if (isSignal(child)) {
 		const sig = child as Signal<EffuseChild>;
-		const anchor = document.createComment('signal');
-		let currentNodes: Node[] = [];
-		const signalCleanups: CleanupFn[] = [];
-		let effectHandle: EffectHandle | null = null;
-
-		const runEffect = () => {
-			effectHandle = watchEffect(() => {
-				const value = sig.value;
-
-				for (const node of currentNodes) {
-					if (Predicate.isNotNullable(node.parentNode)) {
-						node.parentNode.removeChild(node);
-					}
-				}
-
-				for (const cleanup of signalCleanups) {
-					cleanup();
-				}
-				signalCleanups.length = 0;
-
-				if (value == null) {
-					currentNodes = [];
-					return;
-				}
-
-				if (Predicate.isString(value) || Predicate.isNumber(value)) {
-					const textNode = document.createTextNode(String(value));
-					if (Predicate.isNotNullable(anchor.parentNode)) {
-						anchor.parentNode.insertBefore(textNode, anchor.nextSibling);
-					}
-					currentNodes = [textNode];
-					return;
-				}
-
-				untrack(() => {
-					const childCleanups: CleanupFn[] = [];
-
-					let mountResult: Node[];
-					try {
-						mountResult = Effect.runSync(
-							pipe(
-								mountChild(value, childCleanups),
-								Effect.provide(PropServiceLive),
-								Effect.provide(EventServiceLive),
-								mapEffuseErrors
-							)
-						);
-					} catch (err) {
-						const isSuspendError = (e: unknown): boolean => {
-							if (isSuspendToken(e)) return true;
-							if (Predicate.isObject(e)) {
-								const anyErr = e as Record<string, unknown>;
-								if (isSuspendToken(anyErr.cause)) return true;
-								if (isSuspendToken(anyErr.error)) return true;
-								if (isSuspendToken(anyErr.defect)) return true;
-								const msg = Predicate.isString(anyErr.message)
-									? anyErr.message
-									: '';
-								if (msg.includes('"resourceId"') && msg.includes('"promise"')) {
-									return true;
-								}
-							}
-							return false;
-						};
-
-						if (isSuspendError(err)) {
-							currentNodes = [];
-							return;
-						}
-						runCleanups(childCleanups);
-						const errorNode = createRenderErrorNode(err);
-						insertAfterAnchor(anchor, [errorNode]);
-						currentNodes = [errorNode];
-						return;
-					}
-
-					insertAfterAnchor(anchor, mountResult);
-					currentNodes = mountResult;
-					signalCleanups.push(...childCleanups);
-				});
-			});
-		};
-
-		queueMicrotask(runEffect);
-
-		cleanups.push(() => {
-			if (Predicate.isNotNullable(effectHandle)) {
-				effectHandle.stop();
-			}
-			for (const cleanup of signalCleanups) {
-				cleanup();
-			}
-		});
-		return Effect.succeed([anchor]);
+		return mountDynamicValue('signal', () => sig.value, cleanups);
 	}
 
 	if (Array.isArray(child)) {
@@ -532,44 +457,38 @@ const mountNode = (
 				});
 			}
 
-			const childView = stateWithLifecycle._provideScope
-				? runWithProvideScope(stateWithLifecycle._provideScope, () =>
-						node.blueprint.view(context as BlueprintContext)
-					)
-				: node.blueprint.view(context as BlueprintContext);
+			const provideScope = stateWithLifecycle._provideScope;
+			const childView = provideScope
+				? () =>
+						runWithProvideScope(provideScope, () =>
+							node.blueprint.view(context as BlueprintContext)
+						)
+				: () => node.blueprint.view(context as BlueprintContext);
 
 			// HMR: create anchor and register instance
 			const hmrId = (node.blueprint as unknown as Record<string, unknown>).__hmrId as
 				| string
 				| undefined;
-			const anchor = document.createComment('');
 
-			return pipe(
-				mountChild(childView, cleanups),
-				Effect.map((mountedNodes) => {
-					if (hmrId && mountedNodes.length > 0) {
-						const firstNode = mountedNodes[0];
-						const parent = firstNode.parentNode as Element | null;
-						if (parent) {
-							parent.insertBefore(anchor, firstNode);
-							const instanceCleanup = registerComponent(
-								hmrId,
-								node.blueprint,
-								node.props,
-								mountedNodes,
-								() => {
-									for (const c of cleanups) c();
-								},
-								parent,
-								anchor
-							);
-							cleanups.push(instanceCleanup);
-							return [anchor, ...mountedNodes];
-						}
-					}
-					return mountedNodes;
-				})
-			);
+			return mountDynamicValue('', childView, cleanups, (mountedNodes, anchor) => {
+				if (!hmrId) return;
+
+				const parent = anchor.parentNode as Element | null;
+				if (!parent) return;
+
+				const instanceCleanup = registerComponent(
+					hmrId,
+					node.blueprint,
+					node.props,
+					mountedNodes,
+					() => {
+						for (const cleanup of cleanups) cleanup();
+					},
+					parent,
+					anchor
+				);
+				cleanups.push(instanceCleanup);
+			});
 		}
 		default: {
 			let tag: unknown = 'unknown';
