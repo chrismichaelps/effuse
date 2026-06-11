@@ -34,12 +34,14 @@ import type {
 	ServerMethodHandlers,
 	ServerRoute,
 	LayerProps,
+	LayerServiceFactory,
+	LayerServiceFactoryContext,
 } from '../types.js';
 import { resolveLayerOrder } from '../utils/index.js';
 
 const TAG_NS = 'effuse/layer/';
 
-type ResultOf<T> = T extends () => infer R ? R : never;
+type ResultOf<T> = T extends LayerServiceFactory<infer R> ? R : never;
 type EmptyLayerContract = Record<string, never>;
 
 type NonEmptyLayerProvides<T> = [NonNullable<T>] extends [never]
@@ -133,7 +135,7 @@ type ConcreteLayerDefinition<
 
 export interface LayerFactoryContext<N extends string> {
 	readonly name: N;
-	service: <T>(factory: () => T) => () => T;
+	service: <T>(factory: LayerServiceFactory<T>) => LayerServiceFactory<T>;
 	route: <S extends Record<string, unknown> = Record<string, unknown>>(
 		path: string,
 		methods: ServerMethodHandlers<S> | ServerHandler<S>
@@ -217,6 +219,30 @@ const normalizeProvides = (definition: {
 	...(definition.services ?? {}),
 	...(definition.provides ?? {}),
 });
+
+const createStandaloneServiceContext = (
+	layerName: string,
+	serviceKey: string
+): LayerServiceFactoryContext => {
+	const fail = (name: string): never => {
+		throw new Error(
+			`Layer "${layerName}" service "${serviceKey}" cannot resolve "${name}" outside an Effuse layer runtime.`
+		);
+	};
+
+	return {
+		layer: layerName,
+		serviceKey,
+		props: {},
+		store: undefined,
+		deps: {},
+		get: fail,
+		getService: () => undefined,
+		requireService: fail,
+		component: () => undefined,
+		layers: [],
+	};
+};
 
 export function defineLayer<
 	N extends string,
@@ -325,7 +351,12 @@ export function defineLayer<
 	}));
 
 	const layers = entries.map((e) =>
-		Layer.scoped(e.tag, Effect.sync(e.factory))
+		Layer.scoped(
+			e.tag,
+			Effect.sync(() =>
+				e.factory(createStandaloneServiceContext(definition.name, e.key))
+			)
+		)
 	);
 
 	let merged: Layer.Layer<any, never, any> = layers[0]!;

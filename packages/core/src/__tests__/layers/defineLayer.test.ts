@@ -3,10 +3,14 @@ import {
 	defineLayer,
 	combineLayers,
 	resolveLayerDefinitions,
+	type LayerServicesFrom,
 } from '../../layers/api/defineLayer.js';
 import { LayerNameCollisionError } from '../../layers/errors.js';
 import type { CompiledLayer } from '../../layers/api/index.js';
-import type { LayerProvides } from '../../layers/types.js';
+import type {
+	LayerProvides,
+	LayerServiceFactoryContext,
+} from '../../layers/types.js';
 
 describe('defineLayer', () => {
 	describe('layer structure', () => {
@@ -96,6 +100,41 @@ describe('defineLayer', () => {
 			expect(layer.serviceKeys).toEqual(['auth']);
 		});
 
+		it('should infer services from dependency-aware factories', () => {
+			const layer = defineLayer({
+				name: 'composed-service',
+				services: {
+					commerce: ({ requireService }: LayerServiceFactoryContext) => {
+						const auth = requireService<{ readonly userId: string }>('auth');
+						return {
+							currentUser: () => auth.userId,
+						};
+					},
+				},
+			});
+
+			expectTypeOf<LayerServicesFrom<typeof layer>['commerce']>().toEqualTypeOf<{
+				currentUser: () => string;
+			}>();
+		});
+
+		it('should contextually type dependency-aware factories through the service helper', () => {
+			const layer = defineLayer('helper-composed-service', ({ service }) => ({
+				services: {
+					commerce: service(({ requireService }) => {
+						const auth = requireService<{ readonly userId: string }>('auth');
+						return {
+							currentUser: () => auth.userId,
+						};
+					}),
+				},
+			}));
+
+			expectTypeOf<LayerServicesFrom<typeof layer>['commerce']>().toEqualTypeOf<{
+				currentUser: () => string;
+			}>();
+		});
+
 		it('should let provides override services when both define the same key', () => {
 			const layer = defineLayer({
 				name: 'service-override',
@@ -107,7 +146,9 @@ describe('defineLayer', () => {
 				},
 			});
 
-			expect(layer.provides!.config()).toEqual({ source: 'provides' });
+			expect((layer.provides!.config as () => { source: string })()).toEqual({
+				source: 'provides',
+			});
 		});
 	});
 
@@ -141,7 +182,9 @@ describe('defineLayer', () => {
 			}));
 
 			expect(layer.name).toBe('factory');
-			expect(layer.provides!.auth()).toEqual({ token: 'abc' });
+			expect((layer.provides!.auth as () => { token: string })()).toEqual({
+				token: 'abc',
+			});
 			expect(layer.server?.api).toHaveProperty('/api/session');
 			expect(layer.server?.actions?.login).toBeTypeOf('function');
 		});

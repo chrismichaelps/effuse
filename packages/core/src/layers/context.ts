@@ -28,6 +28,7 @@ import type { Component } from '../render/node.js';
 import type {
 	LayerProps,
 	AnyResolvedLayer,
+	LayerProvides,
 } from './types.js';
 import type { PropsRegistry } from './services/PropsService.js';
 import type { LayerRegistry } from './services/RegistryService.js';
@@ -40,7 +41,7 @@ import { devWarn } from '../utils/dev-warnings.js';
 export interface LayerContext<P extends LayerProps = LayerProps> {
 	readonly name: string;
 	readonly props: P;
-	readonly provides?: Record<string, () => unknown>;
+	readonly provides?: LayerProvides;
 	readonly deps: Record<string, LayerContext>;
 	getService: (key: string) => unknown;
 	getComponent: (name: string) => unknown;
@@ -150,7 +151,7 @@ export function getLayerContext(name: string): LayerContext {
 		name,
 		props,
 		...(layer.provides && {
-			provides: layer.provides as Record<string, () => unknown>,
+			provides: layer.provides as LayerProvides,
 		}),
 		deps,
 		getService: (key: string) => store.layerRegistry.getService(key),

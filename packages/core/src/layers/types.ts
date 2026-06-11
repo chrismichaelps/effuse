@@ -69,7 +69,11 @@ export type LayerRestriction =
 
 export type LayerProps = Record<string, Signal<unknown>>;
 
-export type LayerProvides = Record<string, () => unknown>;
+export type LayerServiceFactory<T = unknown> = (
+	ctx: LayerServiceFactoryContext
+) => T;
+
+export type LayerProvides = Record<string, LayerServiceFactory>;
 
 export type HttpMethod =
 	| 'GET'
@@ -246,9 +250,19 @@ export interface SetupContext<
 	readonly store: S;
 	readonly deps: DepsRecord<D>;
 	get: (name: string) => LayerDependency;
-	getService: (key: string) => unknown;
+	getService: <T = unknown>(key: string) => T | undefined;
+	requireService: <T = unknown>(key: string) => T;
 	component: (name: string) => Component | undefined;
 	readonly layers: readonly ResolvedLayer[];
+}
+
+export interface LayerServiceFactoryContext<
+	P extends LayerProps = LayerProps,
+	D extends readonly string[] = readonly string[],
+	S = unknown,
+> extends SetupContext<P, D, S> {
+	readonly layer: string;
+	readonly serviceKey: string;
 }
 
 export type LayerSetupFn<

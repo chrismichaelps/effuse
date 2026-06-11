@@ -35,6 +35,8 @@ export type {
 	LayerRestriction,
 	MergedConfig,
 	LayerProvides,
+	LayerServiceFactory,
+	LayerServiceFactoryContext,
 	HttpMethod,
 	ServerResult,
 	ServerRuntimeHint,

@@ -224,6 +224,8 @@ export {
 	type LayerRestriction,
 	type MergedConfig,
 	type LayerProvides,
+	type LayerServiceFactory,
+	type LayerServiceFactoryContext,
 	type HttpMethod,
 	type ServerResult,
 	type ServerRuntimeHint,

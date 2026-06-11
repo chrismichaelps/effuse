@@ -116,7 +116,7 @@ export class RouterNotConfiguredError extends Data.TaggedError(
 
 export class LayerSetupError extends Data.TaggedError('LayerSetupError')<{
 	readonly layerName: string;
-	readonly phase: 'onMount' | 'setup' | 'onReady';
+	readonly phase: 'onMount' | 'setup' | 'onReady' | `service:${string}`;
 	readonly cause: unknown;
 }> {
 	get message(): string {
