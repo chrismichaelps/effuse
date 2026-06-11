@@ -22,8 +22,8 @@
  * SOFTWARE.
  */
 
-import { AsyncLocalStorage } from 'node:async_hooks';
 import { Effect, Exit, Predicate, Scope } from 'effect';
+import { createAsyncContextStorage } from '../utils/async-context.js';
 
 export interface ComponentLifecycle {
 	readonly onMount: (fn: () => (() => void) | undefined) => void;
@@ -148,7 +148,7 @@ export const createComponentLifecycleSync = (): ComponentLifecycle => {
 	return createLifecycleFns(scope, state);
 };
 
-const activeLifecycleStorage = new AsyncLocalStorage<ComponentLifecycle>();
+const activeLifecycleStorage = createAsyncContextStorage<ComponentLifecycle>();
 
 export const getActiveLifecycle = (): ComponentLifecycle | null => {
 	return activeLifecycleStorage.getStore() ?? null;

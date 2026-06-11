@@ -1,6 +1,76 @@
 import { describe, it, expect } from 'vitest';
 import { useForm } from '../../form/useForm.js';
+import { v } from '../../form/index.js';
 import { signal } from '../../reactivity/signal.js';
+
+describe('useForm validation reactivity', () => {
+	it('should update validity and errors when field signals change directly', () => {
+		const form = useForm<{ name: string }>({
+			initial: { name: signal('Form User') },
+			validators: {
+				name: v.compose(
+					v.required('Name is required.'),
+					v.minLength(2, 'Name must contain at least two characters.')
+				),
+			},
+		});
+
+		expect(form.isValid.value).toBe(true);
+
+		form.fields.name.value = '';
+
+		expect(form.isValid.value).toBe(false);
+		expect(form.errors.value.name).toBe('Name is required.');
+
+		form.fields.name.value = 'Ada';
+
+		expect(form.isValid.value).toBe(true);
+		expect(form.errors.value.name).toBeUndefined();
+	});
+
+	it('should update validity and errors through bind input handlers', () => {
+		const form = useForm<{ name: string }>({
+			initial: { name: signal('Form User') },
+			validators: {
+				name: v.minLength(2, 'Name must contain at least two characters.'),
+			},
+		});
+		const binding = form.bind('name');
+
+		const input = {
+			tagName: 'INPUT',
+			type: 'text',
+			value: 'A',
+		} as unknown as HTMLInputElement;
+
+		binding.onInput({ target: input } as unknown as Event);
+
+		expect(form.fields.name.value).toBe('A');
+		expect(form.isValid.value).toBe(false);
+		expect(form.errors.value.name).toBe(
+			'Name must contain at least two characters.'
+		);
+	});
+
+	it('should not submit invalid values', async () => {
+		const submitted: string[] = [];
+		const form = useForm<{ name: string }>({
+			initial: { name: signal('') },
+			validators: {
+				name: v.required('Name is required.'),
+			},
+			onSubmit: ({ name }) => {
+				submitted.push(name);
+			},
+		});
+
+		await form.submit();
+
+		expect(submitted).toEqual([]);
+		expect(form.touched.name.value).toBe(true);
+		expect(form.errors.value.name).toBe('Name is required.');
+	});
+});
 
 describe('useForm bind input types', () => {
 	it('should handle checkbox inputs', () => {

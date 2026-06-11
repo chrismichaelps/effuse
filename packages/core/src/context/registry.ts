@@ -23,7 +23,7 @@
  */
 
 import { Effect, Ref, Option, pipe, HashMap } from 'effect';
-import { AsyncLocalStorage } from 'node:async_hooks';
+import { createAsyncContextStorage } from '../utils/async-context.js';
 
 type ContextStack = HashMap.HashMap<string, readonly unknown[]>;
 
@@ -110,7 +110,7 @@ const makeContextRegistry = Effect.gen(function* () {
 
 export { makeContextRegistry };
 
-const registryStorage = new AsyncLocalStorage<ContextRegistryService>();
+const registryStorage = createAsyncContextStorage<ContextRegistryService>();
 
 let globalRegistry: ContextRegistryService | null = null;
 
@@ -162,5 +162,4 @@ export const clearAllContexts = (): void => {
 		globalRegistry = null;
 	}
 };
-
 

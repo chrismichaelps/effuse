@@ -22,8 +22,8 @@
  * SOFTWARE.
  */
 
-import { AsyncLocalStorage } from 'node:async_hooks';
 import { Predicate } from 'effect';
+import { createAsyncContextStorage } from '../utils/async-context.js';
 import type { Component } from '../render/node.js';
 import type {
 	LayerProps,
@@ -52,7 +52,7 @@ export interface LayerContextStore {
 	layers: readonly AnyResolvedLayer[];
 }
 
-const layerContextStorage = new AsyncLocalStorage<LayerContextStore>();
+const layerContextStorage = createAsyncContextStorage<LayerContextStore>();
 let globalLayerContextStore: LayerContextStore | undefined;
 
 export const getLayerContextStore = (): LayerContextStore | undefined => {

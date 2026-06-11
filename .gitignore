@@ -119,7 +119,7 @@ dist
 CHANGELOG/
 
 # Local Effuse development/e2e sandbox app
-app/
+/app/
 
 # Ignore the master seed file
 FMCF-MASTER-SEED.md

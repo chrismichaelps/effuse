@@ -22,84 +22,27 @@
  * SOFTWARE.
  */
 
-import type { Component } from '../render/node.js';
-import type { AnyLayer, AnyResolvedLayer } from '../layers/types.js';
-import {
-	type CompiledLayer,
-	createLayerRuntime,
-	type LayerRuntime,
-	type LayerRuntimeOptions,
-	type LayerInputSource,
-	resolveLayerDefinitions,
-} from '../layers/index.js';
-import { Predicate } from 'effect';
-import { mount as mountComponent } from '../canvas/canvas.js';
 import { createServerApp, type ServerApp } from '../ssr/server-app.js';
 import { createStreamingHandler } from '../ssr/handler.js';
 import type { RenderResult, ServerAppOptions } from '../ssr/types.js';
+import {
+	BaseEffuseApp,
+	type AppInstance,
+	type MountOptions,
+	type AppLayerInput,
+	type LazyAppLayerInput,
+	type AppLayerSource,
+} from './BaseEffuseApp.js';
 
-export interface AppInstance {
-	unmount: () => Promise<void>;
-}
+export type {
+	AppInstance,
+	MountOptions,
+	AppLayerInput,
+	LazyAppLayerInput,
+	AppLayerSource,
+};
 
-export type MountOptions = LayerRuntimeOptions;
-
-export type AppLayerInput = AnyLayer | CompiledLayer<any>;
-
-export type LazyAppLayerInput =
-	| AppLayerInput
-	| (() => Promise<AppLayerInput>);
-
-export type AppLayerSource =
-	| readonly LazyAppLayerInput[]
-	| Readonly<Record<string, LazyAppLayerInput>>;
-
-const appLayerSourceToList = (
-	layers: AppLayerSource
-): readonly LazyAppLayerInput[] =>
-	Array.isArray(layers)
-		? layers
-		: (Object.values(layers) as readonly LazyAppLayerInput[]);
-
-export class EffuseApp {
-	private layers: LayerInputSource = [];
-	private rootComponent: Component;
-	private layerRuntime: LayerRuntime | null = null;
-
-	constructor(root: Component) {
-		this.rootComponent = root;
-	}
-
-	async useLayers(layers: AppLayerSource): Promise<this> {
-		const resolved = await Promise.all(
-			appLayerSourceToList(layers).map((l) =>
-				Predicate.isFunction(l) ? l() : Promise.resolve(l)
-			)
-		);
-		this.layers = resolved;
-		return this;
-	}
-
-	async mount(
-		selector: string,
-		options: MountOptions = {}
-	): Promise<AppInstance> {
-		const resolvedLayers = resolveLayerDefinitions(this.layers);
-		this.layers = resolvedLayers;
-		this.layerRuntime = await createLayerRuntime(
-			resolvedLayers as AnyResolvedLayer[],
-			options
-		);
-
-		mountComponent(this.rootComponent, selector);
-
-		return {
-			unmount: async () => {
-				await this.cleanup();
-			},
-		};
-	}
-
+export class EffuseApp extends BaseEffuseApp {
 	/**
 	 * Render the app to a full HTML string for SSR.
 	 *
@@ -155,12 +98,5 @@ export class EffuseApp {
 	 */
 	getServerApp(): ServerApp {
 		return createServerApp(this.rootComponent).useLayers(this.layers);
-	}
-
-	private async cleanup(): Promise<void> {
-		if (this.layerRuntime) {
-			await this.layerRuntime.dispose();
-			this.layerRuntime = null;
-		}
 	}
 }

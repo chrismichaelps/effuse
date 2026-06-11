@@ -22,11 +22,25 @@
  * SOFTWARE.
  */
 
-import { defineConfig } from 'tsup';
-import { baseConfig } from '../../tsup.config';
+import type { Component } from '../render/node.js';
+import {
+	BaseEffuseApp,
+	type AppInstance,
+	type MountOptions,
+	type AppLayerInput,
+	type LazyAppLayerInput,
+	type AppLayerSource,
+} from './BaseEffuseApp.js';
 
-export default defineConfig({
-	...baseConfig,
-	entry: ['src/index.ts', 'src/client.ts', 'src/server.ts', 'src/jsx-runtime.ts'],
-	splitting: false,
-});
+export {
+	BaseEffuseApp as EffuseApp,
+	type AppInstance,
+	type MountOptions,
+	type AppLayerInput,
+	type LazyAppLayerInput,
+	type AppLayerSource,
+};
+
+export const createApp = (root: Component): BaseEffuseApp => {
+	return new BaseEffuseApp(root);
+};

@@ -22,11 +22,4 @@
  * SOFTWARE.
  */
 
-import { defineConfig } from 'tsup';
-import { baseConfig } from '../../tsup.config';
-
-export default defineConfig({
-	...baseConfig,
-	entry: ['src/index.ts', 'src/client.ts', 'src/server.ts', 'src/jsx-runtime.ts'],
-	splitting: false,
-});
+export * from './index.js';

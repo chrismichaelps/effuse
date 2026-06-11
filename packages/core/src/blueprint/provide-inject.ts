@@ -22,15 +22,15 @@
  * SOFTWARE.
  */
 
-import { AsyncLocalStorage } from 'node:async_hooks';
 import { devWarn } from '../utils/dev-warnings.js';
+import { createAsyncContextStorage } from '../utils/async-context.js';
 
 export interface ProvideScope {
 	readonly parent: ProvideScope | null;
 	readonly values: Map<symbol | string, unknown>;
 }
 
-const provideStorage = new AsyncLocalStorage<ProvideScope>();
+const provideStorage = createAsyncContextStorage<ProvideScope>();
 
 export const createProvideScope = (
 	parent: ProvideScope | null = null
