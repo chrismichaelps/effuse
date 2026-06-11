@@ -450,19 +450,19 @@ const tokenToInlineNode = (token: Token): InlineNode | null => {
 			return CreateInlineCodeNode({ value: token.value });
 		case 'link':
 			return CreateLinkNode({
-				url: (token.meta?.url as string) ?? '',
+				url: (token.meta?.url as string | undefined) ?? '',
 				children: parseInlineContent(token.value),
 			});
 		case 'image':
 			return CreateImageNode({
-				url: (token.meta?.url as string) ?? '',
-				alt: (token.meta?.alt as string) ?? token.value,
+				url: (token.meta?.url as string | undefined) ?? '',
+				alt: (token.meta?.alt as string | undefined) ?? token.value,
 			});
 		case 'lineBreak':
 			return { _tag: 'LineBreak' } as InlineNode;
 		case 'componentInline': {
-			const name = (token.meta?.name as string) ?? token.value;
-			const propsStr = (token.meta?.propsString as string) ?? '';
+			const name = (token.meta?.name as string | undefined) ?? token.value;
+			const propsStr = (token.meta?.propsString as string | undefined) ?? '';
 			const props = parseAttributeProps(propsStr);
 			return CreateInlineComponentNode({
 				name,

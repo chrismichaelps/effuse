@@ -46,7 +46,7 @@ export const Ink = define<InkProps, InkExposed>({
 			return parseSync(content);
 		});
 
-		const componentMap = (props.components ?? {}) as InkComponents;
+		const componentMap = props.components ?? {};
 		const className = props.class ?? '';
 
 		const renderedContent = computed(() => {
