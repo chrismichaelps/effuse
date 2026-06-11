@@ -38,12 +38,6 @@ import {
 } from '../tracing/index.js';
 
 /** Internal — not exported to users. */
-type LayerRuntimeServices =
-	| PropsService
-	| RegistryService
-	| TracingService;
-
-/** Internal — not exported to users. */
 export const CoreServicesLive = Layer.mergeAll(
 	PropsService.Default,
 	RegistryService.Default

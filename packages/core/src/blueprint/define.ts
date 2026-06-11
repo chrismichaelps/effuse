@@ -40,10 +40,6 @@ import {
 	getCurrentProvideScope,
 } from './provide-inject.js';
 
-interface PropsWithChildren {
-	readonly children?: EffuseChild;
-}
-
 export type TemplateArgs<E extends ExposedValues> = E & {
 	readonly children?: EffuseChild;
 };

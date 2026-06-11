@@ -23,7 +23,7 @@
  */
 
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { Option, pipe, Predicate } from 'effect';
+import { Predicate } from 'effect';
 import type { Component } from '../render/node.js';
 import type {
 	LayerProps,

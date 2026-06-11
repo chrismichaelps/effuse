@@ -301,7 +301,7 @@ const generateFullHtml = (
 	const lang = head.lang ?? 'en';
 	
 	if (options.manifest) {
-		for (const [key, chunk] of Object.entries(options.manifest)) {
+		for (const chunk of Object.values(options.manifest)) {
 			if (chunk.isEntry) {
 				headHtml += `\n\t<link rel="modulepreload" crossorigin href="/${chunk.file}">`;
 				if (chunk.css) {

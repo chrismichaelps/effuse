@@ -25,7 +25,7 @@
 import type { EffuseNode, EffuseChild, ListNode } from '../render/node.js';
 import { createListNode } from '../render/node.js';
 import type { Signal } from '../types/index.js';
-import { computed, untrack, signal } from '../reactivity/index.js';
+import { untrack, signal } from '../reactivity/index.js';
 import { DuplicateKeysError } from '../errors.js';
 import { pipe, Match, Predicate } from 'effect';
 

@@ -40,7 +40,6 @@ import {
 import { watchEffect as standaloneEffect } from '../effects/effect.js';
 import {
 	createComponentLifecycleSync,
-	withActiveLifecycle,
 	type ComponentLifecycle,
 } from './lifecycle.js';
 import { useCallback, useMemo } from './hooks.js';

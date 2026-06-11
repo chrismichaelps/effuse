@@ -138,7 +138,7 @@ export const createServerApp = (root: Component): ServerApp => {
 
 							// If manifest is provided, inject preload/styles for the main entry point
 							if (options.manifest) {
-								for (const [key, chunk] of Object.entries(options.manifest)) {
+								for (const chunk of Object.values(options.manifest)) {
 									if (chunk.isEntry) {
 										// Preload JS Entry
 										headHtml += `\n\t<link rel="modulepreload" crossorigin href="/${chunk.file}">`;
