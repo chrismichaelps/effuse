@@ -99,6 +99,27 @@ export {
 } from './server-files.js';
 
 export {
+	callLayerManifestAction,
+	callLayerManifestRoute,
+	createLayerRoutePath,
+	createLayerRouteUrl,
+	createLayerServerManifestClient,
+	generateLayerServerClientModule,
+	LayerServerClientError,
+	type GenerateLayerServerClientModuleOptions,
+	type LayerRouteCallOptions,
+	type LayerRoutePathOptions,
+	type LayerServerManifestClient,
+	type ManifestActionForLayer,
+	type ManifestActionName,
+	type ManifestLayerName,
+	type ManifestRouteForPath,
+	type ManifestRouteMethod,
+	type ManifestRouteParams,
+	type ManifestRoutePath,
+} from './client.js';
+
+export {
 	mergeHeadProps,
 	headToHtml,
 	mergeLayerHeads,

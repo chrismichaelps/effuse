@@ -182,6 +182,16 @@ collisions, while the legacy `/_effuse/actions/<action>` path remains supported.
 
 `createLayerServerManifest()` exposes layer API routes, server routes, and
 actions as a stable manifest for adapters, devtools, and generated clients.
+`createLayerServerManifestClient()` consumes that manifest at runtime, while
+`generateLayerServerClientModule()` emits a typed module for generated imports.
+
+```ts
+const manifest = createLayerServerManifest([UserLayer]);
+const client = createLayerServerManifestClient(manifest);
+
+await client.route('/api/users/[id]', { params: { id: 'u1' } });
+await client.action('user', 'refreshUser', { id: 'u1' });
+```
 
 File-system API folders should be an optional manifest source:
 
@@ -194,7 +204,7 @@ File-system API folders should be an optional manifest source:
 
 Next roadmap:
 
-- generated client action modules from `createLayerServerManifest()`.
+- CLI generation and watch mode around `generateLayerServerClientModule()`.
 - middleware per layer and per route.
 - route-level cache/revalidate metadata.
 - streaming responses and event streams.

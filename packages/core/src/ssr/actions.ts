@@ -36,6 +36,7 @@ export interface LayerActionCallOptions
 }
 
 type AnyCompiledLayer = CompiledLayer<EffuseLayer>;
+type LayerActionTarget = AnyCompiledLayer | { readonly name: string };
 
 export type LayerActionsFrom<L extends AnyCompiledLayer> =
 	L extends CompiledLayer<infer T>
@@ -269,12 +270,18 @@ export function callLayerAction<
 	options?: LayerActionCallOptions
 ): Promise<LayerActionResult<L, Name>>;
 export function callLayerAction<Result = unknown>(
+	layer: { readonly name: string },
+	action: string,
+	input?: unknown,
+	options?: LayerActionCallOptions
+): Promise<Result>;
+export function callLayerAction<Result = unknown>(
 	action: string,
 	input?: unknown,
 	options?: LayerActionCallOptions
 ): Promise<Result>;
 export async function callLayerAction<Result = unknown>(
-	layerOrAction: string | AnyCompiledLayer,
+	layerOrAction: string | LayerActionTarget,
 	actionOrInput?: unknown,
 	inputOrOptions?: unknown,
 	maybeOptions?: LayerActionCallOptions
