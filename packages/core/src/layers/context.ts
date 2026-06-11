@@ -53,9 +53,10 @@ export interface LayerContextStore {
 }
 
 const layerContextStorage = new AsyncLocalStorage<LayerContextStore>();
+let globalLayerContextStore: LayerContextStore | undefined;
 
 export const getLayerContextStore = (): LayerContextStore | undefined => {
-	return layerContextStorage.getStore();
+	return layerContextStorage.getStore() ?? globalLayerContextStore;
 };
 
 export const runWithLayerContext = <T>(
@@ -75,7 +76,15 @@ export const initGlobalLayerContext = (
 		store.propsRegistry = propsRegistry;
 		store.layerRegistry = layerRegistry;
 		store.layers = layers;
+		globalLayerContextStore = store;
+		return;
 	}
+
+	globalLayerContextStore = {
+		propsRegistry,
+		layerRegistry,
+		layers,
+	};
 };
 
 export const clearGlobalLayerContext = (): void => {
@@ -85,6 +94,8 @@ export const clearGlobalLayerContext = (): void => {
 		store.layerRegistry = null;
 		store.layers = [];
 	}
+
+	globalLayerContextStore = undefined;
 };
 
 interface NonNullLayerContextStore {
@@ -94,7 +105,7 @@ interface NonNullLayerContextStore {
 }
 
 const getStoreOrThrow = (): NonNullLayerContextStore => {
-	const store = layerContextStorage.getStore();
+	const store = getLayerContextStore();
 	if (!store || !store.propsRegistry || !store.layerRegistry) {
 		devWarn(
 			'Layer runtime not initialized. ' +
@@ -107,7 +118,7 @@ const getStoreOrThrow = (): NonNullLayerContextStore => {
 };
 
 export const isLayerRuntimeReady = (): boolean => {
-	const store = layerContextStorage.getStore();
+	const store = getLayerContextStore();
 	return (
 		Predicate.isNotNullable(store) &&
 		Predicate.isNotNullable(store.propsRegistry) &&

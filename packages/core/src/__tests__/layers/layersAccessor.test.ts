@@ -1,10 +1,17 @@
 import { describe, it, expect, expectTypeOf, vi, afterEach } from 'vitest';
 import { defineHook } from '../../hooks/defineHook.js';
 import { createHookContext } from '../../hooks/context.js';
-import { defineLayer } from '../../layers/api/defineLayer.js';
+import {
+	defineLayer,
+	resolveLayerDefinitions,
+} from '../../layers/api/defineLayer.js';
 import { resolveLayersAccessor } from '../../layers/api/layersAccessor.js';
 import type { LayersAccessor } from '../../layers/api/layersAccessor.js';
-import { runWithLayerContext } from '../../layers/context.js';
+import {
+	clearGlobalLayerContext,
+	runWithLayerContext,
+} from '../../layers/context.js';
+import { createLayerRuntime } from '../../layers/internal/runtime.js';
 import type { PropsRegistry } from '../../layers/services/PropsService.js';
 import type { LayerRegistry } from '../../layers/services/RegistryService.js';
 import type { AnyResolvedLayer, LayerProps } from '../../layers/types.js';
@@ -48,6 +55,9 @@ const createResolvedLayer = (
 	({ _resolved: true as const, _order: 0, ...overrides }) as AnyResolvedLayer;
 
 describe('LayersAccessor — comprehensive regression tests', () => {
+	afterEach(() => {
+		clearGlobalLayerContext();
+	});
 
 	describe('resolveLayersAccessor — runtime behavior', () => {
 		it('should return an object keyed by layer name', () => {
@@ -223,6 +233,45 @@ describe('LayersAccessor — comprehensive regression tests', () => {
 			const accessor = resolveLayersAccessor([emptyLayer]);
 
 			expect(runWithLayerContext(store, () => accessor.empty.services)).toEqual({});
+		});
+
+		it('should expose services after createLayerRuntime initializes the app context', async () => {
+			const svc = { health: 'ok' };
+			const runtimeLayer = defineLayer({
+				name: 'runtime',
+				services: { runtimeSvc: () => svc },
+			});
+			const runtime = await createLayerRuntime(
+				resolveLayerDefinitions([runtimeLayer])
+			);
+
+			try {
+				const accessor = resolveLayersAccessor([runtimeLayer]);
+
+				expect(accessor.runtime.services.runtimeSvc).toBe(svc);
+			} finally {
+				await runtime.dispose();
+			}
+		});
+
+		it('should clear createLayerRuntime app context on dispose', async () => {
+			const svc = { health: 'ok' };
+			const runtimeLayer = defineLayer({
+				name: 'runtime',
+				services: { runtimeSvc: () => svc },
+			});
+			const runtime = await createLayerRuntime(
+				resolveLayerDefinitions([runtimeLayer])
+			);
+			const accessor = resolveLayersAccessor([runtimeLayer]);
+
+			expect(accessor.runtime.services.runtimeSvc).toBe(svc);
+
+			await runtime.dispose();
+
+			expect(() => accessor.runtime.services.runtimeSvc).toThrow(
+				'Layer runtime not initialized'
+			);
 		});
 
 		it('should resolve props independently from services', () => {
