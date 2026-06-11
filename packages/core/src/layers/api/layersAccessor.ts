@@ -119,6 +119,27 @@ export function resolveLayerEntry<L extends CompiledLayer<any, any>>(
 	} as unknown as LayerEntryFrom<L>;
 }
 
+export const createLayerEntryResolver = (): (<
+	L extends CompiledLayer<any, any>,
+>(
+	compiledLayer: L
+) => LayerEntryFrom<L>) => {
+	const entries = new WeakMap<CompiledLayer<any, any>, LayerEntry<any>>();
+
+	return <L extends CompiledLayer<any, any>>(
+		compiledLayer: L
+	): LayerEntryFrom<L> => {
+		const cached = entries.get(compiledLayer);
+		if (cached) {
+			return cached as LayerEntryFrom<L>;
+		}
+
+		const entry = resolveLayerEntry(compiledLayer);
+		entries.set(compiledLayer, entry);
+		return entry;
+	};
+};
+
 export const layerSourceToList = <L extends LayerSource>(
 	layers: L
 ): readonly CompiledLayer<any, any>[] =>

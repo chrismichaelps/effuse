@@ -197,10 +197,13 @@ describe('define() + layers — full integration', () => {
 				props: {},
 				script({ useLayer, useService }) {
 					const auth = useLayer(authLayer);
+					const sameAuth = useLayer(authLayer);
 					const svc = useService(authLayer, 'authSvc');
 					return {
 						user: svc.user,
 						mode: auth.props.mode,
+						sameEntry: auth === sameAuth,
+						sameServices: auth.services === sameAuth.services,
 						sameInstance: auth.services.authSvc === svc,
 					};
 				},
@@ -212,11 +215,15 @@ describe('define() + layers — full integration', () => {
 				exposed: {
 					user: string;
 					mode: { value: string };
+					sameEntry: boolean;
+					sameServices: boolean;
 					sameInstance: boolean;
 				};
 			};
 			expect(state.exposed.user).toBe('chris');
 			expect(state.exposed.mode).toBe(modeSignal);
+			expect(state.exposed.sameEntry).toBe(true);
+			expect(state.exposed.sameServices).toBe(true);
 			expect(state.exposed.sameInstance).toBe(true);
 		});
 

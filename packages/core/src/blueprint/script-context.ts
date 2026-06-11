@@ -55,7 +55,7 @@ import {
 import type { CompiledLayer } from '../layers/api/defineLayer.js';
 import type { LayerServicesFrom } from '../layers/api/defineLayer.js';
 import {
-	resolveLayerEntry,
+	createLayerEntryResolver,
 	resolveLayersAccessor,
 	type LayerEntryFrom,
 	type LayersAccessor,
@@ -207,6 +207,7 @@ export const createScriptContext = <
 	const resolvedLayers = resolveLayersAccessor(
 		(layers ?? []) as L
 	) as LayersAccessor<L>;
+	const resolveLayer = createLayerEntryResolver();
 
 	const { proxy: reactiveProps, update: updateProps } = createReactiveProps(
 		props as Record<string, unknown>
@@ -217,7 +218,7 @@ export const createScriptContext = <
 
 		layers: resolvedLayers,
 
-		useLayer: (layer) => resolveLayerEntry(layer),
+		useLayer: (layer) => resolveLayer(layer),
 
 		expose: (values: ExposedValues): void => {
 			Object.assign(state.exposed, values);

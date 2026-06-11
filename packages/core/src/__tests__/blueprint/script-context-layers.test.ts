@@ -183,12 +183,17 @@ describe('ScriptContext - layers accessor', () => {
 			}>();
 			const snapshot = runWithLayerContext(store, () => {
 				const entry = context.useLayer(authLayer);
+				const sameEntry = context.useLayer(authLayer);
 				return {
+					sameEntry: entry === sameEntry,
+					sameServices: entry.services === sameEntry.services,
 					service: entry.services.authService,
 					mode: entry.props.mode,
 				};
 			});
 
+			expect(snapshot.sameEntry).toBe(true);
+			expect(snapshot.sameServices).toBe(true);
 			expect(snapshot.service).toBe(authService);
 			expect(snapshot.mode).toBe(modeSignal);
 		});
