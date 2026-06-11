@@ -16,6 +16,8 @@
 	"type": "module",
 	"scripts": {
 		"build": "pnpm -r --workspace-concurrency=1 build",
+		"check:app": "node scripts/check-integration-app.mjs",
+		"check:app:bun": "node scripts/check-integration-app.mjs --runner=bun",
 		"check:node": "node scripts/check-node-version.mjs",
 		"dev": "pnpm -r dev",
 		"pretest": "node scripts/check-node-version.mjs",
