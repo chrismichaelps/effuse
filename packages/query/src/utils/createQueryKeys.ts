@@ -37,7 +37,7 @@ type KeyOutput<TKey extends string, TDef extends KeyDefinition> = TDef extends n
 type KeyFactory<TKey extends string, TDefs extends Record<string, KeyDefinition>> = {
 	readonly [K in keyof TDefs & string]: TDefs[K] extends null
 		? () => KeyOutput<TKey, TDefs[K]>
-		: TDefs[K] extends (...args: infer A) => infer _R
+		: TDefs[K] extends (...args: infer A) => readonly unknown[]
 			? (...args: A) => KeyOutput<TKey, TDefs[K]>
 			: never;
 };
