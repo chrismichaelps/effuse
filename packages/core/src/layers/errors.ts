@@ -38,7 +38,7 @@ export class LayerNameCollisionError extends Data.TaggedError(
 	readonly layerName: string;
 }> {
 	get message(): string {
-		return `[Effuse] Layer "${this.layerName}" is registered more than once in this layer accessor. Use an alias record when you need explicit local names.`;
+		return `[Effuse] Layer "${this.layerName}" is registered more than once. Use unique layer names or an alias record when you need explicit local names.`;
 	}
 }
 

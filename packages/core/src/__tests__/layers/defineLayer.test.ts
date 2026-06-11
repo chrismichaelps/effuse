@@ -4,6 +4,7 @@ import {
 	combineLayers,
 	resolveLayerDefinitions,
 } from '../../layers/api/defineLayer.js';
+import { LayerNameCollisionError } from '../../layers/errors.js';
 import type { CompiledLayer } from '../../layers/api/index.js';
 import type { LayerProvides } from '../../layers/types.js';
 
@@ -309,6 +310,34 @@ describe('resolveLayerDefinitions', () => {
 		const resolved = resolveLayerDefinitions([a, b]);
 
 		expect(resolved.map((layer) => layer.name)).toEqual(['shared', 'a', 'b']);
+	});
+
+	it('should reject top-level duplicate layer names', () => {
+		const first = defineLayer({
+			name: 'auth',
+			services: { first: () => ({ token: 'first' }) },
+		});
+		const second = defineLayer({
+			name: 'auth',
+			services: { second: () => ({ token: 'second' }) },
+		});
+
+		expect(() => resolveLayerDefinitions([first, second])).toThrow(
+			LayerNameCollisionError
+		);
+	});
+
+	it('should reject duplicate layer names introduced by extends', () => {
+		const shared = defineLayer({ name: 'shared' });
+		const duplicateShared = defineLayer({ name: 'shared' });
+		const feature = defineLayer({
+			name: 'feature',
+			extends: [duplicateShared],
+		});
+
+		expect(() => resolveLayerDefinitions([shared, feature])).toThrow(
+			LayerNameCollisionError
+		);
 	});
 });
 

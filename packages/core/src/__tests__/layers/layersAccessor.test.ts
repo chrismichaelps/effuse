@@ -88,7 +88,7 @@ describe('LayersAccessor — comprehensive regression tests', () => {
 			expect(() =>
 				resolveLayersAccessor([firstLayer, secondLayer] as const)
 			).toThrow(
-				'[Effuse] Layer "auth" is registered more than once in this layer accessor. Use an alias record when you need explicit local names.'
+				'[Effuse] Layer "auth" is registered more than once. Use unique layer names or an alias record when you need explicit local names.'
 			);
 		});
 

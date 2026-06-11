@@ -33,7 +33,10 @@ import type {
 	PluginFn,
 	StoreConfig,
 } from '../types.js';
-import { CircularDependencyError } from '../errors.js';
+import {
+	CircularDependencyError,
+	LayerNameCollisionError,
+} from '../errors.js';
 import type { Component } from '../../render/node.js';
 
 export const resolveLayerOrder = (
@@ -41,6 +44,7 @@ export const resolveLayerOrder = (
 ): AnyResolvedLayer[] => {
 	const resolved: AnyResolvedLayer[] = [];
 	const state = new Map<AnyLayer, 'visiting' | 'visited'>();
+	const owners = new Map<string, AnyLayer>();
 	const seen = new Set<string>();
 
 	const visit = (layer: AnyLayer, path: string[]): void => {
@@ -57,6 +61,12 @@ export const resolveLayerOrder = (
 		if (currentState === 'visited') {
 			return;
 		}
+
+		const owner = owners.get(layerName);
+		if (owner && owner !== layer) {
+			throw new LayerNameCollisionError({ layerName });
+		}
+		owners.set(layerName, layer);
 
 		state.set(layer, 'visiting');
 		if (layer.extends && layer.extends.length > 0) {
