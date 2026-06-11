@@ -22,10 +22,68 @@
  * SOFTWARE.
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import { Query, QueryObserver, QueryCache } from '../core/index.js';
 
 const BASE_URL = 'https://jsonplaceholder.typicode.com';
+
+const posts = Array.from({ length: 8 }, (_, index) => ({
+	id: index + 1,
+	title: `Post ${index + 1}`,
+	body: `Body for post ${index + 1}`,
+}));
+
+const users = [
+	{ id: 1, name: 'Leanne Graham', email: 'leanne@example.test' },
+	{ id: 2, name: 'Ervin Howell', email: 'ervin@example.test' },
+];
+
+const jsonResponse = (body: unknown, init?: ResponseInit): Response =>
+	Response.json(body, init);
+
+const createJsonPlaceholderFetch = (): typeof fetch =>
+	vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+		const request = new Request(input, init);
+		const url = new URL(request.url);
+
+		if (request.signal.aborted) {
+			throw new DOMException('The operation was aborted.', 'AbortError');
+		}
+
+		if (url.origin !== BASE_URL) {
+			throw new TypeError(`Network request failed for ${url.origin}`);
+		}
+
+		if (request.method !== 'GET') {
+			return jsonResponse({ message: 'Method not allowed' }, { status: 405 });
+		}
+
+		if (url.pathname === '/posts') {
+			return jsonResponse(posts);
+		}
+
+		const postMatch = url.pathname.match(/^\/posts\/(\d+)$/);
+		if (postMatch) {
+			const post = posts.find((candidate) => candidate.id === Number(postMatch[1]));
+			return post
+				? jsonResponse(post)
+				: jsonResponse({ message: 'Not found' }, { status: 404 });
+		}
+
+		if (url.pathname === '/users') {
+			return jsonResponse(users);
+		}
+
+		return jsonResponse({ message: 'Not found' }, { status: 404 });
+	}) as typeof fetch;
+
+beforeEach(() => {
+	vi.stubGlobal('fetch', createJsonPlaceholderFetch());
+});
+
+afterEach(() => {
+	vi.unstubAllGlobals();
+});
 
 const fetchPosts = async ({ signal }: { signal: AbortSignal }) => {
 	const response = await fetch(`${BASE_URL}/posts`, { signal });
