@@ -33,7 +33,7 @@ import {
 	type LayerInputSource,
 	resolveLayerDefinitions,
 } from '../layers/index.js';
-import { mount as mountComponent } from '../canvas/canvas.js';
+import { mount as mountComponent, type Canvas } from '../canvas/canvas.js';
 
 export interface AppInstance {
 	unmount: () => Promise<void>;
@@ -62,6 +62,9 @@ export class BaseEffuseApp {
 	protected layers: LayerInputSource = [];
 	protected readonly rootComponent: Component;
 	private layerRuntime: LayerRuntime | null = null;
+	private mountedCanvas: Canvas | null = null;
+	private activeMountId: number | null = null;
+	private nextMountId = 1;
 
 	constructor(root: Component) {
 		this.rootComponent = root;
@@ -82,25 +85,60 @@ export class BaseEffuseApp {
 		options: MountOptions = {}
 	): Promise<AppInstance> {
 		const resolvedLayers = resolveLayerDefinitions(this.layers);
+		await this.cleanup();
+		const mountId = this.nextMountId++;
+		this.activeMountId = mountId;
 		this.layers = resolvedLayers;
-		this.layerRuntime = await createLayerRuntime(
-			resolvedLayers as AnyResolvedLayer[],
-			options
-		);
 
-		mountComponent(this.rootComponent, selector);
+		try {
+			this.layerRuntime = await createLayerRuntime(
+				resolvedLayers as AnyResolvedLayer[],
+				options
+			);
+			this.mountedCanvas = mountComponent(this.rootComponent, selector);
+		} catch (error) {
+			if (this.activeMountId === mountId) {
+				await this.cleanup();
+			}
+			throw error;
+		}
 
 		return {
 			unmount: async () => {
-				await this.cleanup();
+				if (this.activeMountId === mountId) {
+					await this.cleanup();
+				}
 			},
 		};
 	}
 
 	private async cleanup(): Promise<void> {
-		if (this.layerRuntime) {
-			await this.layerRuntime.dispose();
-			this.layerRuntime = null;
+		const canvas = this.mountedCanvas;
+		const layerRuntime = this.layerRuntime;
+		let cleanupError: unknown;
+
+		this.mountedCanvas = null;
+		this.layerRuntime = null;
+		this.activeMountId = null;
+
+		if (canvas) {
+			try {
+				canvas.dispose();
+			} catch (error) {
+				cleanupError = error;
+			}
+		}
+
+		if (layerRuntime) {
+			try {
+				await layerRuntime.dispose();
+			} catch (error) {
+				cleanupError ??= error;
+			}
+		}
+
+		if (cleanupError) {
+			throw cleanupError;
 		}
 	}
 }
