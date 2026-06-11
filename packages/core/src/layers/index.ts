@@ -116,6 +116,7 @@ export {
 
 export {
 	LayerNotFoundError,
+	LayerNameCollisionError,
 	LayerRuntimeNotReadyError,
 	LayerRuntimeNotInitializedError,
 	ServiceNotFoundError,

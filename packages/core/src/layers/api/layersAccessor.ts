@@ -27,7 +27,10 @@ import {
 	getLayerService,
 	isLayerRuntimeReady,
 } from '../context.js';
-import { ServiceNotFoundError } from '../errors.js';
+import {
+	LayerNameCollisionError,
+	ServiceNotFoundError,
+} from '../errors.js';
 import type {
 	CompiledLayer,
 	EffuseServices,
@@ -188,15 +191,22 @@ export function resolveLayersAccessor<L extends LayerSource>(
 	layers: L
 ): LayersAccessor<L> {
 	const accessor: Record<string, LayerEntry<any>> = {};
+	const keys = new Set<string>();
+	const addEntry = (key: string, compiledLayer: CompiledLayer<any, any>) => {
+		if (keys.has(key)) {
+			throw new LayerNameCollisionError({ layerName: key });
+		}
+		keys.add(key);
+		accessor[key] = resolveLayerEntry(compiledLayer);
+	};
 
 	if (Array.isArray(layers)) {
 		for (const compiledLayer of layers) {
-			const name = compiledLayer.name as string;
-			accessor[name] = resolveLayerEntry(compiledLayer);
+			addEntry(compiledLayer.name as string, compiledLayer);
 		}
 	} else {
 		for (const [alias, compiledLayer] of Object.entries(layers)) {
-			accessor[alias] = resolveLayerEntry(compiledLayer);
+			addEntry(alias, compiledLayer);
 		}
 	}
 

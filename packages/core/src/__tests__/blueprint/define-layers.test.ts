@@ -2,7 +2,10 @@ import { describe, it, expect, expectTypeOf, vi, afterEach } from 'vitest';
 import { define } from '../../blueprint/define.js';
 import { defineLayer } from '../../layers/api/defineLayer.js';
 import { runWithLayerContext } from '../../layers/context.js';
-import { ServiceNotFoundError } from '../../layers/errors.js';
+import {
+	LayerNameCollisionError,
+	ServiceNotFoundError,
+} from '../../layers/errors.js';
 import type { PropsRegistry } from '../../layers/services/PropsService.js';
 import type { LayerRegistry } from '../../layers/services/RegistryService.js';
 import type { AnyResolvedLayer, LayerProps } from '../../layers/types.js';
@@ -296,6 +299,30 @@ describe('define() + layers — full integration', () => {
 	});
 
 	describe('multiple layers via layers option', () => {
+		it('should reject duplicate layer names before script runs', () => {
+			const firstLayer = defineLayer({
+				name: 'auth',
+				services: { first: () => ({ token: 'first' }) },
+			});
+			const secondLayer = defineLayer({
+				name: 'auth',
+				services: { second: () => ({ token: 'second' }) },
+			});
+
+			const Component = define({
+				props: {},
+				layers: [firstLayer, secondLayer] as const,
+				script() {
+					return {};
+				},
+				template: () => null,
+			});
+
+			const blueprint = extractBlueprint(Component);
+
+			expect(() => blueprint.state({})).toThrow(LayerNameCollisionError);
+		});
+
 		it('should not conflate service keys across auth and log layers', () => {
 			const authSvc = { token: 'abc' };
 			const logSvc = { log: vi.fn(), level: 'info' };

@@ -11,6 +11,7 @@ import {
 	clearGlobalLayerContext,
 	runWithLayerContext,
 } from '../../layers/context.js';
+import { LayerNameCollisionError } from '../../layers/errors.js';
 import { createLayerRuntime } from '../../layers/internal/runtime.js';
 import type { PropsRegistry } from '../../layers/services/PropsService.js';
 import type { LayerRegistry } from '../../layers/services/RegistryService.js';
@@ -69,6 +70,26 @@ describe('LayersAccessor — comprehensive regression tests', () => {
 			expect(resolved).toHaveProperty('a');
 			expect(resolved).toHaveProperty('b');
 			expect(Object.keys(resolved).sort()).toEqual(['a', 'b']);
+		});
+
+		it('should reject duplicate layer names in list form', () => {
+			const firstLayer = defineLayer({
+				name: 'auth',
+				services: { first: () => ({ token: 'first' }) },
+			});
+			const secondLayer = defineLayer({
+				name: 'auth',
+				services: { second: () => ({ token: 'second' }) },
+			});
+
+			expect(() =>
+				resolveLayersAccessor([firstLayer, secondLayer] as const)
+			).toThrow(LayerNameCollisionError);
+			expect(() =>
+				resolveLayersAccessor([firstLayer, secondLayer] as const)
+			).toThrow(
+				'[Effuse] Layer "auth" is registered more than once in this layer accessor. Use an alias record when you need explicit local names.'
+			);
 		});
 
 		it('should key alias records by local alias instead of layer name', () => {

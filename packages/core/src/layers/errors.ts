@@ -32,6 +32,16 @@ export class LayerNotFoundError extends Data.TaggedError('LayerNotFoundError')<{
 	}
 }
 
+export class LayerNameCollisionError extends Data.TaggedError(
+	'LayerNameCollisionError'
+)<{
+	readonly layerName: string;
+}> {
+	get message(): string {
+		return `[Effuse] Layer "${this.layerName}" is registered more than once in this layer accessor. Use an alias record when you need explicit local names.`;
+	}
+}
+
 export class LayerRuntimeNotReadyError extends Data.TaggedError(
 	'LayerRuntimeNotReadyError'
 )<{
@@ -113,6 +123,7 @@ export class LayerSetupError extends Data.TaggedError('LayerSetupError')<{
 
 export type LayerError =
 	| LayerNotFoundError
+	| LayerNameCollisionError
 	| LayerRuntimeNotReadyError
 	| LayerRuntimeNotInitializedError
 	| ServiceNotFoundError
