@@ -65,6 +65,19 @@ export {
 } from './server-routing.js';
 
 export {
+	getLayerServerActionEntries,
+	getLayerServerMiddleware,
+	getLayerServerRouteEntries,
+	mergeServerRouteMetadata,
+	normalizeServerActionInput,
+	normalizeServerRouteInput,
+	type LayerServerActionEntry,
+	type LayerServerRouteEntry,
+	type LayerServerRouteSource,
+	type ServerMetadataDiagnostic,
+} from './server-routes.js';
+
+export {
 	callLayerAction,
 	createLayerActionClient,
 	createLayerActionPath,

@@ -27,6 +27,8 @@ import type {
 	HttpMethod,
 	ServerHandler,
 	ServerLayerContext,
+	ServerMiddleware,
+	ServerRouteMetadata,
 	ServerResult,
 	ServerRoute,
 } from '../layers/types.js';
@@ -37,7 +39,9 @@ import {
 } from '../layers/api/defineLayer.js';
 import { createSSRRuntime } from './runtime.js';
 import {
-	getLayerServerRoutes,
+	getLayerServerActionEntries,
+	getLayerServerMiddleware,
+	getLayerServerRouteEntries,
 	getServerRouteMethods,
 	isHttpMethod,
 } from './server-routes.js';
@@ -56,6 +60,9 @@ export const EFFUSE_ACTION_PREFIX = '/_effuse/actions/';
 
 interface MatchedServerHandler {
 	readonly handler: ServerHandler;
+	readonly layer?: AnyResolvedLayer;
+	readonly metadata?: ServerRouteMetadata;
+	readonly middleware: readonly ServerMiddleware[];
 	readonly params: Record<string, string>;
 	readonly allowedMethods: readonly HttpMethod[];
 }
@@ -156,7 +163,8 @@ const findApiHandler = (
 	}
 
 	for (const layer of layers) {
-		for (const route of getLayerServerRoutes(layer)) {
+		for (const entry of getLayerServerRouteEntries(layer)) {
+			const route = entry.route;
 			const params = matchRoutePath(route.path, url.pathname);
 			if (!params) continue;
 
@@ -164,6 +172,9 @@ const findApiHandler = (
 			if (handler) {
 				return {
 					handler,
+					layer,
+					metadata: entry.metadata,
+					middleware: route.middleware ?? [],
 					params,
 					allowedMethods: getServerRouteMethods(route),
 				};
@@ -177,6 +188,9 @@ const findApiHandler = (
 							Allow: getServerRouteMethods(route).join(', '),
 						},
 					}),
+				layer,
+				metadata: entry.metadata,
+				middleware: route.middleware ?? [],
 				params,
 				allowedMethods: getServerRouteMethods(route),
 			};
@@ -215,6 +229,7 @@ const findActionHandler = (
 					status: 405,
 					headers: { Allow: 'POST' },
 				}),
+			middleware: [],
 			params: { action: actionName },
 			allowedMethods: ['POST'],
 		};
@@ -222,10 +237,17 @@ const findActionHandler = (
 
 	if (layerName) {
 		const layer = layers.find((candidate) => candidate.name === layerName);
-		const handler = layer?.server?.actions?.[actionName];
-		if (handler) {
+		const action = layer
+			? getLayerServerActionEntries(layer).find(
+					(candidate) => candidate.name === actionName
+				)
+			: undefined;
+		if (layer && action) {
 			return {
-				handler,
+				handler: action.action.handler,
+				layer,
+				metadata: action.metadata,
+				middleware: action.action.middleware ?? [],
 				params: { layer: layerName, action: actionName },
 				allowedMethods: ['POST'],
 			};
@@ -234,10 +256,15 @@ const findActionHandler = (
 	}
 
 	for (const layer of layers) {
-		const handler = layer.server?.actions?.[actionName];
-		if (handler) {
+		const action = getLayerServerActionEntries(layer).find(
+			(candidate) => candidate.name === actionName
+		);
+		if (action) {
 			return {
-				handler,
+				handler: action.action.handler,
+				layer,
+				metadata: action.metadata,
+				middleware: action.action.middleware ?? [],
 				params: { action: actionName },
 				allowedMethods: ['POST'],
 			};
@@ -291,6 +318,82 @@ export const normalizeServerResult = (result: ServerResult): Response => {
 	return Response.json(result);
 };
 
+const metadataHeaderValue = (
+	value: boolean | number | string | readonly string[] | undefined
+): string | undefined => {
+	if (value === undefined) {
+		return undefined;
+	}
+	if (Array.isArray(value)) {
+		return value.join(', ');
+	}
+	return String(value);
+};
+
+const applyServerMetadata = (
+	response: Response,
+	metadata: ServerRouteMetadata | undefined
+): Response => {
+	if (!metadata) {
+		return response;
+	}
+
+	const headers = new Headers(response.headers);
+	const cache = metadata.cache;
+	if (cache?.cacheControl) {
+		headers.set('Cache-Control', cache.cacheControl);
+	} else if (cache?.revalidate === false) {
+		headers.set('Cache-Control', 'no-store');
+	} else if (typeof cache?.revalidate === 'number') {
+		headers.set(
+			'Cache-Control',
+			`s-maxage=${String(cache.revalidate)}, stale-while-revalidate`
+		);
+	}
+	if (cache?.tags && cache.tags.length > 0) {
+		headers.set('X-Effuse-Cache-Tags', cache.tags.join(', '));
+	}
+
+	const cors = metadata.cors;
+	const origin =
+		cors?.origin === true ? '*' : metadataHeaderValue(cors?.origin);
+	if (origin) {
+		headers.set('Access-Control-Allow-Origin', origin);
+	}
+	const methods = cors?.methods?.join(', ');
+	if (methods) {
+		headers.set('Access-Control-Allow-Methods', methods);
+	}
+	const allowedHeaders = cors?.headers?.join(', ');
+	if (allowedHeaders) {
+		headers.set('Access-Control-Allow-Headers', allowedHeaders);
+	}
+	if (cors?.credentials !== undefined) {
+		headers.set('Access-Control-Allow-Credentials', String(cors.credentials));
+	}
+	if (cors?.maxAge !== undefined) {
+		headers.set('Access-Control-Max-Age', String(cors.maxAge));
+	}
+
+	const runtime = metadataHeaderValue(metadata.runtime);
+	if (runtime) {
+		headers.set('X-Effuse-Runtime', runtime);
+	}
+	const region = metadataHeaderValue(metadata.region);
+	if (region) {
+		headers.set('X-Effuse-Region', region);
+	}
+	if (metadata.maxDuration !== undefined) {
+		headers.set('X-Effuse-Max-Duration', String(metadata.maxDuration));
+	}
+
+	return new Response(response.body, {
+		headers,
+		status: response.status,
+		statusText: response.statusText,
+	});
+};
+
 const collectServices = (
 	layers: readonly AnyResolvedLayer[]
 ): {
@@ -316,6 +419,72 @@ const collectServices = (
 	}
 
 	return { services, layerServices };
+};
+
+const collectMiddlewareLayers = (
+	layers: readonly AnyResolvedLayer[],
+	targetLayer: AnyResolvedLayer
+): readonly AnyResolvedLayer[] => {
+	const byName = new Map(layers.map((layer) => [layer.name, layer]));
+	const selected = new Set<string>();
+	const ordered: AnyResolvedLayer[] = [];
+	const visit = (layer: AnyResolvedLayer): void => {
+		if (selected.has(layer.name)) {
+			return;
+		}
+		selected.add(layer.name);
+		for (const depName of (layer.dependencies as readonly string[] | undefined) ??
+			[]) {
+			const dependency = byName.get(depName);
+			if (dependency) {
+				visit(dependency);
+			}
+		}
+		ordered.push(layer);
+	};
+
+	visit(targetLayer);
+	return ordered;
+};
+
+const collectServerMiddleware = (
+	layers: readonly AnyResolvedLayer[],
+	targetLayer: AnyResolvedLayer | undefined,
+	handlerMiddleware: readonly ServerMiddleware[]
+): readonly ServerMiddleware[] => {
+	if (!targetLayer) {
+		return handlerMiddleware;
+	}
+	return [
+		...collectMiddlewareLayers(layers, targetLayer).flatMap((layer) =>
+			getLayerServerMiddleware(layer)
+		),
+		...handlerMiddleware,
+	];
+};
+
+const runServerMiddleware = async (
+	ctx: ServerLayerContext,
+	middleware: readonly ServerMiddleware[],
+	handler: () => Promise<Response>
+): Promise<Response> => {
+	const dispatch = async (index: number): Promise<Response> => {
+		if (index >= middleware.length) {
+			return handler();
+		}
+		const current = middleware[index];
+		let called = false;
+		const result = await current(ctx, async () => {
+			if (called) {
+				throw new Error('Effuse server middleware called next() more than once.');
+			}
+			called = true;
+			return dispatch(index + 1);
+		});
+		return normalizeServerResult(result);
+	};
+
+	return dispatch(0);
 };
 
 const createContext = (
@@ -377,8 +546,15 @@ export const handleLayerServerRequest = async (
 	try {
 		return await runtime.run(async () => {
 			const ctx = createContext(request, runtime.layers, match.params);
-			const result = await match.handler(ctx);
-			return normalizeServerResult(result);
+			const middleware = collectServerMiddleware(
+				runtime.layers,
+				match.layer,
+				match.middleware
+			);
+			const response = await runServerMiddleware(ctx, middleware, async () =>
+				normalizeServerResult(await match.handler(ctx))
+			);
+			return applyServerMetadata(response, match.metadata);
 		});
 	} catch (error) {
 		if (isLayerServerError(error)) {

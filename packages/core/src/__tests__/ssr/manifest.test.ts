@@ -129,4 +129,97 @@ describe('layer server manifest', () => {
 			'/_effuse/actions/load',
 		]);
 	});
+
+	it('should include route and action metadata', () => {
+		const ApiLayer = defineLayer({
+			name: 'metadata-manifest',
+			server: {
+				metadata: {
+					runtime: 'edge',
+				},
+				api: {
+					'/api/users': {
+						GET: () => ({ ok: true }),
+						metadata: {
+							cache: {
+								revalidate: 120,
+								tags: ['users'],
+							},
+						},
+					},
+				},
+				actions: {
+					refresh: {
+						handler: () => ({ ok: true }),
+						metadata: {
+							maxDuration: 10,
+							region: 'iad1',
+						},
+					},
+				},
+			},
+		});
+
+		const manifest = createLayerServerManifest([ApiLayer]);
+
+		expect(manifest.routes[0]).toMatchObject({
+			layer: 'metadata-manifest',
+			metadata: {
+				cache: {
+					revalidate: 120,
+					tags: ['users'],
+				},
+				runtime: 'edge',
+			},
+			path: '/api/users',
+		});
+		expect(manifest.actions[0]).toMatchObject({
+			layer: 'metadata-manifest',
+			metadata: {
+				maxDuration: 10,
+				region: 'iad1',
+				runtime: 'edge',
+			},
+			name: 'refresh',
+		});
+		expect(manifest.diagnostics).toHaveLength(0);
+	});
+
+	it('should report metadata conflicts in the manifest', () => {
+		const ApiLayer = defineLayer({
+			name: 'conflicted-metadata',
+			server: {
+				metadata: {
+					runtime: 'edge',
+				},
+				api: {
+					'/api/node-only': {
+						GET: () => ({ ok: true }),
+						metadata: {
+							runtime: 'node',
+						},
+					},
+				},
+			},
+		});
+
+		const manifest = createLayerServerManifest([ApiLayer]);
+
+		expect(manifest.routes[0]).toMatchObject({
+			diagnostics: [
+				{
+					code: 'metadata_conflict',
+					key: 'runtime',
+					layer: 'conflicted-metadata',
+					target: '/api/node-only',
+				},
+			],
+			metadata: {
+				runtime: 'node',
+			},
+		});
+		expect(manifest.diagnostics).toEqual(
+			manifest.routes[0]?.diagnostics
+		);
+	});
 });

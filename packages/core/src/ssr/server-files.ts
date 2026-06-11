@@ -24,9 +24,12 @@
 
 import type {
 	HttpMethod,
+	ServerActionInput,
 	ServerHandler,
 	ServerLayerConfig,
+	ServerMiddleware,
 	ServerMethodHandlers,
+	ServerRouteMetadata,
 	ServerRoute,
 	ServerRouteInput,
 } from '../layers/types.js';
@@ -49,7 +52,9 @@ export interface ServerApiFileModule {
 	readonly path?: string;
 	readonly default?: ServerRouteInput;
 	readonly handler?: ServerRouteInput;
+	readonly metadata?: ServerRouteMetadata;
 	readonly methods?: ServerMethodHandlers;
+	readonly middleware?: readonly ServerMiddleware[];
 	readonly GET?: ServerHandler;
 	readonly POST?: ServerHandler;
 	readonly PUT?: ServerHandler;
@@ -61,10 +66,12 @@ export interface ServerApiFileModule {
 
 export interface ServerActionFileModule {
 	readonly name?: string;
-	readonly default?: ServerHandler;
-	readonly action?: ServerHandler;
-	readonly POST?: ServerHandler;
-	readonly actions?: Readonly<Record<string, ServerHandler>>;
+	readonly default?: ServerActionInput;
+	readonly action?: ServerActionInput;
+	readonly POST?: ServerActionInput;
+	readonly actions?: Readonly<Record<string, ServerActionInput>>;
+	readonly metadata?: ServerRouteMetadata;
+	readonly middleware?: readonly ServerMiddleware[];
 }
 
 export type ServerFileSource<M> = Readonly<Record<string, M>>;
@@ -166,19 +173,39 @@ const resolveRouteInput = (
 ): ServerRouteInput | null => {
 	const methodExports = collectMethodExports(module);
 	if (hasMethods(methodExports)) {
-		return methodExports;
+		return {
+			...methodExports,
+			metadata: module.metadata,
+			middleware: module.middleware,
+		};
 	}
 
 	if (module.methods) {
-		return module.methods;
+		return {
+			methods: module.methods,
+			metadata: module.metadata,
+			middleware: module.middleware,
+		};
 	}
 
 	if (module.handler) {
-		return module.handler;
+		return typeof module.handler === 'function'
+			? {
+					handler: module.handler,
+					metadata: module.metadata,
+					middleware: module.middleware,
+				}
+			: module.handler;
 	}
 
 	if (module.default) {
-		return module.default;
+		return typeof module.default === 'function'
+			? {
+					handler: module.default,
+					metadata: module.metadata,
+					middleware: module.middleware,
+				}
+			: module.default;
 	}
 
 	return null;
@@ -205,13 +232,13 @@ const collectActions = (
 	filePath: string,
 	module: ServerActionFileModule,
 	options: ServerFilesOptions
-): readonly (readonly [string, ServerHandler])[] => {
+): readonly (readonly [string, ServerActionInput])[] => {
 	const baseName = module.name ?? serverFileToActionName(filePath, options);
-	const actions: [string, ServerHandler][] = [];
+	const actions: [string, ServerActionInput][] = [];
 
 	if (module.actions && isRecord(module.actions)) {
 		for (const [name, handler] of Object.entries(module.actions)) {
-			if (typeof handler === 'function') {
+			if (typeof handler === 'function' || isRecord(handler)) {
 				actions.push([joinActionName(baseName, name), handler]);
 			}
 		}
@@ -220,7 +247,16 @@ const collectActions = (
 
 	const handler = module.action ?? module.POST ?? module.default;
 	if (handler) {
-		actions.push([baseName, handler]);
+		actions.push([
+			baseName,
+			typeof handler === 'function'
+				? {
+						handler,
+						metadata: module.metadata,
+						middleware: module.middleware,
+					}
+				: handler,
+		]);
 	}
 
 	return actions;
@@ -265,7 +301,7 @@ export const fromServerFiles = (
 		? files
 		: partitionFlatInput(files, options);
 	const routes: ServerRoute[] = [];
-	const actions: Record<string, ServerHandler> = {};
+	const actions: Record<string, ServerActionInput> = {};
 
 	for (const [filePath, module] of Object.entries(grouped.api ?? {})) {
 		const route = createServerFileRoute(filePath, module, options);

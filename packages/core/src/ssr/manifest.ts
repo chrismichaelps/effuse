@@ -22,27 +22,37 @@
  * SOFTWARE.
  */
 
-import type { AnyResolvedLayer, HttpMethod } from '../layers/types.js';
+import type {
+	AnyResolvedLayer,
+	HttpMethod,
+	ServerRouteMetadata,
+} from '../layers/types.js';
 import {
 	resolveLayerDefinitions,
 	type LayerInputSource,
 } from '../layers/api/defineLayer.js';
 import { createLayerActionPath } from './actions.js';
 import {
+	getLayerServerActionEntries,
 	getLayerServerRouteEntries,
 	getServerRouteMethods,
 	type LayerServerRouteSource,
+	type ServerMetadataDiagnostic,
 } from './server-routes.js';
 
 export interface LayerServerManifestRoute {
+	readonly diagnostics?: readonly ServerMetadataDiagnostic[];
 	readonly layer: string;
+	readonly metadata?: ServerRouteMetadata;
 	readonly source: LayerServerRouteSource;
 	readonly path: string;
 	readonly methods: readonly HttpMethod[];
 }
 
 export interface LayerServerManifestAction {
+	readonly diagnostics?: readonly ServerMetadataDiagnostic[];
 	readonly layer: string;
+	readonly metadata?: ServerRouteMetadata;
 	readonly name: string;
 	readonly method: 'POST';
 	readonly path: string;
@@ -59,13 +69,26 @@ export interface LayerServerManifest {
 	readonly layers: readonly LayerServerManifestLayer[];
 	readonly routes: readonly LayerServerManifestRoute[];
 	readonly actions: readonly LayerServerManifestAction[];
+	readonly diagnostics?: readonly ServerMetadataDiagnostic[];
 }
+
+const optionalMetadata = (
+	metadata: ServerRouteMetadata | undefined
+): { readonly metadata?: ServerRouteMetadata } =>
+	metadata ? { metadata } : {};
+
+const optionalDiagnostics = (
+	diagnostics: readonly ServerMetadataDiagnostic[]
+): { readonly diagnostics?: readonly ServerMetadataDiagnostic[] } =>
+	diagnostics.length > 0 ? { diagnostics } : {};
 
 const createRouteManifest = (
 	layer: AnyResolvedLayer
 ): readonly LayerServerManifestRoute[] =>
-	getLayerServerRouteEntries(layer).map(({ route, source }) => ({
+	getLayerServerRouteEntries(layer).map(({ diagnostics, metadata, route, source }) => ({
+		...optionalDiagnostics(diagnostics),
 		layer: layer.name,
+		...optionalMetadata(metadata),
 		source,
 		path: route.path,
 		methods: getServerRouteMethods(route),
@@ -74,8 +97,10 @@ const createRouteManifest = (
 const createActionManifest = (
 	layer: AnyResolvedLayer
 ): readonly LayerServerManifestAction[] =>
-	Object.keys(layer.server?.actions ?? {}).map((name) => ({
+	getLayerServerActionEntries(layer).map(({ diagnostics, metadata, name }) => ({
+		...optionalDiagnostics(diagnostics),
 		layer: layer.name,
+		...optionalMetadata(metadata),
 		name,
 		method: 'POST' as const,
 		path: createLayerActionPath(layer, name),
@@ -99,6 +124,10 @@ export const createLayerServerManifestFromLayers = (
 		layers: manifestLayers,
 		routes: manifestLayers.flatMap((layer) => layer.routes),
 		actions: manifestLayers.flatMap((layer) => layer.actions),
+		diagnostics: manifestLayers.flatMap((layer) => [
+			...layer.routes.flatMap((route) => route.diagnostics ?? []),
+			...layer.actions.flatMap((action) => action.diagnostics ?? []),
+		]),
 	};
 };
 

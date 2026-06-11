@@ -291,6 +291,169 @@ describe('SSR handler', () => {
 			expect(response.status).toBe(200);
 			expect(await response.json()).toEqual({ value: 42 });
 		});
+
+		it('should compose dependency, layer, and route middleware in order', async () => {
+			const events: string[] = [];
+			const AuthLayer = defineLayer({
+				name: 'auth',
+				server: {
+					middleware: [
+						async (_ctx, next) => {
+							events.push('auth:before');
+							const response = await next();
+							events.push('auth:after');
+							return response;
+						},
+					],
+				},
+			});
+			const ApiLayer = defineLayer({
+				name: 'middleware-api',
+				dependencies: ['auth'] as const,
+				server: {
+					middleware: [
+						async (_ctx, next) => {
+							events.push('api:before');
+							const response = await next();
+							events.push('api:after');
+							return response;
+						},
+					],
+					api: {
+						'/api/middleware-order': {
+							GET: () => {
+								events.push('handler');
+								return { ok: true };
+							},
+							middleware: [
+								async (_ctx, next) => {
+									events.push('route:before');
+									const response = await next();
+									events.push('route:after');
+									return response;
+								},
+							],
+						},
+					},
+				},
+			});
+			const handler = createHandler({
+				root: createRoot() as any,
+				layers: [ApiLayer, AuthLayer],
+			});
+
+			const response = await handler(
+				new Request('http://localhost:3000/api/middleware-order')
+			);
+
+			expect(response.status).toBe(200);
+			expect(await response.json()).toEqual({ ok: true });
+			expect(events).toEqual([
+				'auth:before',
+				'api:before',
+				'route:before',
+				'handler',
+				'route:after',
+				'api:after',
+				'auth:after',
+			]);
+		});
+
+		it('should allow middleware to short-circuit auth failures', async () => {
+			const handlerSpy = vi.fn();
+			const AuthLayer = defineLayer({
+				name: 'auth-short-circuit',
+				server: {
+					middleware: [
+						() => new Response('Unauthorized', { status: 401 }),
+					],
+				},
+			});
+			const ApiLayer = defineLayer({
+				name: 'secure-api',
+				dependencies: ['auth-short-circuit'] as const,
+				server: {
+					api: {
+						'/api/secure': () => {
+							handlerSpy();
+							return { ok: true };
+						},
+					},
+				},
+			});
+			const handler = createHandler({
+				root: createRoot() as any,
+				layers: [ApiLayer, AuthLayer],
+			});
+
+			const response = await handler(
+				new Request('http://localhost:3000/api/secure')
+			);
+
+			expect(response.status).toBe(401);
+			expect(await response.text()).toBe('Unauthorized');
+			expect(handlerSpy).not.toHaveBeenCalled();
+		});
+
+		it('should apply cache, CORS, and runtime metadata headers', async () => {
+			const ApiLayer = defineLayer({
+				name: 'metadata-api',
+				server: {
+					api: {
+						'/api/metadata': {
+							GET: () => ({ ok: true }),
+							metadata: {
+								cache: {
+									revalidate: 60,
+									tags: ['users', 'settings'],
+								},
+								cors: {
+									credentials: true,
+									headers: ['Content-Type'],
+									maxAge: 600,
+									methods: ['GET'],
+									origin: 'https://app.example',
+								},
+								maxDuration: 5,
+								region: ['iad1', 'sfo1'],
+								runtime: 'edge',
+							},
+						},
+					},
+				},
+			});
+			const handler = createHandler({
+				root: createRoot() as any,
+				layers: [ApiLayer],
+			});
+
+			const response = await handler(
+				new Request('http://localhost:3000/api/metadata')
+			);
+
+			expect(response.status).toBe(200);
+			expect(response.headers.get('Cache-Control')).toBe(
+				's-maxage=60, stale-while-revalidate'
+			);
+			expect(response.headers.get('X-Effuse-Cache-Tags')).toBe(
+				'users, settings'
+			);
+			expect(response.headers.get('Access-Control-Allow-Origin')).toBe(
+				'https://app.example'
+			);
+			expect(response.headers.get('Access-Control-Allow-Methods')).toBe('GET');
+			expect(response.headers.get('Access-Control-Allow-Headers')).toBe(
+				'Content-Type'
+			);
+			expect(response.headers.get('Access-Control-Allow-Credentials')).toBe(
+				'true'
+			);
+			expect(response.headers.get('Access-Control-Max-Age')).toBe('600');
+			expect(response.headers.get('X-Effuse-Runtime')).toBe('edge');
+			expect(response.headers.get('X-Effuse-Region')).toBe('iad1, sfo1');
+			expect(response.headers.get('X-Effuse-Max-Duration')).toBe('5');
+			expect(await response.json()).toEqual({ ok: true });
+		});
 	});
 
 	describe('createStreamingHandler', () => {

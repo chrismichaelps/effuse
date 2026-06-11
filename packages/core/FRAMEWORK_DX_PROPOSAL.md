@@ -141,6 +141,36 @@ docs stay synchronized.
 
 ## Proposal
 
+### External Inspiration Check
+
+Reviewed during this PR:
+
+- Next.js Route Segment Config:
+  https://nextjs.org/docs/app/api-reference/file-conventions/route-segment-config
+- Next.js Proxy middleware model:
+  https://nextjs.org/docs/app/api-reference/file-conventions/proxy
+- Nuxt route rules:
+  https://nuxt.com/docs/api/nuxt-config#routerules
+- SvelteKit server hooks:
+  https://svelte.dev/docs/kit/hooks
+- Remix loaders and thrown/returned responses:
+  https://v2.remix.run/docs/route/loader/
+
+Useful ideas to absorb:
+
+- Next validates route config as static exports and makes deployment hints like
+  runtime, region, and max duration visible to the framework.
+- Next Proxy and SvelteKit `handle` prove that request interception must be able
+  to short-circuit, mutate headers, and continue to the route.
+- Nuxt route rules prove cache/proxy/header policy needs to be adapter-visible.
+- Remix proves server handlers should return ordinary Fetch `Response` objects
+  and let typed data/errors flow back to UI code.
+
+Effuse should not copy the folder/global-first model. The Effuse version is a
+capability graph: middleware, validation, runtime hints, cache policy, CORS, and
+typed failures attach to the owning layer and then flow into the manifest for
+adapters.
+
 1. Make alias records the primary layer DX:
 
 ```ts
@@ -245,6 +275,33 @@ Action clients keep the raw error body and parse typed JSON into
 `LayerActionError<T>`, so UI code can narrow on `error.data.error.code` without
 manually parsing response text.
 
+Server policy now attaches to the same graph:
+
+```ts
+server: {
+  middleware: [requireSession],
+  metadata: {
+    runtime: 'edge',
+    cache: { tags: ['users'], revalidate: 60 },
+  },
+  api: {
+    '/api/users/[id]': {
+      GET: getUser,
+      middleware: [allowTeamMember],
+      metadata: {
+        region: ['iad1', 'sfo1'],
+        maxDuration: 5,
+      },
+    },
+  },
+}
+```
+
+Layer middleware composes through dependencies before the owning layer and then
+route/action middleware. Metadata flows into responses and manifests, and
+conflicting route/action metadata records manifest diagnostics instead of
+silently hiding the override.
+
 File-system API folders should be an optional manifest source:
 
 - `src/server/api/**/route.ts` or `src/server/api/**/*.ts` for request handlers.
@@ -257,8 +314,8 @@ File-system API folders should be an optional manifest source:
 Next roadmap:
 
 - CLI generation and watch mode around `generateLayerServerClientModule()`.
-- middleware per layer and per route.
-- route-level cache/revalidate metadata.
+- richer adapter use of layer and route/action middleware.
+- generated deployment config from cache/revalidate/runtime metadata.
 - streaming responses and event streams.
 - error boundaries for server handlers.
 - file upload helpers around `formData`.
@@ -289,8 +346,10 @@ These are the next gaps that matter for production users:
   `EFFUSE_VALIDATION_FAILED`, `LayerServerError`, `ctx.response.error`, and
   typed `LayerActionError<T>` parsing now exist in core. The next layer is
   docs/examples and richer generated-client error unions.
-- **Middleware and cache metadata**: layer-level and route-level middleware,
-  auth guards, cache tags, revalidation, runtime/region hints, and CORS.
+- **Middleware and cache metadata**: layer-level and route/action middleware,
+  auth guards, cache tags, revalidation, runtime/region hints, CORS, response
+  headers, manifest metadata, and conflict diagnostics now exist in core. The
+  next layer is adapter deployment output and docs examples.
 - **Observability**: first-class tracing hooks for route/action duration,
   status, service usage, and errors.
 - **CLI/dev server**: a Bun/pnpm-first dev command that builds manifests,
@@ -329,6 +388,9 @@ This core PR lands the runtime and type foundation:
 - server handlers can return or throw typed domain errors with
   `ctx.response.error` and `LayerServerError`, and action clients parse those
   bodies through `LayerActionError<T>`.
+- server routes/actions support layer and handler middleware plus cache, CORS,
+  runtime, region, and max-duration metadata exposed through responses and the
+  server manifest.
 - README explains why Effuse should exist as a framework.
 
 The docs repo should then receive a focused follow-up PR around this contract.

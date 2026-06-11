@@ -16,5 +16,8 @@ params, query, headers, JSON bodies, and form data so request contracts live nex
 to the layer that owns the capability. Typed server errors can be returned with
 `ctx.response.error`, thrown with `LayerServerError`, and narrowed from action
 clients through `LayerActionError<T>`.
+Layer-owned server routes and actions can also declare middleware plus cache,
+CORS, runtime, region, and duration metadata that flows into responses and the
+server manifest.
 
 Read the detailed proposal in [FRAMEWORK_DX_PROPOSAL.md](./FRAMEWORK_DX_PROPOSAL.md).

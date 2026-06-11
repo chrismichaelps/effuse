@@ -25,18 +25,41 @@
 import type {
 	AnyResolvedLayer,
 	HttpMethod,
+	ServerActionDefinition,
+	ServerActionInput,
 	ServerHandler,
+	ServerMiddleware,
 	ServerMethodHandlers,
+	ServerRouteMetadata,
 	ServerRoute,
+	ServerRouteDefinition,
 	ServerRouteInput,
 } from '../layers/types.js';
 
 export type LayerServerRouteSource = 'api' | 'routes';
 
 export interface LayerServerRouteEntry {
+	readonly diagnostics: readonly ServerMetadataDiagnostic[];
 	readonly layer: AnyResolvedLayer;
+	readonly metadata?: ServerRouteMetadata;
 	readonly source: LayerServerRouteSource;
 	readonly route: ServerRoute;
+}
+
+export interface LayerServerActionEntry {
+	readonly action: ServerActionDefinition;
+	readonly diagnostics: readonly ServerMetadataDiagnostic[];
+	readonly layer: AnyResolvedLayer;
+	readonly metadata?: ServerRouteMetadata;
+	readonly name: string;
+}
+
+export interface ServerMetadataDiagnostic {
+	readonly code: 'metadata_conflict';
+	readonly key: string;
+	readonly layer: string;
+	readonly message: string;
+	readonly target: string;
 }
 
 const HTTP_METHODS = new Set<HttpMethod>([
@@ -58,6 +81,14 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const isServerRoute = (value: unknown): value is ServerRoute =>
 	isRecord(value) && typeof value.path === 'string' && isRecord(value.methods);
 
+const hasRouteDefinitionOptions = (
+	input: Record<string, unknown>
+): input is ServerRouteDefinition =>
+	'handler' in input ||
+	'metadata' in input ||
+	'methods' in input ||
+	'middleware' in input;
+
 export const normalizeServerRouteInput = (
 	path: string,
 	input: ServerRouteInput
@@ -70,7 +101,12 @@ export const normalizeServerRouteInput = (
 		return { path, methods: { GET: input } };
 	}
 
-	const methods: ServerMethodHandlers = {};
+	const methods: ServerMethodHandlers = hasRouteDefinitionOptions(input)
+		? { ...input.methods }
+		: {};
+	if (hasRouteDefinitionOptions(input) && input.handler) {
+		methods.GET = input.handler;
+	}
 	for (const [method, handler] of Object.entries(input)) {
 		const normalizedMethod = method.toUpperCase();
 		if (isHttpMethod(normalizedMethod) && typeof handler === 'function') {
@@ -78,7 +114,62 @@ export const normalizeServerRouteInput = (
 		}
 	}
 
-	return { path, methods };
+	return {
+		path,
+		methods,
+		...(hasRouteDefinitionOptions(input) && input.metadata
+			? { metadata: input.metadata }
+			: {}),
+		...(hasRouteDefinitionOptions(input) && input.middleware
+			? { middleware: input.middleware }
+			: {}),
+	};
+};
+
+export const normalizeServerActionInput = (
+	input: ServerActionInput
+): ServerActionDefinition =>
+	typeof input === 'function' ? { handler: input } : input;
+
+const metadataEqual = (left: unknown, right: unknown): boolean =>
+	JSON.stringify(left) === JSON.stringify(right);
+
+export const mergeServerRouteMetadata = (
+	layer: AnyResolvedLayer,
+	target: string,
+	routeMetadata?: ServerRouteMetadata
+): {
+	readonly diagnostics: readonly ServerMetadataDiagnostic[];
+	readonly metadata?: ServerRouteMetadata;
+} => {
+	const layerMetadata = layer.server?.metadata;
+	if (!layerMetadata) {
+		return routeMetadata ? { metadata: routeMetadata, diagnostics: [] } : { diagnostics: [] };
+	}
+	if (!routeMetadata) {
+		return { metadata: layerMetadata, diagnostics: [] };
+	}
+
+	const diagnostics: ServerMetadataDiagnostic[] = [];
+	for (const key of Object.keys(routeMetadata) as (keyof ServerRouteMetadata)[]) {
+		if (
+			layerMetadata[key] !== undefined &&
+			!metadataEqual(layerMetadata[key], routeMetadata[key])
+		) {
+			diagnostics.push({
+				code: 'metadata_conflict',
+				key,
+				layer: layer.name,
+				message: `Server metadata "${key}" on ${target} overrides layer metadata from ${layer.name}.`,
+				target,
+			});
+		}
+	}
+
+	return {
+		metadata: { ...layerMetadata, ...routeMetadata },
+		diagnostics,
+	};
 };
 
 export const getLayerServerRouteEntries = (
@@ -89,14 +180,27 @@ export const getLayerServerRouteEntries = (
 
 	if (Array.isArray(api)) {
 		for (const route of api as readonly ServerRoute[]) {
-			routes.push({ layer, source: 'api', route });
+			const { metadata, diagnostics } = mergeServerRouteMetadata(
+				layer,
+				route.path,
+				route.metadata
+			);
+			routes.push({ layer, source: 'api', route, metadata, diagnostics });
 		}
 	} else if (api) {
 		for (const [path, input] of Object.entries(api)) {
+			const route = normalizeServerRouteInput(path, input);
+			const { metadata, diagnostics } = mergeServerRouteMetadata(
+				layer,
+				route.path,
+				route.metadata
+			);
 			routes.push({
 				layer,
 				source: 'api',
-				route: normalizeServerRouteInput(path, input),
+				route,
+				metadata,
+				diagnostics,
 			});
 		}
 	}
@@ -104,7 +208,12 @@ export const getLayerServerRouteEntries = (
 	const serverRoutes = layer.server?.routes;
 	if (serverRoutes) {
 		for (const route of serverRoutes) {
-			routes.push({ layer, source: 'routes', route });
+			const { metadata, diagnostics } = mergeServerRouteMetadata(
+				layer,
+				route.path,
+				route.metadata
+			);
+			routes.push({ layer, source: 'routes', route, metadata, diagnostics });
 		}
 	}
 
@@ -119,3 +228,28 @@ export const getLayerServerRoutes = (
 export const getServerRouteMethods = (
 	route: ServerRoute
 ): readonly HttpMethod[] => Object.keys(route.methods).filter(isHttpMethod);
+
+export const getLayerServerActionEntries = (
+	layer: AnyResolvedLayer
+): readonly LayerServerActionEntry[] => {
+	const actions = layer.server?.actions ?? {};
+	return Object.entries(actions).map(([name, input]) => {
+		const action = normalizeServerActionInput(input);
+		const { metadata, diagnostics } = mergeServerRouteMetadata(
+			layer,
+			name,
+			action.metadata
+		);
+		return {
+			action,
+			diagnostics,
+			layer,
+			metadata,
+			name,
+		};
+	});
+};
+
+export const getLayerServerMiddleware = (
+	layer: AnyResolvedLayer
+): readonly ServerMiddleware[] => layer.server?.middleware ?? [];

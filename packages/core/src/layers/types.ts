@@ -90,6 +90,30 @@ export type ServerResult =
 	| null
 	| undefined;
 
+export type ServerRuntimeHint = 'node' | 'edge' | 'bun' | 'workerd';
+
+export interface ServerCacheMetadata {
+	readonly cacheControl?: string;
+	readonly revalidate?: number | false;
+	readonly tags?: readonly string[];
+}
+
+export interface ServerCorsMetadata {
+	readonly credentials?: boolean;
+	readonly headers?: readonly string[];
+	readonly maxAge?: number;
+	readonly methods?: readonly HttpMethod[];
+	readonly origin?: boolean | string | readonly string[];
+}
+
+export interface ServerRouteMetadata {
+	readonly cache?: ServerCacheMetadata;
+	readonly cors?: ServerCorsMetadata;
+	readonly maxDuration?: number;
+	readonly region?: string | readonly string[];
+	readonly runtime?: ServerRuntimeHint;
+}
+
 export interface ServerResponseHelpers {
 	// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters -- callers provide the serialized payload shape.
 	json: <T>(data: T, init?: ResponseInit) => Response;
@@ -124,20 +148,52 @@ export type ServerHandler<
 	S extends Record<string, unknown> = Record<string, unknown>,
 > = (ctx: ServerLayerContext<S>) => MaybePromise<ServerResult>;
 
+export type ServerMiddlewareNext = () => Promise<Response>;
+
+export type ServerMiddleware<
+	S extends Record<string, unknown> = Record<string, unknown>,
+> = (
+	ctx: ServerLayerContext<S>,
+	next: ServerMiddlewareNext
+) => MaybePromise<ServerResult>;
+
 export type ServerMethodHandlers<
 	S extends Record<string, unknown> = Record<string, unknown>,
 > = Partial<Record<HttpMethod, ServerHandler<S>>>;
 
+export type ServerRouteDefinition<
+	S extends Record<string, unknown> = Record<string, unknown>,
+> = ServerMethodHandlers<S> & {
+	readonly handler?: ServerHandler<S>;
+	readonly metadata?: ServerRouteMetadata;
+	readonly methods?: ServerMethodHandlers<S>;
+	readonly middleware?: readonly ServerMiddleware<S>[];
+};
+
 export interface ServerRoute<
 	S extends Record<string, unknown> = Record<string, unknown>,
 > {
+	readonly metadata?: ServerRouteMetadata;
 	readonly path: string;
 	readonly methods: ServerMethodHandlers<S>;
+	readonly middleware?: readonly ServerMiddleware<S>[];
 }
 
 export type ServerRouteInput<
 	S extends Record<string, unknown> = Record<string, unknown>,
-> = ServerHandler<S> | ServerMethodHandlers<S> | ServerRoute<S>;
+> = ServerHandler<S> | ServerRouteDefinition<S> | ServerRoute<S>;
+
+export interface ServerActionDefinition<
+	S extends Record<string, unknown> = Record<string, unknown>,
+> {
+	readonly handler: ServerHandler<S>;
+	readonly metadata?: ServerRouteMetadata;
+	readonly middleware?: readonly ServerMiddleware<S>[];
+}
+
+export type ServerActionInput<
+	S extends Record<string, unknown> = Record<string, unknown>,
+> = ServerHandler<S> | ServerActionDefinition<S>;
 
 export interface ServerLayerConfig<
 	S extends Record<string, unknown> = Record<string, unknown>,
@@ -145,8 +201,10 @@ export interface ServerLayerConfig<
 	readonly api?:
 		| Record<string, ServerRouteInput<S>>
 		| readonly ServerRoute<S>[];
+	readonly metadata?: ServerRouteMetadata;
+	readonly middleware?: readonly ServerMiddleware<S>[];
 	readonly routes?: readonly ServerRoute<S>[];
-	readonly actions?: Record<string, ServerHandler<S>>;
+	readonly actions?: Record<string, ServerActionInput<S>>;
 }
 
 export interface LayerDependency<P extends LayerProps = LayerProps> {
