@@ -133,7 +133,6 @@ export interface ServerLayerDiagnostic {
 }
 
 export interface ServerResponseHelpers {
-	// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters -- callers provide the serialized payload shape.
 	json: <T>(data: T, init?: ResponseInit) => Response;
 	text: (body: string, init?: ResponseInit) => Response;
 	redirect: (url: string | URL, status?: number) => Response;
@@ -153,7 +152,6 @@ export interface ServerLayerContext<
 	readonly query: Record<string, string>;
 	readonly services: S;
 	readonly layerServices: Record<string, Record<string, unknown>>;
-	// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters -- handlers can narrow the service by call site.
 	getService: <T = unknown>(key: string) => T | undefined;
 	json: <T = unknown>() => Promise<T>;
 	text: () => Promise<string>;
@@ -257,7 +255,6 @@ export type LayerSetupFn<
 	P extends LayerProps = LayerProps,
 	D extends readonly string[] = readonly string[],
 	S = unknown,
-	// eslint-disable-next-line @typescript-eslint/no-invalid-void-type -- void is valid for functions with no return
 > = (ctx: SetupContext<P, D, S>) => SetupResult | Promise<SetupResult> | void;
 
 export type LifecycleHook<

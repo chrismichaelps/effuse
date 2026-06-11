@@ -521,7 +521,6 @@ const createContext = (
 		query,
 		services,
 		layerServices,
-		// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters -- call sites choose the expected service shape.
 		getService: <T = unknown>(key: string): T | undefined =>
 			getLayerService(key) as T | undefined,
 		json: <T = unknown>() => request.json() as Promise<T>,
@@ -529,7 +528,6 @@ const createContext = (
 		formData: () => request.formData(),
 		validate: createServerValidationHelpers(request, params, query),
 		response: {
-			// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters -- preserves the response payload type for helper users.
 			json: <T>(data: T, init?: ResponseInit) => Response.json(data, init),
 			text: (body: string, init?: ResponseInit) =>
 				new Response(body, withContentType(init, 'text/plain; charset=utf-8')),

@@ -71,7 +71,6 @@ export interface EffuseRegistry {}
 
 type RouterType = EffuseRegistry extends { router: infer R } ? R : unknown;
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export interface ScriptContext<
 	P,
 	L extends LayerSource = readonly never[],
@@ -282,7 +281,6 @@ export const createScriptContext = <
 		},
 
 		watchMultiple: (sources, callback, options): void => {
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any -- bridge ScriptContext types with WatchSource
 			const handle = standaloneWatchMultiple(
 				sources as any,
 				callback as any,

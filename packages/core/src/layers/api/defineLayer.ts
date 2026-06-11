@@ -22,7 +22,8 @@
  * SOFTWARE.
  */
 
-import { Layer, Effect, Context, Scope } from 'effect';
+import type { Scope } from 'effect';
+import { Layer, Effect, Context } from 'effect';
 import type {
 	AnyLayer,
 	AnyResolvedLayer,

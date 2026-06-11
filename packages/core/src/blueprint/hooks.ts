@@ -56,7 +56,6 @@ export function useCallback<T extends (...args: any[]) => any>(
 	deps?: unknown[]
 ): T {
 	warnIfOutsideLifecycle('useCallback');
-	// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
 	return computed(() => {
 		trackDependencies(deps);
 		return fn;
