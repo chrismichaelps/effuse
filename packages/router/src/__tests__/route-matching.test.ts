@@ -12,6 +12,8 @@ import {
 	parseQuery,
 	stringifyQuery,
 	parseUrl,
+	lazyRoute,
+	lazyRouteComponent,
 } from '../core/route.js';
 
 const makeRoutes = (paths: string[]) =>
@@ -129,6 +131,46 @@ describe('route matching', () => {
 			const result = matchRoute('/lazy', routes);
 			expect(result.matched).toHaveLength(1);
 			expect(result.matched[0].path).toBe('/lazy');
+		});
+
+		it('should resolve default lazy route exports', async () => {
+			const Page = () => 'lazy page';
+			const lazyComponent = lazyRoute(() => Promise.resolve({ default: Page }));
+
+			await expect(lazyComponent()).resolves.toEqual({ default: Page });
+		});
+
+		it('should resolve named lazy route exports', async () => {
+			const NamedPage = () => 'named page';
+			const lazyComponent = lazyRoute(() => Promise.resolve({ NamedPage }), {
+				export: 'NamedPage',
+			});
+
+			await expect(lazyComponent()).resolves.toEqual({ default: NamedPage });
+		});
+
+		it('should cache lazy route loader results', async () => {
+			let loadCount = 0;
+			const Page = () => 'cached page';
+			const lazyComponent = lazyRouteComponent(async () => {
+				loadCount += 1;
+				return { default: Page };
+			});
+
+			await lazyComponent();
+			await lazyComponent();
+
+			expect(loadCount).toBe(1);
+		});
+
+		it('should reject lazy route modules without the requested component export', async () => {
+			const lazyComponent = lazyRoute(() => Promise.resolve({ missing: true }), {
+				export: 'Page',
+			});
+
+			await expect(lazyComponent()).rejects.toThrow(
+				'Effuse lazy route expected "Page" to export a route component.'
+			);
 		});
 	});
 

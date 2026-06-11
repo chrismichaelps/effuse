@@ -44,6 +44,9 @@ export {
 	type RouteLocation,
 	type RouteComponent,
 	type LazyRouteComponent,
+	type LazyRouteComponentOptions,
+	lazyRoute,
+	lazyRouteComponent,
 } from './core/route.js';
 
 export {

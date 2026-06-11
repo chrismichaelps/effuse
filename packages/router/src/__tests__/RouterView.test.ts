@@ -20,6 +20,7 @@ import {
 import { createMemoryHistory } from '../core/history.js';
 import { createWebHistory } from '../core/history.js';
 import { createRouter, installRouter } from '../core/router.js';
+import { lazyRoute } from '../core/route.js';
 import { clearContext } from '../core/context.js';
 import { Link } from '../components/Link.js';
 import { RouterView } from '../components/RouterView.js';
@@ -134,6 +135,76 @@ describe('RouterView', () => {
 		expect(document.querySelector('[data-testid="forms-page"]')?.textContent).toBe(
 			'Forms page'
 		);
+	});
+
+	it('renders a cached named-export lazy route component', async () => {
+		let loadCount = 0;
+		const LazyPage = define({
+			script: () => ({}),
+			template: () =>
+				CreateElementNode({
+					[EFFUSE_NODE]: true,
+					tag: 'section',
+					props: { 'data-testid': 'lazy-page' },
+					children: ['Lazy page'],
+				}),
+		});
+
+		const Shell = define({
+			script: () => ({}),
+			template: () =>
+				CreateElementNode({
+					[EFFUSE_NODE]: true,
+					tag: 'main',
+					props: null,
+					children: [
+						CreateBlueprintNode({
+							[EFFUSE_NODE]: true,
+							blueprint: RouterView,
+							props: {},
+							portals: null,
+						}),
+					],
+				}),
+		});
+
+		const LazyRoute = lazyRoute(
+			async () => {
+				loadCount += 1;
+				return { LazyPage };
+			},
+			{ export: 'LazyPage' }
+		);
+
+		const router = createRouter({
+			history: createMemoryHistory('/lazy'),
+			routes: [
+				{
+					path: '/lazy',
+					name: 'lazy',
+					component: LazyRoute,
+				},
+			],
+		});
+
+		installRouter(router);
+
+		await createApp(Shell).mount('#app');
+
+		expect(document.querySelector('.router-view-loading')).not.toBeNull();
+
+		await Promise.resolve();
+		await Promise.resolve();
+		await Promise.resolve();
+
+		expect(document.querySelector('[data-testid="lazy-page"]')?.textContent).toBe(
+			'Lazy page'
+		);
+		expect(loadCount).toBe(1);
+
+		await LazyRoute();
+
+		expect(loadCount).toBe(1);
 	});
 
 	it('updates the rendered route component after client navigation', async () => {

@@ -32,6 +32,43 @@ export type RouteComponent =
 	| BlueprintDef;
 export type LazyRouteComponent = () => Promise<{ default: RouteComponent }>;
 
+export interface LazyRouteComponentOptions {
+	readonly export?: string;
+}
+
+const isBlueprintComponent = (value: unknown): value is BlueprintDef =>
+	typeof value === 'object' &&
+	value !== null &&
+	'_tag' in value &&
+	(value as { readonly _tag?: unknown })._tag === 'Blueprint';
+
+const isRouteComponent = (value: unknown): value is RouteComponent =>
+	typeof value === 'function' || isBlueprintComponent(value);
+
+export const lazyRouteComponent = (
+	loader: () => Promise<Readonly<Record<string, unknown>>>,
+	options: LazyRouteComponentOptions = {}
+): LazyRouteComponent => {
+	let cachedModule: Promise<{ default: RouteComponent }> | undefined;
+	const exportName = options.export ?? 'default';
+
+	return () => {
+		cachedModule ??= loader().then((module) => {
+			const component = module[exportName];
+			if (!isRouteComponent(component)) {
+				throw new TypeError(
+					`Effuse lazy route expected "${exportName}" to export a route component.`
+				);
+			}
+			return { default: component };
+		});
+
+		return cachedModule;
+	};
+};
+
+export const lazyRoute = lazyRouteComponent;
+
 export interface RouteRecord {
 	readonly path: string;
 	readonly component?: RouteComponent | LazyRouteComponent;
