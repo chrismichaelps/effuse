@@ -27,10 +27,8 @@ import {
 	getLayerService,
 	isLayerRuntimeReady,
 } from '../context.js';
-import {
-	LayerNameCollisionError,
-	ServiceNotFoundError,
-} from '../errors.js';
+import { LayerNameCollisionError, ServiceNotFoundError } from '../errors.js';
+import { compileLayer, resolveLayerDefinitions } from './defineLayer.js';
 import type {
 	CompiledLayer,
 	EffuseServices,
@@ -61,9 +59,7 @@ export interface LayerEntry<T extends EffuseLayer> {
 export type LayerEntryFrom<L extends CompiledLayer<EffuseLayer, string>> =
 	L extends CompiledLayer<infer T, string> ? LayerEntry<T> : never;
 
-type LayerNameOf<L> = L extends CompiledLayer<EffuseLayer, infer N>
-	? N
-	: never;
+type LayerNameOf<L> = L extends CompiledLayer<EffuseLayer, infer N> ? N : never;
 
 type LayerContractOf<L extends CompiledLayer<EffuseLayer, string>> =
 	L extends CompiledLayer<infer T, string> ? T : never;
@@ -73,23 +69,54 @@ type LayerServiceKey<L extends CompiledLayer<EffuseLayer, string>> = Extract<
 	string
 >;
 
-type LayerByName<U extends CompiledLayer<EffuseLayer, string>, N extends string> =
-	U extends CompiledLayer<infer T, N> ? LayerEntry<T> : never;
+type LayerByName<
+	U extends CompiledLayer<EffuseLayer, string>,
+	N extends string,
+> = U extends CompiledLayer<infer T, N> ? LayerEntry<T> : never;
+
+type LayerDefinitionOf<L extends CompiledLayer<EffuseLayer, string>> =
+	L extends CompiledLayer<EffuseLayer, string, infer D> ? D : never;
+
+type ExtendedLayerOf<L extends CompiledLayer<EffuseLayer, string>> =
+	LayerDefinitionOf<L> extends { readonly extends?: readonly (infer E)[] }
+		? Extract<E, CompiledLayer<EffuseLayer, string>>
+		: never;
+
+type LayerClosureOf<
+	L extends CompiledLayer<EffuseLayer, string>,
+	Seen = never,
+> = L extends Seen
+	? never
+	:
+			| L
+			| (ExtendedLayerOf<L> extends infer E
+					? E extends CompiledLayer<EffuseLayer, string>
+						? LayerClosureOf<E, Seen | L>
+						: never
+					: never);
+
+type LayerListClosureOf<L extends LayerList> = L[number] extends infer Item
+	? Item extends CompiledLayer<EffuseLayer, string>
+		? LayerClosureOf<Item>
+		: never
+	: never;
 
 type LayersAccessorFromList<L extends LayerList> = {
-	[N in LayerNameOf<L[number]>]: LayerByName<L[number], N>;
+	[N in LayerNameOf<LayerListClosureOf<L>>]: LayerByName<
+		LayerListClosureOf<L>,
+		N
+	>;
 };
 
 type LayersAccessorFromAliases<L extends LayerAliases> = {
 	readonly [K in keyof L]: LayerEntryFrom<L[K]>;
 };
 
-export type LayersAccessor<L extends LayerSource> =
-	L extends LayerList
-		? LayersAccessorFromList<L>
-		: L extends LayerAliases
-			? LayersAccessorFromAliases<L>
-			: never;
+export type LayersAccessor<L extends LayerSource> = L extends LayerList
+	? LayersAccessorFromList<L>
+	: L extends LayerAliases
+		? LayersAccessorFromAliases<L>
+		: never;
 
 const createServicesBag = <L extends CompiledLayer<EffuseLayer, string>>(
 	compiledLayer: L
@@ -166,7 +193,9 @@ export function resolveLayerEntry<L extends CompiledLayer<EffuseLayer, string>>(
 			refresh();
 			return services;
 		},
-		prop: <Key extends Extract<keyof LayerPropsFrom<LayerContractOf<L>>, string>>(
+		prop: <
+			Key extends Extract<keyof LayerPropsFrom<LayerContractOf<L>>, string>,
+		>(
 			key: Key
 		) => readProps()[key],
 		service: <Key extends LayerServiceKey<L>>(key: Key) => readService(key),
@@ -236,6 +265,13 @@ export const layerSourceToList = <L extends LayerSource>(
 		? layers
 		: (Object.values(layers) as readonly CompiledLayer<EffuseLayer, string>[]);
 
+const expandLayerList = (
+	layers: LayerList
+): readonly CompiledLayer<EffuseLayer, string>[] =>
+	resolveLayerDefinitions(layers).map(
+		(layer) => compileLayer(layer) as CompiledLayer<EffuseLayer, string>
+	);
+
 export function resolveLayersAccessor<L extends LayerSource>(
 	layers: L
 ): LayersAccessor<L> {
@@ -253,7 +289,7 @@ export function resolveLayersAccessor<L extends LayerSource>(
 	};
 
 	if (Array.isArray(layers)) {
-		for (const compiledLayer of layers) {
+		for (const compiledLayer of expandLayerList(layers)) {
 			addEntry(compiledLayer.name as string, compiledLayer);
 		}
 	} else {

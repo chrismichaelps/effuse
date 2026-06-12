@@ -65,16 +65,19 @@ export type EffuseServices<T extends EffuseLayer> =
 		? { [K in keyof P]: ResultOf<P[K]> }
 		: EmptyLayerContract;
 
-export type LayerPropsFrom<T extends EffuseLayer> =
-	T extends { readonly props?: infer P }
-		? NonNullable<P> extends LayerProps
-			? NonNullable<P>
+export type LayerPropsFrom<T extends EffuseLayer> = T extends {
+	readonly props?: infer P;
+}
+	? NonNullable<P> extends LayerProps
+		? NonNullable<P>
+		: LayerProps
+	: T extends {
+				readonly deriveProps?: (...args: readonly unknown[]) => infer P;
+		  }
+		? P extends LayerProps
+			? P
 			: LayerProps
-		: T extends { readonly deriveProps?: (...args: readonly unknown[]) => infer P }
-			? P extends LayerProps
-				? P
-				: LayerProps
-			: LayerProps;
+		: LayerProps;
 
 type DefinitionProviders<
 	Provides extends LayerProvides | undefined,
@@ -104,9 +107,9 @@ type LayerDefinitionBody<
 	T extends LayerDefinitionBase,
 	Provides extends LayerProvides | undefined = undefined,
 	Services extends LayerProvides | undefined = undefined,
-	Server extends
+	Server extends DefinitionServer<Provides, Services> | undefined =
 		| DefinitionServer<Provides, Services>
-		| undefined = DefinitionServer<Provides, Services> | undefined,
+		| undefined,
 > = T & {
 	readonly provides?: Provides;
 	readonly services?: Services;
@@ -118,9 +121,9 @@ type NamedLayerDefinition<
 	T extends LayerDefinitionBase,
 	Provides extends LayerProvides | undefined = undefined,
 	Services extends LayerProvides | undefined = undefined,
-	Server extends
+	Server extends DefinitionServer<Provides, Services> | undefined =
 		| DefinitionServer<Provides, Services>
-		| undefined = DefinitionServer<Provides, Services> | undefined,
+		| undefined,
 > = {
 	readonly name: N;
 } & LayerDefinitionBody<T, Provides, Services, Server>;
@@ -132,6 +135,18 @@ type ConcreteLayerDefinition<
 	Services extends LayerProvides | undefined,
 	Server extends DefinitionServer<Provides, Services> | undefined,
 > = NamedLayerDefinition<N, T, Provides, Services, Server> & EffuseLayer;
+
+type CompiledConcreteLayer<
+	N extends string,
+	T extends LayerDefinitionBase,
+	Provides extends LayerProvides | undefined,
+	Services extends LayerProvides | undefined,
+	Server extends DefinitionServer<Provides, Services> | undefined,
+> = CompiledLayer<
+	ConcreteLayerDefinition<N, T, Provides, Services, Server>,
+	N,
+	NamedLayerDefinition<N, T, Provides, Services, Server>
+>;
 
 export interface LayerFactoryContext<N extends string> {
 	readonly name: N;
@@ -150,9 +165,9 @@ export type LayerFactory<
 	T extends LayerDefinitionBase,
 	Provides extends LayerProvides | undefined = undefined,
 	Services extends LayerProvides | undefined = undefined,
-	Server extends
+	Server extends DefinitionServer<Provides, Services> | undefined =
 		| DefinitionServer<Provides, Services>
-		| undefined = DefinitionServer<Provides, Services> | undefined,
+		| undefined,
 > = (
 	ctx: LayerFactoryContext<N>
 ) => LayerDefinitionBody<T, Provides, Services, Server>;
@@ -160,8 +175,15 @@ export type LayerFactory<
 export interface CompiledLayer<
 	T extends EffuseLayer,
 	N extends string = string,
+	Definition = unknown,
 > extends EffuseLayer {
 	readonly name: N;
+	readonly extends?: Definition extends { readonly extends?: infer E }
+		? E extends readonly EffuseLayer[]
+			? E
+			: T['extends']
+		: T['extends'];
+	readonly __definition?: Definition;
 	readonly effectLayer: Layer.Layer<EffuseServices<T>, never, Scope.Scope>;
 	readonly tags: {
 		readonly [K in keyof EffuseServices<T>]: Context.Tag<
@@ -253,78 +275,63 @@ export function defineLayer<
 	T extends LayerDefinitionBase,
 	Services extends LayerProvides,
 	Provides extends LayerProvides | undefined = undefined,
-	Server extends
+	Server extends DefinitionServer<Provides, Services> | undefined =
 		| DefinitionServer<Provides, Services>
-		| undefined = DefinitionServer<Provides, Services> | undefined,
+		| undefined,
 >(
 	definition: NamedLayerDefinition<N, T, Provides, Services, Server> & {
 		readonly services: Services;
 	}
-): CompiledLayer<
-	ConcreteLayerDefinition<N, T, Provides, Services, Server>,
-	N
->;
+): CompiledConcreteLayer<N, T, Provides, Services, Server>;
 export function defineLayer<
 	N extends string,
 	T extends LayerDefinitionBase,
 	Provides extends LayerProvides | undefined = undefined,
 	Services extends LayerProvides | undefined = undefined,
-	Server extends
+	Server extends DefinitionServer<Provides, Services> | undefined =
 		| DefinitionServer<Provides, Services>
-		| undefined = DefinitionServer<Provides, Services> | undefined,
+		| undefined,
 >(
 	definition: NamedLayerDefinition<N, T, Provides, Services, Server>
-): CompiledLayer<
-	ConcreteLayerDefinition<N, T, Provides, Services, Server>,
-	N
->;
+): CompiledConcreteLayer<N, T, Provides, Services, Server>;
 export function defineLayer<
 	N extends string,
 	T extends LayerDefinitionBase,
 	Provides extends LayerProvides | undefined = undefined,
 	Services extends LayerProvides | undefined = undefined,
-	Server extends
+	Server extends DefinitionServer<Provides, Services> | undefined =
 		| DefinitionServer<Provides, Services>
-		| undefined = DefinitionServer<Provides, Services> | undefined,
+		| undefined,
 >(
 	name: N,
 	definition: LayerDefinitionBody<T, Provides, Services, Server>
-): CompiledLayer<
-	ConcreteLayerDefinition<N, T, Provides, Services, Server>,
-	N
->;
+): CompiledConcreteLayer<N, T, Provides, Services, Server>;
 export function defineLayer<
 	N extends string,
 	T extends LayerDefinitionBase,
 	Provides extends LayerProvides | undefined = undefined,
 	Services extends LayerProvides | undefined = undefined,
-	Server extends
+	Server extends DefinitionServer<Provides, Services> | undefined =
 		| DefinitionServer<Provides, Services>
-		| undefined = DefinitionServer<Provides, Services> | undefined,
+		| undefined,
 >(
 	name: N,
 	factory: LayerFactory<N, T, Provides, Services, Server>
-): CompiledLayer<
-	ConcreteLayerDefinition<N, T, Provides, Services, Server>,
-	N
->;
+): CompiledConcreteLayer<N, T, Provides, Services, Server>;
 export function defineLayer<
 	N extends string,
 	T extends LayerDefinitionBase,
 	Provides extends LayerProvides | undefined = undefined,
 	Services extends LayerProvides | undefined = undefined,
-	Server extends
+	Server extends DefinitionServer<Provides, Services> | undefined =
 		| DefinitionServer<Provides, Services>
-		| undefined = DefinitionServer<Provides, Services> | undefined,
+		| undefined,
 >(
 	nameOrDefinition: NamedLayerDefinition<N, T, Provides, Services, Server> | N,
 	definitionOrFactory?:
 		| LayerDefinitionBody<T, Provides, Services, Server>
 		| LayerFactory<N, T, Provides, Services, Server>
-): CompiledLayer<
-	ConcreteLayerDefinition<N, T, Provides, Services, Server>,
-	N
-> {
+): CompiledConcreteLayer<N, T, Provides, Services, Server> {
 	const definition = resolveDefinition(nameOrDefinition, definitionOrFactory);
 	const provides = normalizeProvides(definition);
 	const def = {
@@ -356,10 +363,7 @@ export function defineLayer<
 			},
 			serviceKeys: [],
 			_resolved: true as const,
-		} as unknown as CompiledLayer<
-			ConcreteLayerDefinition<N, T, Provides, Services, Server>,
-			N
-		>;
+		} as unknown as CompiledConcreteLayer<N, T, Provides, Services, Server>;
 	}
 
 	const entries = keys.map((k) => ({
@@ -424,10 +428,7 @@ export function defineLayer<
 		tags: tagMap,
 		serviceKeys: entries.map((e) => e.key),
 		_resolved: true as const,
-	} as unknown as CompiledLayer<
-		ConcreteLayerDefinition<N, T, Provides, Services, Server>,
-		N
-	>;
+	} as unknown as CompiledConcreteLayer<N, T, Provides, Services, Server>;
 }
 
 export type LayerInput = AnyLayer | CompiledLayer<any>;

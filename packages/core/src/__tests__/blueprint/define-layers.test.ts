@@ -96,6 +96,71 @@ describe('define() + layers — full integration', () => {
 			expect(state.exposed.user).toBe('chris');
 		});
 
+		it('should expose extended list-form layers through ctx.layers in script', () => {
+			const authSvc = { token: 'abc', user: 'chris' };
+			const featureSvc = { flag: 'checkout-v2' };
+			const authMode = signal('strict');
+			const authLayer = defineLayer({
+				name: 'authBase',
+				props: { mode: authMode },
+				services: { authSvc: () => authSvc },
+			});
+			const featureLayer = defineLayer({
+				name: 'checkoutFeature',
+				extends: [authLayer],
+				services: { featureSvc: () => featureSvc },
+			});
+			const resolvedAuth = createResolvedLayer({
+				name: 'authBase',
+				provides: { authSvc: () => authSvc },
+			});
+			const resolvedFeature = createResolvedLayer({
+				name: 'checkoutFeature',
+				provides: { featureSvc: () => featureSvc },
+			});
+
+			const propsRegistry = createMockPropsRegistry({
+				authBase: { mode: authMode },
+				checkoutFeature: {},
+			});
+			const layerRegistry = createMockLayerRegistry(
+				{ authBase: resolvedAuth, checkoutFeature: resolvedFeature },
+				{ authSvc, featureSvc }
+			);
+			const store = {
+				propsRegistry,
+				layerRegistry,
+				layers: [resolvedAuth, resolvedFeature],
+			};
+
+			const Component = define({
+				props: {},
+				layers: [featureLayer] as const,
+				script(ctx) {
+					const auth = ctx.layers.authBase.services.authSvc;
+					const feature = ctx.layers.checkoutFeature.services.featureSvc;
+					expectTypeOf(auth).toEqualTypeOf<{ token: string; user: string }>();
+					expectTypeOf(feature).toEqualTypeOf<{ flag: string }>();
+					return {
+						flag: feature.flag,
+						mode: ctx.layers.authBase.props.mode.value,
+						user: auth.user,
+					};
+				},
+				template: () => null,
+			});
+
+			const blueprint = extractBlueprint(Component);
+			const state = runWithLayerContext(store, () => blueprint.state({})) as {
+				exposed: { flag: string; mode: string; user: string };
+			};
+			expect(state.exposed).toEqual({
+				flag: 'checkout-v2',
+				mode: 'strict',
+				user: 'chris',
+			});
+		});
+
 		it('should support aliased layers with destructured script access', () => {
 			const authSvc = { token: 'abc', user: 'chris' };
 			const identityLayer = defineLayer({
@@ -708,12 +773,12 @@ describe('define() + layers — full integration', () => {
 				props: {},
 				layers: { theme: themeLayer } as const,
 				script(ctx) {
-					expectTypeOf<
-						typeof ctx.layers.theme.props.mode
-					>().toEqualTypeOf<typeof themeMode>();
-					expectTypeOf<
-						typeof ctx.layers.theme.props.accent
-					>().toEqualTypeOf<typeof accentColor>();
+					expectTypeOf<typeof ctx.layers.theme.props.mode>().toEqualTypeOf<
+						typeof themeMode
+					>();
+					expectTypeOf<typeof ctx.layers.theme.props.accent>().toEqualTypeOf<
+						typeof accentColor
+					>();
 					return {
 						mode: ctx.layers.theme.props.mode.value,
 						accent: ctx.layers.theme.props.accent.value,
