@@ -70,6 +70,18 @@ export class MountService extends Context.Tag('effuse/MountService')<
 
 type CleanupFn = () => void;
 
+interface DynamicMountRecord {
+	readonly getNodes: () => readonly Node[];
+}
+
+interface BlueprintMountRecord {
+	readonly blueprint: Extract<EffuseNode, { _tag: 'Blueprint' }>;
+	readonly updateProps: (props: Record<string, unknown>) => void;
+}
+
+const dynamicMountRecords = new WeakMap<Comment, DynamicMountRecord>();
+const blueprintMountRecords = new WeakMap<Comment, BlueprintMountRecord>();
+
 const getRenderErrorMessage = (error: unknown): string => {
 	if (error instanceof Error) {
 		return error.message;
@@ -131,6 +143,9 @@ const isScalarChild = (value: unknown): value is string | number =>
 
 const getNodeKey = (node: EffuseNode): string | number | undefined =>
 	(node as { readonly key?: string | number | undefined }).key;
+
+const isCommentNode = (node: Node | undefined): node is Comment =>
+	Predicate.isNotNullable(node) && node.nodeType === Node.COMMENT_NODE;
 
 const isEventProp = (key: string): boolean =>
 	key.length > 2 &&
@@ -214,6 +229,18 @@ const patchEventProps = (
 		}
 	}
 };
+
+const isBlueprintChild = (
+	child: EffuseChild
+): child is Extract<EffuseNode, { _tag: 'Blueprint' }> =>
+	isEffuseNode(child) && child._tag === 'Blueprint';
+
+const haveSameBlueprintIdentity = (
+	previous: Extract<EffuseNode, { _tag: 'Blueprint' }>,
+	next: Extract<EffuseNode, { _tag: 'Blueprint' }>
+): boolean =>
+	previous.blueprint === next.blueprint &&
+	getNodeKey(previous) === getNodeKey(next);
 
 const haveSameChildSignature = (
 	previous: EffuseChild,
@@ -312,6 +339,30 @@ const advanceDomIndexForChild = (
 	return -1;
 };
 
+const getDynamicSpanLength = (anchor: Comment): number | null => {
+	const record = dynamicMountRecords.get(anchor);
+	if (!record) return null;
+	return 1 + record.getNodes().length;
+};
+
+const patchBlueprintChild = (
+	parent: Element,
+	domIndex: number,
+	previous: Extract<EffuseNode, { _tag: 'Blueprint' }>,
+	next: Extract<EffuseNode, { _tag: 'Blueprint' }>
+): number | null => {
+	const node = parent.childNodes[domIndex];
+	if (!isCommentNode(node)) return null;
+
+	const record = blueprintMountRecords.get(node);
+	if (!record || record.blueprint.blueprint !== previous.blueprint) {
+		return null;
+	}
+
+	record.updateProps(next.props);
+	return getDynamicSpanLength(node);
+};
+
 const patchElementChildren = (
 	element: Element,
 	previousChildren: readonly EffuseChild[],
@@ -324,6 +375,22 @@ const patchElementChildren = (
 		const previousChild = previousChildren[index];
 		const nextChild = nextChildren[index];
 		const isLastChild = index === previousChildren.length - 1;
+
+		if (
+			isBlueprintChild(previousChild) &&
+			isBlueprintChild(nextChild) &&
+			haveSameBlueprintIdentity(previousChild, nextChild)
+		) {
+			const spanLength = patchBlueprintChild(
+				element,
+				domIndex,
+				previousChild,
+				nextChild
+			);
+			if (spanLength === null) return false;
+			domIndex += spanLength;
+			continue;
+		}
 
 		if (haveSameChildSignature(previousChild, nextChild)) {
 			const nextDomIndex = advanceDomIndexForChild(
@@ -422,6 +489,10 @@ const mountDynamicValue = (
 	let effectHandle: EffectHandle | null = null;
 	let didNotifyRender = false;
 
+	dynamicMountRecords.set(anchor, {
+		getNodes: () => currentNodes,
+	});
+
 	const clearMountedValue = (): void => {
 		removeNodes(currentNodes);
 		runCleanups(dynamicCleanups);
@@ -518,6 +589,8 @@ const mountDynamicValue = (
 		if (Predicate.isNotNullable(effectHandle)) {
 			effectHandle.stop();
 		}
+		dynamicMountRecords.delete(anchor);
+		blueprintMountRecords.delete(anchor);
 		clearMountedValue();
 	});
 
@@ -743,6 +816,7 @@ const mountNode = (
 			const stateWithLifecycle = context.state as unknown as {
 				lifecycle?: { runCleanup: () => void };
 				_provideScope?: ProvideScope;
+				updateProps?: (props: Record<string, unknown>) => void;
 			};
 
 			if (stateWithLifecycle.lifecycle) {
@@ -769,6 +843,13 @@ const mountNode = (
 				childView,
 				cleanups,
 				(mountedNodes, anchor) => {
+					if (Predicate.isFunction(stateWithLifecycle.updateProps)) {
+						blueprintMountRecords.set(anchor, {
+							blueprint: node,
+							updateProps: stateWithLifecycle.updateProps,
+						});
+					}
+
 					if (!hmrId) return;
 
 					const parent = anchor.parentNode as Element | null;

@@ -46,9 +46,10 @@ export type TemplateArgs<E extends ExposedValues> = E & {
 };
 
 /** Merged template context: exposed values + props + children. */
-export type TemplateContext<E extends ExposedValues, P> = E & Readonly<P> & {
-	readonly children?: EffuseChild;
-};
+export type TemplateContext<E extends ExposedValues, P> = E &
+	Readonly<P> & {
+		readonly children?: EffuseChild;
+	};
 
 export interface DefineOptionsWithInferredProps<
 	P,
@@ -81,6 +82,7 @@ export interface DefineOptions<
 interface DefineState<E extends ExposedValues> {
 	exposed: E;
 	lifecycle: ComponentLifecycle;
+	updateProps: (props: Record<string, unknown>) => void;
 	_template: (ctx: TemplateContext<E, unknown>) => EffuseChild;
 	/** Reactive props proxy created by script context. */
 	_reactiveProps?: Readonly<Record<string, unknown>>;
@@ -131,6 +133,7 @@ export function define<
 			return {
 				exposed: state.exposed,
 				lifecycle: state.lifecycle,
+				updateProps: state.updateProps,
 				_template: options.template,
 				_reactiveProps: context.props as Readonly<Record<string, unknown>>,
 				_provideScope: provideScope,
@@ -139,12 +142,14 @@ export function define<
 
 		view: (ctx: BlueprintContext<P>) => {
 			const state = ctx.state as DefineState<E>;
-			const children = (ctx.props as Record<string, unknown>).children as
-				| EffuseChild
-				| undefined;
+			const props = (state._reactiveProps ?? ctx.props) as Readonly<
+				Record<string, unknown>
+			>;
+			const children = ((ctx.props as Record<string, unknown>).children ??
+				props.children) as EffuseChild | undefined;
 			const mergedCtx: TemplateContext<E, P> = {
 				...state.exposed,
-				...ctx.props,
+				...props,
 				children,
 			} as TemplateContext<E, P>;
 
@@ -181,4 +186,4 @@ export type InferProps<D> =
  * });
  * ```
  */
-export const defineProps = <P>(): P => ({} as P);
+export const defineProps = <P>(): P => ({}) as P;

@@ -204,6 +204,106 @@ describe('blueprint template reactivity', () => {
 		expect(childUnmounts).toBe(0);
 	});
 
+	it('should update child props without remounting the child component', async () => {
+		const parentLabel = signal('Initial label');
+		let childMounts = 0;
+		let childUnmounts = 0;
+
+		const Child = define({
+			props: { label: '' },
+			script: ({ computed, onMount, onUnmount, props }) => {
+				const local = signal('Local ready.');
+				const label = computed(() => props.label);
+
+				onMount(() => {
+					childMounts++;
+					return undefined;
+				});
+				onUnmount(() => {
+					childUnmounts++;
+				});
+
+				return {
+					label,
+					local,
+					updateBoth: () => {
+						local.value = 'Local preserved.';
+						parentLabel.value = 'Changed label';
+					},
+				};
+			},
+			template: ({ label, local, updateBoth }) =>
+				CreateElementNode({
+					[EFFUSE_NODE]: true,
+					tag: 'section',
+					props: { 'data-testid': 'prop-child' },
+					children: [
+						CreateElementNode({
+							[EFFUSE_NODE]: true,
+							tag: 'strong',
+							props: { 'data-testid': 'prop-label' },
+							children: [label],
+						}),
+						CreateElementNode({
+							[EFFUSE_NODE]: true,
+							tag: 'pre',
+							props: { 'data-testid': 'prop-local' },
+							children: [local],
+						}),
+						CreateElementNode({
+							[EFFUSE_NODE]: true,
+							tag: 'button',
+							props: { 'data-testid': 'prop-update', onClick: updateBoth },
+							children: ['Update props'],
+						}),
+					],
+				}),
+		});
+
+		const App = define({
+			script: () => ({ parentLabel }),
+			template: ({ parentLabel }) =>
+				CreateElementNode({
+					[EFFUSE_NODE]: true,
+					tag: 'main',
+					props: { 'data-testid': 'prop-shell' },
+					children: [
+						CreateBlueprintNode({
+							[EFFUSE_NODE]: true,
+							blueprint: Child,
+							props: { label: parentLabel.value },
+							portals: null,
+						}),
+					],
+				}),
+		});
+
+		mounted = await createApp(App).mount('#app');
+		await flushRenderer();
+
+		expect(
+			document.querySelector('[data-testid="prop-label"]')?.textContent
+		).toBe('Initial label');
+		expect(
+			document.querySelector('[data-testid="prop-local"]')?.textContent
+		).toBe('Local ready.');
+		expect(childMounts).toBe(1);
+
+		(
+			document.querySelector('[data-testid="prop-update"]') as HTMLButtonElement
+		).click();
+		await flushRenderer();
+
+		expect(
+			document.querySelector('[data-testid="prop-label"]')?.textContent
+		).toBe('Changed label');
+		expect(
+			document.querySelector('[data-testid="prop-local"]')?.textContent
+		).toBe('Local preserved.');
+		expect(childMounts).toBe(1);
+		expect(childUnmounts).toBe(0);
+	});
+
 	it('should clean up child subtrees replaced by parent template updates', async () => {
 		const showChild = signal(true);
 		let childUnmounts = 0;
