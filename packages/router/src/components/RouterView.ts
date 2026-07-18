@@ -34,7 +34,7 @@ import {
 	CreateBlueprintNode,
 } from '@effuse/core';
 import { getGlobalRouter } from '../core/router.js';
-import { injectDepth, getRouteSignal } from '../core/context.js';
+import { DEPTH_KEY, getRouteSignal } from '../core/context.js';
 import {
 	isLazyRouteComponent,
 	type Route,
@@ -224,7 +224,12 @@ interface RouterViewState {
 }
 
 export const RouterView = define<RouterViewProps, RouterViewState>({
-	script: ({ props: viewProps, signal: createSignal }) => {
+	script: ({
+		props: viewProps,
+		signal: createSignal,
+		inject,
+		provide,
+	}) => {
 		const router = getGlobalRouter();
 		if (!router) {
 			throw new InvalidRouterStateError({
@@ -240,7 +245,8 @@ export const RouterView = define<RouterViewProps, RouterViewState>({
 			});
 		}
 
-		const depth = injectDepth();
+		const depth = inject<number>(DEPTH_KEY, 0) ?? 0;
+		provide(DEPTH_KEY, depth + 1);
 
 		const matchedView = createSignal<EffuseChild>(null);
 

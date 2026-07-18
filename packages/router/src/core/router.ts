@@ -52,7 +52,6 @@ import {
 	updateRouteSignal,
 	provideRouter,
 	createRouteSignal,
-	provideDepth,
 } from './context.js';
 
 let cachedConfig: {
@@ -456,8 +455,6 @@ export const installRouter = (
 
 	const initialRoute = Effect.runSync(SubscriptionRef.get(router.currentRoute));
 	createRouteSignal(router, initialRoute);
-
-	provideDepth(0);
 
 	const cleanup = router.start();
 	return Object.assign(router, { cleanup });

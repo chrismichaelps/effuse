@@ -40,6 +40,7 @@ import {
 } from './events.js';
 import { instantiateBlueprint } from '../../blueprint/blueprint.js';
 import {
+	getCurrentProvideScope,
 	runWithProvideScope,
 	type ProvideScope,
 } from '../../blueprint/provide-inject.js';
@@ -505,8 +506,10 @@ const mountDynamicValue = (
 	label: string,
 	evaluate: () => unknown,
 	cleanups: CleanupFn[],
-	onRender?: (nodes: Node[], anchor: Comment) => void
+	onRender?: (nodes: Node[], anchor: Comment) => void,
+	componentScope?: ProvideScope
 ): Effect.Effect<Node[], never, PropService | EventService> => {
+	const provideScope = componentScope ?? getCurrentProvideScope();
 	const anchor = document.createComment(label);
 	const currentNodes: Node[] = [];
 	const dynamicCleanups: CleanupFn[] = [];
@@ -586,27 +589,35 @@ const mountDynamicValue = (
 	const runEffect = (): void => {
 		if (!active) return;
 		effectHandle = watchEffect(() => {
-			let value: unknown;
-			try {
-				value = evaluate();
-			} catch (error) {
+			const update = (): void => {
+				let value: unknown;
+				try {
+					value = evaluate();
+				} catch (error) {
+					clearMountedValue();
+					previousValue = undefined;
+					const errorNode = createRenderErrorNode(error);
+					insertAfterAnchor(anchor, [errorNode]);
+					setMountedNodes([errorNode]);
+					return;
+				}
+
+				if (
+					patchMountedValue(previousValue, value as EffuseChild, currentNodes)
+				) {
+					previousValue = value as EffuseChild;
+					return;
+				}
+
 				clearMountedValue();
-				previousValue = undefined;
-				const errorNode = createRenderErrorNode(error);
-				insertAfterAnchor(anchor, [errorNode]);
-				setMountedNodes([errorNode]);
-				return;
-			}
+				mountResolvedValue(value);
+			};
 
-			if (
-				patchMountedValue(previousValue, value as EffuseChild, currentNodes)
-			) {
-				previousValue = value as EffuseChild;
-				return;
+			if (provideScope) {
+				runWithProvideScope(provideScope, update);
+			} else {
+				update();
 			}
-
-			clearMountedValue();
-			mountResolvedValue(value);
 		});
 	};
 
@@ -895,7 +906,8 @@ const mountNode = (
 						anchor
 					);
 					cleanups.push(instanceCleanup);
-				}
+				},
+				provideScope
 			);
 		}
 		default: {

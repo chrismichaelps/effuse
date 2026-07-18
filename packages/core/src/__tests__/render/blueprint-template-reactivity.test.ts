@@ -119,6 +119,50 @@ describe('blueprint template reactivity', () => {
 		).toBe('Nested page');
 	});
 
+	it('should preserve provide scope for delayed dynamic children', async () => {
+		const serviceKey = Symbol('dynamic-service');
+		const Child = define({
+			script: ({ inject }) => ({
+				service: inject(serviceKey, 'missing'),
+			}),
+			template: ({ service }) =>
+				CreateElementNode({
+					[EFFUSE_NODE]: true,
+					tag: 'span',
+					props: { 'data-testid': 'dynamic-service' },
+					children: [service],
+				}),
+		});
+		const child = signal<ReturnType<typeof CreateBlueprintNode> | null>(null);
+		const App = define({
+			script: ({ provide }) => {
+				provide(serviceKey, 'scoped');
+				return { child };
+			},
+			template: ({ child }) =>
+				CreateElementNode({
+					[EFFUSE_NODE]: true,
+					tag: 'div',
+					props: {},
+					children: [child],
+				}),
+		});
+
+		mounted = await createApp(App).mount('#app');
+		await flushRenderer();
+		child.value = CreateBlueprintNode({
+			[EFFUSE_NODE]: true,
+			blueprint: Child,
+			props: {},
+			portals: null,
+		});
+		await flushRenderer();
+
+		expect(
+			document.querySelector('[data-testid="dynamic-service"]')?.textContent
+		).toBe('scoped');
+	});
+
 	it('should keep component lifecycle stable during template updates', async () => {
 		const count = signal(0);
 		let mountCalls = 0;

@@ -25,6 +25,14 @@ import { clearContext } from '../core/context.js';
 import { Link } from '../components/Link.js';
 import { RouterView } from '../components/RouterView.js';
 
+const createOutlet = (props: Record<string, unknown> = {}) =>
+	CreateBlueprintNode({
+		[EFFUSE_NODE]: true,
+		blueprint: RouterView,
+		props,
+		portals: null,
+	});
+
 describe('RouterView', () => {
 	beforeEach(() => {
 		clearContext();
@@ -81,6 +89,264 @@ describe('RouterView', () => {
 		expect(document.querySelector('[data-testid="forms-page"]')?.textContent).toBe(
 			'Forms page'
 		);
+	});
+
+	it('renders a child route through a nested outlet', async () => {
+		const ChildPage = define({
+			script: () => ({}),
+			template: () =>
+				CreateElementNode({
+					[EFFUSE_NODE]: true,
+					tag: 'p',
+					props: { 'data-testid': 'nested-child' },
+					children: ['Nested child'],
+				}),
+		});
+		const ParentLayout = define({
+			script: () => ({}),
+			template: () =>
+				CreateElementNode({
+					[EFFUSE_NODE]: true,
+					tag: 'section',
+					props: { 'data-testid': 'parent-layout' },
+					children: [
+						'Parent layout',
+						CreateBlueprintNode({
+							[EFFUSE_NODE]: true,
+							blueprint: RouterView,
+							props: {},
+							portals: null,
+						}),
+					],
+				}),
+		});
+		const Shell = define({
+			script: () => ({}),
+			template: () =>
+				CreateBlueprintNode({
+					[EFFUSE_NODE]: true,
+					blueprint: RouterView,
+					props: {},
+					portals: null,
+				}),
+		});
+		const router = createRouter({
+			history: createMemoryHistory('/account/profile'),
+			routes: [
+				{
+					path: '/account',
+					component: ParentLayout,
+					children: [{ path: 'profile', component: ChildPage }],
+				},
+			],
+		});
+
+		installRouter(router);
+		await createApp(Shell).mount('#app');
+		await Promise.resolve();
+		await Promise.resolve();
+
+		expect(document.querySelector('[data-testid="parent-layout"]')).not.toBeNull();
+		expect(
+			document.querySelector('[data-testid="nested-child"]')?.textContent
+		).toBe('Nested child');
+	});
+
+	it('renders three levels and switches nested siblings', async () => {
+		const OverviewPage = define({
+			script: () => ({}),
+			template: () =>
+				CreateElementNode({
+					[EFFUSE_NODE]: true,
+					tag: 'p',
+					props: { 'data-testid': 'overview-page' },
+					children: ['Overview'],
+				}),
+		});
+		const SettingsPage = define({
+			script: () => ({}),
+			template: () =>
+				CreateElementNode({
+					[EFFUSE_NODE]: true,
+					tag: 'p',
+					props: { 'data-testid': 'settings-page' },
+					children: ['Settings'],
+				}),
+		});
+		const ProjectLayout = define({
+			script: () => ({}),
+			template: () =>
+				CreateElementNode({
+					[EFFUSE_NODE]: true,
+					tag: 'article',
+					props: { 'data-testid': 'project-layout' },
+					children: [createOutlet()],
+				}),
+		});
+		const WorkspaceLayout = define({
+			script: () => ({}),
+			template: () =>
+				CreateElementNode({
+					[EFFUSE_NODE]: true,
+					tag: 'section',
+					props: { 'data-testid': 'workspace-layout' },
+					children: [createOutlet()],
+				}),
+		});
+		const Shell = define({
+			script: () => ({}),
+			template: () => createOutlet(),
+		});
+		const router = createRouter({
+			history: createMemoryHistory('/workspace/project/overview'),
+			routes: [
+				{
+					path: '/workspace',
+					component: WorkspaceLayout,
+					children: [
+						{
+							path: 'project',
+							component: ProjectLayout,
+							children: [
+								{ path: 'overview', component: OverviewPage },
+								{ path: 'settings', component: SettingsPage },
+							],
+						},
+					],
+				},
+			],
+		});
+
+		installRouter(router);
+		const mounted = await createApp(Shell).mount('#app');
+		await vi.waitFor(() => {
+			expect(document.querySelector('[data-testid="overview-page"]')).not.toBeNull();
+		});
+
+		await router.push('/workspace/project/settings');
+		await vi.waitFor(() => {
+			expect(document.querySelector('[data-testid="settings-page"]')).not.toBeNull();
+		});
+		expect(document.querySelector('[data-testid="overview-page"]')).toBeNull();
+		expect(document.querySelector('[data-testid="workspace-layout"]')).not.toBeNull();
+		expect(document.querySelector('[data-testid="project-layout"]')).not.toBeNull();
+
+		await mounted.unmount();
+		await router.push('/workspace/project/overview');
+		expect(document.querySelector('[data-testid="workspace-layout"]')).toBeNull();
+		expect(document.querySelector('[data-testid="overview-page"]')).toBeNull();
+	});
+
+	it('renders nested default and named outlets at the same depth', async () => {
+		const MainPage = define({
+			script: () => ({}),
+			template: () =>
+				CreateElementNode({
+					[EFFUSE_NODE]: true,
+					tag: 'main',
+					props: { 'data-testid': 'nested-main' },
+					children: ['Main'],
+				}),
+		});
+		const SidebarPage = define({
+			script: () => ({}),
+			template: () =>
+				CreateElementNode({
+					[EFFUSE_NODE]: true,
+					tag: 'aside',
+					props: { 'data-testid': 'nested-sidebar' },
+					children: ['Sidebar'],
+				}),
+		});
+		const DashboardLayout = define({
+			script: () => ({}),
+			template: () =>
+				CreateElementNode({
+					[EFFUSE_NODE]: true,
+					tag: 'section',
+					props: {},
+					children: [createOutlet(), createOutlet({ name: 'sidebar' })],
+				}),
+		});
+		const Shell = define({
+			script: () => ({}),
+			template: () => createOutlet(),
+		});
+		const router = createRouter({
+			history: createMemoryHistory('/app/dashboard'),
+			routes: [
+				{
+					path: '/app',
+					component: DashboardLayout,
+					children: [
+						{
+							path: 'dashboard',
+							components: { default: MainPage, sidebar: SidebarPage },
+						},
+					],
+				},
+			],
+		});
+
+		installRouter(router);
+		await createApp(Shell).mount('#app');
+
+		await vi.waitFor(() => {
+			expect(document.querySelector('[data-testid="nested-main"]')).not.toBeNull();
+			expect(document.querySelector('[data-testid="nested-sidebar"]')).not.toBeNull();
+		});
+	});
+
+	it('keeps depth through lazy parent and child modules', async () => {
+		const LazyChild = define({
+			script: () => ({}),
+			template: () =>
+				CreateElementNode({
+					[EFFUSE_NODE]: true,
+					tag: 'p',
+					props: { 'data-testid': 'lazy-nested-child' },
+					children: ['Lazy child'],
+				}),
+		});
+		const LazyLayout = define({
+			script: () => ({}),
+			template: () =>
+				CreateElementNode({
+					[EFFUSE_NODE]: true,
+					tag: 'section',
+					props: { 'data-testid': 'lazy-layout' },
+					children: [createOutlet()],
+				}),
+		});
+		const Shell = define({
+			script: () => ({}),
+			template: () => createOutlet(),
+		});
+		const router = createRouter({
+			history: createMemoryHistory('/lazy/child'),
+			routes: [
+				{
+					path: '/lazy',
+					component: lazyRoute(async () => ({ default: LazyLayout })),
+					children: [
+						{
+							path: 'child',
+							component: lazyRoute(async () => ({ default: LazyChild })),
+						},
+					],
+				},
+			],
+		});
+
+		installRouter(router);
+		await createApp(Shell).mount('#app');
+
+		await vi.waitFor(() => {
+			expect(document.querySelector('[data-testid="lazy-layout"]')).not.toBeNull();
+			expect(
+				document.querySelector('[data-testid="lazy-nested-child"]')
+			).not.toBeNull();
+		});
 	});
 
 	it('renders the current web-history route on initial mount', async () => {
