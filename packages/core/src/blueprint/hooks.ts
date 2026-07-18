@@ -22,9 +22,9 @@
  * SOFTWARE.
  */
 
-import { Array as Arr, Predicate } from 'effect';
-import { computed } from '../reactivity/computed.js';
+import { computed, disposeComputed } from '../reactivity/computed.js';
 import { isSignal } from '../reactivity/signal.js';
+import { untrack } from '../reactivity/dep.js';
 import type { ReadonlySignal } from '../types/index.js';
 import { getActiveLifecycle } from './lifecycle.js';
 import { devWarn } from '../utils/dev-warnings.js';
@@ -35,14 +35,7 @@ import type {
 import { resolveLayerService } from '../layers/api/layersAccessor.js';
 import type { EffuseLayer } from '../layers/types.js';
 
-const trackDependencies = (deps: unknown[] | undefined): void => {
-	if (!Predicate.isNotNullable(deps)) return;
-	Arr.forEach(deps, (d) => {
-		if (isSignal(d)) {
-			void (d as ReadonlySignal<unknown>).value;
-		}
-	});
-};
+export type MemoDependencies = readonly ReadonlySignal<unknown>[];
 
 const warnIfOutsideLifecycle = (hookName: string): void => {
 	if (!getActiveLifecycle()) {
@@ -53,24 +46,44 @@ const warnIfOutsideLifecycle = (hookName: string): void => {
 	}
 };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function useCallback<T extends (...args: any[]) => any>(
+/** @deprecated Effuse scripts run once; declare a plain closure instead. */
+export function useCallback<T extends (...args: never[]) => unknown>(
 	fn: T,
-	deps?: unknown[]
+	_deps?: readonly unknown[]
 ): T {
 	warnIfOutsideLifecycle('useCallback');
-	return computed(() => {
-		trackDependencies(deps);
-		return fn;
-	}).value as T;
+	devWarn(
+		'useCallback() is unnecessary because script() runs once per component instance. ' +
+			'Use a plain closure; dependency arguments are ignored.'
+	);
+	return fn;
 }
 
-export function useMemo<T>(fn: () => T, deps?: unknown[]): ReadonlySignal<T> {
+export function useMemo<T>(
+	fn: () => T,
+	deps?: MemoDependencies
+): ReadonlySignal<T> {
 	warnIfOutsideLifecycle('useMemo');
+	const lifecycle = getActiveLifecycle();
+	const invalidDependencies = (deps as readonly unknown[] | undefined)?.filter(
+		(dependency) => !isSignal(dependency)
+	);
+	if (invalidDependencies && invalidDependencies.length > 0) {
+		devWarn(
+			`useMemo() ignored ${invalidDependencies.length} non-signal ${
+				invalidDependencies.length === 1 ? 'dependency' : 'dependencies'
+			}. Pass signals, omit the dependency list for automatic tracking, or use computed().`
+		);
+	}
+	const signalDependencies = (deps as readonly unknown[] | undefined)?.filter(
+		isSignal
+	) as MemoDependencies | undefined;
 	const memoized = computed(() => {
-		trackDependencies(deps);
-		return fn();
+		if (signalDependencies === undefined) return fn();
+		for (const dependency of signalDependencies) void dependency.value;
+		return untrack(fn);
 	});
+	lifecycle?.onUnmount(() => disposeComputed(memoized));
 	return memoized;
 }
 

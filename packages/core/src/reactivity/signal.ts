@@ -83,11 +83,15 @@ export function signal<T>(initialValue: T, name?: string): Signal<T> {
 
 // Build readonly signal view
 export function readonlySignal<T>(source: Signal<T>): ReadonlySignal<T> {
-	return {
+	const readonlyView = {
 		get value() {
 			return source.value;
 		},
+		get _dep() {
+			return getSignalDep(source);
+		},
 	};
+	return readonlyView;
 }
 
 // Detect reactive signal

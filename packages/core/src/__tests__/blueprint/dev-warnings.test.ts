@@ -9,8 +9,16 @@ import { instantiateBlueprint } from '../../blueprint/blueprint.js';
 import { define } from '../../blueprint/define.js';
 import { useCallback, useMemo } from '../../blueprint/hooks.js';
 import { createReactiveProps } from '../../blueprint/reactive-props.js';
-import { provide, inject, createProvideScope, runWithProvideScope } from '../../blueprint/provide-inject.js';
-import { withActiveLifecycle, createComponentLifecycleSync } from '../../blueprint/lifecycle.js';
+import {
+	provide,
+	inject,
+	createProvideScope,
+	runWithProvideScope,
+} from '../../blueprint/provide-inject.js';
+import {
+	withActiveLifecycle,
+	createComponentLifecycleSync,
+} from '../../blueprint/lifecycle.js';
 
 describe('dev warnings', () => {
 	let warnSpy: ReturnType<typeof vi.spyOn>;
@@ -41,7 +49,9 @@ describe('dev warnings', () => {
 		});
 
 		it('should not warn when accessing an existing prop key', () => {
-			const { proxy } = createReactiveProps<{ name: string }>({ name: 'Effuse' });
+			const { proxy } = createReactiveProps<{ name: string }>({
+				name: 'Effuse',
+			});
 
 			void proxy.name;
 
@@ -73,7 +83,9 @@ describe('dev warnings', () => {
 					return null;
 				},
 			});
-			const blueprint = Component as unknown as Parameters<typeof instantiateBlueprint>[0];
+			const blueprint = Component as unknown as Parameters<
+				typeof instantiateBlueprint
+			>[0];
 			const context = instantiateBlueprint(blueprint, {}, {});
 
 			blueprint.view(context);
@@ -90,7 +102,9 @@ describe('dev warnings', () => {
 
 			if (process.env.NODE_ENV !== 'production') {
 				expect(warnSpy).toHaveBeenCalledWith(
-					expect.stringContaining('useCallback() called outside a component lifecycle')
+					expect.stringContaining(
+						'useCallback() called outside a component lifecycle'
+					)
 				);
 			}
 		});
@@ -100,18 +114,24 @@ describe('dev warnings', () => {
 
 			if (process.env.NODE_ENV !== 'production') {
 				expect(warnSpy).toHaveBeenCalledWith(
-					expect.stringContaining('useMemo() called outside a component lifecycle')
+					expect.stringContaining(
+						'useMemo() called outside a component lifecycle'
+					)
 				);
 			}
 		});
 
-		it('should not warn when useCallback is called inside an active lifecycle', () => {
+		it('should explain the plain-closure migration inside a lifecycle', () => {
 			const lifecycle = createComponentLifecycleSync();
 			withActiveLifecycle(lifecycle, () => {
 				useCallback(() => 42);
 			});
 
-			expect(warnSpy).not.toHaveBeenCalled();
+			expect(warnSpy).toHaveBeenCalledWith(
+				expect.stringContaining(
+					'useCallback() is unnecessary because script() runs once'
+				)
+			);
 		});
 
 		it('should not warn when useMemo is called inside an active lifecycle', () => {
