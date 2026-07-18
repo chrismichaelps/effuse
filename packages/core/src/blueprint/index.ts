@@ -41,6 +41,7 @@ export {
 	type InferProps,
 	type TemplateArgs,
 	type TemplateContext,
+	type TemplateReservedKey,
 } from './define.js';
 export {
 	type ScriptContext,
