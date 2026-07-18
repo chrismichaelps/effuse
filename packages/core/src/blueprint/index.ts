@@ -90,7 +90,12 @@ export {
 	PORTAL_PRIORITY,
 } from './portal.js';
 
-export { useCallback, useMemo, useLayerService } from './hooks.js';
+export {
+	useCallback,
+	useMemo,
+	useLayerService,
+	type MemoDependencies,
+} from './hooks.js';
 
 export {
 	provide,

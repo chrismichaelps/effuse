@@ -30,6 +30,7 @@ import {
 	getTrackingPaused,
 	resumeTracking,
 	pauseTracking,
+	untrack,
 } from './dep.js';
 
 class ComputedCell<T> {
@@ -39,6 +40,7 @@ class ComputedCell<T> {
 	private getter: () => T;
 	private unsubscribers: (() => void)[] = [];
 	private computeVersion = 0;
+	private stopped = false;
 
 	constructor(getter: () => T) {
 		this.getter = getter;
@@ -62,6 +64,11 @@ class ComputedCell<T> {
 
 	private recompute(): void {
 		this.cleanup();
+		if (this.stopped) {
+			this.cachedValue = untrack(this.getter);
+			this.isDirty = false;
+			return;
+		}
 
 		const wasPaused = getTrackingPaused();
 		resumeTracking();
@@ -112,8 +119,11 @@ class ComputedCell<T> {
 
 	stop(): void {
 		this.cleanup();
+		this.stopped = true;
 	}
 }
+
+const computedCells = new WeakMap<object, ComputedCell<unknown>>();
 
 // Build computed signal
 export function computed<T>(getter: () => T): ReadonlySignal<T> {
@@ -128,8 +138,14 @@ export function computed<T>(getter: () => T): ReadonlySignal<T> {
 		},
 	};
 
+	computedCells.set(computedSignal, cell as ComputedCell<unknown>);
 	return computedSignal as ReadonlySignal<T>;
 }
+
+/** Stops dependency subscriptions owned by a computed signal. */
+export const disposeComputed = (source: ReadonlySignal<unknown>): void => {
+	computedCells.get(source as object)?.stop();
+};
 
 // Build writable computed signal
 export function writableComputed<T>(options: {
