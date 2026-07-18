@@ -23,7 +23,16 @@
  */
 
 import { Array as Arr, Option, pipe } from 'effect';
-import type { BlueprintDef, EffuseChild } from '@effuse/core';
+import {
+	compareRoutePatterns,
+	compileRoutePattern,
+	matchRoutePattern,
+	parseRoutePattern,
+	resolveRoutePattern,
+	type BlueprintDef,
+	type EffuseChild,
+	type RoutePattern,
+} from '@effuse/core';
 import { RouteNotFoundError } from '../errors.js';
 import type { NavigationGuard } from '../navigation/guards.js';
 
@@ -123,6 +132,7 @@ export interface NormalizedRouteRecord
 	readonly path: string;
 	readonly regex: RegExp;
 	readonly paramNames: readonly string[];
+	readonly pattern: RoutePattern;
 	readonly fullPath: string;
 	readonly parent: NormalizedRouteRecord | undefined;
 	readonly aliasOf?: NormalizedRouteRecord;
@@ -221,306 +231,6 @@ export const parseUrl = (
 	return { pathname: normalizedPathname, query: parseQuery(queryString), hash };
 };
 
-const escapeRegExp = (value: string): string =>
-	value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-const routeGroupName = (segment: string): string | null => {
-	const match = segment.match(/^\(([^/()]+)\)$/);
-	return match?.[1] ?? null;
-};
-
-const isRouteGroupSegment = (segment: string): boolean =>
-	routeGroupName(segment) !== null;
-
-const stripRouteGroups = (path: string): { path: string; groups: string[] } => {
-	const isAbsolute = path.startsWith('/');
-	const hasTrailingSlash = path.endsWith('/') && path !== '/';
-	const groups: string[] = [];
-	const pathSegments: string[] = [];
-
-	for (const segment of path.split('/')) {
-		if (segment.length === 0) {
-			continue;
-		}
-
-		const group = routeGroupName(segment);
-		if (group) {
-			groups.push(group);
-			continue;
-		}
-
-		pathSegments.push(segment);
-	}
-
-	if (pathSegments.length === 0) {
-		return { path: isAbsolute ? '/' : '', groups };
-	}
-
-	return {
-		path: `${isAbsolute ? '/' : ''}${pathSegments.join('/')}${
-			hasTrailingSlash ? '/' : ''
-		}`,
-		groups,
-	};
-};
-
-const isOptionalCatchAllSegment = (segment: string): boolean =>
-	/^\[\[\.\.\.([^/[\]]*)\]\]$/.test(segment);
-
-const isRequiredCatchAllSegment = (segment: string): boolean =>
-	/^\[\.\.\.([^/[\]]*)\]$/.test(segment);
-
-const optionalCatchAllName = (segment: string): string => segment.slice(5, -2);
-
-const requiredCatchAllName = (segment: string): string => segment.slice(4, -1);
-
-const bracketParamName = (segment: string): string | null => {
-	const match = segment.match(/^\[([^/[\]]*)\]$/);
-	return match && !isRequiredCatchAllSegment(segment) ? (match[1] ?? '') : null;
-};
-
-const colonParamName = (
-	segment: string
-): { readonly name: string; readonly optional: boolean } | null => {
-	if (!segment.startsWith(':')) {
-		return null;
-	}
-
-	const rawName = segment.slice(1);
-	const optional = rawName.endsWith('?');
-	const name = optional ? rawName.slice(0, -1) : rawName;
-	return name ? { name, optional } : null;
-};
-
-const segmentParam = (
-	segment: string
-): {
-	readonly name: string;
-	readonly optional: boolean;
-	readonly catchAll: boolean;
-} | null => {
-	if (isOptionalCatchAllSegment(segment)) {
-		return {
-			name: optionalCatchAllName(segment),
-			optional: true,
-			catchAll: true,
-		};
-	}
-
-	if (isRequiredCatchAllSegment(segment)) {
-		return {
-			name: requiredCatchAllName(segment),
-			optional: false,
-			catchAll: true,
-		};
-	}
-
-	const colonParam = colonParamName(segment);
-	if (colonParam) {
-		return { ...colonParam, catchAll: false };
-	}
-
-	const bracketParam = bracketParamName(segment);
-	return bracketParam !== null
-		? { name: bracketParam, optional: false, catchAll: false }
-		: null;
-};
-
-const validateRoutePath = (path: string): void => {
-	const segments = path.split('/').filter(Boolean);
-	const paramNames = new Set<string>();
-
-	segments.forEach((segment, index) => {
-		if (isRouteGroupSegment(segment)) {
-			return;
-		}
-
-		const param = segmentParam(segment);
-		if (!param) {
-			if (segment.startsWith('[') || segment.endsWith(']')) {
-				throw new TypeError(`Invalid route segment "${segment}" in "${path}".`);
-			}
-			return;
-		}
-
-		if (param.name.length === 0) {
-			throw new TypeError(`Route params must have a name in "${path}".`);
-		}
-		if (paramNames.has(param.name)) {
-			throw new TypeError(
-				`Duplicate route param "${param.name}" in "${path}".`
-			);
-		}
-		paramNames.add(param.name);
-
-		if (
-			param.catchAll &&
-			segments
-				.slice(index + 1)
-				.some((candidate) => !isRouteGroupSegment(candidate))
-		) {
-			throw new TypeError(
-				`Catch-all route param "${param.name}" must be the final URL segment in "${path}".`
-			);
-		}
-	});
-};
-
-const encodeRouteParam = (value: string, catchAll: boolean): string =>
-	catchAll
-		? value
-				.split('/')
-				.map((segment) => encodeURIComponent(segment))
-				.join('/')
-		: encodeURIComponent(value);
-
-const decodeRouteParam = (value: string): string => {
-	try {
-		return decodeURIComponent(value);
-	} catch {
-		return value;
-	}
-};
-
-const createPathFromParams = (
-	path: string,
-	params: Record<string, string>
-): string => {
-	const isAbsolute = path.startsWith('/');
-	const hasTrailingSlash = path.endsWith('/') && path !== '/';
-	const resolvedSegments: string[] = [];
-
-	for (const segment of path.split('/')) {
-		if (segment.length === 0) {
-			continue;
-		}
-
-		const param = segmentParam(segment);
-		if (!param) {
-			resolvedSegments.push(segment);
-			continue;
-		}
-
-		const value = params[param.name];
-		if (value === undefined) {
-			if (param.optional) {
-				continue;
-			}
-			throw new TypeError(`Missing route param "${param.name}" for "${path}".`);
-		}
-
-		if (param.optional && value.length === 0) {
-			continue;
-		}
-		if (value.length === 0) {
-			throw new TypeError(`Missing route param "${param.name}" for "${path}".`);
-		}
-
-		resolvedSegments.push(encodeRouteParam(value, param.catchAll));
-	}
-
-	if (resolvedSegments.length === 0) {
-		return isAbsolute ? '/' : '';
-	}
-
-	return `${isAbsolute ? '/' : ''}${resolvedSegments.join('/')}${
-		hasTrailingSlash ? '/' : ''
-	}`;
-};
-
-const pathToRegex = (path: string): { regex: RegExp; paramNames: string[] } => {
-	const paramNames: string[] = [];
-	const segments = path.split('/').filter(Boolean);
-	if (segments.length === 0) {
-		return {
-			regex: new RegExp(`^${path.startsWith('/') ? '\\/' : ''}$`),
-			paramNames,
-		};
-	}
-
-	let regexPattern = '';
-	const isAbsolute = path.startsWith('/');
-	segments.forEach((segment, index) => {
-		const prefix = index === 0 && !isAbsolute ? '' : '\\/';
-
-		if (segment === '*') {
-			regexPattern += `${prefix}.*`;
-			return;
-		}
-
-		if (isOptionalCatchAllSegment(segment)) {
-			paramNames.push(optionalCatchAllName(segment));
-			regexPattern += index === 0 && !isAbsolute ? '(.*)?' : '(?:\\/(.*))?';
-			return;
-		}
-
-		if (isRequiredCatchAllSegment(segment)) {
-			paramNames.push(requiredCatchAllName(segment));
-			regexPattern += `${prefix}(.+)`;
-			return;
-		}
-
-		const colonParam = colonParamName(segment);
-		if (colonParam) {
-			paramNames.push(colonParam.name);
-			regexPattern += colonParam.optional
-				? index === 0 && !isAbsolute
-					? '([^/]*)?'
-					: '(?:\\/([^/]*))?'
-				: `${prefix}([^/]+)`;
-			return;
-		}
-
-		const bracketParam = bracketParamName(segment);
-		if (bracketParam) {
-			paramNames.push(bracketParam);
-			regexPattern += `${prefix}([^/]+)`;
-			return;
-		}
-
-		regexPattern += `${prefix}${escapeRegExp(segment)}`;
-	});
-
-	if (path.endsWith('/') && path !== '/') {
-		regexPattern += '\\/';
-	}
-
-	return { regex: new RegExp(`^${regexPattern}$`), paramNames };
-};
-
-const routeSegmentSpecificity = (segment: string): number => {
-	if (
-		isOptionalCatchAllSegment(segment) ||
-		(segment.startsWith(':') && segment.endsWith('?'))
-	) {
-		return -1;
-	}
-	if (segment === '*' || isRequiredCatchAllSegment(segment)) return 0;
-	if (segment.startsWith(':') || bracketParamName(segment) !== null) return 2;
-	return 4;
-};
-
-const compareRouteSpecificity = (
-	left: NormalizedRouteRecord,
-	right: NormalizedRouteRecord
-): number => {
-	const leftSegments = left.fullPath.split('/').filter(Boolean);
-	const rightSegments = right.fullPath.split('/').filter(Boolean);
-	const maxLength = Math.max(leftSegments.length, rightSegments.length);
-
-	for (let index = 0; index < maxLength; index++) {
-		const leftSegment = leftSegments[index];
-		const rightSegment = rightSegments[index];
-		const leftScore =
-			leftSegment === undefined ? 0 : routeSegmentSpecificity(leftSegment);
-		const rightScore =
-			rightSegment === undefined ? 0 : routeSegmentSpecificity(rightSegment);
-		if (leftScore !== rightScore) return rightScore - leftScore;
-	}
-
-	return rightSegments.length - leftSegments.length;
-};
-
 const isAncestorRoute = (
 	ancestor: NormalizedRouteRecord,
 	route: NormalizedRouteRecord
@@ -538,7 +248,7 @@ const assertNoRouteCollisions = (
 ): void => {
 	const signatures = new Map<string, NormalizedRouteRecord>();
 	for (const route of routes) {
-		const existing = signatures.get(route.regex.source);
+		const existing = signatures.get(route.pattern.signature);
 		if (
 			existing &&
 			!isAncestorRoute(existing, route) &&
@@ -554,7 +264,7 @@ const assertNoRouteCollisions = (
 				`The ${existingDescription} and ${routeDescription} resolve to the same URL pattern "${route.fullPath}".`
 			);
 		}
-		signatures.set(route.regex.source, route);
+		signatures.set(route.pattern.signature, route);
 	}
 };
 
@@ -566,10 +276,9 @@ const normalizeRouteRecord = (
 	const rawFullPath = parent
 		? `${parent.fullPath.replace(/\/$/, '')}/${route.path.replace(/^\//, '')}`
 		: route.path;
-	validateRoutePath(rawFullPath);
-	const parsed = stripRouteGroups(rawFullPath);
+	const parsed = parseRoutePattern(rawFullPath);
 	const fullPath = parsed.path;
-	const { regex, paramNames } = pathToRegex(fullPath);
+	const { regex, paramNames } = compileRoutePattern(parsed);
 	const canonicalRouteGroups = aliasOf
 		? [...aliasOf.canonicalRouteGroups]
 		: [...new Set([...(parent?.canonicalRouteGroups ?? []), ...parsed.groups])];
@@ -592,6 +301,7 @@ const normalizeRouteRecord = (
 		fullPath,
 		regex,
 		paramNames,
+		pattern: parsed,
 		canonicalRouteGroups,
 		aliasRouteGroups,
 		routeGroups,
@@ -652,7 +362,7 @@ export const finalizeNormalizedRoutes = (
 ): NormalizedRouteRecord[] => {
 	const result = [...routes];
 	assertNoRouteCollisions(result);
-	result.sort(compareRouteSpecificity);
+	result.sort((left, right) => compareRoutePatterns(left.pattern, right.pattern));
 	return result;
 };
 
@@ -682,13 +392,15 @@ export const matchRoute = (
 
 	for (const path of pathVariants) {
 		for (const route of normalizedRoutes) {
-			const match = path.match(route.regex);
-			if (match) {
-				const params: Record<string, string> = {};
-				route.paramNames.forEach((name, index) => {
-					params[name] = decodeRouteParam(match[index + 1] ?? '');
-				});
-
+			const params = matchRoutePattern(
+				{
+					pattern: route.pattern,
+					regex: route.regex,
+					paramNames: route.paramNames,
+				},
+				path
+			);
+			if (params) {
 				const matched: NormalizedRouteRecord[] = [];
 				let current: NormalizedRouteRecord | undefined = route;
 				while (current) {
@@ -732,7 +444,7 @@ export const resolveRoute = (
 		params = location.params ?? {};
 		query = location.query ?? {};
 		hash = location.hash ?? '';
-		pathname = createPathFromParams(namedRoute.fullPath, params);
+		pathname = resolveRoutePattern(namedRoute.pattern, params);
 	}
 
 	const { matched, params: matchedParams } = matchRoute(

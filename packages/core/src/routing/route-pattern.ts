@@ -38,6 +38,9 @@ const parseSegment = (segment: string): RoutePatternSegment => {
 	const group = segment.match(GROUP_SEGMENT)?.[1];
 	if (group) return { kind: 'group', value: group };
 	if (segment === '*') return { kind: 'wildcard', value: '*' };
+	if (segment === '[]' || segment === '[...]' || segment === '[[...]]') {
+		throw new TypeError(`Route params must have a name.`);
+	}
 
 	const optionalCatchAll = segment.match(OPTIONAL_CATCH_ALL_SEGMENT)?.[1];
 	if (optionalCatchAll) {

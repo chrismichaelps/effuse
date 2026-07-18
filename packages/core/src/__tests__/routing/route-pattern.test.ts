@@ -73,10 +73,10 @@ describe('route pattern grammar', () => {
 	});
 
 	it.each([
-		['/users/[]', 'Invalid route segment'],
+		['/users/[]', 'Route params must have a name'],
 		['/users/[id]/posts/[id]', 'Duplicate route param "id"'],
 		['/docs/[...slug]/edit', 'must be the final URL segment'],
-		['/docs/[[...]]', 'Invalid route segment'],
+		['/docs/[[...]]', 'Route params must have a name'],
 	])('rejects invalid pattern %s', (pattern, message) => {
 		expect(() => parseRoutePattern(pattern)).toThrow(message);
 	});
