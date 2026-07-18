@@ -170,11 +170,29 @@ export interface ScriptState<E extends ExposedValues> {
 }
 
 let globalStoreGetter: ((name: string) => unknown) | null = null;
-let globalRouter: unknown = null;
 const storeGetterInstallations: Array<{
 	readonly getter: (name: string) => unknown;
 }> = [];
-const routerInstallations: Array<{ readonly router: unknown }> = [];
+
+interface CoreRouterRuntimeState {
+	current: unknown;
+	readonly installations: Array<{ readonly router: unknown }>;
+}
+
+const CORE_ROUTER_RUNTIME_KEY = Symbol.for('effuse.core.router-runtime.v1');
+const coreRouterRuntime = (() => {
+	const shared = globalThis as Record<PropertyKey, unknown>;
+	const existing = shared[CORE_ROUTER_RUNTIME_KEY] as
+		| CoreRouterRuntimeState
+		| undefined;
+	if (existing) return existing;
+	const created: CoreRouterRuntimeState = {
+		current: null,
+		installations: [],
+	};
+	Object.defineProperty(shared, CORE_ROUTER_RUNTIME_KEY, { value: created });
+	return created;
+})();
 
 export const setGlobalStoreGetter = (
 	getter: ((name: string) => unknown) | null
@@ -203,21 +221,22 @@ export const clearGlobalStoreGetter = (): void => {
 
 export const setGlobalRouter = (router: unknown): (() => void) => {
 	const installation = { router };
-	routerInstallations.push(installation);
-	globalRouter = router;
+	coreRouterRuntime.installations.push(installation);
+	coreRouterRuntime.current = router;
 	let removed = false;
 	return () => {
 		if (removed) return;
 		removed = true;
-		const index = routerInstallations.indexOf(installation);
-		if (index >= 0) routerInstallations.splice(index, 1);
-		globalRouter = routerInstallations.at(-1)?.router ?? null;
+		const index = coreRouterRuntime.installations.indexOf(installation);
+		if (index >= 0) coreRouterRuntime.installations.splice(index, 1);
+		coreRouterRuntime.current =
+			coreRouterRuntime.installations.at(-1)?.router ?? null;
 	};
 };
 
 export const clearGlobalRouter = (): void => {
-	routerInstallations.length = 0;
-	globalRouter = null;
+	coreRouterRuntime.installations.length = 0;
+	coreRouterRuntime.current = null;
 };
 
 export const createScriptContext = <
@@ -282,10 +301,10 @@ export const createScriptContext = <
 		store: resolveStore,
 
 		get router(): RouterType {
-			if (!globalRouter) {
+			if (!coreRouterRuntime.current) {
 				throw new RouterNotConfiguredError();
 			}
-			return globalRouter as RouterType;
+			return coreRouterRuntime.current as RouterType;
 		},
 
 		onMount: (callback): void => {

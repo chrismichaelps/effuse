@@ -443,35 +443,59 @@ export const createRouter = (options: RouterOptions): RouterInstance => {
 	return router;
 };
 
-let globalRouter: RouterInstance | null = null;
-const routerInstallations: Array<{ readonly router: RouterInstance }> = [];
+interface RouterRuntimeState {
+	current: RouterInstance | null;
+	readonly installations: Array<{ readonly router: RouterInstance }>;
+}
+
+const ROUTER_RUNTIME_KEY = Symbol.for('effuse.router.runtime.v1');
+const routerRuntime = (() => {
+	const shared = globalThis as Record<PropertyKey, unknown>;
+	const existing = shared[ROUTER_RUNTIME_KEY] as RouterRuntimeState | undefined;
+	if (existing) return existing;
+	const created: RouterRuntimeState = { current: null, installations: [] };
+	Object.defineProperty(shared, ROUTER_RUNTIME_KEY, { value: created });
+	return created;
+})();
 
 export const setGlobalRouter = (router: RouterInstance): (() => void) => {
 	const installation = { router };
-	routerInstallations.push(installation);
-	globalRouter = router;
+	routerRuntime.installations.push(installation);
+	routerRuntime.current = router;
 	let removed = false;
 	return () => {
 		if (removed) return;
 		removed = true;
-		const index = routerInstallations.indexOf(installation);
-		if (index >= 0) routerInstallations.splice(index, 1);
-		globalRouter = routerInstallations.at(-1)?.router ?? null;
+		const index = routerRuntime.installations.indexOf(installation);
+		if (index >= 0) routerRuntime.installations.splice(index, 1);
+		routerRuntime.current = routerRuntime.installations.at(-1)?.router ?? null;
 	};
 };
 
-export const getGlobalRouter = (): RouterInstance | null => globalRouter;
+export const getGlobalRouter = (): RouterInstance | null =>
+	routerRuntime.current;
 
 export const installRouter = (
 	router: RouterInstance
 ): RouterInstance & { cleanup: () => void } => {
-	const restoreGlobalRouter = setGlobalRouter(router);
-	const restoreCoreRouter = setCoreGlobalRouter(router);
-
-	const initialRoute = Effect.runSync(SubscriptionRef.get(router.currentRoute));
-	const restoreContext = installRouterContext(router, initialRoute);
-
-	const stopRouter = router.start();
+	let restoreGlobalRouter: (() => void) | undefined;
+	let restoreCoreRouter: (() => void) | undefined;
+	let restoreContext: (() => void) | undefined;
+	let stopRouter: (() => void) | undefined;
+	try {
+		restoreGlobalRouter = setGlobalRouter(router);
+		restoreCoreRouter = setCoreGlobalRouter(router);
+		const initialRoute = Effect.runSync(
+			SubscriptionRef.get(router.currentRoute)
+		);
+		restoreContext = installRouterContext(router, initialRoute);
+		stopRouter = router.start();
+	} catch (error) {
+		restoreContext?.();
+		restoreCoreRouter?.();
+		restoreGlobalRouter?.();
+		throw error;
+	}
 	let cleanedUp = false;
 	const cleanup = (): void => {
 		if (cleanedUp) return;
