@@ -54,7 +54,11 @@ export {
 
 export {
 	createComponentLifecycleSync,
+	LifecycleError,
 	type ComponentLifecycle,
+	type LifecycleErrorHandler,
+	type LifecycleFailure,
+	type LifecycleHook,
 } from './lifecycle.js';
 
 export {

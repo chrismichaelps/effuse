@@ -128,8 +128,20 @@ const createRenderErrorNode = (error: unknown): HTMLElement => {
 };
 
 const runCleanups = (cleanups: CleanupFn[]): void => {
+	const errors: unknown[] = [];
 	for (const cleanup of cleanups) {
-		cleanup();
+		try {
+			cleanup();
+		} catch (error) {
+			errors.push(error);
+		}
+	}
+	if (errors.length === 1) throw errors[0];
+	if (errors.length > 1) {
+		throw new AggregateError(
+			errors,
+			`[Effuse] Renderer cleanup failed in ${errors.length} resources.`
+		);
 	}
 };
 
@@ -524,8 +536,11 @@ const mountDynamicValue = (
 
 	const clearMountedValue = (): void => {
 		removeNodes(currentNodes);
-		runCleanups(dynamicCleanups);
-		dynamicCleanups.length = 0;
+		try {
+			runCleanups(dynamicCleanups);
+		} finally {
+			dynamicCleanups.length = 0;
+		}
 	};
 
 	const setMountedNodes = (nodes: Node[]): void => {
@@ -753,9 +768,7 @@ const mountNode = (
 								bindingCleanups.push(result.cleanup);
 							}
 							cleanups.push(() => {
-								for (const fn of bindingCleanups) {
-									fn();
-								}
+								runCleanups(bindingCleanups);
 							});
 							return element;
 						}),
@@ -795,10 +808,11 @@ const mountNode = (
 							n.parentNode.removeChild(n);
 						}
 					}
-					for (const cleanup of listCleanups) {
-						cleanup();
+					try {
+						runCleanups(listCleanups);
+					} finally {
+						listCleanups.length = 0;
 					}
-					listCleanups.length = 0;
 
 					if (children.length === 0) {
 						currentNodes = [];
@@ -838,9 +852,7 @@ const mountNode = (
 				if (Predicate.isNotNullable(effectHandle)) {
 					effectHandle.stop();
 				}
-				for (const cleanup of listCleanups) {
-					cleanup();
-				}
+				runCleanups(listCleanups);
 			});
 
 			return Effect.succeed([anchor]);
@@ -900,7 +912,7 @@ const mountNode = (
 						node.props,
 						mountedNodes,
 						() => {
-							for (const cleanup of cleanups) cleanup();
+							runCleanups(cleanups);
 						},
 						parent,
 						anchor
@@ -940,12 +952,13 @@ export const MountServiceLive = Layer.succeed(MountService, {
 						return {
 							nodes,
 							cleanup: () => {
-								for (const fn of cleanups) {
-									fn();
-								}
-								for (const nodeItem of nodes) {
-									if (Predicate.isNotNullable(nodeItem.parentNode)) {
-										nodeItem.parentNode.removeChild(nodeItem);
+								try {
+									runCleanups(cleanups);
+								} finally {
+									for (const nodeItem of nodes) {
+										if (Predicate.isNotNullable(nodeItem.parentNode)) {
+											nodeItem.parentNode.removeChild(nodeItem);
+										}
 									}
 								}
 							},

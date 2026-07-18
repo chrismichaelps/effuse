@@ -24,10 +24,15 @@
 
 import { devWarn } from '../utils/dev-warnings.js';
 import { createAsyncContextStorage } from '../utils/async-context.js';
+import {
+	getCurrentLifecycleErrorHandler,
+	type LifecycleErrorHandler,
+} from './lifecycle.js';
 
 export interface ProvideScope {
 	readonly parent: ProvideScope | null;
 	readonly values: Map<symbol | string, unknown>;
+	readonly lifecycleErrorHandler: LifecycleErrorHandler | undefined;
 }
 
 const provideStorage = createAsyncContextStorage<ProvideScope>();
@@ -37,12 +42,11 @@ export const createProvideScope = (
 ): ProvideScope => ({
 	parent,
 	values: new Map(),
+	lifecycleErrorHandler:
+		parent?.lifecycleErrorHandler ?? getCurrentLifecycleErrorHandler(),
 });
 
-export const runWithProvideScope = <T>(
-	scope: ProvideScope,
-	fn: () => T
-): T => {
+export const runWithProvideScope = <T>(scope: ProvideScope, fn: () => T): T => {
 	return provideStorage.run(scope, fn);
 };
 

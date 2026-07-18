@@ -30,7 +30,7 @@ import type { Signal } from '../reactivity/signal.js';
 
 export type MaybePromise<T> = T | Promise<T>;
 
-export type CleanupFn = () => void;
+export type CleanupFn = () => MaybePromise<void>;
 
 export type SetupResult = CleanupFn | undefined;
 

@@ -38,12 +38,20 @@ import {
 	resolveLayerDefinitions,
 } from '../layers/index.js';
 import { mount as mountComponent, type Canvas } from '../canvas/canvas.js';
+import {
+	installLifecycleErrorHandler,
+	type LifecycleErrorHandler,
+} from '../blueprint/lifecycle.js';
 
 export interface AppInstance {
 	unmount: () => Promise<void>;
 }
 
 export type MountOptions = LayerRuntimeOptions;
+
+export interface AppOptions {
+	readonly onError?: LifecycleErrorHandler;
+}
 
 export type AppLayerInput = AnyLayer | CompiledLayer<EffuseLayer>;
 
@@ -67,9 +75,12 @@ export class BaseEffuseApp {
 	private mountedCanvas: Canvas | null = null;
 	private activeMountId: number | null = null;
 	private nextMountId = 1;
+	private restoreLifecycleErrorHandler: (() => void) | null = null;
+	private readonly options: AppOptions;
 
-	constructor(root: Component) {
+	constructor(root: Component, options: AppOptions = {}) {
 		this.rootComponent = root;
+		this.options = options;
 	}
 
 	async useLayers(layers: AppLayerSource): Promise<this> {
@@ -93,6 +104,11 @@ export class BaseEffuseApp {
 		this.layers = resolvedLayers;
 
 		try {
+			if (this.options.onError) {
+				this.restoreLifecycleErrorHandler = installLifecycleErrorHandler(
+					this.options.onError
+				);
+			}
 			this.layerRuntime = await createLayerRuntime(
 				resolvedLayers as AnyResolvedLayer[],
 				options
@@ -100,7 +116,14 @@ export class BaseEffuseApp {
 			this.mountedCanvas = mountComponent(this.rootComponent, selector);
 		} catch (error) {
 			if (this.activeMountId === mountId) {
-				await this.cleanup();
+				try {
+					await this.cleanup();
+				} catch (cleanupError) {
+					throw new AggregateError(
+						[error, cleanupError],
+						'[Effuse] App mount and cleanup both failed.'
+					);
+				}
 			}
 			throw error;
 		}
@@ -117,17 +140,19 @@ export class BaseEffuseApp {
 	private async cleanup(): Promise<void> {
 		const canvas = this.mountedCanvas;
 		const layerRuntime = this.layerRuntime;
-		let cleanupError: unknown;
+		const restoreLifecycleErrorHandler = this.restoreLifecycleErrorHandler;
+		const cleanupErrors: unknown[] = [];
 
 		this.mountedCanvas = null;
 		this.layerRuntime = null;
 		this.activeMountId = null;
+		this.restoreLifecycleErrorHandler = null;
 
 		if (canvas) {
 			try {
 				canvas.dispose();
 			} catch (error) {
-				cleanupError = error;
+				cleanupErrors.push(error);
 			}
 		}
 
@@ -135,12 +160,18 @@ export class BaseEffuseApp {
 			try {
 				await layerRuntime.dispose();
 			} catch (error) {
-				cleanupError ??= error;
+				cleanupErrors.push(error);
 			}
 		}
 
-		if (cleanupError) {
-			throw cleanupError;
+		restoreLifecycleErrorHandler?.();
+
+		if (cleanupErrors.length === 1) throw cleanupErrors[0];
+		if (cleanupErrors.length > 1) {
+			throw new AggregateError(
+				cleanupErrors,
+				`[Effuse] App cleanup failed in ${cleanupErrors.length} resources.`
+			);
 		}
 	}
 }

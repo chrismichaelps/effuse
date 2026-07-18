@@ -216,28 +216,37 @@ export const buildLayerEffect = (
 
 			if (layer.onUnmount) {
 				const onUnmountFn = layer.onUnmount;
-				cleanups.push(() => {
-					try {
-						const maybePromise = onUnmountFn(ctx);
-						if (maybePromise instanceof Promise) {
-							void maybePromise.catch(() => {});
-						}
-					} catch (error: unknown) {
-						handleError(error);
-					}
-				});
+				cleanups.push(() => onUnmountFn(ctx));
 			}
 
 			const cleanup: CleanupFn | undefined =
 				cleanups.length > 0
-					? () => {
+					? async () => {
+							const failures: unknown[] = [];
 							const reversed = cleanups.slice().reverse();
 							for (const cleanupFn of reversed) {
 								try {
-									cleanupFn();
+									await cleanupFn();
 								} catch (error: unknown) {
-									handleError(error);
+									try {
+										handleError(error);
+										failures.push(error);
+									} catch (handlerError) {
+										failures.push(
+											new AggregateError(
+												[error, handlerError],
+												`[Effuse] Layer "${layer.name}" error handler failed during cleanup.`
+											)
+										);
+									}
 								}
+							}
+							if (failures.length === 1) throw failures[0];
+							if (failures.length > 1) {
+								throw new AggregateError(
+									failures,
+									`[Effuse] Layer "${layer.name}" cleanup failed in ${failures.length} callbacks.`
+								);
 							}
 						}
 					: undefined;
@@ -331,15 +340,23 @@ export const buildAllLayersEffect = (
 
 		const aggregatedCleanup: CleanupFn | undefined =
 			results.length > 0
-				? () => {
+				? async () => {
+						const failures: unknown[] = [];
 						for (const { cleanup } of results.slice().reverse()) {
 							if (cleanup) {
 								try {
-									cleanup();
-								} catch {
-									void 0;
+									await cleanup();
+								} catch (error) {
+									failures.push(error);
 								}
 							}
+						}
+						if (failures.length === 1) throw failures[0];
+						if (failures.length > 1) {
+							throw new AggregateError(
+								failures,
+								`[Effuse] Layer cleanup failed in ${failures.length} layers.`
+							);
 						}
 					}
 				: undefined;

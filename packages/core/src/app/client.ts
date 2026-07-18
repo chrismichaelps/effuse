@@ -30,6 +30,7 @@ import {
 	type AppLayerInput,
 	type LazyAppLayerInput,
 	type AppLayerSource,
+	type AppOptions,
 } from './BaseEffuseApp.js';
 
 export {
@@ -39,8 +40,12 @@ export {
 	type AppLayerInput,
 	type LazyAppLayerInput,
 	type AppLayerSource,
+	type AppOptions,
 };
 
-export const createApp = (root: Component): BaseEffuseApp => {
-	return new BaseEffuseApp(root);
+export const createApp = (
+	root: Component,
+	options: AppOptions = {}
+): BaseEffuseApp => {
+	return new BaseEffuseApp(root, options);
 };

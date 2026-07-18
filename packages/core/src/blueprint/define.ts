@@ -32,7 +32,11 @@ import type {
 import type { ScriptContext, ExposedValues } from './script-context.js';
 import { createScriptContext, runMountCallbacks } from './script-context.js';
 import type { ComponentLifecycle } from './lifecycle.js';
-import { withActiveLifecycle } from './lifecycle.js';
+import {
+	LifecycleError,
+	reportLifecycleError,
+	withActiveLifecycle,
+} from './lifecycle.js';
 import {
 	assertLayerBindingsRegistered,
 	type LayerSource,
@@ -198,7 +202,14 @@ export function define<P, E extends ExposedValues, L extends LayerSource>(
 					)
 				);
 			} catch (error) {
-				state.lifecycle.runCleanup();
+				try {
+					state.lifecycle.runCleanup();
+				} catch (cleanupError) {
+					throw new AggregateError(
+						[error, cleanupError],
+						`[Effuse] Component "${componentName}" setup and cleanup both failed.`
+					);
+				}
 				throw error;
 			}
 
@@ -206,13 +217,19 @@ export function define<P, E extends ExposedValues, L extends LayerSource>(
 				Object.assign(state.exposed, scriptResult);
 			}
 
-			queueMicrotask(() => {
-				try {
-					runMountCallbacks(state);
-				} catch {
-					/* mount errors are handled individually inside runMount */
-				}
-			});
+			if (typeof document !== 'undefined') {
+				queueMicrotask(() => {
+					try {
+						runMountCallbacks(state);
+					} catch (error) {
+						if (error instanceof LifecycleError) {
+							reportLifecycleError(error, provideScope.lifecycleErrorHandler);
+							return;
+						}
+						throw error;
+					}
+				});
+			}
 
 			return {
 				exposed: state.exposed,

@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { Effect, Exit, Cause, Option, Layer } from 'effect';
 import {
 	buildAllLayersEffect,
@@ -27,6 +27,35 @@ const runTest = <A, E>(effect: Effect.Effect<A, E, never>) =>
 	Effect.runPromiseExit(effect);
 
 describe('buildLayerEffect', () => {
+	it('awaits every cleanup in reverse order and preserves failures', async () => {
+		const calls: string[] = [];
+		const onError = vi.fn();
+		const layer: AnyResolvedLayer = {
+			name: 'cleanup-contract',
+			setup: () => async () => {
+				await Promise.resolve();
+				calls.push('setup');
+				throw new Error('setup cleanup failed');
+			},
+			onUnmount: async () => {
+				await Promise.resolve();
+				calls.push('unmount');
+				throw new Error('unmount failed');
+			},
+			onError,
+		} as unknown as AnyResolvedLayer;
+		const result = await Effect.runPromise(
+			Effect.provide(buildLayerEffect(layer, [layer]), testLayer)
+		);
+
+		await expect(result.cleanup?.()).rejects.toMatchObject({
+			name: 'AggregateError',
+			errors: [expect.any(Error), expect.any(Error)],
+		});
+		expect(calls).toEqual(['unmount', 'setup']);
+		expect(onError).toHaveBeenCalledTimes(2);
+	});
+
 	it('should fail with LayerSetupError when onMount throws', async () => {
 		const layer: AnyResolvedLayer = {
 			name: 'failing-mount',
@@ -45,7 +74,9 @@ describe('buildLayerEffect', () => {
 			expect(Option.isSome(errorOpt)).toBe(true);
 			if (Option.isSome(errorOpt)) {
 				expect(errorOpt.value).toBeInstanceOf(LayerSetupError);
-				expect((errorOpt.value as LayerSetupError).layerName).toBe('failing-mount');
+				expect((errorOpt.value as LayerSetupError).layerName).toBe(
+					'failing-mount'
+				);
 				expect((errorOpt.value as LayerSetupError).phase).toBe('onMount');
 			}
 		}
@@ -69,7 +100,9 @@ describe('buildLayerEffect', () => {
 			expect(Option.isSome(errorOpt)).toBe(true);
 			if (Option.isSome(errorOpt)) {
 				expect(errorOpt.value).toBeInstanceOf(LayerSetupError);
-				expect((errorOpt.value as LayerSetupError).layerName).toBe('failing-setup');
+				expect((errorOpt.value as LayerSetupError).layerName).toBe(
+					'failing-setup'
+				);
 				expect((errorOpt.value as LayerSetupError).phase).toBe('setup');
 			}
 		}

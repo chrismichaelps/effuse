@@ -29,5 +29,6 @@ export {
 	type AppLayerInput,
 	type LazyAppLayerInput,
 	type AppLayerSource,
+	type AppOptions,
 } from './EffuseApp.js';
 export { createApp } from './createApp.js';
