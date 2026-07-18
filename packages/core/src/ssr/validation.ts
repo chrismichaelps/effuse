@@ -55,6 +55,9 @@ export type ServerValidationResult<T> =
 export type ServerValidator<T> =
 	| ((value: unknown) => T | ServerValidationResult<T>)
 	| {
+			validateSync: (value: unknown, context?: string) => T;
+	  }
+	| {
 			parse: (value: unknown) => T;
 	  }
 	| {
@@ -143,6 +146,13 @@ const normalizeErrorIssues = (
 	if (isRecord(error) && Array.isArray(error.issues)) {
 		return normalizeIssues(error.issues);
 	}
+	if (
+		isRecord(error) &&
+		typeof error.message === 'string' &&
+		typeof error.propName === 'string'
+	) {
+		return [{ message: error.message, path: error.propName }];
+	}
 	if (error instanceof Error) {
 		return [{ message: error.message }];
 	}
@@ -163,6 +173,9 @@ const validatorResult = <T>(
 ): T | ServerValidationResult<T> => {
 	if (typeof validator === 'function') {
 		return validator(value);
+	}
+	if ('validateSync' in validator) {
+		return validator.validateSync(value, 'server request');
 	}
 
 	if ('safeParse' in validator) {
@@ -195,11 +208,7 @@ export const validateServerValue = <T>(
 		if (error instanceof ServerValidationError) {
 			throw error;
 		}
-		throw new ServerValidationError(source, [
-			{
-				message: error instanceof Error ? error.message : String(error),
-			},
-		]);
+		throw new ServerValidationError(source, normalizeErrorIssues(error));
 	}
 };
 

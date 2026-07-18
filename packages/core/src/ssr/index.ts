@@ -161,6 +161,14 @@ export {
 } from './server-errors.js';
 
 export {
+	serverSchema,
+	type ServerOptionalSchema,
+	type ServerSchemaInfer,
+	type ServerSchemaInput,
+	type ServerSchemaOutput,
+} from './server-schema.js';
+
+export {
 	createServerValidationErrorBody,
 	createServerValidationHelpers,
 	isServerValidationErrorBody,
