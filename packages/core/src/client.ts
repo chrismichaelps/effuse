@@ -495,6 +495,13 @@ export {
 } from './refs/index.js';
 
 export {
+	defineServerRequest,
+	type ServerRequestContract,
+	type ServerRequestDefinition,
+	type ServerRequestOutput,
+} from './ssr/request-contract.js';
+
+export {
 	serverSchema,
 	type ServerOptionalSchema,
 	type ServerSchemaInfer,
