@@ -1,6 +1,11 @@
 import { describe, expect, expectTypeOf, it, vi } from 'vitest';
+import { Schema } from 'effect';
 import { define, defineProps } from '../../blueprint/define.js';
-import { PropSchema, PropsValidationError } from '../../blueprint/props.js';
+import {
+	PropSchema,
+	PropsSchemaConflictError,
+	PropsValidationError,
+} from '../../blueprint/props.js';
 
 type TestBlueprint = {
 	state: (props: Record<string, unknown>) => Record<string, unknown>;
@@ -78,6 +83,98 @@ describe('define props runtime contract', () => {
 			})
 		).toThrow(PropsValidationError);
 		expect(blueprint.view({ props: {}, state })).toBe('San Juan:member');
+	});
+
+	it('infers caller inputs separately from resolved schema props', () => {
+		const addressSchema = PropSchema.struct({
+			city: PropSchema.required(PropSchema.String),
+			unit: PropSchema.optional(PropSchema.String),
+		});
+		const propsSchema = PropSchema.struct({
+			address: PropSchema.optional(addressSchema),
+			count: PropSchema.required(Schema.NumberFromString),
+			name: PropSchema.required(PropSchema.String),
+			role: PropSchema.optional(PropSchema.String, 'member'),
+		});
+		const Component = define({
+			props: defineProps(propsSchema),
+			script: ({ props }) => {
+				const address: { city: string; unit: string | undefined } | undefined =
+					props.address;
+				void address;
+				expectTypeOf(props.count).toEqualTypeOf<number>();
+				expectTypeOf(props.role).toEqualTypeOf<string>();
+				return {};
+			},
+			template: ({ count, name, role }) => `${name}:${role}:${String(count)}`,
+		});
+
+		expectTypeOf(Component).toBeCallableWith({ count: '3', name: 'Effuse' });
+		expectTypeOf(Component).toBeCallableWith({
+			address: { city: 'San Juan' },
+			count: '3',
+			name: 'Effuse',
+		});
+		if (false) {
+			// @ts-expect-error required schema inputs cannot be omitted
+			Component({ name: 'Effuse' });
+			// @ts-expect-error transforms expose their encoded input to callers
+			Component({ count: 3, name: 'Effuse' });
+		}
+
+		const blueprint = asBlueprint(Component);
+		const state = blueprint.state({ count: '3', name: 'Effuse' });
+		expect(blueprint.view({ props: {}, state })).toBe('Effuse:member:3');
+		(state.updateProps as (props: Record<string, unknown>) => void)({
+			count: '4',
+			name: 'Effuse',
+		});
+		expect(blueprint.view({ props: {}, state })).toBe('Effuse:member:4');
+		expect(() =>
+			(state.updateProps as (props: Record<string, unknown>) => void)({
+				count: 4,
+				name: 'Effuse',
+			})
+		).toThrow(PropsValidationError);
+		expect(blueprint.view({ props: {}, state })).toBe('Effuse:member:4');
+	});
+
+	it('allows callers to omit an entirely defaulted schema', () => {
+		const schema = PropSchema.struct({
+			role: PropSchema.optional(PropSchema.String, 'member'),
+		});
+		const declaration = defineProps(schema);
+		const Component = define({
+			props: declaration,
+			script: ({ props }) => {
+				expectTypeOf(props.role).toEqualTypeOf<string>();
+				return {};
+			},
+			template: ({ role }) => role,
+		});
+
+		expect(declaration).toEqual({});
+		expectTypeOf(Component).toBeCallableWith();
+		expect(asBlueprint(Component).state({})).toBeDefined();
+	});
+
+	it('rejects competing schema sources', () => {
+		const first = PropSchema.struct({
+			name: PropSchema.required(PropSchema.String),
+		});
+		const second = PropSchema.struct({
+			name: PropSchema.required(PropSchema.String),
+		});
+
+		expect(() =>
+			define({
+				name: 'ConflictingProps',
+				props: defineProps(first),
+				propsSchema: second,
+				script: () => ({}),
+				template: ({ name }) => name,
+			})
+		).toThrow(PropsSchemaConflictError);
 	});
 
 	it('cleans lifecycle resources when script setup throws', () => {
