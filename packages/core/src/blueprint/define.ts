@@ -47,17 +47,29 @@ import {
 	getCurrentProvideScope,
 	type ProvideScope,
 } from './provide-inject.js';
-import type { AnyPropSchemaBuilder, PropSchemaBuilder } from './props.js';
+import type {
+	AnyPropSchemaBuilder,
+	PropSchemaBuilder,
+	PropSchemaInput,
+	PropSchemaOutput,
+} from './props.js';
+import { PropsSchemaConflictError } from './props.js';
 
 export type TemplateArgs<E extends ExposedValues> = E & {
 	readonly children?: EffuseChild;
 };
 
 declare const DEFINE_PROPS_TYPE: unique symbol;
+declare const DEFINE_PROPS_INPUT: unique symbol;
 
 /** A type-only props declaration produced by defineProps(). */
-export interface DefinePropsDeclaration<P> {
+export interface DefinePropsDeclaration<P, Input = P> {
 	readonly [DEFINE_PROPS_TYPE]: P;
+	readonly [DEFINE_PROPS_INPUT]: Input;
+	readonly schema?: PropSchemaBuilder<
+		P & Record<string, unknown>,
+		Input & Record<string, unknown>
+	>;
 }
 
 function isPropsDeclaration(
@@ -95,9 +107,10 @@ export interface DefineOptionsWithDeclaredProps<
 	P,
 	E extends ExposedValues,
 	L extends LayerSource = readonly never[],
+	Input = P,
 > {
 	name?: string;
-	props: DefinePropsDeclaration<P>;
+	props: DefinePropsDeclaration<P, Input>;
 	propsSchema?: AnyPropSchemaBuilder;
 	layers?: L;
 	script: (ctx: ScriptContext<P, L>) => E | undefined;
@@ -137,7 +150,8 @@ export function define<
 	P,
 	E extends ExposedValues = ExposedValues,
 	L extends LayerSource = readonly never[],
->(options: DefineOptionsWithDeclaredProps<P, E, L>): Component<P>;
+	Input = P,
+>(options: DefineOptionsWithDeclaredProps<P, E, L, Input>): Component<P, Input>;
 export function define<
 	P extends Record<string, unknown>,
 	E extends ExposedValues = ExposedValues,
@@ -160,7 +174,17 @@ export function define<P, E extends ExposedValues, L extends LayerSource>(
 		options.props && !declaredProps
 			? (options.props as Record<string, unknown>)
 			: undefined;
-	const propsSchema = options.propsSchema as
+	const declarationSchema = declaredProps
+		? (options.props as DefinePropsDeclaration<P, unknown>).schema
+		: undefined;
+	if (
+		declarationSchema &&
+		options.propsSchema &&
+		declarationSchema !== options.propsSchema
+	) {
+		throw new PropsSchemaConflictError({ componentName });
+	}
+	const propsSchema = (declarationSchema ?? options.propsSchema) as
 		| PropSchemaBuilder<Record<string, unknown>>
 		| undefined;
 	const resolveProps = (props: unknown): P => {
@@ -277,9 +301,11 @@ export type InferProps<D> =
 				: never;
 
 /**
- * Type-only helper for declaring component props without dummy runtime values.
+ * Declares component props without dummy runtime values.
  *
- * Returns an empty object at runtime — type checking happens at compile time.
+ * Pass a PropSchema builder to infer optional caller inputs separately from
+ * decoded props available to script and template. The generic-only form remains
+ * available for declarations that do not need runtime validation.
  *
  * @example
  * ```ts
@@ -289,11 +315,37 @@ export type InferProps<D> =
  *   template: (ctx) => <div>{ctx.name}</div>,
  * });
  * ```
+ *
+ * @example
+ * ```ts
+ * const schema = PropSchema.struct({
+ *   name: PropSchema.required(PropSchema.String),
+ *   role: PropSchema.optional(PropSchema.String, 'member'),
+ * });
+ * const Comp = define({
+ *   props: defineProps(schema),
+ *   script: ({ props }) => ({ label: `${props.name}:${props.role}` }),
+ *   template: ({ label }) => label,
+ * });
+ * // Comp({ name: 'Effuse' }); role is optional here and string inside Comp.
+ * ```
  */
-export const defineProps = <P>(): DefinePropsDeclaration<P> => {
+export function defineProps<P>(): DefinePropsDeclaration<P>;
+export function defineProps<S extends AnyPropSchemaBuilder>(
+	schema: S
+): DefinePropsDeclaration<PropSchemaOutput<S>, PropSchemaInput<S>>;
+export function defineProps(
+	schema?: AnyPropSchemaBuilder
+): DefinePropsDeclaration<Record<string, unknown>, Record<string, unknown>> {
 	const declaration = {};
 	Object.defineProperty(declaration, Symbol.for('effuse.defineProps'), {
 		value: true,
 	});
-	return declaration as DefinePropsDeclaration<P>;
-};
+	if (schema) {
+		Object.defineProperty(declaration, 'schema', { value: schema });
+	}
+	return declaration as DefinePropsDeclaration<
+		Record<string, unknown>,
+		Record<string, unknown>
+	>;
+}

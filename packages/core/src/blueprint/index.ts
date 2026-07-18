@@ -64,10 +64,13 @@ export {
 export {
 	PropSchema,
 	PropsValidationError,
+	PropsSchemaConflictError,
 	type PropDefinition,
 	type PropSchemaBuilder,
 	type AnyPropSchemaBuilder,
 	type PropSchemaInfer,
+	type PropSchemaInput,
+	type PropSchemaOutput,
 } from './props.js';
 
 export {

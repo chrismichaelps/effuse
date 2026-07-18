@@ -40,8 +40,11 @@ type ComponentArgs<P> = keyof P extends never
 		? [props?: P]
 		: [props: P];
 
-export type Component<P = Record<string, unknown>> = BlueprintDef<P> &
-	((...args: ComponentArgs<P>) => EffuseNode);
+export type Component<
+	ResolvedProps = Record<string, unknown>,
+	InputProps = ResolvedProps,
+> = BlueprintDef<ResolvedProps> &
+	((...args: ComponentArgs<InputProps>) => EffuseNode);
 
 export type EffuseNode = Data.TaggedEnum<{
 	Element: {

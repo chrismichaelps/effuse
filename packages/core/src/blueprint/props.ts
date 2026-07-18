@@ -50,35 +50,73 @@ export class PropsValidationError extends Data.TaggedError(
 	}
 }
 
-export interface PropDefinition<T> {
-	readonly schema: Schema.Schema<T>;
-	readonly required: boolean;
-	readonly defaultValue?: T;
+export class PropsSchemaConflictError extends Data.TaggedError(
+	'PropsSchemaConflictError'
+)<{
+	readonly componentName: string;
+}> {
+	get message(): string {
+		return `[Effuse] Component "${this.componentName}" received different schemas through defineProps(schema) and propsSchema. Keep one schema as the source of truth.`;
+	}
+}
+
+export interface PropDefinition<
+	Output,
+	Input = Output,
+	Required extends boolean = boolean,
+> {
+	readonly schema: Schema.Schema<Output, Input>;
+	readonly required: Required;
+	readonly defaultValue?: Output;
 	readonly _tag: 'PropDefinition';
 }
 
-export interface PropSchemaBuilder<T extends Record<string, unknown>> {
+export interface PropSchemaBuilder<
+	Output extends Record<string, unknown>,
+	Input extends Record<string, unknown> = Output,
+> {
 	readonly _schema: {
-		[K in keyof T]: PropDefinition<T[K]>;
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- definitions retain their concrete types in the builder value.
+		[K in keyof Output]: PropDefinition<any, any, boolean>;
 	};
-	readonly schema: Schema.Schema<T>;
-	readonly validateSync: (props: unknown, componentName?: string) => T;
+	readonly schema: Schema.Schema<Output, Input>;
+	readonly validateSync: (props: unknown, componentName?: string) => Output;
 }
 
 export interface AnyPropSchemaBuilder {
 	readonly validateSync: (props: unknown, componentName?: string) => unknown;
 }
 
-type ExtractPropType<P> = P extends PropDefinition<infer T> ? T : never;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- preserves each definition's invariant schema types during inference.
+type AnyPropDefinition = PropDefinition<any, any, boolean>;
+type PropDefinitionParts<P> =
+	P extends PropDefinition<infer O, infer I, infer R> ? [O, I, R] : never;
+type ExtractPropOutput<P> = PropDefinitionParts<P>[0];
+type ExtractPropInput<P> = PropDefinitionParts<P>[1];
+type RequiredDefinitionKeys<D> = {
+	[K in keyof D]-?: PropDefinitionParts<D[K]>[2] extends true ? K : never;
+}[keyof D];
+type OptionalDefinitionKeys<D> = Exclude<keyof D, RequiredDefinitionKeys<D>>;
+type SchemaOutput<D> = { [K in keyof D]: ExtractPropOutput<D[K]> };
+type SchemaInput<D> = {
+	[K in RequiredDefinitionKeys<D>]: ExtractPropInput<D[K]>;
+} & {
+	[K in OptionalDefinitionKeys<D>]?: ExtractPropInput<D[K]>;
+};
 
 // Build required prop definition
-function required<T>(schema: Schema.Schema<T>): PropDefinition<T>;
-function required<T extends Record<string, unknown>>(
-	builder: PropSchemaBuilder<T>
-): PropDefinition<T>;
-function required<T>(
-	schemaOrBuilder: Schema.Schema<T> | PropSchemaBuilder<Record<string, unknown>>
-): PropDefinition<T> {
+function required<S extends Schema.Schema.AnyNoContext>(
+	schema: S
+): PropDefinition<Schema.Schema.Type<S>, Schema.Schema.Encoded<S>, true>;
+function required<
+	O extends Record<string, unknown>,
+	I extends Record<string, unknown>,
+>(builder: PropSchemaBuilder<O, I>): PropDefinition<O, I, true>;
+function required(
+	schemaOrBuilder:
+		| Schema.Schema.AnyNoContext
+		| PropSchemaBuilder<Record<string, unknown>, Record<string, unknown>>
+): AnyPropDefinition {
 	if (
 		Predicate.isObject(schemaOrBuilder) &&
 		Predicate.hasProperty(schemaOrBuilder, 'validateSync') &&
@@ -86,37 +124,53 @@ function required<T>(
 	) {
 		const builder = schemaOrBuilder;
 		return {
-			schema: builder.schema as unknown as Schema.Schema<T>,
+			schema: builder.schema as Schema.Schema<unknown, unknown>,
 			required: true,
 			_tag: 'PropDefinition',
 		};
 	}
 	return {
-		schema: schemaOrBuilder as unknown as Schema.Schema<T>,
+		schema: schemaOrBuilder as Schema.Schema<unknown, unknown>,
 		required: true,
 		_tag: 'PropDefinition',
 	};
 }
 
-function optional<T>(schema: Schema.Schema<T>): PropDefinition<T | undefined>;
-function optional<T>(
-	schema: Schema.Schema<T>,
-	defaultValue: T
-): PropDefinition<T>;
-function optional<T extends Record<string, unknown>>(
-	builder: PropSchemaBuilder<T>
-): PropDefinition<T | undefined>;
-function optional<T extends Record<string, unknown>>(
-	builder: PropSchemaBuilder<T>,
-	defaultValue: T
-): PropDefinition<T>;
-function optional<T>(
+function optional<S extends Schema.Schema.AnyNoContext>(
+	schema: S
+): PropDefinition<
+	Schema.Schema.Type<S> | undefined,
+	Schema.Schema.Encoded<S> | undefined,
+	false
+>;
+function optional<S extends Schema.Schema.AnyNoContext>(
+	schema: S,
+	defaultValue: Schema.Schema.Type<S>
+): PropDefinition<
+	Schema.Schema.Type<S>,
+	Schema.Schema.Encoded<S> | undefined,
+	false
+>;
+function optional<
+	O extends Record<string, unknown>,
+	I extends Record<string, unknown>,
+>(
+	builder: PropSchemaBuilder<O, I>
+): PropDefinition<O | undefined, I | undefined, false>;
+function optional<
+	O extends Record<string, unknown>,
+	I extends Record<string, unknown>,
+>(
+	builder: PropSchemaBuilder<O, I>,
+	defaultValue: O
+): PropDefinition<O, I | undefined, false>;
+function optional(
 	schemaOrBuilder:
-		| Schema.Schema<T>
-		| PropSchemaBuilder<Record<string, unknown>>,
-	defaultValue?: T
-): PropDefinition<T | undefined> {
-	let baseSchema: Schema.Schema<T>;
+		| Schema.Schema.AnyNoContext
+		| PropSchemaBuilder<Record<string, unknown>, Record<string, unknown>>,
+	defaultValue?: unknown
+): AnyPropDefinition {
+	let baseSchema: Schema.Schema<unknown, unknown>;
 
 	if (
 		Predicate.isObject(schemaOrBuilder) &&
@@ -124,18 +178,19 @@ function optional<T>(
 		Predicate.hasProperty(schemaOrBuilder, 'schema')
 	) {
 		const builder = schemaOrBuilder;
-		baseSchema = builder.schema as unknown as Schema.Schema<T>;
+		baseSchema = builder.schema as Schema.Schema<unknown, unknown>;
 	} else {
-		baseSchema = schemaOrBuilder as unknown as Schema.Schema<T>;
+		baseSchema = schemaOrBuilder as Schema.Schema<unknown, unknown>;
 	}
 
 	const schema = (defaultValue !== undefined
 		? Schema.optional(baseSchema).pipe(
-				Schema.withDecodingDefault(
-					() => defaultValue as unknown as Exclude<T, undefined>
-				)
+				Schema.withDecodingDefault(() => defaultValue)
 			)
-		: Schema.optional(baseSchema)) as unknown as Schema.Schema<T | undefined>;
+		: Schema.optional(baseSchema)) as unknown as Schema.Schema<
+		unknown,
+		unknown
+	>;
 
 	return {
 		schema,
@@ -146,11 +201,11 @@ function optional<T>(
 }
 
 // Build property structure definition
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const struct = <const D extends Record<string, PropDefinition<any>>>(
+const struct = <const D extends Record<string, AnyPropDefinition>>(
 	definitions: D
-): PropSchemaBuilder<{ [K in keyof D]: ExtractPropType<D[K]> }> => {
-	type ResultType = { [K in keyof D]: ExtractPropType<D[K]> };
+): PropSchemaBuilder<SchemaOutput<D>, SchemaInput<D>> => {
+	type ResultType = SchemaOutput<D>;
+	type InputType = SchemaInput<D>;
 
 	const schemaFields: Record<string, Schema.Schema<unknown>> = {};
 	for (const [key, def] of Object.entries(definitions)) {
@@ -221,9 +276,10 @@ const struct = <const D extends Record<string, PropDefinition<any>>>(
 
 	return {
 		_schema: definitions as {
-			[K in keyof ResultType]: PropDefinition<ResultType[K]>;
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any -- runtime definitions preserve schema-specific variance.
+			[K in keyof ResultType]: PropDefinition<any, any, boolean>;
 		},
-		schema: compositeSchema as unknown as Schema.Schema<ResultType>,
+		schema: compositeSchema as unknown as Schema.Schema<ResultType, InputType>,
 		validateSync,
 	};
 };
@@ -244,5 +300,8 @@ export const PropSchema = {
 	Optional: Schema.optional,
 };
 
-export type PropSchemaInfer<S> =
-	S extends PropSchemaBuilder<infer T> ? T : never;
+type PropSchemaParts<S> =
+	S extends PropSchemaBuilder<infer O, infer I> ? [O, I] : never;
+export type PropSchemaInfer<S> = PropSchemaParts<S>[0];
+export type PropSchemaOutput<S> = PropSchemaParts<S>[0];
+export type PropSchemaInput<S> = PropSchemaParts<S>[1];
