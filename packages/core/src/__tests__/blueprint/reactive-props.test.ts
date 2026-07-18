@@ -52,7 +52,9 @@ describe('createReactiveProps', () => {
 	});
 
 	it('should add new keys via update', () => {
-		const { proxy, update } = createReactiveProps<{ a: number; b?: number }>({ a: 1 });
+		const { proxy, update } = createReactiveProps<{ a: number; b?: number }>({
+			a: 1,
+		});
 
 		expect(proxy.a).toBe(1);
 		expect(proxy.b).toBeUndefined();
@@ -78,7 +80,9 @@ describe('createReactiveProps', () => {
 	});
 
 	it('should enumerate keys via Object.keys', () => {
-		const { proxy, update } = createReactiveProps<{ x: number; y?: number }>({ x: 1 });
+		const { proxy, update } = createReactiveProps<{ x: number; y?: number }>({
+			x: 1,
+		});
 
 		expect(Object.keys(proxy)).toEqual(['x']);
 
@@ -87,13 +91,31 @@ describe('createReactiveProps', () => {
 	});
 
 	it('should support the in operator', () => {
-		const { proxy, update } = createReactiveProps<{ a: number; b?: number }>({ a: 1 });
+		const { proxy, update } = createReactiveProps<{ a: number; b?: number }>({
+			a: 1,
+		});
 
 		expect('a' in proxy).toBe(true);
 		expect('b' in proxy).toBe(false);
 
 		update({ a: 1, b: 2 });
 		expect('b' in proxy).toBe(true);
+	});
+
+	it('should preserve and reactively update symbol keys', () => {
+		const key = Symbol('prop');
+		const { proxy, signals, update } = createReactiveProps({
+			[key]: 'initial',
+		});
+		const current = computed(() => proxy[key]);
+
+		expect(current.value).toBe('initial');
+		expect(key in proxy).toBe(true);
+		expect(Reflect.ownKeys(proxy)).toContain(key);
+		expect(signals.has(key)).toBe(true);
+
+		update({ [key]: 'updated' });
+		expect(current.value).toBe('updated');
 	});
 
 	describe('readonly enforcement', () => {
@@ -150,7 +172,10 @@ describe('reactive props — blueprint integration', () => {
 			state: (props: Record<string, unknown>) => Record<string, unknown>;
 		};
 		const state = blueprint.state({ count: 5 });
-		expect((state as { exposed: { doubled: { value: number } } }).exposed.doubled.value).toBe(10);
+		expect(
+			(state as { exposed: { doubled: { value: number } } }).exposed.doubled
+				.value
+		).toBe(10);
 	});
 
 	it('should pass reactive props to template', () => {
@@ -167,7 +192,10 @@ describe('reactive props — blueprint integration', () => {
 
 		const blueprint = Component as unknown as {
 			state: (props: Record<string, unknown>) => Record<string, unknown>;
-			view: (ctx: { props: Record<string, unknown>; state: Record<string, unknown> }) => unknown;
+			view: (ctx: {
+				props: Record<string, unknown>;
+				state: Record<string, unknown>;
+			}) => unknown;
 		};
 
 		const state = blueprint.state({ label: 'test' });

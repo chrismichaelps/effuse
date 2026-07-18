@@ -26,11 +26,11 @@ import { signal } from '../reactivity/index.js';
 import type { Signal } from '../reactivity/signal.js';
 import { devWarn } from '../utils/dev-warnings.js';
 
-export interface ReactiveProps<P extends Record<string, unknown>> {
+export interface ReactiveProps<P extends object> {
 	/** Readonly reactive proxy — each read tracks the underlying signal. */
 	readonly proxy: Readonly<P>;
 	/** Underlying signals for each prop key. */
-	readonly signals: Map<string, Signal<unknown>>;
+	readonly signals: Map<string | symbol, Signal<unknown>>;
 	/** Update signal values from new props (for in-place reconciliation). */
 	update(newProps: P): void;
 }
@@ -47,45 +47,50 @@ export interface ReactivePropsOptions {
  *
  * Writing a property logs a dev-mode warning (props are readonly by design).
  */
-export const createReactiveProps = <P extends Record<string, unknown>>(
+export const createReactiveProps = <P extends object>(
 	initialProps: P,
 	options: ReactivePropsOptions = {}
 ): ReactiveProps<P> => {
-	const signals = new Map<string, Signal<unknown>>();
+	const signals = new Map<string | symbol, Signal<unknown>>();
+	const enumerableKeys = (value: object): Array<string | symbol> =>
+		Reflect.ownKeys(value).filter((key) =>
+			Object.prototype.propertyIsEnumerable.call(value, key)
+		);
+	const readValue = (value: object, key: PropertyKey): unknown =>
+		(value as Record<PropertyKey, unknown>)[key];
+	const formatKey = (key: string | symbol): string =>
+		typeof key === 'symbol' ? String(key) : `"${key}"`;
 
-	for (const [key, value] of Object.entries(initialProps)) {
-		signals.set(key, signal(value));
+	for (const key of enumerableKeys(initialProps)) {
+		signals.set(key, signal(readValue(initialProps, key)));
 	}
 
 	const proxy = new Proxy({} as P, {
 		get(_, key: string | symbol) {
-			if (typeof key === 'symbol') return undefined;
 			const sig = signals.get(key);
 			if (sig === undefined && options.warnOnMissing === true) {
 				devWarn(
-					`Accessed missing prop "${key}". ` +
+					`Accessed missing prop ${formatKey(key)}. ` +
 						`Did you forget to pass it, or is this a typo?`
 				);
 			}
 			return sig !== undefined ? sig.value : undefined;
 		},
 		set(_, key: string | symbol) {
-			if (typeof key === 'string') {
-				devWarn(
-					`Attempted to mutate prop "${key}". Props are readonly. ` +
-						`Use local state (signal/computed) or emit events to the parent instead.`
-				);
-			}
+			devWarn(
+				`Attempted to mutate prop ${formatKey(key)}. Props are readonly. ` +
+					`Use local state (signal/computed) or emit events to the parent instead.`
+			);
 			return true;
 		},
 		has(_, key: string | symbol) {
-			return typeof key === 'string' && signals.has(key);
+			return signals.has(key);
 		},
 		ownKeys() {
 			return Array.from(signals.keys());
 		},
 		getOwnPropertyDescriptor(_, key: string | symbol) {
-			if (typeof key === 'string' && signals.has(key)) {
+			if (signals.has(key)) {
 				return {
 					enumerable: true,
 					configurable: true,
@@ -96,13 +101,14 @@ export const createReactiveProps = <P extends Record<string, unknown>>(
 	});
 
 	const update = (newProps: P): void => {
-		const newKeys = new Set(Object.keys(newProps));
+		const newKeys = new Set(enumerableKeys(newProps));
 		for (const key of signals.keys()) {
 			if (!newKeys.has(key)) {
 				signals.delete(key);
 			}
 		}
-		for (const [key, value] of Object.entries(newProps)) {
+		for (const key of newKeys) {
+			const value = readValue(newProps, key);
 			const existing = signals.get(key);
 			if (existing) {
 				(existing as Signal<unknown>).value = value;

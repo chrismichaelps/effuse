@@ -54,6 +54,7 @@ import type {
 	PropSchemaOutput,
 } from './props.js';
 import { PropsSchemaConflictError } from './props.js';
+import { devWarn } from '../utils/dev-warnings.js';
 
 export type TemplateArgs<E extends ExposedValues> = E & {
 	readonly children?: EffuseChild;
@@ -82,11 +83,46 @@ function isPropsDeclaration(
 	);
 }
 
-/** Merged template context: exposed values + props + children. */
-export type TemplateContext<E extends ExposedValues, P> = E &
-	Readonly<P> & {
+export type TemplateReservedKey = 'props' | 'exposed' | 'children';
+
+type ExplicitKeys<T> = string extends keyof T
+	? never
+	: number extends keyof T
+		? never
+		: symbol extends keyof T
+			? never
+			: keyof T;
+
+type FlatExposedValues<E extends ExposedValues, P> = Omit<
+	E,
+	ExplicitKeys<P> | TemplateReservedKey
+>;
+
+type FlatPropValues<E extends ExposedValues, P> = Omit<
+	Readonly<P>,
+	ExplicitKeys<E> | TemplateReservedKey
+>;
+
+/**
+ * Template values with explicit ownership and compatibility-safe flat access.
+ * Keys shared by props and exposed values, plus reserved context keys, are
+ * available only through their `props` or `exposed` namespace.
+ */
+export type TemplateContext<E extends ExposedValues, P> = FlatExposedValues<
+	E,
+	P
+> &
+	FlatPropValues<E, P> & {
+		readonly props: Readonly<P>;
+		readonly exposed: Readonly<E>;
 		readonly children?: EffuseChild;
 	};
+
+const TEMPLATE_RESERVED_KEYS = new Set<TemplateReservedKey>([
+	'props',
+	'exposed',
+	'children',
+]);
 
 export interface DefineOptionsWithInferredProps<
 	P,
@@ -134,17 +170,90 @@ export interface DefineOptions<
 	__hmrId?: string;
 }
 
-interface DefineState<E extends ExposedValues> {
+interface DefineState<E extends ExposedValues, P> {
 	exposed: E;
 	lifecycle: ComponentLifecycle;
 	updateProps: (props: Record<string, unknown>) => void;
-	_template: (ctx: TemplateContext<E, unknown>) => EffuseChild;
+	_template: (ctx: TemplateContext<E, P>) => EffuseChild;
 	/** Reactive props proxy created by script context. */
 	_reactiveProps?: Readonly<Record<string, unknown>>;
 	/** Provide scope for component-level provide/inject. */
 	_provideScope?: ProvideScope;
+	/** Keys already reported by the template-context collision diagnostic. */
+	_templateWarnings: Set<PropertyKey>;
 	[key: string]: unknown;
 }
+
+const createTemplateContext = <E extends ExposedValues, P>(
+	componentName: string,
+	state: DefineState<E, P>,
+	props: Readonly<Record<string, unknown>>,
+	children: EffuseChild | undefined
+): TemplateContext<E, P> => {
+	const exposed = state.exposed as Record<PropertyKey, unknown>;
+	const propValues = props as Readonly<Record<PropertyKey, unknown>>;
+	const exposedKeys = Reflect.ownKeys(exposed).filter((key) =>
+		Object.prototype.propertyIsEnumerable.call(exposed, key)
+	);
+	const propKeys = Reflect.ownKeys(propValues).filter((key) =>
+		Object.prototype.propertyIsEnumerable.call(propValues, key)
+	);
+	const exposedKeySet = new Set(exposedKeys);
+	const propKeySet = new Set(propKeys);
+	const ambiguousKeys = new Set<PropertyKey>();
+	const diagnosticKeys = new Set<PropertyKey>();
+
+	for (const key of exposedKeys) {
+		if (
+			propKeySet.has(key) ||
+			TEMPLATE_RESERVED_KEYS.has(key as TemplateReservedKey)
+		) {
+			ambiguousKeys.add(key);
+			diagnosticKeys.add(key);
+		}
+	}
+	for (const key of propKeys) {
+		if (
+			exposedKeySet.has(key) ||
+			TEMPLATE_RESERVED_KEYS.has(key as TemplateReservedKey)
+		) {
+			ambiguousKeys.add(key);
+			if (key !== 'children') diagnosticKeys.add(key);
+		}
+	}
+
+	const flatValues: Record<PropertyKey, unknown> = {};
+	for (const key of exposedKeys) {
+		if (!ambiguousKeys.has(key)) flatValues[key] = exposed[key];
+	}
+	for (const key of propKeys) {
+		if (!ambiguousKeys.has(key)) flatValues[key] = propValues[key];
+	}
+
+	const newWarnings = [...diagnosticKeys].filter(
+		(key) => !state._templateWarnings.has(key)
+	);
+	if (newWarnings.length > 0) {
+		for (const key of newWarnings) state._templateWarnings.add(key);
+		const keys = newWarnings.map((key) =>
+			typeof key === 'symbol' ? String(key) : `"${key}"`
+		);
+		devWarn(
+			`Component "${componentName}" cannot flatten template ${
+				newWarnings.length === 1 ? 'key' : 'keys'
+			} ${keys.join(', ')} because ${
+				newWarnings.length === 1 ? 'it collides or is' : 'they collide or are'
+			} reserved. Use ctx.props or ctx.exposed; ctx.children remains rendered child content.`
+		);
+	}
+
+	return {
+		...flatValues,
+		props,
+		exposed: state.exposed,
+		children,
+	} as TemplateContext<E, P>;
+};
 
 export function define<
 	P,
@@ -263,23 +372,20 @@ export function define<P, E extends ExposedValues, L extends LayerSource>(
 				_template: options.template,
 				_reactiveProps: context.props as Readonly<Record<string, unknown>>,
 				_provideScope: provideScope,
+				_templateWarnings: new Set<PropertyKey>(),
 			} as unknown as Record<string, unknown>;
 		},
 
 		view: (ctx: BlueprintContext<P>) => {
-			const state = ctx.state as DefineState<E>;
+			const state = ctx.state as DefineState<E, P>;
 			const props = (state._reactiveProps ?? ctx.props) as Readonly<
 				Record<string, unknown>
 			>;
 			const children = ((ctx.props as Record<string, unknown>).children ??
 				props.children) as EffuseChild | undefined;
-			const mergedCtx: TemplateContext<E, P> = {
-				...state.exposed,
-				...props,
-				children,
-			} as TemplateContext<E, P>;
-
-			return state._template(mergedCtx);
+			return state._template(
+				createTemplateContext<E, P>(componentName, state, props, children)
+			);
 		},
 	};
 

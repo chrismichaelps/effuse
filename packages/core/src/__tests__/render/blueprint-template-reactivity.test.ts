@@ -324,7 +324,7 @@ describe('blueprint template reactivity', () => {
 					},
 				};
 			},
-			template: ({ label, local, updateBoth }) =>
+			template: ({ exposed: { label }, local, updateBoth }) =>
 				CreateElementNode({
 					[EFFUSE_NODE]: true,
 					tag: 'section',
