@@ -35,8 +35,14 @@ export type NavigationFailure = Data.TaggedEnum<{
 	NavigationGuardCancelled: NavigationFailureBase & {
 		readonly reason: string | undefined;
 	};
+	NavigationGuardFailed: NavigationFailureBase & {
+		readonly error: Error;
+	};
 	NavigationRedirect: NavigationFailureBase & {
 		readonly redirectTo: RouteLocation;
+	};
+	NavigationRedirectLoop: NavigationFailureBase & {
+		readonly paths: readonly string[];
 	};
 	NavigationDuplicated: NavigationFailureBase;
 }>;
@@ -44,7 +50,9 @@ export type NavigationFailure = Data.TaggedEnum<{
 const {
 	NavigationAborted,
 	NavigationGuardCancelled,
+	NavigationGuardFailed,
 	NavigationRedirect,
+	NavigationRedirectLoop,
 	NavigationDuplicated,
 	$is,
 	$match,
@@ -53,7 +61,9 @@ const {
 export {
 	NavigationAborted,
 	NavigationGuardCancelled,
+	NavigationGuardFailed,
 	NavigationRedirect,
+	NavigationRedirectLoop,
 	NavigationDuplicated,
 	$is as NavigationFailure$is,
 	$match as NavigationFailure$match,
@@ -69,11 +79,23 @@ export const NavigationFailure = {
 		reason?: string
 	): NavigationFailure => NavigationGuardCancelled({ to, from, reason }),
 
+	guardFailed: (
+		to: ResolvedRoute,
+		from: ResolvedRoute,
+		error: Error
+	): NavigationFailure => NavigationGuardFailed({ to, from, error }),
+
 	redirect: (
 		to: ResolvedRoute,
 		from: ResolvedRoute,
 		redirectTo: RouteLocation
 	): NavigationFailure => NavigationRedirect({ to, from, redirectTo }),
+
+	redirectLoop: (
+		to: ResolvedRoute,
+		from: ResolvedRoute,
+		paths: readonly string[]
+	): NavigationFailure => NavigationRedirectLoop({ to, from, paths }),
 
 	duplicated: (to: ResolvedRoute, from: ResolvedRoute): NavigationFailure =>
 		NavigationDuplicated({ to, from }),
@@ -85,13 +107,17 @@ export const NavigationFailure = {
 		[
 			'NavigationAborted',
 			'NavigationGuardCancelled',
+			'NavigationGuardFailed',
 			'NavigationRedirect',
+			'NavigationRedirectLoop',
 			'NavigationDuplicated',
 		].includes(value._tag),
 
 	isAborted: $is('NavigationAborted'),
 	isCancelled: $is('NavigationGuardCancelled'),
+	isFailed: $is('NavigationGuardFailed'),
 	isRedirect: $is('NavigationRedirect'),
+	isRedirectLoop: $is('NavigationRedirectLoop'),
 	isDuplicated: $is('NavigationDuplicated'),
 
 	match: $match,

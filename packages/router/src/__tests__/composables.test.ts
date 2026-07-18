@@ -55,7 +55,7 @@ describe('useRoute', () => {
 		expect(route.name).toBe('home');
 	});
 
-	it('should reflect route changes after navigation', () => {
+	it('should reflect route changes after navigation', async () => {
 		const router = createRouter({
 			history: createMemoryHistory('/'),
 			routes: [
@@ -64,7 +64,7 @@ describe('useRoute', () => {
 			],
 		});
 		installRouter(router);
-		router.push('/about');
+		await router.push('/about');
 		const route = useRoute();
 		expect(route.path).toBe('/about');
 		expect(route.name).toBe('about');
@@ -76,7 +76,7 @@ describe('onRouteChange', () => {
 		clearContext();
 	});
 
-	it('should call callback on route change', () => {
+	it('should call callback on route change', async () => {
 		const router = createRouter({
 			history: createMemoryHistory('/'),
 			routes: [
@@ -87,12 +87,12 @@ describe('onRouteChange', () => {
 		installRouter(router);
 		const cb = vi.fn();
 		const stop = onRouteChange(cb);
-		router.push('/about');
+		await router.push('/about');
 		expect(cb).toHaveBeenCalled();
 		stop();
 	});
 
-	it('should not call callback for same route', () => {
+	it('should not call callback for same route', async () => {
 		const router = createRouter({
 			history: createMemoryHistory('/'),
 			routes: [{ path: '/', component: dummyComponent }],
@@ -100,7 +100,7 @@ describe('onRouteChange', () => {
 		installRouter(router);
 		const cb = vi.fn();
 		const stop = onRouteChange(cb);
-		router.push('/'); // same path
+		await router.push('/'); // same path
 		expect(cb).not.toHaveBeenCalled();
 		stop();
 	});

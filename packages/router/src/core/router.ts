@@ -105,8 +105,8 @@ export interface RouterInstance {
 	readonly routes: readonly NormalizedRouteRecord[];
 	readonly options: RouterOptions;
 
-	readonly push: (to: RouteLocation) => Route | NavigationFailure;
-	readonly replace: (to: RouteLocation) => Route | NavigationFailure;
+	readonly push: (to: RouteLocation) => Promise<Route | NavigationFailure>;
+	readonly replace: (to: RouteLocation) => Promise<Route | NavigationFailure>;
 	readonly back: () => void;
 	readonly forward: () => void;
 	readonly go: (delta: number) => void;
@@ -152,7 +152,8 @@ export const createRouter = (options: RouterOptions): RouterInstance => {
 	let navigationId = 0;
 	const navigate = (
 		to: RouteLocation,
-		opts: NavigateOptions = {}
+		opts: NavigateOptions = {},
+		redirectPaths: readonly string[] = []
 	): Effect.Effect<Route | NavigationFailure> =>
 		Effect.gen(function* () {
 			const currentNavId = ++navigationId;
@@ -177,6 +178,15 @@ export const createRouter = (options: RouterOptions): RouterInstance => {
 				);
 			}
 
+			if (redirectPaths.includes(resolved.fullPath)) {
+				return NavigationFailure.redirectLoop(
+					resolved,
+					from as ResolvedRoute,
+					[...redirectPaths, resolved.fullPath]
+				);
+			}
+			const nextRedirectPaths = [...redirectPaths, resolved.fullPath];
+
 			if (resolved.fullPath === from.fullPath) {
 				return NavigationFailure.duplicated(resolved, from as ResolvedRoute);
 			}
@@ -186,7 +196,7 @@ export const createRouter = (options: RouterOptions): RouterInstance => {
 				Predicate.isNotNullable(lastMatched) &&
 				Predicate.isNotNullable(lastMatched.redirect)
 			) {
-				return yield* navigate(lastMatched.redirect, opts);
+				return yield* navigate(lastMatched.redirect, opts, nextRedirectPaths);
 			}
 
 			const beforeEachResult = yield* runGuards(
@@ -196,14 +206,23 @@ export const createRouter = (options: RouterOptions): RouterInstance => {
 			);
 			if (!NavigationResult.isAllowed(beforeEachResult)) {
 				if (beforeEachResult._tag === 'NavigationRedirected') {
-					return yield* navigate(beforeEachResult.to, opts);
+					return yield* navigate(
+						beforeEachResult.to,
+						opts,
+						nextRedirectPaths
+					);
+				}
+				if (beforeEachResult._tag === 'NavigationFailed') {
+					return NavigationFailure.guardFailed(
+						resolved,
+						from as ResolvedRoute,
+						beforeEachResult.error
+					);
 				}
 				return NavigationFailure.guardCancelled(
 					resolved,
 					from as ResolvedRoute,
-					beforeEachResult._tag === 'NavigationCancelled'
-						? beforeEachResult.reason
-						: undefined
+					beforeEachResult.reason
 				);
 			}
 
@@ -218,14 +237,23 @@ export const createRouter = (options: RouterOptions): RouterInstance => {
 			);
 			if (!NavigationResult.isAllowed(beforeEnterResult)) {
 				if (beforeEnterResult._tag === 'NavigationRedirected') {
-					return yield* navigate(beforeEnterResult.to, opts);
+					return yield* navigate(
+						beforeEnterResult.to,
+						opts,
+						nextRedirectPaths
+					);
+				}
+				if (beforeEnterResult._tag === 'NavigationFailed') {
+					return NavigationFailure.guardFailed(
+						resolved,
+						from as ResolvedRoute,
+						beforeEnterResult.error
+					);
 				}
 				return NavigationFailure.guardCancelled(
 					resolved,
 					from as ResolvedRoute,
-					beforeEnterResult._tag === 'NavigationCancelled'
-						? beforeEnterResult.reason
-						: undefined
+					beforeEnterResult.reason
 				);
 			}
 
@@ -236,11 +264,23 @@ export const createRouter = (options: RouterOptions): RouterInstance => {
 			);
 			if (!NavigationResult.isAllowed(beforeResolveResult)) {
 				if (beforeResolveResult._tag === 'NavigationRedirected') {
-					return yield* navigate(beforeResolveResult.to, opts);
+					return yield* navigate(
+						beforeResolveResult.to,
+						opts,
+						nextRedirectPaths
+					);
+				}
+				if (beforeResolveResult._tag === 'NavigationFailed') {
+					return NavigationFailure.guardFailed(
+						resolved,
+						from as ResolvedRoute,
+						beforeResolveResult.error
+					);
 				}
 				return NavigationFailure.guardCancelled(
 					resolved,
-					from as ResolvedRoute
+					from as ResolvedRoute,
+					beforeResolveResult.reason
 				);
 			}
 
@@ -298,8 +338,8 @@ export const createRouter = (options: RouterOptions): RouterInstance => {
 		},
 		options,
 
-		push: (to) => Effect.runSync(navigate(to, { replace: false })),
-		replace: (to) => Effect.runSync(navigate(to, { replace: true })),
+		push: (to) => Effect.runPromise(navigate(to, { replace: false })),
+		replace: (to) => Effect.runPromise(navigate(to, { replace: true })),
 		back: () => {
 			history.back();
 		},

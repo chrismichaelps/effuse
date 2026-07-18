@@ -9,7 +9,6 @@ import { Effect, SubscriptionRef } from 'effect';
 import { createRouter, installRouter } from '../core/router.js';
 import { createMemoryHistory } from '../core/history.js';
 import { clearContext } from '../core/context.js';
-import { NavigationResult } from '../navigation/guards.js';
 import { define } from '@effuse/core';
 
 const dummyComponent = define({
@@ -148,7 +147,7 @@ describe('createRouter lifecycle', () => {
 		).toBe('/users/42/settings');
 	});
 
-	it('should run each matched guard once through a nested alias', () => {
+	it('should run each matched guard once through a nested alias', async () => {
 		const guardCalls: string[] = [];
 		const router = createRouter({
 			history: createMemoryHistory('/'),
@@ -157,25 +156,25 @@ describe('createRouter lifecycle', () => {
 					path: '/users/:id',
 					alias: '/people/:id',
 					component: dummyComponent,
-					beforeEnter: (() => {
+					beforeEnter: () => {
 						guardCalls.push('parent');
-						return NavigationResult.allowed();
-					}) as never,
+						return true;
+					},
 					children: [
 						{
 							path: 'details',
 							component: dummyComponent,
-							beforeEnter: (() => {
+							beforeEnter: () => {
 								guardCalls.push('child');
-								return NavigationResult.allowed();
-							}) as never,
+								return undefined;
+							},
 						},
 					],
 				},
 			],
 		});
 
-		router.push('/people/42/details');
+		await router.push('/people/42/details');
 
 		expect(guardCalls).toEqual(['parent', 'child']);
 	});

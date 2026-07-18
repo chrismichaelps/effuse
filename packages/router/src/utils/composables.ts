@@ -139,7 +139,7 @@ export const onRouteChange = (
 export const navigateTo = (
 	to: RouteLocation,
 	options?: { replace?: boolean }
-): Route | NavigationFailure => {
+): Promise<Route | NavigationFailure> => {
 	const router = useRouter();
 	const shouldReplace =
 		Predicate.isNotNullable(options) && options.replace === true;

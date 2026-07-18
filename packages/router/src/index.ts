@@ -84,6 +84,7 @@ export {
 
 export {
 	type NavigationGuard,
+	type NavigationGuardReturn,
 	type AfterEachHook,
 	type NavigationResult,
 	NavigationResult as NavigationResultUtils,
@@ -93,3 +94,8 @@ export {
 	guardWhen,
 	guardMeta,
 } from './navigation/guards.js';
+
+export {
+	type NavigationFailure,
+	NavigationFailure as NavigationFailureUtils,
+} from './navigation/errors.js';

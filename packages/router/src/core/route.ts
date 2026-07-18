@@ -23,9 +23,9 @@
  */
 
 import { Array as Arr, Option, pipe } from 'effect';
-import type { Effect } from 'effect';
 import type { BlueprintDef, EffuseChild } from '@effuse/core';
 import { RouteNotFoundError } from '../errors.js';
+import type { NavigationGuard } from '../navigation/guards.js';
 
 export type RouteComponent =
 	| ((props?: Record<string, unknown>) => EffuseChild)
@@ -150,21 +150,6 @@ export interface Route {
 	readonly name: string | undefined;
 	readonly meta: Record<string, unknown>;
 }
-
-export type NavigationGuardReturn =
-	| boolean
-	| string
-	| RouteLocation
-	| Error
-	| undefined;
-
-export type NavigationGuard = (
-	to: ResolvedRoute,
-	from: ResolvedRoute
-) =>
-	| NavigationGuardReturn
-	| Promise<NavigationGuardReturn>
-	| Effect.Effect<NavigationGuardReturn>;
 
 export type NavigationHookCleanup = () => void;
 

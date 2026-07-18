@@ -67,6 +67,14 @@ export const NavigationResult = {
 	match: $match,
 
 	fromLegacy: (value: unknown): NavigationResult => {
+		if (
+			$is('NavigationAllowed')(value) ||
+			$is('NavigationCancelled')(value) ||
+			$is('NavigationRedirected')(value) ||
+			$is('NavigationFailed')(value)
+		) {
+			return value;
+		}
 		if (value === undefined || value === true)
 			return NavigationResult.allowed();
 		if (value === false) return NavigationResult.cancelled();
@@ -79,10 +87,21 @@ export const NavigationResult = {
 	},
 };
 
+export type NavigationGuardReturn =
+	| NavigationResult
+	| boolean
+	| string
+	| RouteLocation
+	| Error
+	| undefined;
+
 export type NavigationGuard = (
 	to: ResolvedRoute,
 	from: Route
-) => NavigationResult | Promise<NavigationResult>;
+) =>
+	| NavigationGuardReturn
+	| Promise<NavigationGuardReturn>
+	| Effect.Effect<NavigationGuardReturn, unknown>;
 
 export type AfterEachHook = (to: Route, from: Route) => void;
 
@@ -98,18 +117,39 @@ export const createGuardRegistry = (): GuardRegistry => ({
 	afterEach: [],
 });
 
+const toError = (error: unknown): Error =>
+	error instanceof Error ? error : new Error(String(error));
+
+const executeGuard = async (
+	guard: NavigationGuard,
+	to: ResolvedRoute,
+	from: Route
+): Promise<NavigationResult> => {
+	try {
+		const output = guard(to, from);
+		const value = Effect.isEffect(output)
+			? await Effect.runPromise(
+					output.pipe(
+						Effect.catchAll((error) =>
+							Effect.succeed(NavigationResult.failed(toError(error)))
+						)
+					)
+				)
+			: await Promise.resolve(output);
+		return NavigationResult.fromLegacy(value);
+	} catch (error) {
+		return NavigationResult.failed(toError(error));
+	}
+};
+
 export const runGuards = (
 	guards: readonly NavigationGuard[],
 	to: ResolvedRoute,
 	from: Route
 ): Effect.Effect<NavigationResult> =>
-	Effect.gen(function* () {
+	Effect.promise(async () => {
 		for (const guard of guards) {
-			const res = guard(to, from);
-			const result =
-				res instanceof Promise
-					? yield* Effect.promise(() => res)
-					: res;
+			const result = await executeGuard(guard, to, from);
 			if (!NavigationResult.isAllowed(result)) {
 				return result;
 			}
@@ -132,7 +172,7 @@ export const combineGuards =
 	(...guards: NavigationGuard[]): NavigationGuard =>
 	async (to, from) => {
 		for (const guard of guards) {
-			const result = await Promise.resolve(guard(to, from));
+			const result = await executeGuard(guard, to, from);
 			if (!NavigationResult.isAllowed(result)) {
 				return result;
 			}

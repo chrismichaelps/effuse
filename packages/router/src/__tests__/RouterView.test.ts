@@ -5,7 +5,7 @@
  * Copyright (c) 2025 Chris M. Perez
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
 	CreateBlueprintNode,
 	CreateElementNode,
@@ -721,7 +721,7 @@ describe('RouterView', () => {
 			'Server page'
 		);
 
-		router.push('/');
+		await router.push('/');
 		await Promise.resolve();
 		await Promise.resolve();
 
@@ -928,11 +928,10 @@ describe('RouterView', () => {
 		document.querySelector<HTMLAnchorElement>('a[href="/layers"]')?.dispatchEvent(
 			new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 })
 		);
-		await Promise.resolve();
-		await Promise.resolve();
-		await Promise.resolve();
+		await vi.waitFor(() => {
+			expect(window.location.pathname).toBe('/layers');
+		});
 
-		expect(window.location.pathname).toBe('/layers');
 		expect(document.querySelector('[data-testid="layers-page"]')).not.toBeNull();
 		expect(document.querySelector('[data-testid="server-page"]')).toBeNull();
 
