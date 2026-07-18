@@ -113,6 +113,7 @@ export interface NormalizedRouteRecord extends RouteRecord {
 	readonly regex: RegExp;
 	readonly paramNames: readonly string[];
 	readonly fullPath: string;
+	readonly routeGroups?: readonly string[];
 	readonly parent: NormalizedRouteRecord | undefined;
 }
 
@@ -166,7 +167,9 @@ export type NavigationGuard = (
 
 export type NavigationHookCleanup = () => void;
 
-export const parseQuery = (search: string): Record<string, string | string[]> => {
+export const parseQuery = (
+	search: string
+): Record<string, string | string[]> => {
 	const query: Record<string, string | string[]> = {};
 	if (!search || search === '?') return query;
 	const searchString = search.startsWith('?') ? search.slice(1) : search;
@@ -184,7 +187,9 @@ export const parseQuery = (search: string): Record<string, string | string[]> =>
 	return query;
 };
 
-export const stringifyQuery = (query: Record<string, string | string[]>): string => {
+export const stringifyQuery = (
+	query: Record<string, string | string[]>
+): string => {
 	const params = new URLSearchParams();
 	for (const [key, value] of Object.entries(query)) {
 		if (Array.isArray(value)) {
@@ -201,7 +206,11 @@ export const stringifyQuery = (query: Record<string, string | string[]>): string
 
 export const parseUrl = (
 	url: string
-): { pathname: string; query: Record<string, string | string[]>; hash: string } => {
+): {
+	pathname: string;
+	query: Record<string, string | string[]>;
+	hash: string;
+} => {
 	const hashIndex = url.indexOf('#');
 	const hash = hashIndex >= 0 ? url.slice(hashIndex) : '';
 	const urlWithoutHash = hashIndex >= 0 ? url.slice(0, hashIndex) : url;
@@ -216,78 +225,359 @@ export const parseUrl = (
 	return { pathname: normalizedPathname, query: parseQuery(queryString), hash };
 };
 
+const escapeRegExp = (value: string): string =>
+	value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const routeGroupName = (segment: string): string | null => {
+	const match = segment.match(/^\(([^/()]+)\)$/);
+	return match?.[1] ?? null;
+};
+
+const isRouteGroupSegment = (segment: string): boolean =>
+	routeGroupName(segment) !== null;
+
+const stripRouteGroups = (path: string): { path: string; groups: string[] } => {
+	const isAbsolute = path.startsWith('/');
+	const hasTrailingSlash = path.endsWith('/') && path !== '/';
+	const groups: string[] = [];
+	const pathSegments: string[] = [];
+
+	for (const segment of path.split('/')) {
+		if (segment.length === 0) {
+			continue;
+		}
+
+		const group = routeGroupName(segment);
+		if (group) {
+			groups.push(group);
+			continue;
+		}
+
+		pathSegments.push(segment);
+	}
+
+	if (pathSegments.length === 0) {
+		return { path: isAbsolute ? '/' : '', groups };
+	}
+
+	return {
+		path: `${isAbsolute ? '/' : ''}${pathSegments.join('/')}${
+			hasTrailingSlash ? '/' : ''
+		}`,
+		groups,
+	};
+};
+
+const isOptionalCatchAllSegment = (segment: string): boolean =>
+	segment.startsWith('[[...') && segment.endsWith(']]');
+
+const isRequiredCatchAllSegment = (segment: string): boolean =>
+	segment.startsWith('[...') && segment.endsWith(']');
+
+const optionalCatchAllName = (segment: string): string => segment.slice(5, -2);
+
+const requiredCatchAllName = (segment: string): string => segment.slice(4, -1);
+
+const bracketParamName = (segment: string): string | null =>
+	segment.startsWith('[') &&
+	segment.endsWith(']') &&
+	!isRequiredCatchAllSegment(segment) &&
+	!isOptionalCatchAllSegment(segment)
+		? segment.slice(1, -1)
+		: null;
+
+const colonParamName = (
+	segment: string
+): { readonly name: string; readonly optional: boolean } | null => {
+	if (!segment.startsWith(':')) {
+		return null;
+	}
+
+	const rawName = segment.slice(1);
+	const optional = rawName.endsWith('?');
+	const name = optional ? rawName.slice(0, -1) : rawName;
+	return name ? { name, optional } : null;
+};
+
+const segmentParam = (
+	segment: string
+): {
+	readonly name: string;
+	readonly optional: boolean;
+	readonly catchAll: boolean;
+} | null => {
+	if (isOptionalCatchAllSegment(segment)) {
+		return {
+			name: optionalCatchAllName(segment),
+			optional: true,
+			catchAll: true,
+		};
+	}
+
+	if (isRequiredCatchAllSegment(segment)) {
+		return {
+			name: requiredCatchAllName(segment),
+			optional: false,
+			catchAll: true,
+		};
+	}
+
+	const colonParam = colonParamName(segment);
+	if (colonParam) {
+		return { ...colonParam, catchAll: false };
+	}
+
+	const bracketParam = bracketParamName(segment);
+	return bracketParam !== null
+		? { name: bracketParam, optional: false, catchAll: false }
+		: null;
+};
+
+const validateRoutePath = (path: string): void => {
+	const segments = path.split('/').filter(Boolean);
+	const paramNames = new Set<string>();
+
+	segments.forEach((segment, index) => {
+		if (isRouteGroupSegment(segment)) {
+			return;
+		}
+
+		const param = segmentParam(segment);
+		if (!param) {
+			if (segment.startsWith('[') || segment.endsWith(']')) {
+				throw new TypeError(`Invalid route segment "${segment}" in "${path}".`);
+			}
+			return;
+		}
+
+		if (param.name.length === 0) {
+			throw new TypeError(`Route params must have a name in "${path}".`);
+		}
+		if (paramNames.has(param.name)) {
+			throw new TypeError(
+				`Duplicate route param "${param.name}" in "${path}".`
+			);
+		}
+		paramNames.add(param.name);
+
+		if (
+			param.catchAll &&
+			segments
+				.slice(index + 1)
+				.some((candidate) => !isRouteGroupSegment(candidate))
+		) {
+			throw new TypeError(
+				`Catch-all route param "${param.name}" must be the final URL segment in "${path}".`
+			);
+		}
+	});
+};
+
+const encodeRouteParam = (value: string, catchAll: boolean): string =>
+	catchAll
+		? value
+				.split('/')
+				.map((segment) => encodeURIComponent(segment))
+				.join('/')
+		: encodeURIComponent(value);
+
+const decodeRouteParam = (value: string): string => {
+	try {
+		return decodeURIComponent(value);
+	} catch {
+		return value;
+	}
+};
+
+const createPathFromParams = (
+	path: string,
+	params: Record<string, string>
+): string => {
+	const isAbsolute = path.startsWith('/');
+	const hasTrailingSlash = path.endsWith('/') && path !== '/';
+	const resolvedSegments: string[] = [];
+
+	for (const segment of path.split('/')) {
+		if (segment.length === 0) {
+			continue;
+		}
+
+		const param = segmentParam(segment);
+		if (!param) {
+			resolvedSegments.push(segment);
+			continue;
+		}
+
+		const value = params[param.name];
+		if (value === undefined) {
+			if (param.optional) {
+				continue;
+			}
+			throw new TypeError(`Missing route param "${param.name}" for "${path}".`);
+		}
+
+		if (param.optional && value.length === 0) {
+			continue;
+		}
+		if (value.length === 0) {
+			throw new TypeError(`Missing route param "${param.name}" for "${path}".`);
+		}
+
+		resolvedSegments.push(encodeRouteParam(value, param.catchAll));
+	}
+
+	if (resolvedSegments.length === 0) {
+		return isAbsolute ? '/' : '';
+	}
+
+	return `${isAbsolute ? '/' : ''}${resolvedSegments.join('/')}${
+		hasTrailingSlash ? '/' : ''
+	}`;
+};
+
 const pathToRegex = (path: string): { regex: RegExp; paramNames: string[] } => {
 	const paramNames: string[] = [];
-	// Process optional params first, then required params, then wildcards
-	let regexPattern = path
-		.replace(/:([^/]+)\?/g, (_: string, paramName: string) => {
-			paramNames.push(paramName);
-			return '<<OPT>>';
-		})
-		.replace(/:([^/]+)/g, (_: string, paramName: string) => {
-			paramNames.push(paramName);
-			return '<<REQ>>';
-		})
-		.replace(/\*/g, '.*');
+	const segments = path.split('/').filter(Boolean);
+	if (segments.length === 0) {
+		return {
+			regex: new RegExp(`^${path.startsWith('/') ? '\\/' : ''}$`),
+			paramNames,
+		};
+	}
 
-	// Escape slashes
-	regexPattern = regexPattern.replace(/\//g, '\\/');
+	let regexPattern = '';
+	const isAbsolute = path.startsWith('/');
+	segments.forEach((segment, index) => {
+		const prefix = index === 0 && !isAbsolute ? '' : '\\/';
 
-	// Replace markers with actual regex patterns
-	// For optional params, the preceding slash is also optional
-	regexPattern = regexPattern
-		.replace(/\\\/<<OPT>>/g, '(?:\\/([^/]*))?')
-		.replace(/<<OPT>>/g, '([^/]*)?')
-		.replace(/<<REQ>>/g, '([^/]+)');
+		if (segment === '*') {
+			regexPattern += `${prefix}.*`;
+			return;
+		}
+
+		if (isOptionalCatchAllSegment(segment)) {
+			paramNames.push(optionalCatchAllName(segment));
+			regexPattern += index === 0 && !isAbsolute ? '(.*)?' : '(?:\\/(.*))?';
+			return;
+		}
+
+		if (isRequiredCatchAllSegment(segment)) {
+			paramNames.push(requiredCatchAllName(segment));
+			regexPattern += `${prefix}(.+)`;
+			return;
+		}
+
+		const colonParam = colonParamName(segment);
+		if (colonParam) {
+			paramNames.push(colonParam.name);
+			regexPattern += colonParam.optional
+				? index === 0 && !isAbsolute
+					? '([^/]*)?'
+					: '(?:\\/([^/]*))?'
+				: `${prefix}([^/]+)`;
+			return;
+		}
+
+		const bracketParam = bracketParamName(segment);
+		if (bracketParam) {
+			paramNames.push(bracketParam);
+			regexPattern += `${prefix}([^/]+)`;
+			return;
+		}
+
+		regexPattern += `${prefix}${escapeRegExp(segment)}`;
+	});
+
+	if (path.endsWith('/') && path !== '/') {
+		regexPattern += '\\/';
+	}
 
 	return { regex: new RegExp(`^${regexPattern}$`), paramNames };
 };
 
-/**
- * Score a route path for ranked matching.
- * Higher score = more specific = should match first.
- *
- * Scoring:
- * - Static segment: 4 points
- * - Dynamic param (:id): 2 points
- * - Optional param (:id?): 1 point
- * - Catch-all (*): 0 points
- *
- * More segments always outrank fewer segments at the same specificity.
- */
-const scoreRoute = (path: string): number => {
-	const segments = path.split('/').filter(Boolean);
-	let score = 0;
-	for (const segment of segments) {
-		if (segment === '*') {
-			score += 0;
-		} else if (segment.startsWith(':') && segment.endsWith('?')) {
-			score += 1;
-		} else if (segment.startsWith(':')) {
-			score += 2;
-		} else {
-			score += 4;
-		}
+const routeSegmentSpecificity = (segment: string): number => {
+	if (
+		isOptionalCatchAllSegment(segment) ||
+		(segment.startsWith(':') && segment.endsWith('?'))
+	) {
+		return -1;
 	}
-	// More segments = higher base score to ensure /a/b outranks /a
-	score += segments.length * 0.1;
-	return score;
+	if (segment === '*' || isRequiredCatchAllSegment(segment)) return 0;
+	if (segment.startsWith(':') || bracketParamName(segment) !== null) return 2;
+	return 4;
+};
+
+const compareRouteSpecificity = (
+	left: NormalizedRouteRecord,
+	right: NormalizedRouteRecord
+): number => {
+	const leftSegments = left.fullPath.split('/').filter(Boolean);
+	const rightSegments = right.fullPath.split('/').filter(Boolean);
+	const maxLength = Math.max(leftSegments.length, rightSegments.length);
+
+	for (let index = 0; index < maxLength; index++) {
+		const leftSegment = leftSegments[index];
+		const rightSegment = rightSegments[index];
+		const leftScore =
+			leftSegment === undefined ? 0 : routeSegmentSpecificity(leftSegment);
+		const rightScore =
+			rightSegment === undefined ? 0 : routeSegmentSpecificity(rightSegment);
+		if (leftScore !== rightScore) return rightScore - leftScore;
+	}
+
+	return rightSegments.length - leftSegments.length;
+};
+
+const isAncestorRoute = (
+	ancestor: NormalizedRouteRecord,
+	route: NormalizedRouteRecord
+): boolean => {
+	let current = route.parent;
+	while (current) {
+		if (current === ancestor) return true;
+		current = current.parent;
+	}
+	return false;
+};
+
+const assertNoRouteCollisions = (
+	routes: readonly NormalizedRouteRecord[]
+): void => {
+	const signatures = new Map<string, NormalizedRouteRecord>();
+	for (const route of routes) {
+		const existing = signatures.get(route.regex.source);
+		if (
+			existing &&
+			!isAncestorRoute(existing, route) &&
+			!isAncestorRoute(route, existing)
+		) {
+			throw new TypeError(
+				`Routes "${existing.path}" and "${route.path}" resolve to the same URL pattern "${route.fullPath}".`
+			);
+		}
+		signatures.set(route.regex.source, route);
+	}
 };
 
 const normalizeRouteRecord = (
 	route: RouteRecord,
 	parent?: NormalizedRouteRecord
 ): NormalizedRouteRecord => {
-	const fullPath = parent
+	const rawFullPath = parent
 		? `${parent.fullPath.replace(/\/$/, '')}/${route.path.replace(/^\//, '')}`
 		: route.path;
+	validateRoutePath(rawFullPath);
+	const parsed = stripRouteGroups(rawFullPath);
+	const fullPath = parsed.path;
 	const { regex, paramNames } = pathToRegex(fullPath);
+	const routeGroups = [...(parent?.routeGroups ?? []), ...parsed.groups];
 
 	return {
 		...route,
 		fullPath,
 		regex,
 		paramNames,
+		routeGroups,
 		parent,
 	};
 };
@@ -302,10 +592,10 @@ export const normalizeRoutes = (
 		const normalized = normalizeRouteRecord(route, parent);
 		result.push(normalized);
 
-	// Generate alias routes that share the same component/guards/meta
-	if (route.alias) {
-		const aliases: readonly string[] =
-			typeof route.alias === 'string' ? [route.alias] : route.alias;
+		// Generate alias routes that share the same component/guards/meta.
+		if (route.alias) {
+			const aliases: readonly string[] =
+				typeof route.alias === 'string' ? [route.alias] : route.alias;
 			for (const alias of aliases) {
 				const { alias: _ignored, ...routeWithoutAlias } = route;
 				void _ignored;
@@ -322,8 +612,8 @@ export const normalizeRoutes = (
 		}
 	}
 
-	// Sort by specificity: static > dynamic > optional > catch-all
-	result.sort((a, b) => scoreRoute(b.fullPath) - scoreRoute(a.fullPath));
+	assertNoRouteCollisions(result);
+	result.sort(compareRouteSpecificity);
 
 	return result;
 };
@@ -344,7 +634,7 @@ export const matchRoute = (
 			if (match) {
 				const params: Record<string, string> = {};
 				route.paramNames.forEach((name, index) => {
-					params[name] = match[index + 1] ?? '';
+					params[name] = decodeRouteParam(match[index + 1] ?? '');
 				});
 
 				const matched: NormalizedRouteRecord[] = [];
@@ -388,12 +678,7 @@ export const resolveRoute = (
 		params = location.params ?? {};
 		query = location.query ?? {};
 		hash = location.hash ?? '';
-		pathname = namedRoute.fullPath.replace(
-			/:([^/]+)\??/g,
-			(_: string, paramName: string) => {
-				return params[paramName] ?? '';
-			}
-		);
+		pathname = createPathFromParams(namedRoute.fullPath, params);
 	}
 
 	const { matched, params: matchedParams } = matchRoute(
