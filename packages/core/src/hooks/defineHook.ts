@@ -25,7 +25,10 @@
 import { createHookContext } from './context.js';
 import { traceHookSetup } from '../layers/tracing/hooks.js';
 import type { HookSetupFn } from './types.js';
-import type { LayerSource } from '../layers/api/layersAccessor.js';
+import {
+	assertLayerBindingsRegistered,
+	type LayerSource,
+} from '../layers/api/layersAccessor.js';
 
 export function defineHook<
 	C = undefined,
@@ -42,6 +45,7 @@ export function defineHook<
 	const hookFn = (config?: C): R => {
 		const start = performance.now();
 		const { ctx } = createHookContext<C, L>(config as C, layers, hookName);
+		assertLayerBindingsRegistered(layers, { kind: 'hook', name: hookName });
 		const result = definition.setup(ctx);
 		const duration = performance.now() - start;
 

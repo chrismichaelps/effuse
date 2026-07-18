@@ -65,6 +65,25 @@ export class LayerRuntimeNotInitializedError extends Data.TaggedError(
 	}
 }
 
+export class LayerBindingNotRegisteredError extends Data.TaggedError(
+	'LayerBindingNotRegisteredError'
+)<{
+	readonly consumerKind: 'component' | 'hook';
+	readonly consumerName: string;
+	readonly alias: string;
+	readonly layerName: string;
+}> {
+	get message(): string {
+		const consumer = `${this.consumerKind} "${this.consumerName}"`;
+		return (
+			`[Effuse] ${consumer} declares layer binding "${this.alias}" for layer "${this.layerName}", ` +
+			'but that layer is not registered in the active app runtime. ' +
+			'Register it once at the composition root with app.useLayers(...) before mount. ' +
+			'define({ layers }) and defineHook({ layers }) create typed local bindings; they do not initialize layers.'
+		);
+	}
+}
+
 export class ServiceNotFoundError extends Data.TaggedError(
 	'ServiceNotFoundError'
 )<{
@@ -129,6 +148,7 @@ export type LayerError =
 	| LayerNameCollisionError
 	| LayerRuntimeNotReadyError
 	| LayerRuntimeNotInitializedError
+	| LayerBindingNotRegisteredError
 	| ServiceNotFoundError
 	| DependencyNotFoundError
 	| CircularDependencyError

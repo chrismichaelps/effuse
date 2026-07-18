@@ -91,6 +91,40 @@ describe('RouterView', () => {
 		);
 	});
 
+	it('renders an actionable error when a route layer was not registered at startup', async () => {
+		const CommerceLayer = defineLayer({
+			name: 'commerce-runtime',
+			services: { cart: () => ({ total: 42 }) },
+		});
+		const CommercePage = define({
+			name: 'CommercePage',
+			layers: { commerce: CommerceLayer } as const,
+			script: ({ layers }) => ({ total: layers.commerce.services.cart.total }),
+			template: ({ total }) => String(total),
+		});
+		const Shell = define({
+			script: () => ({}),
+			template: () => createOutlet(),
+		});
+		const router = createRouter({
+			history: createMemoryHistory(),
+			routes: [{ path: '/', component: CommercePage }],
+		});
+
+		installRouter(router);
+		const mounted = await createApp(Shell).mount('#app');
+		await Promise.resolve();
+		await Promise.resolve();
+
+		const error = document.querySelector('[data-effuse-render-error="true"]');
+		expect(error?.textContent).toContain(
+			'component "CommercePage" declares layer binding "commerce" for layer "commerce-runtime"'
+		);
+		expect(error?.textContent).toContain('app.useLayers(...) before mount');
+
+		await mounted.unmount();
+	});
+
 	it('renders a child route through a nested outlet', async () => {
 		const ChildPage = define({
 			script: () => ({}),

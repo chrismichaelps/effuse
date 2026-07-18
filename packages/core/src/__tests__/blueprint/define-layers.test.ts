@@ -3,6 +3,7 @@ import { define } from '../../blueprint/define.js';
 import { defineLayer } from '../../layers/api/defineLayer.js';
 import { runWithLayerContext } from '../../layers/context.js';
 import {
+	LayerBindingNotRegisteredError,
 	LayerNameCollisionError,
 	ServiceNotFoundError,
 } from '../../layers/errors.js';
@@ -60,6 +61,36 @@ const extractBlueprint = (component: unknown): BlueprintMock => {
 
 describe('define() + layers — full integration', () => {
 	describe('single layer via layers option', () => {
+		it('fails before component script when an aliased layer is not registered', () => {
+			const authLayer = defineLayer({
+				name: 'platform-auth',
+				services: { auth: () => ({ userId: 'u1' }) },
+			});
+			const script = vi.fn(() => ({}));
+			const Component = define({
+				name: 'CheckoutPage',
+				layers: { auth: authLayer } as const,
+				script,
+				template: () => null,
+			});
+			const store = {
+				propsRegistry: createMockPropsRegistry(),
+				layerRegistry: createMockLayerRegistry(),
+				layers: [],
+			};
+
+			const blueprint = extractBlueprint(Component);
+			expect(() =>
+				runWithLayerContext(store, () => blueprint.state({}))
+			).toThrow(LayerBindingNotRegisteredError);
+			expect(() =>
+				runWithLayerContext(store, () => blueprint.state({}))
+			).toThrow(
+				'component "CheckoutPage" declares layer binding "auth" for layer "platform-auth"'
+			);
+			expect(script).not.toHaveBeenCalled();
+		});
+
 		it('should expose layer services via ctx.layers in script', () => {
 			const authSvc = { token: 'abc', user: 'chris' };
 			const authLayer = defineLayer({

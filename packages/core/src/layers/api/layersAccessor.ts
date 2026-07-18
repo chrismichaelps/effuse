@@ -24,10 +24,15 @@
 
 import {
 	getLayerContext,
+	getLayerContextStore,
 	getLayerService,
 	isLayerRuntimeReady,
 } from '../context.js';
-import { LayerNameCollisionError, ServiceNotFoundError } from '../errors.js';
+import {
+	LayerBindingNotRegisteredError,
+	LayerNameCollisionError,
+	ServiceNotFoundError,
+} from '../errors.js';
 import { compileLayer, resolveLayerDefinitions } from './defineLayer.js';
 import type {
 	CompiledLayer,
@@ -44,6 +49,11 @@ export type LayerAliases = Readonly<
 >;
 
 export type LayerSource = LayerList | LayerAliases;
+
+export interface LayerBindingConsumer {
+	readonly kind: 'component' | 'hook';
+	readonly name: string;
+}
 
 export interface LayerEntry<T extends EffuseLayer> {
 	readonly props: LayerPropsFrom<T>;
@@ -264,6 +274,28 @@ export const layerSourceToList = <L extends LayerSource>(
 	Array.isArray(layers)
 		? layers
 		: (Object.values(layers) as readonly CompiledLayer<EffuseLayer, string>[]);
+
+export const assertLayerBindingsRegistered = <L extends LayerSource>(
+	layers: L,
+	consumer: LayerBindingConsumer
+): void => {
+	const registry = getLayerContextStore()?.layerRegistry;
+	const bindings: readonly [string, CompiledLayer<EffuseLayer, string>][] =
+		Array.isArray(layers)
+			? layers.map((layer) => [layer.name, layer] as const)
+			: Object.entries(layers);
+
+	for (const [alias, layer] of bindings) {
+		if (!registry?.hasLayer(layer.name)) {
+			throw new LayerBindingNotRegisteredError({
+				consumerKind: consumer.kind,
+				consumerName: consumer.name,
+				alias,
+				layerName: layer.name,
+			});
+		}
+	}
+};
 
 const expandLayerList = (
 	layers: LayerList

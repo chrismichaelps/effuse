@@ -44,6 +44,8 @@ export {
 export {
 	resolveLayersAccessor,
 	resolveLayerEntry,
+	assertLayerBindingsRegistered,
+	type LayerBindingConsumer,
 	type LayersAccessor,
 	type LayerEntry,
 	type LayerEntryFrom,

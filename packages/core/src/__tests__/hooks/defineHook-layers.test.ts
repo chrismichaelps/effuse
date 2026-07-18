@@ -3,6 +3,7 @@ import { defineHook } from '../../hooks/defineHook.js';
 import { createHookContext } from '../../hooks/context.js';
 import { defineLayer } from '../../layers/api/defineLayer.js';
 import { runWithLayerContext } from '../../layers/context.js';
+import { LayerBindingNotRegisteredError } from '../../layers/errors.js';
 import type { PropsRegistry } from '../../layers/services/PropsService.js';
 import type { LayerRegistry } from '../../layers/services/RegistryService.js';
 import type { AnyResolvedLayer, LayerProps } from '../../layers/types.js';
@@ -46,8 +47,30 @@ const createResolvedLayer = (
 	({ _resolved: true as const, _order: 0, ...overrides }) as AnyResolvedLayer;
 
 describe('defineHook — typed layers accessor', () => {
-
 	describe('layers accessor in HookContext', () => {
+		it('fails before hook setup when an aliased layer is not registered', () => {
+			const analyticsLayer = defineLayer({ name: 'platform-analytics' });
+			const setup = vi.fn(() => ({}));
+			const useAnalytics = defineHook({
+				name: 'useAnalytics',
+				layers: { analytics: analyticsLayer } as const,
+				setup,
+			});
+			const store = {
+				propsRegistry: createMockPropsRegistry(),
+				layerRegistry: createMockLayerRegistry(),
+				layers: [],
+			};
+
+			expect(() => runWithLayerContext(store, () => useAnalytics())).toThrow(
+				LayerBindingNotRegisteredError
+			);
+			expect(() => runWithLayerContext(store, () => useAnalytics())).toThrow(
+				'hook "useAnalytics" declares layer binding "analytics" for layer "platform-analytics"'
+			);
+			expect(setup).not.toHaveBeenCalled();
+		});
+
 		it('should expose an empty layers accessor when no layers passed', () => {
 			const useHook = defineHook({
 				setup(ctx) {
@@ -212,7 +235,11 @@ describe('defineHook — typed layers accessor', () => {
 				{ auth: resolvedAuth, log: resolvedLog },
 				{ authSvc, logSvc }
 			);
-			const store = { propsRegistry, layerRegistry, layers: [resolvedAuth, resolvedLog] };
+			const store = {
+				propsRegistry,
+				layerRegistry,
+				layers: [resolvedAuth, resolvedLog],
+			};
 
 			const useHook = defineHook({
 				layers: [authLayer, logLayer] as const,
@@ -247,7 +274,9 @@ describe('defineHook — typed layers accessor', () => {
 			const store = { propsRegistry, layerRegistry, layers: [resolvedLayer] };
 
 			const { ctx } = createHookContext(undefined, [themeLayer] as const);
-			expect(runWithLayerContext(store, () => ctx.layers.theme.props.mode)).toBe(modeSignal);
+			expect(
+				runWithLayerContext(store, () => ctx.layers.theme.props.mode)
+			).toBe(modeSignal);
 		});
 	});
 

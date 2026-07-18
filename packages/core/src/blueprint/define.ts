@@ -33,7 +33,10 @@ import type { ScriptContext, ExposedValues } from './script-context.js';
 import { createScriptContext, runMountCallbacks } from './script-context.js';
 import type { ComponentLifecycle } from './lifecycle.js';
 import { withActiveLifecycle } from './lifecycle.js';
-import type { LayerSource } from '../layers/api/layersAccessor.js';
+import {
+	assertLayerBindingsRegistered,
+	type LayerSource,
+} from '../layers/api/layersAccessor.js';
 import {
 	createProvideScope,
 	runWithProvideScope,
@@ -105,11 +108,16 @@ export function define<
 
 		state: (props: P) => {
 			const layers = (options as { layers?: L }).layers;
+			const componentName = (options as { name?: string }).name ?? 'anonymous';
 			const { context, state } = createScriptContext<P, E, L>(
 				props,
 				undefined,
 				layers
 			);
+			assertLayerBindingsRegistered((layers ?? []) as L, {
+				kind: 'component',
+				name: componentName,
+			});
 
 			const parentScope = getCurrentProvideScope();
 			const provideScope = createProvideScope(parentScope);

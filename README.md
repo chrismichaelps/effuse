@@ -25,7 +25,18 @@ const ProfileButton = define({
   },
   template: ({ user }) => <button>{user.name}</button>,
 });
+
+const app = await createApp(App).useLayers([AuthLayer]);
+await app.mount('#app');
 ```
+
+`app.useLayers(...)` is the composition root: it initializes and orders the
+capability graph once. Component and hook `layers` records are typed local
+bindings to that graph, not a second registration mechanism. Effuse validates
+each binding before user setup runs, including in nested and lazy route
+components. An omitted capability raises `LayerBindingNotRegisteredError` with
+the consumer, alias, concrete layer, and registration fix instead of rendering
+a blank route.
 
 - **Typed layers** keep app capabilities explicit instead of scattering hidden imports and context.
 - **Fine-grained signals** update only dependent UI instead of rerendering a component tree by default.
