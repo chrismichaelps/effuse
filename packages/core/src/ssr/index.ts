@@ -32,6 +32,8 @@ export type {
 	RenderResult,
 	SSRContext,
 	ServerAppOptions,
+	AssetManifest,
+	AssetManifestChunk,
 	RequestContext,
 } from './types.js';
 
@@ -48,12 +50,133 @@ export { useHead, isServer, runWithSSRContext } from './use-head.js';
 export { useSeoMeta, useServerSeoMeta, type SeoMetaInput } from './seo-meta.js';
 
 export {
+	createServerTraceError,
+	emitServerTrace,
+	type ServerObservabilityHooks,
+	type ServerTraceError,
+	type ServerTraceEvent,
+	type ServerTraceKind,
+} from './observability.js';
+
+export {
 	createHandler,
 	createStreamingHandler,
 	parseQuery,
 	createRequestContext,
 	type HandlerConfig,
 } from './handler.js';
+
+export {
+	handleLayerServerRequest,
+	matchLayerServerRequest,
+	normalizeServerResult,
+} from './server-routing.js';
+
+export { EFFUSE_ACTION_PREFIX } from './constants.js';
+
+export {
+	getLayerServerActionEntries,
+	getLayerServerDiagnostics,
+	getLayerServerMiddleware,
+	getLayerServerRouteEntries,
+	mergeServerRouteMetadata,
+	normalizeServerActionInput,
+	normalizeServerRouteInput,
+	type LayerServerActionEntry,
+	type LayerServerRouteEntry,
+	type LayerServerRouteSource,
+	type ServerMetadataDiagnostic,
+} from './server-routes.js';
+
+export {
+	callLayerAction,
+	createLayerActionClient,
+	createLayerActionPath,
+	createLayerActionUrl,
+	isLayerActionError,
+	isLayerActionErrorBody,
+	LayerActionError,
+	type LayerActionCallOptions,
+	type LayerActionClient,
+	type LayerActionErrorBody,
+	type LayerActionName,
+	type LayerActionResponseMode,
+	type LayerActionResult,
+	type LayerActionsFrom,
+} from './actions.js';
+
+export {
+	createLayerServerManifest,
+	createLayerServerManifestFromLayers,
+	type LayerServerManifest,
+	type LayerServerManifestAction,
+	type LayerServerManifestLayer,
+	type LayerServerManifestRoute,
+} from './manifest.js';
+
+export {
+	fromServerFiles,
+	serverFileToActionName,
+	serverFileToRoutePath,
+	type ServerActionFileModule,
+	type ServerApiFileModule,
+	type ServerFileSource,
+	type ServerFilesInput,
+	type ServerFilesOptions,
+} from './server-files.js';
+
+export {
+	callLayerManifestAction,
+	callLayerManifestRoute,
+	createLayerRoutePath,
+	createLayerRouteUrl,
+	createLayerServerManifestClient,
+	generateLayerServerClientModule,
+	getLayerClientErrorBody,
+	getLayerClientErrorStatus,
+	isLayerClientError,
+	LayerServerClientError,
+	type GenerateLayerServerClientModuleOptions,
+	type LayerClientError,
+	type LayerRouteCallOptions,
+	type LayerRoutePathOptions,
+	type LayerServerManifestClient,
+	type ManifestActionForLayer,
+	type ManifestActionName,
+	type ManifestLayerName,
+	type ManifestRouteForPath,
+	type ManifestRouteMethod,
+	type ManifestRouteParams,
+	type ManifestRoutePath,
+} from './client.js';
+
+export {
+	createLayerServerErrorBody,
+	isLayerServerError,
+	isLayerServerErrorBody,
+	LayerServerError,
+	layerServerErrorResponse,
+	type LayerServerErrorBody,
+	type LayerServerErrorOptions,
+} from './server-errors.js';
+
+export {
+	createServerValidationErrorBody,
+	createServerValidationHelpers,
+	isServerValidationErrorBody,
+	isServerValidationError,
+	serverValidationErrorResponse,
+	ServerValidationError,
+	validateServerValue,
+	type ServerValidationErrorBody,
+	type ServerValidationFailure,
+	type ServerValidationHelpers,
+	type ServerValidationIssue,
+	type ServerValidationResult,
+	type ServerValidationSource,
+	type ServerValidationSuccess,
+	type ServerValidator,
+} from './validation.js';
 
 export {
 	mergeHeadProps,

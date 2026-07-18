@@ -60,15 +60,17 @@
 		"express": "^4.21.2",
 		"open": "^10.1.0",
 		"picocolors": "^1.1.1",
-		"vite": "^5.4.14"
+		"vite": "^8.0.0"
 	},
 	"devDependencies": {
 		"@effect/eslint-plugin": "^0.3.2",
+		"@eslint/js": "^9.39.4",
 		"@types/express": "^5.0.0",
 		"@types/node": "^25.5.0",
 		"eslint": "^10.0.3",
 		"tsup": "^8.5.1",
 		"typescript": "^5.9.3",
+		"typescript-eslint": "^8.57.1",
 		"vitest": "^4.1.0"
 	}
 }

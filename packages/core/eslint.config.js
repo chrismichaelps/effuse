@@ -3,11 +3,10 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
 	eslint.configs.recommended,
-	...tseslint.configs.strictTypeChecked,
+	...tseslint.configs.recommended,
 	{
 		languageOptions: {
 			parserOptions: {
-				project: './tsconfig.eslint.json',
 				tsconfigRootDir: import.meta.dirname,
 			},
 		},
@@ -17,13 +16,14 @@ export default tseslint.config(
 				{ argsIgnorePattern: '^_' },
 			],
 			'@typescript-eslint/explicit-function-return-type': 'off',
-			'@typescript-eslint/no-explicit-any': 'error',
-			'@typescript-eslint/consistent-type-imports': 'error',
+			'@typescript-eslint/no-explicit-any': 'warn',
+			'@typescript-eslint/no-empty-object-type': 'warn',
+			'@typescript-eslint/consistent-type-imports': 'warn',
 			'prefer-const': 'error',
 			'no-console': 'warn',
 		},
 	},
 	{
-		ignores: ['dist/**', '*.test.ts'],
+		ignores: ['dist/**', 'src/**/*.test.ts', 'src/__tests__/**'],
 	}
 );

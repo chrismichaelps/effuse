@@ -76,9 +76,8 @@ export function setPropertyWithPrivateFieldSupport(
 	if (
 		found &&
 		Predicate.isNotNullable(descriptor) &&
-		Predicate.isFunction(descriptor.set) // eslint-disable-line @typescript-eslint/unbound-method
+		Predicate.isFunction(descriptor.set)
 	) {
-		// eslint-disable-next-line @typescript-eslint/unbound-method
 		Reflect.apply(descriptor.set, target, [value]);
 		return true;
 	}

@@ -154,14 +154,18 @@ export const removeWithFilters = (
 	filters: QueryFilters
 ): void => {
 	const matched = findMatchingKeys(deps, filters);
+	let removed = false;
 	for (const keyStr of matched) {
 		const timer = deps.internals.gcTimers.get(keyStr);
 		if (timer) {
 			clearTimeout(timer);
 			deps.internals.gcTimers.delete(keyStr);
 		}
-		deps.internals.cache.delete(keyStr);
+		removed = deps.internals.cache.delete(keyStr) || removed;
 		notifySubscribersForKey(deps, keyStr);
+	}
+	if (removed) {
+		deps.onCacheChange?.();
 	}
 };
 

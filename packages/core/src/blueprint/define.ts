@@ -33,31 +33,28 @@ import type { ScriptContext, ExposedValues } from './script-context.js';
 import { createScriptContext, runMountCallbacks } from './script-context.js';
 import type { ComponentLifecycle } from './lifecycle.js';
 import { withActiveLifecycle } from './lifecycle.js';
-import type { CompiledLayer } from '../layers/api/defineLayer.js';
+import type { LayerSource } from '../layers/api/layersAccessor.js';
 import {
 	createProvideScope,
 	runWithProvideScope,
 	getCurrentProvideScope,
+	type ProvideScope,
 } from './provide-inject.js';
-
-interface PropsWithChildren {
-	readonly children?: EffuseChild;
-}
 
 export type TemplateArgs<E extends ExposedValues> = E & {
 	readonly children?: EffuseChild;
 };
 
 /** Merged template context: exposed values + props + children. */
-export type TemplateContext<E extends ExposedValues, P> = E & Readonly<P> & {
-	readonly children?: EffuseChild;
-};
+export type TemplateContext<E extends ExposedValues, P> = E &
+	Readonly<P> & {
+		readonly children?: EffuseChild;
+	};
 
 export interface DefineOptionsWithInferredProps<
 	P,
 	E extends ExposedValues,
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	L extends readonly CompiledLayer<any>[] = [],
+	L extends LayerSource = readonly never[],
 > {
 	name?: string;
 	props: P;
@@ -71,8 +68,7 @@ export interface DefineOptionsWithInferredProps<
 export interface DefineOptions<
 	P,
 	E extends ExposedValues,
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	L extends readonly CompiledLayer<any>[] = [],
+	L extends LayerSource = readonly never[],
 > {
 	name?: string;
 	props?: undefined;
@@ -86,19 +82,19 @@ export interface DefineOptions<
 interface DefineState<E extends ExposedValues> {
 	exposed: E;
 	lifecycle: ComponentLifecycle;
+	updateProps: (props: Record<string, unknown>) => void;
 	_template: (ctx: TemplateContext<E, unknown>) => EffuseChild;
 	/** Reactive props proxy created by script context. */
 	_reactiveProps?: Readonly<Record<string, unknown>>;
 	/** Provide scope for component-level provide/inject. */
-	_provideScope?: import('./provide-inject.js').ProvideScope;
+	_provideScope?: ProvideScope;
 	[key: string]: unknown;
 }
 
 export function define<
 	P = Record<string, unknown>,
 	E extends ExposedValues = ExposedValues,
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	L extends readonly CompiledLayer<any>[] = [],
+	L extends LayerSource = readonly never[],
 >(
 	options: DefineOptions<P, E, L> | DefineOptionsWithInferredProps<P, E, L>
 ): Component<P> {
@@ -137,6 +133,7 @@ export function define<
 			return {
 				exposed: state.exposed,
 				lifecycle: state.lifecycle,
+				updateProps: state.updateProps,
 				_template: options.template,
 				_reactiveProps: context.props as Readonly<Record<string, unknown>>,
 				_provideScope: provideScope,
@@ -145,12 +142,14 @@ export function define<
 
 		view: (ctx: BlueprintContext<P>) => {
 			const state = ctx.state as DefineState<E>;
-			const children = (ctx.props as Record<string, unknown>).children as
-				| EffuseChild
-				| undefined;
+			const props = (state._reactiveProps ?? ctx.props) as Readonly<
+				Record<string, unknown>
+			>;
+			const children = ((ctx.props as Record<string, unknown>).children ??
+				props.children) as EffuseChild | undefined;
 			const mergedCtx: TemplateContext<E, P> = {
 				...state.exposed,
-				...ctx.props,
+				...props,
 				children,
 			} as TemplateContext<E, P>;
 
@@ -187,4 +186,4 @@ export type InferProps<D> =
  * });
  * ```
  */
-export const defineProps = <P>(): P => ({} as P);
+export const defineProps = <P>(): P => ({}) as P;

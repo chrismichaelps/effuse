@@ -1,11 +1,21 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { createSSRRuntime } from '../../ssr/runtime.js';
-import { defineLayer } from '../../layers/api/defineLayer.js';
+import {
+	defineLayer,
+	resolveLayerDefinitions,
+} from '../../layers/api/defineLayer.js';
+import { LayerNameCollisionError } from '../../layers/errors.js';
+import { createLayerRuntime } from '../../layers/internal/runtime.js';
 import { signal } from '../../reactivity/signal.js';
-import { isLayerRuntimeReady } from '../../layers/context.js';
+import {
+	clearGlobalLayerContext,
+	getLayerService,
+	isLayerRuntimeReady,
+} from '../../layers/context.js';
 import { clearGlobalTracing } from '../../layers/tracing/index.js';
 
 afterEach(() => {
+	clearGlobalLayerContext();
 	clearGlobalTracing();
 });
 
@@ -39,6 +49,51 @@ describe('SSRRuntime', () => {
 
 			await runtime.dispose();
 			expect(isLayerRuntimeReady()).toBe(false);
+		});
+
+		it('should restore an existing app layer context after SSR dispose', async () => {
+			const appService = { source: 'app' };
+			const serverService = { source: 'server' };
+			const AppLayer = defineLayer({
+				name: 'app-context',
+				services: {
+					app: () => appService,
+				},
+			});
+			const ServerLayer = defineLayer({
+				name: 'server-context',
+				services: {
+					server: () => serverService,
+				},
+			});
+
+			const appRuntime = await createLayerRuntime(
+				resolveLayerDefinitions([AppLayer])
+			);
+			let ssrRuntime: Awaited<ReturnType<typeof createSSRRuntime>> | null = null;
+
+			try {
+				expect(isLayerRuntimeReady()).toBe(true);
+				expect(getLayerService('app')).toBe(appService);
+
+				ssrRuntime = await createSSRRuntime([ServerLayer]);
+				expect(getLayerService('app')).toBe(appService);
+				expect(getLayerService('server')).toBeUndefined();
+				expect(ssrRuntime.run(() => getLayerService('server'))).toBe(
+					serverService
+				);
+
+				await ssrRuntime.dispose();
+				ssrRuntime = null;
+
+				expect(isLayerRuntimeReady()).toBe(true);
+				expect(getLayerService('app')).toBe(appService);
+			} finally {
+				if (ssrRuntime) {
+					await ssrRuntime.dispose();
+				}
+				await appRuntime.dispose();
+			}
 		});
 
 		it('should collect head props from layer definitions', async () => {
@@ -146,6 +201,51 @@ describe('SSRRuntime', () => {
 			expect(runtime.headStack[0]).toEqual({ title: 'Raw' });
 
 			await runtime.dispose();
+		});
+
+		it('should resolve extended raw layers before request setup', async () => {
+			const BaseLayer = {
+				name: 'base-raw',
+				services: {
+					config: () => ({ env: 'test' }),
+				},
+			};
+
+			const FeatureLayer = defineLayer({
+				name: 'feature-compiled',
+				extends: [BaseLayer],
+				dependencies: ['base-raw'] as const,
+			});
+
+			const runtime = await createSSRRuntime([FeatureLayer]);
+
+			expect(runtime.layers.map((layer) => layer.name)).toEqual([
+				'base-raw',
+				'feature-compiled',
+			]);
+
+			await runtime.dispose();
+		});
+
+		it('should reject duplicate layer names before SSR setup runs', async () => {
+			let setupCalled = false;
+			const FirstLayer = defineLayer({
+				name: 'session',
+				setup: () => {
+					setupCalled = true;
+				},
+			});
+			const SecondLayer = defineLayer({
+				name: 'session',
+			});
+
+			await expect(createSSRRuntime([FirstLayer, SecondLayer])).rejects.toThrow(
+				LayerNameCollisionError
+			);
+			await expect(createSSRRuntime([FirstLayer, SecondLayer])).rejects.toThrow(
+				'Layer "session" is registered more than once'
+			);
+			expect(setupCalled).toBe(false);
 		});
 	});
 });

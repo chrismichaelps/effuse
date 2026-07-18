@@ -51,8 +51,26 @@ export const useRoute = (): Route => {
 	const query = computed(() => routeSignal.value.query);
 	const hash = computed(() => routeSignal.value.hash);
 	const matched = computed(() => routeSignal.value.matched);
+	const canonicalRouteGroups = computed(
+		() => routeSignal.value.canonicalRouteGroups
+	);
+	const aliasRouteGroups = computed(() => routeSignal.value.aliasRouteGroups);
+	const routeGroups = computed(() => routeSignal.value.routeGroups);
 	const name = computed(() => routeSignal.value.name);
 	const meta = computed(() => routeSignal.value.meta);
+	const routeKeys = [
+		'path',
+		'fullPath',
+		'params',
+		'query',
+		'hash',
+		'matched',
+		'canonicalRouteGroups',
+		'aliasRouteGroups',
+		'routeGroups',
+		'name',
+		'meta',
+	] as const satisfies readonly (keyof Route)[];
 
 	return new Proxy({} as Route, {
 		get(_target, prop) {
@@ -69,6 +87,12 @@ export const useRoute = (): Route => {
 					return hash.value;
 				case 'matched':
 					return matched.value;
+				case 'canonicalRouteGroups':
+					return canonicalRouteGroups.value;
+				case 'aliasRouteGroups':
+					return aliasRouteGroups.value;
+				case 'routeGroups':
+					return routeGroups.value;
 				case 'name':
 					return name.value;
 				case 'meta':
@@ -78,30 +102,10 @@ export const useRoute = (): Route => {
 			}
 		},
 		ownKeys() {
-			return [
-				'path',
-				'fullPath',
-				'params',
-				'query',
-				'hash',
-				'matched',
-				'name',
-				'meta',
-			];
+			return routeKeys;
 		},
 		getOwnPropertyDescriptor(_target, prop) {
-			if (
-				[
-					'path',
-					'fullPath',
-					'params',
-					'query',
-					'hash',
-					'matched',
-					'name',
-					'meta',
-				].includes(prop as string)
-			) {
+			if (routeKeys.includes(prop as (typeof routeKeys)[number])) {
 				return {
 					enumerable: true,
 					configurable: true,
@@ -139,7 +143,7 @@ export const onRouteChange = (
 export const navigateTo = (
 	to: RouteLocation,
 	options?: { replace?: boolean }
-): Route | NavigationFailure => {
+): Promise<Route | NavigationFailure> => {
 	const router = useRouter();
 	const shouldReplace =
 		Predicate.isNotNullable(options) && options.replace === true;

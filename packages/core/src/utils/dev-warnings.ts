@@ -22,6 +22,8 @@
  * SOFTWARE.
  */
 
+/* eslint-disable no-console -- Dev warning helpers intentionally centralize console diagnostics. */
+
 const isDev = process.env.NODE_ENV !== 'production';
 
 export const devWarn = (message: string): void => {

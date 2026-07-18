@@ -28,8 +28,8 @@ import { isSignal } from '../reactivity/signal.js';
 import type { ReadonlySignal } from '../types/index.js';
 import { getActiveLifecycle } from './lifecycle.js';
 import { devWarn } from '../utils/dev-warnings.js';
-import { getLayerService } from '../layers/context.js';
 import type { CompiledLayer, EffuseServices } from '../layers/api/defineLayer.js';
+import { resolveLayerService } from '../layers/api/layersAccessor.js';
 import type { EffuseLayer } from '../layers/types.js';
 
 const trackDependencies = (deps: unknown[] | undefined): void => {
@@ -56,7 +56,6 @@ export function useCallback<T extends (...args: any[]) => any>(
 	deps?: unknown[]
 ): T {
 	warnIfOutsideLifecycle('useCallback');
-	// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
 	return computed(() => {
 		trackDependencies(deps);
 		return fn;
@@ -75,8 +74,7 @@ export function useMemo<T>(fn: () => T, deps?: unknown[]): ReadonlySignal<T> {
 /**
  * Typed helper to retrieve a service from a layer at runtime.
  *
- * The layer argument is used only for type inference — the actual lookup
- * uses the string key against the active layer registry.
+ * The layer argument constrains the service key at type level and runtime.
  *
  * @example
  * ```ts
@@ -87,8 +85,10 @@ export const useLayerService = <
 	T extends EffuseLayer,
 	K extends keyof EffuseServices<T>,
 >(
-	_layer: CompiledLayer<T, string>,
+	layer: CompiledLayer<T, string>,
 	key: K
 ): EffuseServices<T>[K] | undefined => {
-	return getLayerService(key as string) as EffuseServices<T>[K] | undefined;
+	return resolveLayerService(layer, key as string) as
+		| EffuseServices<T>[K]
+		| undefined;
 };

@@ -8,6 +8,7 @@ import { describe, it, expect } from 'vitest';
 import { useLayerService } from '../../blueprint/hooks.js';
 import { defineLayer } from '../../layers/api/defineLayer.js';
 import { runWithLayerContext } from '../../layers/context.js';
+import { ServiceNotFoundError } from '../../layers/errors.js';
 import type { PropsRegistry } from '../../layers/services/PropsService.js';
 import type { LayerRegistry } from '../../layers/services/RegistryService.js';
 
@@ -36,7 +37,7 @@ describe('useLayerService', () => {
 		expect(result).toBe(authSvc);
 	});
 
-	it('should return undefined when service is not found', () => {
+	it('should reject service keys that are not provided by the layer', () => {
 		const authLayer = defineLayer({
 			name: 'auth',
 			provides: {},
@@ -49,12 +50,38 @@ describe('useLayerService', () => {
 		} as unknown as LayerRegistry;
 
 		const propsRegistry = {} as unknown as PropsRegistry;
+		const unsafeUseLayerService = useLayerService as unknown as (
+			layer: typeof authLayer,
+			key: string
+		) => unknown;
 
-		const result = runWithLayerContext(
-			{ propsRegistry, layerRegistry, layers: [] },
-			() => useLayerService(authLayer, 'missing')
-		);
+		expect(() =>
+			runWithLayerContext(
+				{ propsRegistry, layerRegistry, layers: [] },
+				() => unsafeUseLayerService(authLayer, 'missing')
+			)
+		).toThrow(ServiceNotFoundError);
+	});
 
-		expect(result).toBeUndefined();
+	it('should reject declared services missing from the active runtime', () => {
+		const authLayer = defineLayer({
+			name: 'auth',
+			provides: { authSvc: () => ({ login: () => 'ok' }) },
+		});
+
+		const layerRegistry = {
+			getLayer: () => undefined,
+			getService: () => undefined,
+			getComponent: () => undefined,
+		} as unknown as LayerRegistry;
+
+		const propsRegistry = {} as unknown as PropsRegistry;
+
+		expect(() =>
+			runWithLayerContext(
+				{ propsRegistry, layerRegistry, layers: [] },
+				() => useLayerService(authLayer, 'authSvc')
+			)
+		).toThrow(ServiceNotFoundError);
 	});
 });

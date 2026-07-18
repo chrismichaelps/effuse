@@ -79,7 +79,7 @@ export type InkComponents = {
 	readonly [key: string]: unknown;
 };
 
-/** @deprecated Use `InkComponents` */
+/** Backward-compatible alias. Prefer `InkComponents` in new code. */
 export type ComponentMap = InkComponents;
 
 const resolveElement = (

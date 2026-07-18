@@ -45,16 +45,35 @@ export interface TypedRoute<
 	readonly meta: Meta;
 }
 
-export type ExtractRouteParams<Path extends string> =
-	Path extends `${string}:${infer Param}/${infer Rest}`
-		? { [K in Param | keyof ExtractRouteParams<`/${Rest}`>]: string }
-		: Path extends `${string}:${infer Param}`
+type SegmentRouteParams<Segment extends string> =
+	Segment extends `[[...${infer Param}]]`
+		? { [K in Param]?: string }
+		: Segment extends `[...${infer Param}]`
 			? { [K in Param]: string }
-			: Record<string, never>;
+			: Segment extends `[${infer Param}]`
+				? { [K in Param]: string }
+				: Segment extends `:${infer RawParam}`
+					? RawParam extends `${infer Param}?`
+						? { [K in Param]?: string }
+						: { [K in RawParam]: string }
+					: Record<never, never>;
+
+type RouteParamsFromPath<Path extends string> =
+	Path extends `${infer Segment}/${infer Rest}`
+		? SegmentRouteParams<Segment> & RouteParamsFromPath<Rest>
+		: SegmentRouteParams<Path>;
+
+type SimplifyRouteParams<T> = keyof T extends never
+	? Record<string, never>
+	: { [K in keyof T]: T[K] };
+
+export type ExtractRouteParams<Path extends string> = SimplifyRouteParams<
+	RouteParamsFromPath<Path>
+>;
 
 export type TypedRouteLocation<
 	Name extends string,
-	Params extends Record<string, string> = Record<string, never>,
+	Params extends Partial<Record<string, string>> = Record<string, never>,
 > = {
 	name: Name;
 	params?: Params extends Record<string, never> ? undefined : Params;

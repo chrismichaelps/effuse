@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { beforeEach, afterEach, describe, it, expect, vi } from 'vitest';
 import { createQueryClient } from '../client/client.js';
 import { useQuery } from '../hooks/useQuery.js';
 import { useMutation, useOptimisticMutation } from '../hooks/useMutation.js';
@@ -68,6 +68,96 @@ interface CreatePostInput {
 	readonly body: string;
 	readonly userId: number;
 }
+
+const posts: Post[] = Array.from({ length: 12 }, (_, index) => ({
+	userId: Math.floor(index / 4) + 1,
+	id: index + 1,
+	title: `Post ${index + 1}`,
+	body: `Body for post ${index + 1}`,
+}));
+
+const users: User[] = [
+	{ id: 1, name: 'Leanne Graham', email: 'leanne@example.test' },
+	{ id: 2, name: 'Ervin Howell', email: 'ervin@example.test' },
+];
+
+const comments: Comment[] = Array.from({ length: 5 }, (_, index) => ({
+	postId: 1,
+	id: index + 1,
+	name: `Comment ${index + 1}`,
+	email: `comment-${index + 1}@example.test`,
+	body: `Comment body ${index + 1}`,
+}));
+
+const jsonResponse = (body: unknown, init?: ResponseInit): Response =>
+	Response.json(body, init);
+
+const sliceCollection = <T>(items: readonly T[], url: URL): readonly T[] => {
+	const limit = Number(url.searchParams.get('_limit') ?? items.length);
+	const page = Number(url.searchParams.get('_page') ?? 1);
+	const start = (page - 1) * limit;
+	return items.slice(start, start + limit);
+};
+
+const createJsonPlaceholderFetch = (): typeof fetch =>
+	vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+		const request = new Request(input, init);
+		const url = new URL(request.url);
+
+		if (url.origin !== API_BASE) {
+			return jsonResponse({ message: 'Not found' }, { status: 404 });
+		}
+
+		if (request.method === 'POST' && url.pathname === '/posts') {
+			const body = (await request.json()) as CreatePostInput;
+			return jsonResponse({ ...body, id: 101 });
+		}
+
+		if (request.method !== 'GET') {
+			return jsonResponse({ message: 'Method not allowed' }, { status: 405 });
+		}
+
+		if (url.pathname === '/posts') {
+			return jsonResponse(sliceCollection(posts, url));
+		}
+
+		const postMatch = url.pathname.match(/^\/posts\/(\d+)$/);
+		if (postMatch) {
+			const post = posts.find((candidate) => candidate.id === Number(postMatch[1]));
+			return post
+				? jsonResponse(post)
+				: jsonResponse({ message: 'Not found' }, { status: 404 });
+		}
+
+		const commentsMatch = url.pathname.match(/^\/posts\/(\d+)\/comments$/);
+		if (commentsMatch) {
+			const postId = Number(commentsMatch[1]);
+			return jsonResponse(
+				sliceCollection(
+					comments.filter((comment) => comment.postId === postId),
+					url
+				)
+			);
+		}
+
+		const userMatch = url.pathname.match(/^\/users\/(\d+)$/);
+		if (userMatch) {
+			const user = users.find((candidate) => candidate.id === Number(userMatch[1]));
+			return user
+				? jsonResponse(user)
+				: jsonResponse({ message: 'Not found' }, { status: 404 });
+		}
+
+		return jsonResponse({ message: 'Not found' }, { status: 404 });
+	}) as typeof fetch;
+
+beforeEach(() => {
+	vi.stubGlobal('fetch', createJsonPlaceholderFetch());
+});
+
+afterEach(() => {
+	vi.unstubAllGlobals();
+});
 
 describe('jsonplaceholder.typicode.com integration', () => {
 	describe('useQuery', () => {

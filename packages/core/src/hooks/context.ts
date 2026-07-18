@@ -39,9 +39,9 @@ import type {
 	HookFinalizer,
 	EffectCallback,
 } from './types.js';
-import type { CompiledLayer } from '../layers/api/defineLayer.js';
 import {
 	resolveLayersAccessor,
+	type LayerSource,
 	type LayersAccessor,
 } from '../layers/api/layersAccessor.js';
 
@@ -64,7 +64,7 @@ const createHookScope = (): HookScope => {
 
 export const createHookContext = <
 	C,
-	L extends readonly CompiledLayer<any>[] = readonly never[],
+	L extends LayerSource = readonly never[],
 >(
 	config: C,
 	layers: L,

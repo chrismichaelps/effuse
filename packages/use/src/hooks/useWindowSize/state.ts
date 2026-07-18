@@ -24,10 +24,12 @@
 
 import { Data } from 'effect';
 
+/* eslint-disable @typescript-eslint/no-empty-object-type -- Effect Data.TaggedEnum uses {} for no-payload variants. */
 export type WindowSizeState = Data.TaggedEnum<{
 	readonly Unavailable: {};
 	readonly Available: { readonly width: number; readonly height: number };
 }>;
+/* eslint-enable @typescript-eslint/no-empty-object-type */
 
 export const WindowSizeState = Data.taggedEnum<WindowSizeState>();
 

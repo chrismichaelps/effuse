@@ -53,6 +53,7 @@ export class QueryCache {
 
 		const query = new Query<TData, TError>(config, this);
 		this.queries.set(hash, query as Query<unknown, Error>);
+		this.notify();
 		return query;
 	}
 
@@ -74,6 +75,7 @@ export class QueryCache {
 		if (query) {
 			query.destroy();
 			this.queries.delete(hash);
+			this.notify();
 			return true;
 		}
 		return false;
@@ -87,6 +89,7 @@ export class QueryCache {
 			if (!query.isActive && (!predicate || predicate(query))) {
 				query.destroy();
 				this.queries.delete(hash);
+				this.notify();
 			}
 		}
 	}
@@ -109,10 +112,14 @@ export class QueryCache {
 	 * Clear all queries.
 	 */
 	clear(): void {
+		if (this.queries.size === 0) {
+			return;
+		}
 		for (const query of this.queries.values()) {
 			query.destroy();
 		}
 		this.queries.clear();
+		this.notify();
 	}
 
 	/**

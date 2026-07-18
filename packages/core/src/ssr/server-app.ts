@@ -23,8 +23,7 @@
  */
 
 import type { Component } from '../render/node.js';
-import type { AnyLayer } from '../layers/types.js';
-import type { CompiledLayer } from '../layers/api/defineLayer.js';
+import type { LayerInputSource } from '../layers/api/defineLayer.js';
 import type { RenderResult, ServerAppOptions, HeadProps } from './types.js';
 import { renderToString, renderToFragment } from './render.js';
 import { RenderError, createErrorHtml } from './errors.js';
@@ -34,7 +33,7 @@ import { serializeHydrationData, type HydrationData } from './hydration.js';
 import { createSSRRuntime, type SSRRuntime } from './runtime.js';
 
 export interface ServerApp {
-	useLayers(layers: readonly (AnyLayer | CompiledLayer<any>)[]): ServerApp;
+	useLayers(layers: LayerInputSource): ServerApp;
 
 	configure(options: ServerAppOptions): ServerApp;
 
@@ -55,7 +54,7 @@ export interface ServerApp {
 }
 
 export const createServerApp = (root: Component): ServerApp => {
-	let layers: readonly (AnyLayer | CompiledLayer<any>)[] = [];
+	let layers: LayerInputSource = [];
 	let options: ServerAppOptions = { hydrate: true };
 
 	const app: ServerApp = {
@@ -139,7 +138,7 @@ export const createServerApp = (root: Component): ServerApp => {
 
 							// If manifest is provided, inject preload/styles for the main entry point
 							if (options.manifest) {
-								for (const [key, chunk] of Object.entries(options.manifest)) {
+								for (const chunk of Object.values(options.manifest)) {
 									if (chunk.isEntry) {
 										// Preload JS Entry
 										headHtml += `\n\t<link rel="modulepreload" crossorigin href="/${chunk.file}">`;

@@ -24,11 +24,13 @@
 
 import { Data } from 'effect';
 
+/* eslint-disable @typescript-eslint/no-empty-object-type -- Effect Data.TaggedEnum uses {} for no-payload variants. */
 export type MediaQueryState = Data.TaggedEnum<{
 	readonly Unavailable: {};
 	readonly Matched: {};
 	readonly Unmatched: {};
 }>;
+/* eslint-enable @typescript-eslint/no-empty-object-type */
 
 export const MediaQueryState = Data.taggedEnum<MediaQueryState>();
 

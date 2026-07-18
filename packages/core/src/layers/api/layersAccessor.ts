@@ -22,51 +22,280 @@
  * SOFTWARE.
  */
 
-import { getLayerContext, getLayerService } from '../context.js';
-import type { CompiledLayer, EffuseServices } from './defineLayer.js';
-import type { LayerProps, EffuseLayer } from '../types.js';
+import {
+	getLayerContext,
+	getLayerService,
+	isLayerRuntimeReady,
+} from '../context.js';
+import { LayerNameCollisionError, ServiceNotFoundError } from '../errors.js';
+import { compileLayer, resolveLayerDefinitions } from './defineLayer.js';
+import type {
+	CompiledLayer,
+	EffuseServices,
+	LayerPropsFrom,
+	LayerServicesFrom,
+} from './defineLayer.js';
+import type { EffuseLayer } from '../types.js';
+
+export type LayerList = readonly CompiledLayer<EffuseLayer, string>[];
+
+export type LayerAliases = Readonly<
+	Record<string, CompiledLayer<EffuseLayer, string>>
+>;
+
+export type LayerSource = LayerList | LayerAliases;
 
 export interface LayerEntry<T extends EffuseLayer> {
-	readonly props: LayerProps;
+	readonly props: LayerPropsFrom<T>;
 	readonly services: EffuseServices<T>;
+	prop<Key extends Extract<keyof LayerPropsFrom<T>, string>>(
+		key: Key
+	): LayerPropsFrom<T>[Key];
+	service<Key extends Extract<keyof EffuseServices<T>, string>>(
+		key: Key
+	): EffuseServices<T>[Key];
 }
 
-type LayerNameOf<L> =
-	L extends CompiledLayer<any, infer N> ? N : never;
+export type LayerEntryFrom<L extends CompiledLayer<EffuseLayer, string>> =
+	L extends CompiledLayer<infer T, string> ? LayerEntry<T> : never;
+
+type LayerNameOf<L> = L extends CompiledLayer<EffuseLayer, infer N> ? N : never;
+
+type LayerContractOf<L extends CompiledLayer<EffuseLayer, string>> =
+	L extends CompiledLayer<infer T, string> ? T : never;
+
+type LayerServiceKey<L extends CompiledLayer<EffuseLayer, string>> = Extract<
+	keyof EffuseServices<LayerContractOf<L>>,
+	string
+>;
 
 type LayerByName<
-	U extends CompiledLayer<any, any>,
+	U extends CompiledLayer<EffuseLayer, string>,
 	N extends string,
-> = U extends CompiledLayer<infer T, N>
-	? LayerEntry<T>
+> = U extends CompiledLayer<infer T, N> ? LayerEntry<T> : never;
+
+type LayerDefinitionOf<L extends CompiledLayer<EffuseLayer, string>> =
+	L extends CompiledLayer<EffuseLayer, string, infer D> ? D : never;
+
+type ExtendedLayerOf<L extends CompiledLayer<EffuseLayer, string>> =
+	LayerDefinitionOf<L> extends { readonly extends?: readonly (infer E)[] }
+		? Extract<E, CompiledLayer<EffuseLayer, string>>
+		: never;
+
+type LayerClosureOf<
+	L extends CompiledLayer<EffuseLayer, string>,
+	Seen = never,
+> = L extends Seen
+	? never
+	:
+			| L
+			| (ExtendedLayerOf<L> extends infer E
+					? E extends CompiledLayer<EffuseLayer, string>
+						? LayerClosureOf<E, Seen | L>
+						: never
+					: never);
+
+type LayerListClosureOf<L extends LayerList> = L[number] extends infer Item
+	? Item extends CompiledLayer<EffuseLayer, string>
+		? LayerClosureOf<Item>
+		: never
 	: never;
 
-export type LayersAccessor<L extends readonly CompiledLayer<any, any>[]> = {
-	[N in LayerNameOf<L[number]>]: LayerByName<L[number], N>;
+type LayersAccessorFromList<L extends LayerList> = {
+	[N in LayerNameOf<LayerListClosureOf<L>>]: LayerByName<
+		LayerListClosureOf<L>,
+		N
+	>;
 };
 
-export function resolveLayersAccessor<
-	L extends readonly CompiledLayer<any, any>[],
->(layers: L): LayersAccessor<L> {
-	const accessor: Record<string, LayerEntry<any>> = {};
+type LayersAccessorFromAliases<L extends LayerAliases> = {
+	readonly [K in keyof L]: LayerEntryFrom<L[K]>;
+};
 
-	for (const compiledLayer of layers) {
-		const name = compiledLayer.name as string;
+export type LayersAccessor<L extends LayerSource> = L extends LayerList
+	? LayersAccessorFromList<L>
+	: L extends LayerAliases
+		? LayersAccessorFromAliases<L>
+		: never;
 
-		accessor[name] = {
-			get props(): LayerProps {
-				return getLayerContext(name).props;
-			},
-			get services(): Record<string, unknown> {
-				const services: Record<string, unknown> = {};
-				if (compiledLayer.provides) {
-					for (const key of Object.keys(compiledLayer.provides)) {
-						services[key] = getLayerService(key);
-					}
+const createServicesBag = <L extends CompiledLayer<EffuseLayer, string>>(
+	compiledLayer: L
+): {
+	readonly services: EffuseServices<
+		L extends CompiledLayer<infer T, string> ? T : never
+	>;
+	readonly refresh: () => void;
+} => {
+	const keys = Object.keys(compiledLayer.provides ?? {});
+	const services: Record<string, unknown> = {};
+	const serviceCache: Record<string, unknown> = {};
+	const readService = (key: string): unknown => {
+		const service = getLayerService(key);
+		if (service === undefined) {
+			throw new ServiceNotFoundError({
+				layerName: compiledLayer.name,
+				serviceKey: key,
+			});
+		}
+		return service;
+	};
+
+	for (const key of keys) {
+		Object.defineProperty(services, key, {
+			enumerable: true,
+			get: () => {
+				if (isLayerRuntimeReady()) {
+					serviceCache[key] = readService(key);
 				}
-				return services;
+				return serviceCache[key];
 			},
-		};
+		});
+	}
+
+	return {
+		services: services as EffuseServices<
+			L extends CompiledLayer<infer T, string> ? T : never
+		>,
+		refresh: () => {
+			for (const key of keys) {
+				serviceCache[key] = readService(key);
+			}
+		},
+	};
+};
+
+export function resolveLayerEntry<L extends CompiledLayer<EffuseLayer, string>>(
+	compiledLayer: L
+): LayerEntryFrom<L> {
+	const name = compiledLayer.name as string;
+	const { refresh, services } = createServicesBag(compiledLayer);
+	const readProps = (): LayerPropsFrom<LayerContractOf<L>> =>
+		getLayerContext(name).props as LayerPropsFrom<LayerContractOf<L>>;
+	const readService = (
+		key: string
+	): EffuseServices<LayerContractOf<L>>[LayerServiceKey<L>] => {
+		refresh();
+		const service = (services as Record<string, unknown>)[key];
+		if (service === undefined) {
+			throw new ServiceNotFoundError({
+				layerName: compiledLayer.name,
+				serviceKey: key,
+			});
+		}
+		return service as EffuseServices<LayerContractOf<L>>[LayerServiceKey<L>];
+	};
+
+	return {
+		get props(): LayerPropsFrom<LayerContractOf<L>> {
+			return readProps();
+		},
+		get services(): EffuseServices<LayerContractOf<L>> {
+			refresh();
+			return services;
+		},
+		prop: <
+			Key extends Extract<keyof LayerPropsFrom<LayerContractOf<L>>, string>,
+		>(
+			key: Key
+		) => readProps()[key],
+		service: <Key extends LayerServiceKey<L>>(key: Key) => readService(key),
+	} as unknown as LayerEntryFrom<L>;
+}
+
+export const createLayerEntryResolver = (): (<
+	L extends CompiledLayer<EffuseLayer, string>,
+>(
+	compiledLayer: L
+) => LayerEntryFrom<L>) => {
+	const entries = new WeakMap<
+		CompiledLayer<EffuseLayer, string>,
+		LayerEntry<EffuseLayer>
+	>();
+
+	return <L extends CompiledLayer<EffuseLayer, string>>(
+		compiledLayer: L
+	): LayerEntryFrom<L> => {
+		const cached = entries.get(compiledLayer);
+		if (cached) {
+			return cached as LayerEntryFrom<L>;
+		}
+
+		const entry = resolveLayerEntry(compiledLayer);
+		entries.set(compiledLayer, entry);
+		return entry;
+	};
+};
+
+export const resolveLayerService = <
+	L extends CompiledLayer<EffuseLayer, string>,
+	K extends Extract<keyof LayerServicesFrom<L>, string>,
+>(
+	compiledLayer: L,
+	key: K | string | undefined,
+	resolveEntry: <EntryLayer extends CompiledLayer<EffuseLayer, string>>(
+		layer: EntryLayer
+	) => LayerEntryFrom<EntryLayer> = resolveLayerEntry
+): LayerServicesFrom<L>[K] => {
+	if (!key || !compiledLayer.serviceKeys.includes(key)) {
+		throw new ServiceNotFoundError({
+			layerName: compiledLayer.name,
+			serviceKey: key ?? '<missing>',
+		});
+	}
+
+	const services = resolveEntry(compiledLayer).services as Record<
+		string,
+		unknown
+	>;
+	const service = services[key];
+	if (service === undefined) {
+		throw new ServiceNotFoundError({
+			layerName: compiledLayer.name,
+			serviceKey: key,
+		});
+	}
+
+	return service as LayerServicesFrom<L>[K];
+};
+
+export const layerSourceToList = <L extends LayerSource>(
+	layers: L
+): readonly CompiledLayer<EffuseLayer, string>[] =>
+	Array.isArray(layers)
+		? layers
+		: (Object.values(layers) as readonly CompiledLayer<EffuseLayer, string>[]);
+
+const expandLayerList = (
+	layers: LayerList
+): readonly CompiledLayer<EffuseLayer, string>[] =>
+	resolveLayerDefinitions(layers).map(
+		(layer) => compileLayer(layer) as CompiledLayer<EffuseLayer, string>
+	);
+
+export function resolveLayersAccessor<L extends LayerSource>(
+	layers: L
+): LayersAccessor<L> {
+	const accessor: Record<string, LayerEntry<EffuseLayer>> = {};
+	const keys = new Set<string>();
+	const addEntry = (
+		key: string,
+		compiledLayer: CompiledLayer<EffuseLayer, string>
+	) => {
+		if (keys.has(key)) {
+			throw new LayerNameCollisionError({ layerName: key });
+		}
+		keys.add(key);
+		accessor[key] = resolveLayerEntry(compiledLayer);
+	};
+
+	if (Array.isArray(layers)) {
+		for (const compiledLayer of expandLayerList(layers)) {
+			addEntry(compiledLayer.name as string, compiledLayer);
+		}
+	} else {
+		for (const [alias, compiledLayer] of Object.entries(layers)) {
+			addEntry(alias, compiledLayer);
+		}
 	}
 
 	return accessor as LayersAccessor<L>;

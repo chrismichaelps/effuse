@@ -66,6 +66,137 @@ describe('createRouter lifecycle', () => {
 		// Route should not update after cleanup
 		expect(getCurrentPath(router)).toBe('/');
 	});
+
+	it('should remove a named canonical route with its aliases and children', () => {
+		const router = createRouter({
+			history: createMemoryHistory('/'),
+			routes: [
+				{
+					path: '/users/:id',
+					alias: '/people/:id',
+					name: 'user',
+					component: dummyComponent,
+					children: [
+						{
+							path: 'details',
+							name: 'user-details',
+							component: dummyComponent,
+						},
+					],
+				},
+				{ path: '/health', name: 'health', component: dummyComponent },
+			],
+		});
+
+		router.removeRoute('user');
+
+		expect(router.hasRoute('user')).toBe(false);
+		expect(router.hasRoute('user-details')).toBe(false);
+		expect(router.hasRoute('health')).toBe(true);
+		expect(router.getRoutes().map((route) => route.fullPath)).toEqual([
+			'/health',
+		]);
+		expect(router.routes.map((route) => route.fullPath)).toEqual(['/health']);
+	});
+
+	it('should validate aliases added after router creation', () => {
+		const router = createRouter({
+			history: createMemoryHistory('/'),
+			routes: [{ path: '/people/:name', component: dummyComponent }],
+		});
+
+		expect(() =>
+			router.addRoute({
+				path: '/users/:id',
+				alias: '/people/:id',
+				name: 'user',
+				component: dummyComponent,
+			})
+		).toThrow('resolve to the same URL pattern');
+	});
+
+	it('should add child routes beneath canonical and aliased parents', () => {
+		const router = createRouter({
+			history: createMemoryHistory('/'),
+			routes: [
+				{
+					path: '/(account)/users/:id',
+					alias: '/(public)/people/:id',
+					name: 'user',
+					component: dummyComponent,
+				},
+			],
+		});
+
+		router.addRoute(
+			{
+				path: '(preferences)/settings',
+				name: 'user-settings',
+				component: dummyComponent,
+			},
+			'user'
+		);
+
+		const canonical = router.resolve('/users/42/settings');
+		expect(canonical.name).toBe('user-settings');
+		expect(canonical.canonicalRouteGroups).toEqual([
+			'account',
+			'preferences',
+		]);
+		expect(canonical.aliasRouteGroups).toEqual([]);
+		expect(canonical.routeGroups).toEqual(['account', 'preferences']);
+
+		const aliased = router.resolve('/people/42/settings');
+		expect(aliased.name).toBe('user-settings');
+		expect(aliased.canonicalRouteGroups).toEqual([
+			'account',
+			'preferences',
+		]);
+		expect(aliased.aliasRouteGroups).toEqual(['public']);
+		expect(aliased.routeGroups).toEqual([
+			'account',
+			'preferences',
+			'public',
+		]);
+		expect(
+			router.resolve({
+				name: 'user-settings',
+				params: { id: '42' },
+			}).path
+		).toBe('/users/42/settings');
+	});
+
+	it('should run each matched guard once through a nested alias', async () => {
+		const guardCalls: string[] = [];
+		const router = createRouter({
+			history: createMemoryHistory('/'),
+			routes: [
+				{
+					path: '/users/:id',
+					alias: '/people/:id',
+					component: dummyComponent,
+					beforeEnter: () => {
+						guardCalls.push('parent');
+						return true;
+					},
+					children: [
+						{
+							path: 'details',
+							component: dummyComponent,
+							beforeEnter: () => {
+								guardCalls.push('child');
+								return undefined;
+							},
+						},
+					],
+				},
+			],
+		});
+
+		await router.push('/people/42/details');
+
+		expect(guardCalls).toEqual(['parent', 'child']);
+	});
 });
 
 describe('installRouter', () => {

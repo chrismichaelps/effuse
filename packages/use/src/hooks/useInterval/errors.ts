@@ -36,4 +36,6 @@ export const intervalUnavailable = (): IntervalError =>
 	new IntervalError({ reason: 'setInterval is not available (SSR context)' });
 
 export const intervalInvalidDelay = (delay: number): IntervalError =>
-	new IntervalError({ reason: `Invalid delay: ${delay}ms. Must be >= 0` });
+	new IntervalError({
+		reason: `Invalid delay: ${String(delay)}ms. Must be >= 0`,
+	});

@@ -22,12 +22,13 @@
  * SOFTWARE.
  */
 
-import { AsyncLocalStorage } from 'node:async_hooks';
-import { Option, pipe, Predicate } from 'effect';
+import { Predicate } from 'effect';
+import { createAsyncContextStorage } from '../utils/async-context.js';
 import type { Component } from '../render/node.js';
 import type {
 	LayerProps,
 	AnyResolvedLayer,
+	LayerProvides,
 } from './types.js';
 import type { PropsRegistry } from './services/PropsService.js';
 import type { LayerRegistry } from './services/RegistryService.js';
@@ -36,11 +37,12 @@ import {
 	LayerRuntimeNotInitializedError,
 } from './errors.js';
 import { devWarn } from '../utils/dev-warnings.js';
+import { getLayerDependencyNames } from './utils/dependencies.js';
 
 export interface LayerContext<P extends LayerProps = LayerProps> {
 	readonly name: string;
 	readonly props: P;
-	readonly provides?: Record<string, () => unknown>;
+	readonly provides?: LayerProvides;
 	readonly deps: Record<string, LayerContext>;
 	getService: (key: string) => unknown;
 	getComponent: (name: string) => unknown;
@@ -52,17 +54,27 @@ export interface LayerContextStore {
 	layers: readonly AnyResolvedLayer[];
 }
 
-const layerContextStorage = new AsyncLocalStorage<LayerContextStore>();
+const layerContextStorage = createAsyncContextStorage<LayerContextStore>();
+let globalLayerContextStore: LayerContextStore | undefined;
 
 export const getLayerContextStore = (): LayerContextStore | undefined => {
-	return layerContextStorage.getStore();
+	return layerContextStorage.getStore() ?? globalLayerContextStore;
 };
+
+export const getGlobalLayerContextStore = (): LayerContextStore | undefined =>
+	globalLayerContextStore;
 
 export const runWithLayerContext = <T>(
 	store: LayerContextStore,
 	fn: () => T
 ): T => {
 	return layerContextStorage.run(store, fn);
+};
+
+export const restoreGlobalLayerContext = (
+	store: LayerContextStore | undefined
+): void => {
+	globalLayerContextStore = store;
 };
 
 export const initGlobalLayerContext = (
@@ -75,7 +87,15 @@ export const initGlobalLayerContext = (
 		store.propsRegistry = propsRegistry;
 		store.layerRegistry = layerRegistry;
 		store.layers = layers;
+		globalLayerContextStore = store;
+		return;
 	}
+
+	globalLayerContextStore = {
+		propsRegistry,
+		layerRegistry,
+		layers,
+	};
 };
 
 export const clearGlobalLayerContext = (): void => {
@@ -85,6 +105,8 @@ export const clearGlobalLayerContext = (): void => {
 		store.layerRegistry = null;
 		store.layers = [];
 	}
+
+	globalLayerContextStore = undefined;
 };
 
 interface NonNullLayerContextStore {
@@ -94,7 +116,7 @@ interface NonNullLayerContextStore {
 }
 
 const getStoreOrThrow = (): NonNullLayerContextStore => {
-	const store = layerContextStorage.getStore();
+	const store = getLayerContextStore();
 	if (!store || !store.propsRegistry || !store.layerRegistry) {
 		devWarn(
 			'Layer runtime not initialized. ' +
@@ -107,7 +129,7 @@ const getStoreOrThrow = (): NonNullLayerContextStore => {
 };
 
 export const isLayerRuntimeReady = (): boolean => {
-	const store = layerContextStorage.getStore();
+	const store = getLayerContextStore();
 	return (
 		Predicate.isNotNullable(store) &&
 		Predicate.isNotNullable(store.propsRegistry) &&
@@ -126,20 +148,18 @@ export function getLayerContext(name: string): LayerContext {
 	const props = store.propsRegistry.get(name) ?? ({} as LayerProps);
 
 	const deps: Record<string, LayerContext> = {};
-	if (layer.dependencies) {
-		for (const depName of layer.dependencies as readonly string[]) {
-			Object.defineProperty(deps, depName, {
-				get: () => getLayerContext(depName),
-				enumerable: true,
-			});
-		}
+	for (const depName of getLayerDependencyNames(layer)) {
+		Object.defineProperty(deps, depName, {
+			get: () => getLayerContext(depName),
+			enumerable: true,
+		});
 	}
 
 	return {
 		name,
 		props,
 		...(layer.provides && {
-			provides: layer.provides as Record<string, () => unknown>,
+			provides: layer.provides as LayerProvides,
 		}),
 		deps,
 		getService: (key: string) => store.layerRegistry.getService(key),

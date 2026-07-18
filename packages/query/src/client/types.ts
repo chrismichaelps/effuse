@@ -24,6 +24,7 @@
 
 import type { Effect } from 'effect';
 import type { RetryConfig } from '../execution/index.js';
+import type { QueryClientApi } from './client.js';
 
 export type QueryKey = readonly unknown[];
 
@@ -81,7 +82,7 @@ export interface QueryOptions<T = unknown> {
 	 * from the nearest Effuse component scope via provideQueryClient(),
 	 * falling back to the global singleton.
 	 */
-	readonly client?: import('./client.js').QueryClientApi;
+	readonly client?: QueryClientApi;
 }
 
 export interface MutationOptions<TData = unknown, TVariables = unknown> {
@@ -102,7 +103,7 @@ export interface MutationOptions<TData = unknown, TVariables = unknown> {
 	 * from the nearest Effuse component scope via provideQueryClient(),
 	 * falling back to the global singleton.
 	 */
-	readonly client?: import('./client.js').QueryClientApi;
+	readonly client?: QueryClientApi;
 }
 
 export interface QueryState<T = unknown> {
@@ -137,6 +138,22 @@ export interface QueryInfo {
 	readonly isActive: boolean;
 	/** Whether the query is currently stale. */
 	readonly isStale: boolean;
+}
+
+/** Reactive metadata for QueryClient cache dashboards and devtools. */
+export interface QueryCacheSnapshot {
+	readonly version: number;
+	/** Keys stored by the imperative QueryClient cache APIs. */
+	readonly queryKeys: QueryKey[];
+	/** Number of entries stored by the imperative QueryClient cache APIs. */
+	readonly queryCount: number;
+	/** Number of Query instances tracked by the observer QueryCache. */
+	readonly observerQueryCount: number;
+	readonly activeQueryCount: number;
+	readonly staleQueryCount: number;
+	readonly fetchingQueryCount: number;
+	readonly mutationCount: number;
+	readonly pendingMutationCount: number;
 }
 
 /** Query filter options used by `invalidateQueries`, `removeQueries`, and `refetchQueries`. */

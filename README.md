@@ -3,16 +3,42 @@
 </p>
 
 <p align="center">
-  A lightweight, simple reactive UI library for building web interfaces.
+  A reactive application framework with typed layers, fine-grained UI updates, and layer-owned server APIs.
 </p>
 
-Effuse is a personal exploration into building a modern reactive framework. It prioritizes simplicity and fine-grained reactivity using **Signals**, offering a familiar developer experience without the complexity of a virtual DOM.
+Effuse is a modern TypeScript framework for building web applications around explicit capabilities. It prioritizes fine-grained reactivity with **Signals**, component logic that stays close to UI through `define({ script, template })`, and a layer system that owns services, app state, lifecycle, and server routes/actions in one typed place.
 
-It's designed to be intuitive and minimalist, helping you build fast, interactive web applications with less boilerplate. While it borrows good ideas from the ecosystem, it aims to remain small and understandable.
+The reason to use Effuse is not to get another component API. It is to make app capabilities first-class: auth, data, analytics, routing, feature flags, and server endpoints can be declared as layers, imported into components with local aliases, and tested through one coherent contract.
 
 > **Alert:** Effuse is currently in development and is not ready for production use.
 
-> **Note:** This is an experimental project for learning and demonstration. It is not intended to compete with major frameworks like React, Vue, or Solid.
+> **Note:** Effuse is experimental, but its direction is intentionally ambitious: a smaller frontend surface with framework-level power from React, Vue, Solid, and Next-like server APIs.
+
+## Why Effuse
+
+```tsx
+const ProfileButton = define({
+  layers: { auth: AuthLayer } as const,
+  script({ layers: { auth } }) {
+    const user = auth.services.auth.currentUser();
+    return { user };
+  },
+  template: ({ user }) => <button>{user.name}</button>,
+});
+```
+
+- **Typed layers** keep app capabilities explicit instead of scattering hidden imports and context.
+- **Fine-grained signals** update only dependent UI instead of rerendering a component tree by default.
+- **Local layer aliases** make component scripts readable without coupling them to global layer names.
+- **Layer-owned APIs/actions** bring Next-like server power to the capability that owns the data, with typed clients, manifests, validation, typed failures, middleware, and cache/runtime metadata.
+
+Read the framework rationale in [Why Effuse](docs/why-effuse.md).
+
+## Development
+
+Effuse requires Node `>=22.14.0` and pnpm `10.32.1`. Run `nvm use` from the
+repo root before running the test suite; `.nvmrc` and `.node-version` both pin
+the expected local runtime.
 
 ## Packages
 

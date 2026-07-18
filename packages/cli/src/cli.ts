@@ -1,9 +1,10 @@
 import { DevService } from './services/dev.js';
 import { BuildService } from './services/build.js';
 import { TypeCheckService } from './services/typecheck.js';
+import { ManifestResolver, DEFAULT_SERVER_MANIFEST_PATH } from './services/manifest.js';
 import { CliConfigService } from './config/index.js';
-import { APP_NAME, COMMANDS, PRESETS, DEFAULT_CONFIG } from './constants.js';
-import { loadEnvFiles, parseNumber } from './utils/index.js';
+import { APP_NAME, COMMANDS, PRESETS } from './constants.js';
+import { parseNumber } from './utils/index.js';
 import { CliError } from './errors/index.js';
 import { parseArgs } from './utils/args.js';
 
@@ -13,9 +14,13 @@ const VALID_PRESETS: readonly string[] = Object.values(PRESETS);
 
 const validatePort = (rawPort: unknown): number | undefined => {
 	if (rawPort === undefined) return undefined;
-	const port = parseNumber(String(rawPort));
+	if (typeof rawPort !== 'string' && typeof rawPort !== 'number') {
+		throw new CliError({ message: 'Invalid port. Must be an integer between 1 and 65535.' });
+	}
+	const rawPortText = String(rawPort);
+	const port = parseNumber(rawPortText);
 	if (port === undefined || !Number.isInteger(port) || port < 1 || port > 65535) {
-		throw new CliError({ message: `Invalid port: "${rawPort}". Must be an integer between 1 and 65535.` });
+		throw new CliError({ message: `Invalid port: "${rawPortText}". Must be an integer between 1 and 65535.` });
 	}
 	return port;
 };
@@ -38,6 +43,25 @@ const validateHost = (host: string | undefined): string | undefined => {
 	return host;
 };
 
+const validateFilePath = (filePath: unknown): string | undefined => {
+	if (filePath === undefined) return undefined;
+	if (typeof filePath !== 'string' || filePath.length === 0) {
+		throw new CliError({ message: 'Manifest file path must be a non-empty string.' });
+	}
+	return filePath;
+};
+
+const validateOptionalString = (
+	value: unknown,
+	label: string
+): string | undefined => {
+	if (value === undefined) return undefined;
+	if (typeof value !== 'string' || value.length === 0) {
+		throw new CliError({ message: `${label} must be a non-empty string.` });
+	}
+	return value;
+};
+
 const printHelp = (version: string) => {
 	console.log(`${APP_NAME}/${version}`);
 	console.log();
@@ -48,6 +72,7 @@ const printHelp = (version: string) => {
 	console.log(`  ${COMMANDS.DEV}          Start the development server with HMR and SSR`);
 	console.log(`  ${COMMANDS.BUILD}        Build the Effuse application for production`);
 	console.log(`  ${COMMANDS.TYPECHECK}    Run TypeScript type check`);
+	console.log(`  ${COMMANDS.MANIFEST}     Inspect generated Effuse server routes and actions`);
 	console.log();
 	console.log('Options:');
 	console.log('  -h, --help       Display this message');
@@ -68,6 +93,14 @@ const printHelp = (version: string) => {
 	console.log('  --preset <preset>      Build preset (node, vercel, netlify, cloudflare)');
 	console.log('  --verbose              Enable verbose logging');
 	console.log('  --quiet                Suppress non-error output');
+	console.log();
+	console.log('Manifest Options:');
+	console.log(`  -f, --file <path>      Server manifest JSON file (default: ${DEFAULT_SERVER_MANIFEST_PATH})`);
+	console.log('  --client-out <path>   Write a typed server client module');
+	console.log('  --client-factory <id> Client factory export name');
+	console.log('  --client-manifest <id> Manifest export name');
+	console.log('  --client-type <id>    Client type export name');
+	console.log('  --client-import <pkg> Import source for Effuse runtime helpers');
 };
 
 export const runCli = async (args: string[]) => {
@@ -75,10 +108,10 @@ export const runCli = async (args: string[]) => {
 	const devService = new DevService();
 	const buildService = new BuildService();
 	const typeCheckService = new TypeCheckService();
+	const manifestResolver = new ManifestResolver();
 
 	const cwd = process.cwd();
 	const config = await configService.load(cwd);
-	const env = await loadEnvFiles(cwd);
 
 	const parsed = parseArgs(args);
 
@@ -140,6 +173,56 @@ export const runCli = async (args: string[]) => {
 	if (commandName === COMMANDS.TYPECHECK) {
 		try {
 			await typeCheckService.run(cwd);
+		} catch (error: unknown) {
+			const message = error instanceof Error ? error.message : String(error);
+			console.error(`\n[${APP_NAME}] Error: ${message}\n`);
+			process.exitCode = 1;
+		}
+		return;
+	}
+
+	if (commandName === COMMANDS.MANIFEST) {
+		const opts = parsed.options;
+		const filePath = validateFilePath(opts.f ?? opts.file);
+		const clientOut = validateFilePath(opts.client_out ?? opts['client-out']);
+		const clientFactory = validateOptionalString(
+			opts.client_factory ?? opts['client-factory'],
+			'Client factory name'
+		);
+		const clientManifest = validateOptionalString(
+			opts.client_manifest ?? opts['client-manifest'],
+			'Client manifest name'
+		);
+		const clientType = validateOptionalString(
+			opts.client_type ?? opts['client-type'],
+			'Client type name'
+		);
+		const clientImportSource = validateOptionalString(
+			opts.client_import ?? opts['client-import'],
+			'Client import source'
+		);
+		try {
+			const manifest = manifestResolver.resolveLayerServerManifestFile(cwd, filePath);
+			if (!manifest) {
+				throw new CliError({
+					message: `Server manifest not found or invalid: ${filePath ?? DEFAULT_SERVER_MANIFEST_PATH}`,
+				});
+			}
+			if (clientOut) {
+				const outputPath = manifestResolver.writeLayerServerClientModule(
+					cwd,
+					clientOut,
+					manifest,
+					{
+						...(clientFactory ? { factoryName: clientFactory } : {}),
+						...(clientManifest ? { manifestName: clientManifest } : {}),
+						...(clientType ? { clientTypeName: clientType } : {}),
+						...(clientImportSource ? { importSource: clientImportSource } : {}),
+					}
+				);
+				console.log(`[${APP_NAME}] Generated server client: ${outputPath}`);
+			}
+			console.log(manifestResolver.formatLayerServerManifest(manifest));
 		} catch (error: unknown) {
 			const message = error instanceof Error ? error.message : String(error);
 			console.error(`\n[${APP_NAME}] Error: ${message}\n`);

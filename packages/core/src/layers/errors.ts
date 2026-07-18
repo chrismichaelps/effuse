@@ -32,6 +32,16 @@ export class LayerNotFoundError extends Data.TaggedError('LayerNotFoundError')<{
 	}
 }
 
+export class LayerNameCollisionError extends Data.TaggedError(
+	'LayerNameCollisionError'
+)<{
+	readonly layerName: string;
+}> {
+	get message(): string {
+		return `[Effuse] Layer "${this.layerName}" is registered more than once. Use unique layer names or an alias record when you need explicit local names.`;
+	}
+}
+
 export class LayerRuntimeNotReadyError extends Data.TaggedError(
 	'LayerRuntimeNotReadyError'
 )<{
@@ -59,8 +69,15 @@ export class ServiceNotFoundError extends Data.TaggedError(
 	'ServiceNotFoundError'
 )<{
 	readonly serviceKey: string;
+	readonly layerName?: string;
 }> {
 	get message(): string {
+		if (this.layerName) {
+			return (
+				`[Effuse] Layer "${this.layerName}" does not provide service "${this.serviceKey}". ` +
+				'Ensure the layer is registered with app.useLayers() and exports that service key.'
+			);
+		}
 		return `[Effuse] Service "${this.serviceKey}" not found.`;
 	}
 }
@@ -99,7 +116,7 @@ export class RouterNotConfiguredError extends Data.TaggedError(
 
 export class LayerSetupError extends Data.TaggedError('LayerSetupError')<{
 	readonly layerName: string;
-	readonly phase: 'onMount' | 'setup' | 'onReady';
+	readonly phase: 'onMount' | 'setup' | 'onReady' | `service:${string}`;
 	readonly cause: unknown;
 }> {
 	get message(): string {
@@ -109,6 +126,7 @@ export class LayerSetupError extends Data.TaggedError('LayerSetupError')<{
 
 export type LayerError =
 	| LayerNotFoundError
+	| LayerNameCollisionError
 	| LayerRuntimeNotReadyError
 	| LayerRuntimeNotInitializedError
 	| ServiceNotFoundError

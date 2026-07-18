@@ -27,27 +27,40 @@ import type { AnyResolvedLayer, CleanupFn } from '../types.js';
 import { PropsService } from '../services/PropsService.js';
 import { RegistryService } from '../services/RegistryService.js';
 import { buildAllLayersEffect } from './builder.js';
-import { initGlobalLayerContext, clearGlobalLayerContext } from '../context.js';
+import {
+	getGlobalLayerContextStore,
+	initGlobalLayerContext,
+	restoreGlobalLayerContext,
+	type LayerContextStore,
+} from '../context.js';
 import {
 	TracingService,
 	TracingServiceLive,
 	logDependencyGraph,
 	setGlobalTracing,
+	getGlobalTracing,
 	clearGlobalTracing,
 	type TracingConfig,
 } from '../tracing/index.js';
-
-/** Internal — not exported to users. */
-type LayerRuntimeServices =
-	| PropsService
-	| RegistryService
-	| TracingService;
 
 /** Internal — not exported to users. */
 export const CoreServicesLive = Layer.mergeAll(
 	PropsService.Default,
 	RegistryService.Default
 );
+
+const disposedLayerContextStores = new WeakSet<LayerContextStore>();
+const disposedTracingServices = new WeakSet<object>();
+
+const isActiveLayerContextStore = (
+	store: LayerContextStore | undefined
+): store is LayerContextStore =>
+	store !== undefined && !disposedLayerContextStores.has(store);
+
+const isActiveTracingService = <T extends object | null>(
+	service: T
+): service is Exclude<T, null> =>
+	service !== null && !disposedTracingServices.has(service);
 
 export interface LayerRuntimeOptions {
 	tracing?: Partial<TracingConfig>;
@@ -62,6 +75,10 @@ export const createLayerRuntime = async (
 	layers: readonly AnyResolvedLayer[],
 	options: LayerRuntimeOptions = {}
 ): Promise<LayerRuntime> => {
+	const previousLayerContextStore = getGlobalLayerContextStore();
+	const previousTracingService = getGlobalTracing();
+	let layerContextStore: LayerContextStore | undefined;
+	let runtimeTracingService: ReturnType<typeof getGlobalTracing> = null;
 	const tracingLayer = TracingServiceLive(options.tracing ?? {});
 	const servicesLayer = Layer.mergeAll(CoreServicesLive, tracingLayer);
 	const runtime = ManagedRuntime.make(servicesLayer);
@@ -72,6 +89,7 @@ export const createLayerRuntime = async (
 
 		layerRegistry.registerService('tracing', tracingService);
 		setGlobalTracing(tracingService);
+		runtimeTracingService = tracingService;
 
 		yield* logDependencyGraph(layers);
 		return yield* buildAllLayersEffect(layers);
@@ -83,6 +101,7 @@ export const createLayerRuntime = async (
 		const propsRegistry = yield* PropsService;
 		const layerRegistry = yield* RegistryService;
 		initGlobalLayerContext(propsRegistry, layerRegistry, layers);
+		layerContextStore = getGlobalLayerContextStore();
 	});
 
 	await runtime.runPromise(initContextEffect);
@@ -95,8 +114,27 @@ export const createLayerRuntime = async (
 		runtime,
 		cleanups,
 		dispose: async () => {
-			clearGlobalLayerContext();
-			clearGlobalTracing();
+			if (layerContextStore) {
+				disposedLayerContextStores.add(layerContextStore);
+			}
+			if (runtimeTracingService) {
+				disposedTracingServices.add(runtimeTracingService);
+			}
+
+			if (getGlobalLayerContextStore() === layerContextStore) {
+				restoreGlobalLayerContext(
+					isActiveLayerContextStore(previousLayerContextStore)
+						? previousLayerContextStore
+						: undefined
+				);
+			}
+			if (getGlobalTracing() === runtimeTracingService) {
+				if (isActiveTracingService(previousTracingService)) {
+					setGlobalTracing(previousTracingService);
+				} else {
+					clearGlobalTracing();
+				}
+			}
 
 			if (buildResult.cleanup) {
 				buildResult.cleanup();

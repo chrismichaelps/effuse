@@ -40,10 +40,16 @@ export {
 
 export {
 	type Route,
+	type RouteGroupMetadata,
 	type RouteRecord,
 	type RouteLocation,
 	type RouteComponent,
 	type LazyRouteComponent,
+	type LazyRouteComponentOptions,
+	EFFUSE_LAZY_ROUTE,
+	isLazyRouteComponent,
+	lazyRoute,
+	lazyRouteComponent,
 } from './core/route.js';
 
 export {
@@ -64,7 +70,11 @@ export { Link, RouterLink } from './components/Link.js';
 export {
 	type TypedRouteRecord,
 	type TypedRoute,
+	type TypedRouteLocation,
 	defineRoutes,
+	createTypedNavigator,
+	validateParams,
+	createParamsGuard,
 } from './types/index.js';
 
 export {
@@ -75,6 +85,7 @@ export {
 
 export {
 	type NavigationGuard,
+	type NavigationGuardReturn,
 	type AfterEachHook,
 	type NavigationResult,
 	NavigationResult as NavigationResultUtils,
@@ -84,3 +95,8 @@ export {
 	guardWhen,
 	guardMeta,
 } from './navigation/guards.js';
+
+export {
+	type NavigationFailure,
+	NavigationFailure as NavigationFailureUtils,
+} from './navigation/errors.js';

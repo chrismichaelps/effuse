@@ -2,7 +2,6 @@ import express from 'express';
 import { createServer as createViteServer, type ViteDevServer } from 'vite';
 import { Console } from 'effect';
 import { resolve } from 'node:path';
-import * as nodeFs from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { DevServerError } from '../errors/index.js';
 import { APP_NAME, DEFAULT_CONFIG, SERVER_TIMEOUT_MS, HTTP_STATUS } from '../constants.js';
@@ -61,6 +60,9 @@ type ServerInstance = { close: (cb: () => void) => void };
 const handleGracefulShutdown = (server: ServerInstance, vite: ViteDevServer) => {
 	const shutdown = async (signal: string) => {
 		Console.log(`\n[${APP_NAME}] Received ${signal}, shutting down...`);
+		await vite.close().catch((error: unknown) => {
+			Console.error(`[${APP_NAME}] Vite shutdown failed: ${String(error)}`);
+		});
 		server.close(() => {
 			Console.log('HTTP server closed.');
 			process.exit(0);
@@ -148,21 +150,8 @@ export class DevService {
 
 		app.use('*', async (req, res) => {
 			const startTime = Date.now();
-			const url = req.originalUrl;
 
 			try {
-				let template = '';
-				const indexPath = resolve(cwd, 'index.html');
-				const fsStat = await nodeFs.stat(indexPath).catch(() => null);
-				if (fsStat?.isFile()) {
-					const fsTemplate = await nodeFs.readFile(indexPath, 'utf-8');
-					template = await vite.transformIndexHtml(url, fsTemplate);
-				} else {
-					template = await vite.transformIndexHtml(url,
-						'<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Effuse App</title></head><body><div id="app"><h1>Loading...</h1></div></body></html>'
-					);
-				}
-
 				const entryModule = await vite.ssrLoadModule(`/${entries.server}`);
 				if (!entryModule || typeof entryModule.handleRequest !== 'function') {
 					throw new DevServerError({
@@ -181,9 +170,9 @@ export class DevService {
 				});
 
 				const timing = Date.now() - startTime;
+				res.setHeader('Server-Timing', `total;dur=${timing}`);
 
 				if (!webResponse.body) {
-					res.setHeader('Server-Timing', `total;dur=${timing}`);
 					return res.end();
 				}
 
@@ -193,13 +182,8 @@ export class DevService {
 					if (done) break;
 					res.write(value);
 				}
-				res.setHeader('Server-Timing', `total;dur=${timing}`);
 				res.end();
 			} catch (e: unknown) {
-				const devError = e instanceof DevServerError
-					? e
-					: new DevServerError({ message: String(e), cause: e });
-
 				const nativeError = e instanceof Error ? e : new Error(String(e));
 				vite.ssrFixStacktrace(nativeError);
 

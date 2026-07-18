@@ -40,7 +40,6 @@ import {
 import { watchEffect as standaloneEffect } from '../effects/effect.js';
 import {
 	createComponentLifecycleSync,
-	withActiveLifecycle,
 	type ComponentLifecycle,
 } from './lifecycle.js';
 import { useCallback, useMemo } from './hooks.js';
@@ -53,9 +52,14 @@ import {
 	type LayerContext,
 } from '../layers/context.js';
 import type { CompiledLayer } from '../layers/api/defineLayer.js';
+import type { LayerServicesFrom } from '../layers/api/defineLayer.js';
 import {
+	createLayerEntryResolver,
+	resolveLayerService,
 	resolveLayersAccessor,
+	type LayerEntryFrom,
 	type LayersAccessor,
+	type LayerSource,
 } from '../layers/api/layersAccessor.js';
 import { RouterNotConfiguredError } from '../layers/errors.js';
 import { StoreGetterNotConfiguredError } from '../errors.js';
@@ -67,11 +71,17 @@ export interface EffuseRegistry {}
 
 type RouterType = EffuseRegistry extends { router: infer R } ? R : unknown;
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export interface ScriptContext<P, L extends readonly CompiledLayer<any>[] = []> {
+export interface ScriptContext<
+	P,
+	L extends LayerSource = readonly never[],
+> {
 	readonly props: Readonly<P>;
 
 	readonly layers: LayersAccessor<L>;
+
+	useLayer: <Layer extends CompiledLayer<any, any>>(
+		layer: Layer
+	) => LayerEntryFrom<Layer>;
 
 	expose: (values: ExposedValues) => void;
 
@@ -134,7 +144,16 @@ export interface ScriptContext<P, L extends readonly CompiledLayer<any>[] = []> 
 
 	useStore: (key: string) => unknown;
 
-	useService: (key: string) => unknown;
+	useService: {
+		(key: string): unknown;
+		<
+			Layer extends CompiledLayer<any, any>,
+			Key extends Extract<keyof LayerServicesFrom<Layer>, string>,
+		>(
+			layer: Layer,
+			key: Key
+		): LayerServicesFrom<Layer>[Key];
+	};
 
 	useComponent: (name: string) => Component | undefined;
 
@@ -166,8 +185,7 @@ export const setGlobalRouter = (router: unknown): void => {
 export const createScriptContext = <
 	P,
 	E extends ExposedValues,
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	L extends readonly CompiledLayer<any>[] = [],
+	L extends LayerSource = readonly never[],
 >(
 	props: P,
 	storeGetter?: (name: string) => unknown,
@@ -188,6 +206,7 @@ export const createScriptContext = <
 	const resolvedLayers = resolveLayersAccessor(
 		(layers ?? []) as L
 	) as LayersAccessor<L>;
+	const resolveLayer = createLayerEntryResolver();
 
 	const { proxy: reactiveProps, update: updateProps } = createReactiveProps(
 		props as Record<string, unknown>
@@ -197,6 +216,8 @@ export const createScriptContext = <
 		props: reactiveProps as Readonly<P>,
 
 		layers: resolvedLayers,
+
+		useLayer: (layer) => resolveLayer(layer),
 
 		expose: (values: ExposedValues): void => {
 			Object.assign(state.exposed, values);
@@ -260,7 +281,6 @@ export const createScriptContext = <
 		},
 
 		watchMultiple: (sources, callback, options): void => {
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any -- bridge ScriptContext types with WatchSource
 			const handle = standaloneWatchMultiple(
 				sources as any,
 				callback as any,
@@ -292,12 +312,20 @@ export const createScriptContext = <
 			return getLayerService(key);
 		},
 
-		useService: (key: string): unknown => {
+		useService: ((
+			keyOrLayer: string | CompiledLayer<any, any>,
+			maybeKey?: string
+		): unknown => {
 			if (!isLayerRuntimeReady()) {
 				return undefined;
 			}
-			return getLayerService(key);
-		},
+
+			if (typeof keyOrLayer !== 'string') {
+				return resolveLayerService(keyOrLayer, maybeKey, resolveLayer);
+			}
+
+			return getLayerService(keyOrLayer);
+		}) as ScriptContext<P, L>['useService'],
 
 		useComponent: (name: string): Component | undefined => {
 			if (!isLayerRuntimeReady()) {
@@ -326,4 +354,4 @@ export const runUnmountCallbacks = <E extends ExposedValues>(
 	state.lifecycle.runCleanup();
 };
 
-export type { LayerContext, CompiledLayer, LayersAccessor };
+export type { LayerContext, CompiledLayer, LayersAccessor, LayerSource };

@@ -24,11 +24,13 @@
 
 import { Data } from 'effect';
 
+/* eslint-disable @typescript-eslint/no-empty-object-type -- Effect Data.TaggedEnum uses {} for no-payload variants. */
 export type IntervalState = Data.TaggedEnum<{
 	readonly Stopped: {};
 	readonly Running: { readonly count: number };
 	readonly Paused: { readonly count: number };
 }>;
+/* eslint-enable @typescript-eslint/no-empty-object-type */
 
 export const IntervalState = Data.taggedEnum<IntervalState>();
 

@@ -46,6 +46,6 @@ const createPropsRegistry = (): PropsRegistry => {
 export class PropsService extends Effect.Service<PropsService>()(
 	'effuse/layer/Props',
 	{
-		effect: Effect.succeed(createPropsRegistry()),
+		effect: Effect.sync(createPropsRegistry),
 	}
 ) {}

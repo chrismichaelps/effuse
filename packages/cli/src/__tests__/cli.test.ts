@@ -96,6 +96,7 @@ describe('constants', () => {
 		expect(COMMANDS.DEV).toBe('dev');
 		expect(COMMANDS.BUILD).toBe('build');
 		expect(COMMANDS.TYPECHECK).toBe('typecheck');
+		expect(COMMANDS.MANIFEST).toBe('manifest');
 	});
 
 	it('should have all preset values', () => {

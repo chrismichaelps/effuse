@@ -22,7 +22,6 @@
  * SOFTWARE.
  */
 
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument */
 import { Effect, Fiber, Predicate } from 'effect';
 import type {
 	AnyResolvedLayer,
@@ -30,6 +29,7 @@ import type {
 	LayerDependency,
 	CleanupFn,
 	LayerProps,
+	LayerServiceFactoryContext,
 } from '../types.js';
 import { PropsService, type PropsRegistry } from '../services/PropsService.js';
 import {
@@ -37,13 +37,23 @@ import {
 	type LayerRegistry,
 } from '../services/RegistryService.js';
 import type { Component } from '../../render/node.js';
-import { DependencyNotFoundError, LayerSetupError } from '../errors.js';
+import {
+	DependencyNotFoundError,
+	LayerSetupError,
+	ServiceNotFoundError,
+} from '../errors.js';
 import {
 	withLayerSpan,
 	type TracingService,
 	traceFiberBuildPhase,
 } from '../tracing/index.js';
 import { buildTopologyLevels, getMaxParallelism } from './topology.js';
+import { getLayerDependencyNames } from '../utils/dependencies.js';
+
+const resolveLayerProps = (layer: AnyResolvedLayer): LayerProps =>
+	layer.deriveProps
+		? layer.deriveProps(layer.store)
+		: (layer.props ?? ({} as LayerProps));
 
 export const createSetupContext = (
 	layer: AnyResolvedLayer,
@@ -51,13 +61,7 @@ export const createSetupContext = (
 	registry: LayerRegistry,
 	allLayers: readonly AnyResolvedLayer[]
 ): SetupContext => {
-	let layerProps: LayerProps;
-
-	if (layer.deriveProps && layer.store) {
-		layerProps = layer.deriveProps(layer.store);
-	} else {
-		layerProps = layer.props ?? ({} as LayerProps);
-	}
+	const layerProps = propsRegistry.get(layer.name) ?? resolveLayerProps(layer);
 
 	const getLayerDependency = (name: string): LayerDependency => {
 		const depLayer = registry.getLayer(name);
@@ -80,22 +84,45 @@ export const createSetupContext = (
 	};
 
 	const deps: Record<string, LayerDependency> = {};
-	if (layer.dependencies) {
-		for (const depName of layer.dependencies) {
-			deps[depName] = getLayerDependency(depName);
-		}
+	for (const depName of getLayerDependencyNames(layer)) {
+		deps[depName] = getLayerDependency(depName);
 	}
+
+	const requireService = <T = unknown>(key: string): T => {
+		const service = registry.getService(key);
+		if (service === undefined) {
+			throw new ServiceNotFoundError({
+				layerName: layer.name,
+				serviceKey: key,
+			});
+		}
+		return service as T;
+	};
 
 	return {
 		props: layerProps,
 		store: layer.store,
 		deps,
 		get: getLayerDependency,
-		getService: (key: string) => registry.getService(key),
+		getService: <T = unknown>(key: string) =>
+			registry.getService(key) as T | undefined,
+		requireService,
 		component: (name: string) => registry.getComponent(name),
 		layers: allLayers,
 	};
 };
+
+const createServiceFactoryContext = (
+	layer: AnyResolvedLayer,
+	serviceKey: string,
+	propsRegistry: PropsRegistry,
+	registry: LayerRegistry,
+	allLayers: readonly AnyResolvedLayer[]
+): LayerServiceFactoryContext => ({
+	...createSetupContext(layer, propsRegistry, registry, allLayers),
+	layer: layer.name,
+	serviceKey,
+});
 
 export const buildLayerEffect = (
 	layer: AnyResolvedLayer,
@@ -109,15 +136,7 @@ export const buildLayerEffect = (
 
 			registry.registerLayer(layer);
 
-			let derivedProps: LayerProps;
-
-			if (layer.deriveProps && layer.store) {
-				derivedProps = layer.deriveProps(layer.store);
-			} else {
-				derivedProps = layer.props ?? ({} as LayerProps);
-			}
-
-			propsRegistry.set(layer.name, derivedProps);
+			propsRegistry.set(layer.name, resolveLayerProps(layer));
 
 			if (layer.components) {
 				for (const [name, component] of Object.entries(layer.components)) {
@@ -127,7 +146,23 @@ export const buildLayerEffect = (
 
 			if (layer.provides) {
 				for (const [key, factory] of Object.entries(layer.provides)) {
-					registry.registerService(key, factory());
+					const serviceContext = createServiceFactoryContext(
+						layer,
+						key,
+						propsRegistry,
+						registry,
+						allLayers
+					);
+					const service = yield* Effect.try({
+						try: () => factory(serviceContext),
+						catch: (error: unknown) =>
+							new LayerSetupError({
+								layerName: layer.name,
+								phase: `service:${key}`,
+								cause: error,
+							}),
+					});
+					registry.registerService(key, service);
 				}
 			}
 

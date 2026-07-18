@@ -24,11 +24,13 @@
 
 import { Data } from 'effect';
 
+/* eslint-disable @typescript-eslint/no-empty-object-type -- Effect Data.TaggedEnum uses {} for no-payload variants. */
 export type ListenerState = Data.TaggedEnum<{
 	readonly Inactive: {};
 	readonly Active: { readonly eventName: string };
 	readonly Error: { readonly reason: string };
 }>;
+/* eslint-enable @typescript-eslint/no-empty-object-type */
 
 export const ListenerState = Data.taggedEnum<ListenerState>();
 

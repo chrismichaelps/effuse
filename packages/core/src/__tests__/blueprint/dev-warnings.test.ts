@@ -5,6 +5,8 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { instantiateBlueprint } from '../../blueprint/blueprint.js';
+import { define } from '../../blueprint/define.js';
 import { useCallback, useMemo } from '../../blueprint/hooks.js';
 import { createReactiveProps } from '../../blueprint/reactive-props.js';
 import { provide, inject, createProvideScope, runWithProvideScope } from '../../blueprint/provide-inject.js';
@@ -23,7 +25,10 @@ describe('dev warnings', () => {
 
 	describe('missing prop key', () => {
 		it('should warn when accessing a prop key that was not provided', () => {
-			const { proxy } = createReactiveProps<{ name: string }>({ name: 'Effuse' });
+			const { proxy } = createReactiveProps<{ name: string }>(
+				{ name: 'Effuse' },
+				{ warnOnMissing: true }
+			);
 
 			// @ts-expect-error — accessing missing prop
 			void proxy.missingKey;
@@ -41,6 +46,41 @@ describe('dev warnings', () => {
 			void proxy.name;
 
 			expect(warnSpy).not.toHaveBeenCalled();
+		});
+
+		it('should not warn by default when optional prop keys are absent', () => {
+			const { proxy } = createReactiveProps<{
+				name: string;
+				className?: string;
+			}>({ name: 'Effuse' });
+
+			void proxy.className;
+
+			expect(warnSpy).not.toHaveBeenCalledWith(
+				expect.stringContaining('Accessed missing prop')
+			);
+		});
+
+		it('should not warn when templates read optional props', () => {
+			const Component = define<{
+				className?: string;
+				children?: unknown;
+			}>({
+				script: () => ({}),
+				template: (ctx) => {
+					void ctx.className;
+					void ctx.children;
+					return null;
+				},
+			});
+			const blueprint = Component as unknown as Parameters<typeof instantiateBlueprint>[0];
+			const context = instantiateBlueprint(blueprint, {}, {});
+
+			blueprint.view(context);
+
+			expect(warnSpy).not.toHaveBeenCalledWith(
+				expect.stringContaining('Accessed missing prop')
+			);
 		});
 	});
 

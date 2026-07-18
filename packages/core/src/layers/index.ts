@@ -35,6 +35,28 @@ export type {
 	LayerRestriction,
 	MergedConfig,
 	LayerProvides,
+	LayerServiceFactory,
+	LayerServiceFactoryContext,
+	HttpMethod,
+	ServerResult,
+	ServerRuntimeHint,
+	ServerCacheMetadata,
+	ServerCorsMetadata,
+	ServerLayerDiagnostic,
+	ServerLayerDiagnosticCode,
+	ServerRouteMetadata,
+	ServerResponseHelpers,
+	ServerLayerContext,
+	ServerHandler,
+	ServerMiddleware,
+	ServerMiddlewareNext,
+	ServerMethodHandlers,
+	ServerRoute,
+	ServerRouteDefinition,
+	ServerRouteInput,
+	ServerActionDefinition,
+	ServerActionInput,
+	ServerLayerConfig,
 	LayerSetupFn,
 	LayerProps,
 	LayerDependency,
@@ -46,10 +68,7 @@ export type {
 	AnyResolvedLayer,
 } from './types.js';
 
-export type {
-	PropsRegistry,
-	LayerRegistry,
-} from './services/index.js';
+export type { PropsRegistry, LayerRegistry } from './services/index.js';
 
 export {
 	resolveLayerOrder,
@@ -59,15 +78,30 @@ export {
 
 export {
 	defineLayer,
+	layerService,
 	type EffuseServices,
 	type CompiledLayer,
+	type LayerFactory,
+	type LayerFactoryContext,
+	type LayerInput,
+	type LayerInputSource,
+	layerInputSourceToList,
+	isCompiledLayer,
+	compileLayer,
+	resolveLayerDefinitions,
 	combineLayers,
 	type MergeServices,
 	type LayerServicesFrom,
 	type ExtractServices,
+	resolveLayerEntry,
 	resolveLayersAccessor,
 	type LayersAccessor,
 	type LayerEntry,
+	type LayerEntryFrom,
+	type LayerList,
+	type LayerAliases,
+	type LayerSource,
+	layerSourceToList,
 } from './api/index.js';
 
 export {
@@ -85,6 +119,7 @@ export {
 
 export {
 	LayerNotFoundError,
+	LayerNameCollisionError,
 	LayerRuntimeNotReadyError,
 	LayerRuntimeNotInitializedError,
 	ServiceNotFoundError,

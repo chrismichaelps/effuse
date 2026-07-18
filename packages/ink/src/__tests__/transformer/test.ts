@@ -16,6 +16,16 @@ const isBlueprintNode = Predicate.isTagged('Blueprint') as (
 	node: EffuseChild
 ) => node is BlueprintNode;
 
+const expectElementNode = (node: EffuseChild | undefined): ElementNode => {
+	expect(isElementNode(node)).toBe(true);
+	return node as ElementNode;
+};
+
+const expectBlueprintNode = (node: EffuseChild | undefined): BlueprintNode => {
+	expect(isBlueprintNode(node)).toBe(true);
+	return node as BlueprintNode;
+};
+
 describe('Transformer', () => {
 	beforeEach(() => {
 		resetHeadingIds();
@@ -32,82 +42,66 @@ describe('Transformer', () => {
 			const doc = parseSync('Hello world');
 			const result = transformDocument(doc);
 			expect(result.length).toBe(1);
-			const element = result[0];
-			if (isElementNode(element)) {
-				expect(element.tag).toBe('p');
-				expect(element.props).toHaveProperty('class', 'ink-p');
-			}
+			const element = expectElementNode(result[0]);
+			expect(element.tag).toBe('p');
+			expect(element.props).toHaveProperty('class', 'ink-p');
 		});
 
 		it('should transform heading to h1-h6 element', () => {
 			const doc = parseSync('# Heading 1');
 			const result = transformDocument(doc);
-			const element = result[0];
-			if (isElementNode(element)) {
-				expect(element.tag).toBe('h1');
-				expect(element.props).toHaveProperty('class', 'ink-h1');
-				expect(element.props).toHaveProperty('id');
-			}
+			const element = expectElementNode(result[0]);
+			expect(element.tag).toBe('h1');
+			expect(element.props).toHaveProperty('class', 'ink-h1');
+			expect(element.props).toHaveProperty('id');
 		});
 
 		it('should transform heading with generated id', () => {
 			const doc = parseSync('# My Heading');
 			const result = transformDocument(doc);
-			const element = result[0];
-			if (isElementNode(element)) {
-				expect(element.props?.id).toBe('my-heading');
-			}
+			const element = expectElementNode(result[0]);
+			expect(element.props?.id).toBe('my-heading');
 		});
 
 		it('should transform code block to pre > code element', () => {
 			const doc = parseSync('```js\nconsole.log("hi")\n```');
 			const result = transformDocument(doc);
-			const pre = result[0];
-			if (isElementNode(pre)) {
-				expect(pre.tag).toBe('pre');
-				expect(pre.props?.class).toContain('ink-code-block');
-				expect(pre.props?.class).toContain('language-js');
-			}
+			const pre = expectElementNode(result[0]);
+			expect(pre.tag).toBe('pre');
+			expect(pre.props?.class).toContain('ink-code-block');
+			expect(pre.props?.class).toContain('language-js');
 		});
 
 		it('should transform blockquote to blockquote element', () => {
 			const doc = parseSync('> Quote');
 			const result = transformDocument(doc);
-			const element = result[0];
-			if (isElementNode(element)) {
-				expect(element.tag).toBe('blockquote');
-				expect(element.props?.class).toBe('ink-blockquote');
-			}
+			const element = expectElementNode(result[0]);
+			expect(element.tag).toBe('blockquote');
+			expect(element.props?.class).toBe('ink-blockquote');
 		});
 
 		it('should transform unordered list to ul element', () => {
 			const doc = parseSync('- Item 1\n- Item 2');
 			const result = transformDocument(doc);
-			const element = result[0];
-			if (isElementNode(element)) {
-				expect(element.tag).toBe('ul');
-				expect(element.props?.class).toBe('ink-ul');
-			}
+			const element = expectElementNode(result[0]);
+			expect(element.tag).toBe('ul');
+			expect(element.props?.class).toBe('ink-ul');
 		});
 
 		it('should transform ordered list to ol element', () => {
 			const doc = parseSync('1. First\n2. Second');
 			const result = transformDocument(doc);
-			const element = result[0];
-			if (isElementNode(element)) {
-				expect(element.tag).toBe('ol');
-				expect(element.props?.class).toBe('ink-ol');
-			}
+			const element = expectElementNode(result[0]);
+			expect(element.tag).toBe('ol');
+			expect(element.props?.class).toBe('ink-ol');
 		});
 
 		it('should transform horizontal rule to hr element', () => {
 			const doc = parseSync('---');
 			const result = transformDocument(doc);
-			const element = result[0];
-			if (isElementNode(element)) {
-				expect(element.tag).toBe('hr');
-				expect(element.props?.class).toBe('ink-hr');
-			}
+			const element = expectElementNode(result[0]);
+			expect(element.tag).toBe('hr');
+			expect(element.props?.class).toBe('ink-hr');
 		});
 	});
 
@@ -115,67 +109,47 @@ describe('Transformer', () => {
 		it('should transform bold to strong element', () => {
 			const doc = parseSync('**bold**');
 			const result = transformDocument(doc);
-			const p = result[0];
-			if (isElementNode(p)) {
-				const strong = p.children[0];
-				if (isElementNode(strong)) {
-					expect(strong.tag).toBe('strong');
-				}
-			}
+			const p = expectElementNode(result[0]);
+			const strong = expectElementNode(p.children[0]);
+			expect(strong.tag).toBe('strong');
 		});
 
 		it('should transform italic to em element', () => {
 			const doc = parseSync('*italic*');
 			const result = transformDocument(doc);
-			const p = result[0];
-			if (isElementNode(p)) {
-				const em = p.children[0];
-				if (isElementNode(em)) {
-					expect(em.tag).toBe('em');
-				}
-			}
+			const p = expectElementNode(result[0]);
+			const em = expectElementNode(p.children[0]);
+			expect(em.tag).toBe('em');
 		});
 
 		it('should transform inline code to code element', () => {
 			const doc = parseSync('`code`');
 			const result = transformDocument(doc);
-			const p = result[0];
-			if (isElementNode(p)) {
-				const code = p.children[0];
-				if (isElementNode(code)) {
-					expect(code.tag).toBe('code');
-					expect(code.props?.class).toBe('ink-inline-code');
-				}
-			}
+			const p = expectElementNode(result[0]);
+			const code = expectElementNode(p.children[0]);
+			expect(code.tag).toBe('code');
+			expect(code.props?.class).toBe('ink-inline-code');
 		});
 
 		it('should transform link to a element', () => {
 			const doc = parseSync('[link](https://example.com)');
 			const result = transformDocument(doc);
-			const p = result[0];
-			if (isElementNode(p)) {
-				const a = p.children[0];
-				if (isElementNode(a)) {
-					expect(a.tag).toBe('a');
-					expect(a.props?.href).toBe('https://example.com');
-					expect(a.props?.class).toBe('ink-link');
-				}
-			}
+			const p = expectElementNode(result[0]);
+			const a = expectElementNode(p.children[0]);
+			expect(a.tag).toBe('a');
+			expect(a.props?.href).toBe('https://example.com');
+			expect(a.props?.class).toBe('ink-link');
 		});
 
 		it('should transform image to img element', () => {
 			const doc = parseSync('![alt](https://example.com/img.png)');
 			const result = transformDocument(doc);
-			const p = result[0];
-			if (isElementNode(p)) {
-				const img = p.children[0];
-				if (isElementNode(img)) {
-					expect(img.tag).toBe('img');
-					expect(img.props?.src).toBe('https://example.com/img.png');
-					expect(img.props?.alt).toBe('alt');
-					expect(img.props?.class).toBe('ink-image');
-				}
-			}
+			const p = expectElementNode(result[0]);
+			const img = expectElementNode(p.children[0]);
+			expect(img.tag).toBe('img');
+			expect(img.props?.src).toBe('https://example.com/img.png');
+			expect(img.props?.alt).toBe('alt');
+			expect(img.props?.class).toBe('ink-image');
 		});
 	});
 
@@ -295,10 +269,8 @@ Thanks for reading!
 		it('should handle empty code blocks', () => {
 			const doc = parseSync('```\n\n```');
 			const result = transformDocument(doc);
-			const pre = result[0];
-			if (isElementNode(pre)) {
-				expect(pre.tag).toBe('pre');
-			}
+			const pre = expectElementNode(result[0]);
+			expect(pre.tag).toBe('pre');
 		});
 
 		it('should handle deeply nested structures', () => {
@@ -314,20 +286,16 @@ Thanks for reading!
 		it('should handle unicode in heading IDs', () => {
 			const doc = parseSync('# 日本語 Title');
 			const result = transformDocument(doc);
-			const h1 = result[0];
-			if (isElementNode(h1)) {
-				expect(h1.props?.id).toBeDefined();
-				expect(typeof h1.props?.id).toBe('string');
-			}
+			const h1 = expectElementNode(result[0]);
+			expect(h1.props?.id).toBeDefined();
+			expect(typeof h1.props?.id).toBe('string');
 		});
 
 		it('should handle special characters in heading IDs', () => {
 			const doc = parseSync('# What is `useState`?');
 			const result = transformDocument(doc);
-			const h1 = result[0];
-			if (isElementNode(h1)) {
-				expect(h1.props?.id).toBeDefined();
-			}
+			const h1 = expectElementNode(result[0]);
+			expect(h1.props?.id).toBeDefined();
 		});
 
 		it('should handle very long documents efficiently', () => {
@@ -366,11 +334,9 @@ More text`;
 		it('should render unknown component with fallback', () => {
 			const doc = parseSync('::UnknownComponent{}\n\n::\n');
 			const result = transformDocument(doc, {});
-			const element = result[0];
-			if (isElementNode(element)) {
-				expect(element.tag).toBe('div');
-				expect(element.props?.class).toBe('ink-unknown-component');
-			}
+			const element = expectElementNode(result[0]);
+			expect(element.tag).toBe('div');
+			expect(element.props?.class).toBe('ink-unknown-component');
 		});
 	});
 
@@ -399,9 +365,9 @@ More text`;
 			const doc2 = parseSync('# Title');
 			const result2 = transformDocument(doc2);
 
-			if (isElementNode(result1[0]) && isElementNode(result2[0])) {
-				expect(result1[0].props?.id).toBe(result2[0].props?.id);
-			}
+			expect(expectElementNode(result1[0]).props?.id).toBe(
+				expectElementNode(result2[0]).props?.id
+			);
 		});
 	});
 
@@ -548,24 +514,18 @@ More text`;
 			const result = transformDocument(doc, { h1: CustomH1 });
 
 			expect(h1Calls.length).toBe(1);
-			const pElement = result[1];
-			if (isElementNode(pElement)) {
-				expect(pElement.tag).toBe('p');
-			}
+			const pElement = expectElementNode(result[1]);
+			expect(pElement.tag).toBe('p');
 		});
 
 		it('should fall back to default elements when no override is provided', () => {
 			const doc = parseSync('# Default Heading\n\nDefault paragraph');
 			const result = transformDocument(doc, {});
 
-			const h1 = result[0];
-			const p = result[1];
-			if (isElementNode(h1)) {
-				expect(h1.tag).toBe('h1');
-			}
-			if (isElementNode(p)) {
-				expect(p.tag).toBe('p');
-			}
+			const h1 = expectElementNode(result[0]);
+			const p = expectElementNode(result[1]);
+			expect(h1.tag).toBe('h1');
+			expect(p.tag).toBe('p');
 		});
 
 		it('should override table elements', () => {
@@ -608,12 +568,9 @@ More text`;
 			const result = transformDocument(doc, { h1: CustomHeading });
 
 			expect(result.length).toBe(1);
-			const node = result[0];
-			expect(isBlueprintNode(node)).toBe(true);
-			if (isBlueprintNode(node)) {
-				expect(node.props).toHaveProperty('class', 'ink-h1');
-				expect(node.props).toHaveProperty('id', 'hello-world');
-			}
+			const node = expectBlueprintNode(result[0]);
+			expect(node.props).toHaveProperty('class', 'ink-h1');
+			expect(node.props).toHaveProperty('id', 'hello-world');
 		});
 	});
 });

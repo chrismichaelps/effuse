@@ -25,12 +25,12 @@
 import { createHookContext } from './context.js';
 import { traceHookSetup } from '../layers/tracing/hooks.js';
 import type { HookSetupFn } from './types.js';
-import type { CompiledLayer } from '../layers/api/defineLayer.js';
+import type { LayerSource } from '../layers/api/layersAccessor.js';
 
 export function defineHook<
 	C = undefined,
 	R = unknown,
-	L extends readonly CompiledLayer<any>[] = readonly never[],
+	L extends LayerSource = readonly never[],
 >(definition: {
 	readonly name?: string;
 	readonly layers?: L;

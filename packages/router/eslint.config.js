@@ -24,6 +24,6 @@ export default tseslint.config(
 		},
 	},
 	{
-		ignores: ['dist*.test.ts'],
+		ignores: ['dist/**', 'src/**/*.test.ts', 'src/__tests__/**'],
 	}
 );

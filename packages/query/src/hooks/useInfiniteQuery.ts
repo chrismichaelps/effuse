@@ -23,7 +23,12 @@
  */
 
 import { signal, computed, type Signal, type ReadonlySignal } from '@effuse/core';
-import { useQueryClient, type QueryKey, type CacheEntry } from '../client/index.js';
+import {
+	useQueryClient,
+	type QueryKey,
+	type CacheEntry,
+	type QueryClientApi,
+} from '../client/index.js';
 import { DEFAULT_STALE_TIME_MS, DEFAULT_TIMEOUT_MS } from '../config/index.js';
 import { InfiniteQueryError } from '../errors/index.js';
 
@@ -50,7 +55,7 @@ export interface InfiniteQueryOptions<TData, TPageParam = number> {
 	readonly placeholderData?: InfiniteData<TData>;
 	readonly refetchOnWindowFocus?: boolean;
 	readonly refetchOnReconnect?: boolean;
-	readonly client?: import('../client/client.js').QueryClientApi;
+	readonly client?: QueryClientApi;
 }
 
 export interface UseInfiniteQueryResult<TData> {

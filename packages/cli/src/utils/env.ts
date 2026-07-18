@@ -68,7 +68,6 @@ export const readEnvFile = async (path: string): Promise<Record<string, string>>
 };
 
 export const loadEnvFiles = async (cwd: string): Promise<Record<string, string>> => {
-	const result: Record<string, string> = {};
 	const local = await readEnvFile(resolve(cwd, '.env.local'));
 	const base = await readEnvFile(resolve(cwd, '.env'));
 	return { ...base, ...local };

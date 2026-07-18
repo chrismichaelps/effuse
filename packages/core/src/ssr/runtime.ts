@@ -23,8 +23,8 @@
  */
 
 import { Effect, Layer, ManagedRuntime, Predicate } from 'effect';
-import type { AnyLayer, AnyResolvedLayer, CleanupFn } from '../layers/types.js';
-import type { CompiledLayer } from '../layers/api/defineLayer.js';
+import type { AnyResolvedLayer, CleanupFn } from '../layers/types.js';
+import type { LayerInputSource } from '../layers/api/defineLayer.js';
 import type { HeadProps } from './types.js';
 import { PropsService } from '../layers/services/PropsService.js';
 import { RegistryService } from '../layers/services/RegistryService.js';
@@ -32,17 +32,20 @@ import { buildAllLayersEffect } from '../layers/internal/builder.js';
 import {
 	initGlobalLayerContext,
 	clearGlobalLayerContext,
+	getGlobalLayerContextStore,
+	restoreGlobalLayerContext,
 	runWithLayerContext,
 	type LayerContextStore,
 } from '../layers/context.js';
 import {
 	TracingServiceLive,
 	setGlobalTracing,
+	getGlobalTracing,
 	clearGlobalTracing,
 } from '../layers/tracing/index.js';
 import { TracingService } from '../layers/tracing/index.js';
 import { CoreServicesLive } from '../layers/internal/runtime.js';
-import { defineLayer } from '../layers/api/defineLayer.js';
+import { resolveLayerDefinitions } from '../layers/api/defineLayer.js';
 
 export interface SSRRuntime {
 	/** Resolved layers in topological order. */
@@ -70,18 +73,20 @@ export interface SSRRuntimeOptions {
  * context that follows the render lifecycle (init → render → cleanup).
  */
 export const createSSRRuntime = async (
-	rawLayers: readonly (AnyLayer | CompiledLayer<any>)[],
+	rawLayers: LayerInputSource,
 	options: SSRRuntimeOptions = {}
 ): Promise<SSRRuntime> => {
 	const { runSetup = true } = options;
+	const previousLayerContextStore = getGlobalLayerContextStore();
+	const previousTracingService = getGlobalTracing();
+	const hasExistingLayerContext = Predicate.isNotNullable(
+		previousLayerContextStore
+	);
+	const shouldInstallGlobalTracing = !Predicate.isNotNullable(
+		previousTracingService
+	);
 
-	// Compile any raw EffuseLayer definitions into CompiledLayer
-	const layers: AnyResolvedLayer[] = rawLayers.map((l) => {
-		if ('effectLayer' in l && 'tags' in l) {
-			return l as unknown as AnyResolvedLayer;
-		}
-		return defineLayer(l as AnyLayer) as unknown as AnyResolvedLayer;
-	});
+	const layers: AnyResolvedLayer[] = resolveLayerDefinitions(rawLayers);
 
 	const headStack: HeadProps[] = [];
 	const state = new Map<string, unknown>();
@@ -110,7 +115,9 @@ export const createSSRRuntime = async (
 			const tracingService = yield* TracingService;
 
 			layerRegistry.registerService('tracing', tracingService);
-			setGlobalTracing(tracingService);
+			if (shouldInstallGlobalTracing) {
+				setGlobalTracing(tracingService);
+			}
 
 			return yield* buildAllLayersEffect(layers);
 		});
@@ -122,8 +129,10 @@ export const createSSRRuntime = async (
 		const initContextEffect = Effect.gen(function* () {
 			const propsRegistry = yield* PropsService;
 			const layerRegistry = yield* RegistryService;
-			initGlobalLayerContext(propsRegistry, layerRegistry, layers);
 			layerContextStore = { propsRegistry, layerRegistry, layers };
+			if (!hasExistingLayerContext) {
+				initGlobalLayerContext(propsRegistry, layerRegistry, layers);
+			}
 		});
 
 		await managedRuntime.runPromise(initContextEffect);
@@ -140,6 +149,10 @@ export const createSSRRuntime = async (
 			try {
 				clearGlobalLayerContext();
 				clearGlobalTracing();
+				restoreGlobalLayerContext(previousLayerContextStore);
+				if (previousTracingService) {
+					setGlobalTracing(previousTracingService);
+				}
 
 				if (Predicate.isFunction(aggregatedCleanup)) {
 					aggregatedCleanup();

@@ -26,6 +26,7 @@
 import { Effect } from 'effect';
 import { TracingService } from './TracingService.js';
 import type { AnyResolvedLayer } from '../types.js';
+import { getLayerDependencyNames } from '../utils/dependencies.js';
 
 export const withLayerSpan = <A, E, R>(
 	layer: AnyResolvedLayer,
@@ -41,11 +42,9 @@ export const withLayerSpan = <A, E, R>(
 			layer: layer.name,
 		};
 
-		if (
-			layer.dependencies &&
-			(layer.dependencies as readonly string[]).length > 0
-		) {
-			attributes['depends'] = layer.dependencies;
+		const dependencyNames = getLayerDependencyNames(layer);
+		if (dependencyNames.length > 0) {
+			attributes['depends'] = dependencyNames;
 		}
 
 		if (layer.provides) {
@@ -117,11 +116,9 @@ export const logDependencyGraph = (
 		);
 
 		for (const layer of layers) {
+			const dependencyNames = getLayerDependencyNames(layer);
 			const deps =
-				layer.dependencies &&
-				(layer.dependencies as readonly string[]).length > 0
-					? ` <- [${(layer.dependencies as string[]).join(', ')}]`
-					: '';
+				dependencyNames.length > 0 ? ` <- [${dependencyNames.join(', ')}]` : '';
 			console.log(`%c${layer.name}%c${deps}`, styles.layer, styles.deps);
 		}
 

@@ -33,43 +33,62 @@ import type {
 	PluginFn,
 	StoreConfig,
 } from '../types.js';
-import { CircularDependencyError } from '../errors.js';
+import {
+	CircularDependencyError,
+	LayerNameCollisionError,
+} from '../errors.js';
 import type { Component } from '../../render/node.js';
 
 export const resolveLayerOrder = (
-	layers: readonly AnyLayer[],
-	visited = new Set<AnyLayer>(),
-	path: string[] = []
+	layers: readonly AnyLayer[]
 ): AnyResolvedLayer[] => {
 	const resolved: AnyResolvedLayer[] = [];
-	let order = 0;
+	const state = new Map<AnyLayer, 'visiting' | 'visited'>();
+	const owners = new Map<string, AnyLayer>();
+	const seen = new Set<string>();
 
-	for (const layer of layers) {
+	const visit = (layer: AnyLayer, path: string[]): void => {
 		const layerName = layer.name;
+		const currentState = state.get(layer);
 
-		if (visited.has(layer)) {
+		if (currentState === 'visiting') {
 			throw new CircularDependencyError({
 				layerName,
 				dependencyChain: path,
 			});
 		}
 
-		visited.add(layer);
-
-		if (layer.extends && layer.extends.length > 0) {
-			const extended = resolveLayerOrder(layer.extends, visited, [
-				...path,
-				layerName,
-			]);
-			resolved.push(...extended);
-			order = extended.length;
+		if (currentState === 'visited') {
+			return;
 		}
 
-		resolved.push({
-			...layer,
-			_resolved: true,
-			_order: order++,
-		});
+		const owner = owners.get(layerName);
+		if (owner && owner !== layer) {
+			throw new LayerNameCollisionError({ layerName });
+		}
+		owners.set(layerName, layer);
+
+		state.set(layer, 'visiting');
+		if (layer.extends && layer.extends.length > 0) {
+			for (const extended of layer.extends) {
+				visit(extended, [...path, layerName]);
+			}
+		}
+
+		state.set(layer, 'visited');
+
+		if (!seen.has(layerName)) {
+			seen.add(layerName);
+			resolved.push({
+				...layer,
+				_resolved: true,
+				_order: resolved.length,
+			});
+		}
+	};
+
+	for (const layer of layers) {
+		visit(layer, []);
 	}
 
 	return resolved;

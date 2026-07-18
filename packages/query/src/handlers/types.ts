@@ -40,6 +40,7 @@ export interface QueryCacheConfig {
 export interface QueryHandlerDeps {
 	internals: QueryCacheInternals;
 	config: QueryCacheConfig;
+	onCacheChange?: () => void;
 }
 
 export interface GetEntryInput {

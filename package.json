@@ -15,11 +15,18 @@
 	"homepage": "https://github.com/chrismichaelps/effuse#readme",
 	"type": "module",
 	"scripts": {
-		"build": "pnpm -r --workspace-concurrency=1 build",
+		"build": "node scripts/run-with-integration-app-lock.mjs -- pnpm -r --workspace-concurrency=1 build",
+		"check:app": "node scripts/check-integration-app.mjs",
+		"check:app:bun": "node scripts/check-integration-app.mjs --runner=bun",
+		"check:node": "node scripts/check-node-version.mjs",
 		"dev": "pnpm -r dev",
-		"test": "pnpm -r test",
-		"lint": "pnpm -r lint",
-		"typecheck": "pnpm -r typecheck",
+		"pretest": "node scripts/check-node-version.mjs",
+		"test": "node scripts/run-with-integration-app-lock.mjs -- pnpm test:workspace",
+		"test:scripts": "node --test scripts/__tests__/*.test.mjs",
+		"test:workspace": "pnpm test:scripts && pnpm -r test",
+		"lint": "node scripts/run-with-integration-app-lock.mjs -- pnpm lint:packages",
+		"lint:packages": "pnpm -r lint",
+		"typecheck": "node scripts/run-with-integration-app-lock.mjs -- pnpm -r typecheck",
 		"prepublishOnly": "pnpm build && pnpm typecheck",
 		"release": "semantic-release",
 		"clean": "pnpm -r exec rm -rf dist node_modules",
@@ -38,6 +45,7 @@
 		"multi-semantic-release": "^3.1.0",
 		"prettier": "^3.7.4",
 		"semantic-release": "^25.0.2",
-		"tsup": "^8.5.1"
+		"tsup": "^8.5.1",
+		"vitest": "^4.1.0"
 	}
 }

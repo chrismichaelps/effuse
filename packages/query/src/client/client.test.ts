@@ -156,4 +156,76 @@ describe('QueryClient Integration', () => {
 			expect(client.has(['users', 1])).toBe(true);
 		});
 	});
+
+	describe('reactive cache metadata', () => {
+		it('updates cacheSnapshot when imperative cache entries change', async () => {
+			const client = createQueryClient();
+			const initialVersion = client.cacheVersion.value;
+
+			expect(client.cacheSnapshot.value.queryCount).toBe(0);
+			expect(client.cacheSnapshot.value.queryKeys).toEqual([]);
+
+			client.setQueryData(['users'], ['alice']);
+
+			expect(client.cacheVersion.value).toBeGreaterThan(initialVersion);
+			expect(client.cacheSnapshot.value.queryCount).toBe(1);
+			expect(client.cacheSnapshot.value.queryKeys).toEqual([['users']]);
+			expect(client.getCacheSnapshot().queryCount).toBe(1);
+
+			await client.invalidate(['users']);
+
+			expect(client.cacheSnapshot.value.staleQueryCount).toBe(1);
+
+			client.clear();
+
+			expect(client.cacheSnapshot.value.queryCount).toBe(0);
+			expect(client.cacheSnapshot.value.queryKeys).toEqual([]);
+		});
+
+		it('tracks observer query counts and fetching state', async () => {
+			const client = createQueryClient();
+			const query = client.getQuery({
+				queryKey: ['observer'],
+				queryFn: async () => {
+					await new Promise((resolve) => setTimeout(resolve, 30));
+					return 'data';
+				},
+			});
+
+			expect(client.cacheSnapshot.value.observerQueryCount).toBe(1);
+			expect(client.cacheSnapshot.value.fetchingQueryCount).toBe(0);
+
+			void query.fetch();
+			await new Promise((resolve) => setTimeout(resolve, 0));
+
+			expect(client.cacheSnapshot.value.fetchingQueryCount).toBe(1);
+
+			await new Promise((resolve) => setTimeout(resolve, 50));
+
+			expect(client.cacheSnapshot.value.fetchingQueryCount).toBe(0);
+		});
+
+		it('tracks mutation counts and pending mutation state', async () => {
+			const client = createQueryClient();
+			const mutation = client.mutationCache.build({
+				mutationKey: ['save'],
+				mutationFn: async () => {
+					await new Promise((resolve) => setTimeout(resolve, 30));
+					return 'ok';
+				},
+			});
+
+			expect(client.cacheSnapshot.value.mutationCount).toBe(1);
+			expect(client.cacheSnapshot.value.pendingMutationCount).toBe(0);
+
+			void mutation.execute(undefined);
+			await new Promise((resolve) => setTimeout(resolve, 0));
+
+			expect(client.cacheSnapshot.value.pendingMutationCount).toBe(1);
+
+			await new Promise((resolve) => setTimeout(resolve, 50));
+
+			expect(client.cacheSnapshot.value.pendingMutationCount).toBe(0);
+		});
+	});
 });

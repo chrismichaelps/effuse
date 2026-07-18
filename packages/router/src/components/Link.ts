@@ -111,7 +111,7 @@ export const Link = define<LinkProps, LinkState>({
 			event.preventDefault();
 
 			if (router) {
-				router.push(resolveTo());
+				void router.push(resolveTo());
 			}
 		};
 

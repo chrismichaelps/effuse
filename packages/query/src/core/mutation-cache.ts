@@ -77,6 +77,7 @@ export class MutationCache {
 
 		const mutation = new Mutation<TData, TError, TVariables, TContext>(mergedConfig);
 		this.mutations.set(hash, mutation as unknown as Mutation<unknown, Error, unknown, unknown>);
+		this.notify();
 
 		const originalDispatch = mutation.dispatch.bind(mutation);
 		mutation.dispatch = (action) => {
@@ -100,6 +101,7 @@ export class MutationCache {
 		if (mutation) {
 			mutation.reset();
 			this.mutations.delete(hash);
+			this.notify();
 			return true;
 		}
 		return false;
@@ -114,10 +116,14 @@ export class MutationCache {
 	}
 
 	clear(): void {
+		if (this.mutations.size === 0) {
+			return;
+		}
 		for (const mutation of this.mutations.values()) {
 			mutation.reset();
 		}
 		this.mutations.clear();
+		this.notify();
 	}
 
 	get size(): number {

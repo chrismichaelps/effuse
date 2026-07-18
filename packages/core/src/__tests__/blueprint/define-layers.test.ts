@@ -1,7 +1,11 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, expectTypeOf, vi, afterEach } from 'vitest';
 import { define } from '../../blueprint/define.js';
 import { defineLayer } from '../../layers/api/defineLayer.js';
 import { runWithLayerContext } from '../../layers/context.js';
+import {
+	LayerNameCollisionError,
+	ServiceNotFoundError,
+} from '../../layers/errors.js';
 import type { PropsRegistry } from '../../layers/services/PropsService.js';
 import type { LayerRegistry } from '../../layers/services/RegistryService.js';
 import type { AnyResolvedLayer, LayerProps } from '../../layers/types.js';
@@ -55,7 +59,6 @@ const extractBlueprint = (component: unknown): BlueprintMock => {
 };
 
 describe('define() + layers — full integration', () => {
-
 	describe('single layer via layers option', () => {
 		it('should expose layer services via ctx.layers in script', () => {
 			const authSvc = { token: 'abc', user: 'chris' };
@@ -86,9 +89,250 @@ describe('define() + layers — full integration', () => {
 			});
 
 			const blueprint = extractBlueprint(Component);
-			const state = runWithLayerContext(store, () => blueprint.state({ userId: 'u1' })) as { exposed: Record<string, unknown> };
+			const state = runWithLayerContext(store, () =>
+				blueprint.state({ userId: 'u1' })
+			) as { exposed: Record<string, unknown> };
 			expect(state.exposed.isAuthenticated).toBe(true);
 			expect(state.exposed.user).toBe('chris');
+		});
+
+		it('should expose extended list-form layers through ctx.layers in script', () => {
+			const authSvc = { token: 'abc', user: 'chris' };
+			const featureSvc = { flag: 'checkout-v2' };
+			const authMode = signal('strict');
+			const authLayer = defineLayer({
+				name: 'authBase',
+				props: { mode: authMode },
+				services: { authSvc: () => authSvc },
+			});
+			const featureLayer = defineLayer({
+				name: 'checkoutFeature',
+				extends: [authLayer],
+				services: { featureSvc: () => featureSvc },
+			});
+			const resolvedAuth = createResolvedLayer({
+				name: 'authBase',
+				provides: { authSvc: () => authSvc },
+			});
+			const resolvedFeature = createResolvedLayer({
+				name: 'checkoutFeature',
+				provides: { featureSvc: () => featureSvc },
+			});
+
+			const propsRegistry = createMockPropsRegistry({
+				authBase: { mode: authMode },
+				checkoutFeature: {},
+			});
+			const layerRegistry = createMockLayerRegistry(
+				{ authBase: resolvedAuth, checkoutFeature: resolvedFeature },
+				{ authSvc, featureSvc }
+			);
+			const store = {
+				propsRegistry,
+				layerRegistry,
+				layers: [resolvedAuth, resolvedFeature],
+			};
+
+			const Component = define({
+				props: {},
+				layers: [featureLayer] as const,
+				script(ctx) {
+					const auth = ctx.layers.authBase.services.authSvc;
+					const feature = ctx.layers.checkoutFeature.services.featureSvc;
+					expectTypeOf(auth).toEqualTypeOf<{ token: string; user: string }>();
+					expectTypeOf(feature).toEqualTypeOf<{ flag: string }>();
+					return {
+						flag: feature.flag,
+						mode: ctx.layers.authBase.props.mode.value,
+						user: auth.user,
+					};
+				},
+				template: () => null,
+			});
+
+			const blueprint = extractBlueprint(Component);
+			const state = runWithLayerContext(store, () => blueprint.state({})) as {
+				exposed: { flag: string; mode: string; user: string };
+			};
+			expect(state.exposed).toEqual({
+				flag: 'checkout-v2',
+				mode: 'strict',
+				user: 'chris',
+			});
+		});
+
+		it('should support aliased layers with destructured script access', () => {
+			const authSvc = { token: 'abc', user: 'chris' };
+			const identityLayer = defineLayer({
+				name: 'platformIdentity',
+				services: { authSvc: () => authSvc },
+			});
+			const resolvedLayer = createResolvedLayer({
+				name: 'platformIdentity',
+				provides: { authSvc: () => authSvc },
+			});
+
+			const propsRegistry = createMockPropsRegistry({
+				platformIdentity: { requiredRole: 'admin' },
+			});
+			const layerRegistry = createMockLayerRegistry(
+				{ platformIdentity: resolvedLayer },
+				{ authSvc }
+			);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedLayer] };
+
+			const Component = define({
+				props: {},
+				layers: { auth: identityLayer } as const,
+				script({ layers: { auth } }) {
+					const svc = auth.services.authSvc;
+					expectTypeOf(svc).toEqualTypeOf<{
+						token: string;
+						user: string;
+					}>();
+					return {
+						user: svc.user,
+						requiredRole: auth.props.requiredRole,
+					};
+				},
+				template: () => null,
+			});
+
+			const blueprint = extractBlueprint(Component);
+			const state = runWithLayerContext(store, () => blueprint.state({})) as {
+				exposed: Record<string, unknown>;
+			};
+			expect(state.exposed.user).toBe('chris');
+			expect(state.exposed.requiredRole).toBe('admin');
+		});
+
+		it('should access a layer directly without duplicating it in define options', () => {
+			const authSvc = { token: 'abc', user: 'chris' };
+			const authLayer = defineLayer({
+				name: 'auth-direct',
+				services: { authSvc: () => authSvc },
+			});
+			const resolvedLayer = createResolvedLayer({
+				name: 'auth-direct',
+				provides: { authSvc: () => authSvc },
+			});
+
+			const propsRegistry = createMockPropsRegistry({ 'auth-direct': {} });
+			const layerRegistry = createMockLayerRegistry(
+				{ 'auth-direct': resolvedLayer },
+				{ authSvc }
+			);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedLayer] };
+
+			const Component = define({
+				props: {},
+				script(ctx) {
+					const auth = ctx.useService(authLayer, 'authSvc');
+					return { isAuthenticated: !!auth.token, user: auth.user };
+				},
+				template: () => null,
+			});
+
+			const blueprint = extractBlueprint(Component);
+			const state = runWithLayerContext(store, () => blueprint.state({})) as {
+				exposed: Record<string, unknown>;
+			};
+			expect(state.exposed.isAuthenticated).toBe(true);
+			expect(state.exposed.user).toBe('chris');
+		});
+
+		it('should support destructured direct helpers in script', () => {
+			const authSvc = { token: 'abc', user: 'chris' };
+			const modeSignal = signal('strict');
+			const authLayer = defineLayer({
+				name: 'auth-helpers',
+				services: { authSvc: () => authSvc },
+			});
+			const resolvedLayer = createResolvedLayer({
+				name: 'auth-helpers',
+				provides: { authSvc: () => authSvc },
+			});
+
+			const propsRegistry = createMockPropsRegistry({
+				'auth-helpers': { mode: modeSignal },
+			});
+			const layerRegistry = createMockLayerRegistry(
+				{ 'auth-helpers': resolvedLayer },
+				{ authSvc }
+			);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedLayer] };
+
+			const Component = define({
+				props: {},
+				script({ useLayer, useService }) {
+					const auth = useLayer(authLayer);
+					const sameAuth = useLayer(authLayer);
+					const svc = useService(authLayer, 'authSvc');
+					return {
+						user: svc.user,
+						mode: auth.props.mode,
+						sameEntry: auth === sameAuth,
+						sameServices: auth.services === sameAuth.services,
+						sameInstance: auth.services.authSvc === svc,
+					};
+				},
+				template: () => null,
+			});
+
+			const blueprint = extractBlueprint(Component);
+			const state = runWithLayerContext(store, () => blueprint.state({})) as {
+				exposed: {
+					user: string;
+					mode: { value: string };
+					sameEntry: boolean;
+					sameServices: boolean;
+					sameInstance: boolean;
+				};
+			};
+			expect(state.exposed.user).toBe('chris');
+			expect(state.exposed.mode).toBe(modeSignal);
+			expect(state.exposed.sameEntry).toBe(true);
+			expect(state.exposed.sameServices).toBe(true);
+			expect(state.exposed.sameInstance).toBe(true);
+		});
+
+		it('should reject direct helper service keys outside the layer contract', () => {
+			const authSvc = { token: 'abc' };
+			const billingSvc = { total: 10 };
+			const authLayer = defineLayer({
+				name: 'auth-boundary',
+				services: { authSvc: () => authSvc },
+			});
+			const resolvedLayer = createResolvedLayer({
+				name: 'auth-boundary',
+				provides: { authSvc: () => authSvc },
+			});
+
+			const propsRegistry = createMockPropsRegistry({ 'auth-boundary': {} });
+			const layerRegistry = createMockLayerRegistry(
+				{ 'auth-boundary': resolvedLayer },
+				{ authSvc, billingSvc }
+			);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedLayer] };
+
+			const Component = define({
+				props: {},
+				script({ useService }) {
+					const unsafeUseService = useService as unknown as (
+						layer: typeof authLayer,
+						key: string
+					) => unknown;
+					unsafeUseService(authLayer, 'billingSvc');
+					return {};
+				},
+				template: () => null,
+			});
+
+			const blueprint = extractBlueprint(Component);
+
+			expect(() =>
+				runWithLayerContext(store, () => blueprint.state({}))
+			).toThrow(ServiceNotFoundError);
 		});
 
 		it('should expose layer props via ctx.layers in script', () => {
@@ -112,12 +356,38 @@ describe('define() + layers — full integration', () => {
 			});
 
 			const blueprint = extractBlueprint(Component);
-			const state = runWithLayerContext(store, () => blueprint.state({})) as { exposed: { mode: { value: string } } };
+			const state = runWithLayerContext(store, () => blueprint.state({})) as {
+				exposed: { mode: { value: string } };
+			};
 			expect(state.exposed.mode.value).toBe('dark');
 		});
 	});
 
 	describe('multiple layers via layers option', () => {
+		it('should reject duplicate layer names before script runs', () => {
+			const firstLayer = defineLayer({
+				name: 'auth',
+				services: { first: () => ({ token: 'first' }) },
+			});
+			const secondLayer = defineLayer({
+				name: 'auth',
+				services: { second: () => ({ token: 'second' }) },
+			});
+
+			const Component = define({
+				props: {},
+				layers: [firstLayer, secondLayer] as const,
+				script() {
+					return {};
+				},
+				template: () => null,
+			});
+
+			const blueprint = extractBlueprint(Component);
+
+			expect(() => blueprint.state({})).toThrow(LayerNameCollisionError);
+		});
+
 		it('should not conflate service keys across auth and log layers', () => {
 			const authSvc = { token: 'abc' };
 			const logSvc = { log: vi.fn(), level: 'info' };
@@ -145,7 +415,11 @@ describe('define() + layers — full integration', () => {
 				{ auth: resolvedAuth, log: resolvedLog },
 				{ authSvc, logSvc }
 			);
-			const store = { propsRegistry, layerRegistry, layers: [resolvedAuth, resolvedLog] };
+			const store = {
+				propsRegistry,
+				layerRegistry,
+				layers: [resolvedAuth, resolvedLog],
+			};
 
 			const Component = define({
 				props: {},
@@ -162,7 +436,9 @@ describe('define() + layers — full integration', () => {
 			});
 
 			const blueprint = extractBlueprint(Component);
-			const state = runWithLayerContext(store, () => blueprint.state({})) as { exposed: Record<string, unknown> };
+			const state = runWithLayerContext(store, () => blueprint.state({})) as {
+				exposed: Record<string, unknown>;
+			};
 			expect(state.exposed.authToken).toBe('abc');
 			expect(state.exposed.logLevel).toBe('info');
 		});
@@ -176,16 +452,29 @@ describe('define() + layers — full integration', () => {
 			const layerB = defineLayer({ name: 'b', provides: { bSvc: () => bSvc } });
 			const layerC = defineLayer({ name: 'c', provides: { cSvc: () => cSvc } });
 
-			const resolvedA = createResolvedLayer({ name: 'a', provides: { aSvc: () => aSvc } });
-			const resolvedB = createResolvedLayer({ name: 'b', provides: { bSvc: () => bSvc } });
-			const resolvedC = createResolvedLayer({ name: 'c', provides: { cSvc: () => cSvc } });
+			const resolvedA = createResolvedLayer({
+				name: 'a',
+				provides: { aSvc: () => aSvc },
+			});
+			const resolvedB = createResolvedLayer({
+				name: 'b',
+				provides: { bSvc: () => bSvc },
+			});
+			const resolvedC = createResolvedLayer({
+				name: 'c',
+				provides: { cSvc: () => cSvc },
+			});
 
 			const propsRegistry = createMockPropsRegistry({ a: {}, b: {}, c: {} });
 			const layerRegistry = createMockLayerRegistry(
 				{ a: resolvedA, b: resolvedB, c: resolvedC },
 				{ aSvc, bSvc, cSvc }
 			);
-			const store = { propsRegistry, layerRegistry, layers: [resolvedA, resolvedB, resolvedC] };
+			const store = {
+				propsRegistry,
+				layerRegistry,
+				layers: [resolvedA, resolvedB, resolvedC],
+			};
 
 			const Component = define({
 				props: {},
@@ -201,7 +490,9 @@ describe('define() + layers — full integration', () => {
 			});
 
 			const blueprint = extractBlueprint(Component);
-			const state = runWithLayerContext(store, () => blueprint.state({})) as { exposed: Record<string, unknown> };
+			const state = runWithLayerContext(store, () => blueprint.state({})) as {
+				exposed: Record<string, unknown>;
+			};
 			expect(state.exposed.a).toBe(1);
 			expect(state.exposed.b).toBe('two');
 			expect(state.exposed.c).toBe(true);
@@ -248,7 +539,9 @@ describe('define() + layers — full integration', () => {
 			});
 
 			const blueprint = extractBlueprint(Component);
-			const state = runWithLayerContext(store, () => blueprint.state({})) as { exposed: Record<string, unknown> };
+			const state = runWithLayerContext(store, () => blueprint.state({})) as {
+				exposed: Record<string, unknown>;
+			};
 			expect(state.exposed.initial).toBe(0);
 
 			countSignal.value = 42;
@@ -293,7 +586,9 @@ describe('define() + layers — full integration', () => {
 			});
 
 			const blueprint = extractBlueprint(Component);
-			const state = runWithLayerContext(store, () => blueprint.state({})) as { lifecycle: { runMount: () => void } };
+			const state = runWithLayerContext(store, () => blueprint.state({})) as {
+				lifecycle: { runMount: () => void };
+			};
 			expect(mountOrder).toEqual(['script']);
 
 			runWithLayerContext(store, () => state.lifecycle.runMount());
@@ -336,7 +631,9 @@ describe('define() + layers — full integration', () => {
 			});
 
 			const blueprint = extractBlueprint(Component);
-			const state = runWithLayerContext(store, () => blueprint.state({})) as { lifecycle: { runCleanup: () => void } };
+			const state = runWithLayerContext(store, () => blueprint.state({})) as {
+				lifecycle: { runCleanup: () => void };
+			};
 			runWithLayerContext(store, () => state.lifecycle.runCleanup());
 			expect(cleanupOrder).toEqual(['unmount:abc']);
 		});
@@ -374,7 +671,9 @@ describe('define() + layers — full integration', () => {
 			});
 
 			const blueprint = extractBlueprint(Component);
-			const state = runWithLayerContext(store, () => blueprint.state({ value: 10 })) as {
+			const state = runWithLayerContext(store, () =>
+				blueprint.state({ value: 10 })
+			) as {
 				exposed: { count: { value: number }; result: { value: number } };
 			};
 			expect(state.exposed.count.value).toBe(0);
@@ -410,7 +709,11 @@ describe('define() + layers — full integration', () => {
 				{ theme: resolvedTheme, auth: resolvedAuth },
 				{ authSvc: { user: authUser } }
 			);
-			const store = { propsRegistry, layerRegistry, layers: [resolvedTheme, resolvedAuth] };
+			const store = {
+				propsRegistry,
+				layerRegistry,
+				layers: [resolvedTheme, resolvedAuth],
+			};
 
 			const Component = define({
 				props: {},
@@ -430,6 +733,70 @@ describe('define() + layers — full integration', () => {
 			};
 			expect(state.exposed.theme.value).toBe('dark');
 			expect(state.exposed.user).toBe('u1');
+		});
+
+		it('should preserve typed layer props inside script context', () => {
+			const themeMode = signal('dark');
+			const accentColor = signal('blue');
+			const themeLayer = defineLayer({
+				name: 'typed-theme',
+				props: {
+					mode: themeMode,
+					accent: accentColor,
+				},
+				services: {
+					theme: () => ({ label: 'typed' }),
+				},
+			});
+			const resolvedTheme = createResolvedLayer({
+				name: 'typed-theme',
+				provides: { theme: () => ({ label: 'typed' }) },
+			});
+
+			const propsRegistry = createMockPropsRegistry({
+				'typed-theme': {
+					mode: themeMode,
+					accent: accentColor,
+				},
+			});
+			const layerRegistry = createMockLayerRegistry(
+				{ 'typed-theme': resolvedTheme },
+				{ theme: { label: 'typed' } }
+			);
+			const store = {
+				propsRegistry,
+				layerRegistry,
+				layers: [resolvedTheme],
+			};
+
+			const Component = define({
+				props: {},
+				layers: { theme: themeLayer } as const,
+				script(ctx) {
+					expectTypeOf<typeof ctx.layers.theme.props.mode>().toEqualTypeOf<
+						typeof themeMode
+					>();
+					expectTypeOf<typeof ctx.layers.theme.props.accent>().toEqualTypeOf<
+						typeof accentColor
+					>();
+					return {
+						mode: ctx.layers.theme.props.mode.value,
+						accent: ctx.layers.theme.props.accent.value,
+						label: ctx.layers.theme.services.theme.label,
+					};
+				},
+				template: () => null,
+			});
+
+			const blueprint = extractBlueprint(Component);
+			const state = runWithLayerContext(store, () => blueprint.state({})) as {
+				exposed: { accent: string; label: string; mode: string };
+			};
+			expect(state.exposed).toEqual({
+				accent: 'blue',
+				label: 'typed',
+				mode: 'dark',
+			});
 		});
 	});
 
@@ -473,6 +840,47 @@ describe('define() + layers — full integration', () => {
 			expect(instanceB).toBe(cachedInstance);
 			expect(factorySpy).not.toHaveBeenCalled();
 		});
+
+		it('should return the same services bag across repeated script reads', () => {
+			const cachedInstance = { id: 999 };
+			const cacheLayer = defineLayer({
+				name: 'cache',
+				provides: { cachedSvc: () => cachedInstance },
+			});
+			const resolvedLayer = createResolvedLayer({
+				name: 'cache',
+				provides: { cachedSvc: () => cachedInstance },
+			});
+
+			const propsRegistry = createMockPropsRegistry({ cache: {} });
+			const layerRegistry = createMockLayerRegistry(
+				{ cache: resolvedLayer },
+				{ cachedSvc: cachedInstance }
+			);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedLayer] };
+
+			const Component = define({
+				props: {},
+				layers: [cacheLayer] as const,
+				script(ctx) {
+					const firstServices = ctx.layers.cache.services;
+					const secondServices = ctx.layers.cache.services;
+					return {
+						sameBag: firstServices === secondServices,
+						sameService: firstServices.cachedSvc === secondServices.cachedSvc,
+					};
+				},
+				template: () => null,
+			});
+
+			const blueprint = extractBlueprint(Component);
+			const state = runWithLayerContext(store, () => blueprint.state({})) as {
+				exposed: { sameBag: boolean; sameService: boolean };
+			};
+
+			expect(state.exposed.sameBag).toBe(true);
+			expect(state.exposed.sameService).toBe(true);
+		});
 	});
 
 	describe('define() with layers — empty accessor when no layers', () => {
@@ -486,8 +894,14 @@ describe('define() + layers — full integration', () => {
 			});
 
 			const blueprint = extractBlueprint(Component);
-			const emptyStore = { propsRegistry: createMockPropsRegistry(), layerRegistry: createMockLayerRegistry(), layers: [] };
-			const state = runWithLayerContext(emptyStore, () => blueprint.state({})) as { exposed: Record<string, unknown> };
+			const emptyStore = {
+				propsRegistry: createMockPropsRegistry(),
+				layerRegistry: createMockLayerRegistry(),
+				layers: [],
+			};
+			const state = runWithLayerContext(emptyStore, () =>
+				blueprint.state({})
+			) as { exposed: Record<string, unknown> };
 			expect(state.exposed.layerKeys).toEqual([]);
 		});
 	});
@@ -520,7 +934,11 @@ describe('define() + layers — full integration', () => {
 					logSvc: { log: vi.fn() },
 				}
 			);
-			const store = { propsRegistry, layerRegistry, layers: [resolvedAuth, resolvedLog] };
+			const store = {
+				propsRegistry,
+				layerRegistry,
+				layers: [resolvedAuth, resolvedLog],
+			};
 
 			const accessorKeys: string[] = [];
 
@@ -577,8 +995,12 @@ describe('define() + layers — full integration', () => {
 			});
 
 			const blueprint = extractBlueprint(Component);
-			const state = runWithLayerContext(store, () => blueprint.state({})) as unknown as { exposed: { user: string } };
-			runWithLayerContext(store, () => blueprint.view({ props: {}, state, portals: {} }));
+			const state = runWithLayerContext(store, () =>
+				blueprint.state({})
+			) as unknown as { exposed: { user: string } };
+			runWithLayerContext(store, () =>
+				blueprint.view({ props: {}, state, portals: {} })
+			);
 			const capturedUser = capturedExposed && capturedExposed['user'];
 			expect(capturedUser).toBe('Admin');
 		});

@@ -59,19 +59,12 @@ export const injectRouter = (): unknown => inject(ROUTER_KEY);
 export const injectRoute = (): Signal<Route> | undefined =>
 	inject<Signal<Route>>(ROUTE_KEY);
 
-export const injectDepth = (): number =>
-	injectWithDefault<number>(DEPTH_KEY, 0);
-
 export const provideRouter = (router: unknown): void => {
 	provide(ROUTER_KEY, router);
 };
 
 export const provideRoute = (route: Signal<Route>): void => {
 	provide(ROUTE_KEY, route);
-};
-
-export const provideDepth = (depth: number): void => {
-	provide(DEPTH_KEY, depth);
 };
 
 export const createRouteSignal = (

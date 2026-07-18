@@ -24,6 +24,8 @@
 
 import type { Component } from '../render/node.js';
 import type { HeadProps } from '../ssr/types.js';
+import type { LayerServerErrorOptions } from '../ssr/server-errors.js';
+import type { ServerValidationHelpers } from '../ssr/validation.js';
 import type { Signal } from '../reactivity/signal.js';
 
 export type MaybePromise<T> = T | Promise<T>;
@@ -67,7 +69,166 @@ export type LayerRestriction =
 
 export type LayerProps = Record<string, Signal<unknown>>;
 
-export type LayerProvides = Record<string, () => unknown>;
+export type LayerServiceFactory<T = unknown> = (
+	ctx: LayerServiceFactoryContext
+) => T;
+
+export type LayerProvides = Record<string, LayerServiceFactory>;
+
+export type HttpMethod =
+	| 'GET'
+	| 'POST'
+	| 'PUT'
+	| 'PATCH'
+	| 'DELETE'
+	| 'OPTIONS'
+	| 'HEAD';
+
+export type ServerResult =
+	| Response
+	| BodyInit
+	| Record<string, unknown>
+	| readonly unknown[]
+	| number
+	| boolean
+	| null
+	| undefined;
+
+export type ServerRuntimeHint = 'node' | 'edge' | 'bun' | 'workerd';
+
+export interface ServerCacheMetadata {
+	readonly cacheControl?: string;
+	readonly revalidate?: number | false;
+	readonly tags?: readonly string[];
+}
+
+export interface ServerCorsMetadata {
+	readonly credentials?: boolean;
+	readonly headers?: readonly string[];
+	readonly maxAge?: number;
+	readonly methods?: readonly HttpMethod[];
+	readonly origin?: boolean | string | readonly string[];
+}
+
+export interface ServerRouteMetadata {
+	readonly cache?: ServerCacheMetadata;
+	readonly cors?: ServerCorsMetadata;
+	readonly maxDuration?: number;
+	readonly region?: string | readonly string[];
+	readonly runtime?: ServerRuntimeHint;
+}
+
+export type ServerLayerDiagnosticCode =
+	| 'metadata_conflict'
+	| 'server_file_ambiguous_route'
+	| 'server_file_duplicate_action'
+	| 'server_file_duplicate_route'
+	| 'server_file_invalid_action'
+	| 'server_file_invalid_method'
+	| 'server_file_invalid_route';
+
+export interface ServerLayerDiagnostic {
+	readonly code: ServerLayerDiagnosticCode;
+	readonly filePath?: string;
+	readonly key: string;
+	readonly layer?: string;
+	readonly message: string;
+	readonly target: string;
+}
+
+export interface ServerResponseHelpers {
+	json: <T>(data: T, init?: ResponseInit) => Response;
+	text: (body: string, init?: ResponseInit) => Response;
+	redirect: (url: string | URL, status?: number) => Response;
+	error: <Details = unknown>(
+		code: string,
+		message: string,
+		options?: LayerServerErrorOptions<Details>
+	) => Response;
+}
+
+export interface ServerLayerContext<
+	S extends Record<string, unknown> = Record<string, unknown>,
+> {
+	readonly request: Request;
+	readonly url: URL;
+	readonly params: Record<string, string>;
+	readonly query: Record<string, string>;
+	readonly services: S;
+	readonly layerServices: Record<string, Record<string, unknown>>;
+	getService: <T = unknown>(key: string) => T | undefined;
+	json: <T = unknown>() => Promise<T>;
+	text: () => Promise<string>;
+	formData: () => Promise<FormData>;
+	readonly validate: ServerValidationHelpers;
+	readonly response: ServerResponseHelpers;
+}
+
+export type ServerHandler<
+	S extends Record<string, unknown> = Record<string, unknown>,
+> = (ctx: ServerLayerContext<S>) => MaybePromise<ServerResult>;
+
+export type ServerMiddlewareNext = () => Promise<Response>;
+
+export type ServerMiddleware<
+	S extends Record<string, unknown> = Record<string, unknown>,
+> = (
+	ctx: ServerLayerContext<S>,
+	next: ServerMiddlewareNext
+) => MaybePromise<ServerResult>;
+
+export type ServerMethodHandlers<
+	S extends Record<string, unknown> = Record<string, unknown>,
+> = Partial<Record<HttpMethod, ServerHandler<S>>>;
+
+export type ServerRouteDefinition<
+	S extends Record<string, unknown> = Record<string, unknown>,
+> = ServerMethodHandlers<S> & {
+	readonly handler?: ServerHandler<S>;
+	readonly metadata?: ServerRouteMetadata;
+	readonly methods?: ServerMethodHandlers<S>;
+	readonly middleware?: readonly ServerMiddleware<S>[];
+};
+
+export interface ServerRoute<
+	S extends Record<string, unknown> = Record<string, unknown>,
+> {
+	readonly diagnostics?: readonly ServerLayerDiagnostic[];
+	readonly metadata?: ServerRouteMetadata;
+	readonly path: string;
+	readonly methods: ServerMethodHandlers<S>;
+	readonly middleware?: readonly ServerMiddleware<S>[];
+}
+
+export type ServerRouteInput<
+	S extends Record<string, unknown> = Record<string, unknown>,
+> = ServerHandler<S> | ServerRouteDefinition<S> | ServerRoute<S>;
+
+export interface ServerActionDefinition<
+	S extends Record<string, unknown> = Record<string, unknown>,
+> {
+	readonly diagnostics?: readonly ServerLayerDiagnostic[];
+	readonly handler: ServerHandler<S>;
+	readonly metadata?: ServerRouteMetadata;
+	readonly middleware?: readonly ServerMiddleware<S>[];
+}
+
+export type ServerActionInput<
+	S extends Record<string, unknown> = Record<string, unknown>,
+> = ServerHandler<S> | ServerActionDefinition<S>;
+
+export interface ServerLayerConfig<
+	S extends Record<string, unknown> = Record<string, unknown>,
+> {
+	readonly api?:
+		| Record<string, ServerRouteInput<S>>
+		| readonly ServerRoute<S>[];
+	readonly diagnostics?: readonly ServerLayerDiagnostic[];
+	readonly metadata?: ServerRouteMetadata;
+	readonly middleware?: readonly ServerMiddleware<S>[];
+	readonly routes?: readonly ServerRoute<S>[];
+	readonly actions?: Record<string, ServerActionInput<S>>;
+}
 
 export interface LayerDependency<P extends LayerProps = LayerProps> {
 	readonly name: string;
@@ -89,16 +250,25 @@ export interface SetupContext<
 	readonly store: S;
 	readonly deps: DepsRecord<D>;
 	get: (name: string) => LayerDependency;
-	getService: (key: string) => unknown;
+	getService: <T = unknown>(key: string) => T | undefined;
+	requireService: <T = unknown>(key: string) => T;
 	component: (name: string) => Component | undefined;
 	readonly layers: readonly ResolvedLayer[];
+}
+
+export interface LayerServiceFactoryContext<
+	P extends LayerProps = LayerProps,
+	D extends readonly string[] = readonly string[],
+	S = unknown,
+> extends SetupContext<P, D, S> {
+	readonly layer: string;
+	readonly serviceKey: string;
 }
 
 export type LayerSetupFn<
 	P extends LayerProps = LayerProps,
 	D extends readonly string[] = readonly string[],
 	S = unknown,
-	// eslint-disable-next-line @typescript-eslint/no-invalid-void-type -- void is valid for functions with no return
 > = (ctx: SetupContext<P, D, S>) => SetupResult | Promise<SetupResult> | void;
 
 export type LifecycleHook<
@@ -139,6 +309,8 @@ export interface EffuseLayer<
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any -- components may have various prop types
 	readonly components?: Record<string, Component<any>>;
 	readonly provides?: LayerProvides;
+	readonly services?: LayerProvides;
+	readonly server?: ServerLayerConfig;
 
 	readonly setup?: LayerSetupFn<P, D, S>;
 	readonly onMount?: LifecycleHook<P, D, S>;
