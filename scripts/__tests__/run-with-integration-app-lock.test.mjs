@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdtemp, rm, stat } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -54,6 +54,29 @@ test('parseCommand requires a command after the separator', () => {
 		command: 'node',
 	});
 	assert.throws(() => parseCommand(['--']), /Usage:/);
+});
+
+test('root generated-output gates use the shared lock', async () => {
+	const packageJson = JSON.parse(
+		await readFile(join(repoRoot, 'package.json'), 'utf8')
+	);
+	const lockedPrefix =
+		'node scripts/run-with-integration-app-lock.mjs -- ';
+
+	for (const script of ['build', 'lint', 'test', 'typecheck']) {
+		assert.ok(
+			packageJson.scripts[script].startsWith(lockedPrefix),
+			`Expected root ${script} to use the generated-output lock.`
+		);
+	}
+	assert.equal(
+		packageJson.scripts['check:app'],
+		'node scripts/check-integration-app.mjs'
+	);
+	assert.equal(
+		packageJson.scripts['check:app:bun'],
+		'node scripts/check-integration-app.mjs --runner=bun'
+	);
 });
 
 test('run-with-integration-app-lock forwards successful commands', async () => {
