@@ -48,11 +48,7 @@ import {
 } from '../navigation/guards.js';
 import { NavigationFailure } from '../navigation/errors.js';
 import { loadRouterConfig } from './RouterConfig.js';
-import {
-	updateRouteSignal,
-	provideRouter,
-	createRouteSignal,
-} from './context.js';
+import { updateRouteSignal, installRouterContext } from './context.js';
 
 let cachedConfig: {
 	base: string;
@@ -427,10 +423,16 @@ export const createRouter = (options: RouterOptions): RouterInstance => {
 				updateCurrentRouteSignal(newRoute);
 			};
 
-			const cleanup = history.listen(syncRoute);
+			const cleanupHistory = history.listen(syncRoute);
 			syncRoute();
 
-			return cleanup;
+			let stopped = false;
+			return () => {
+				if (stopped) return;
+				stopped = true;
+				cleanupHistory();
+				isStarted = false;
+			};
 		},
 
 		get isReady() {
@@ -442,9 +444,20 @@ export const createRouter = (options: RouterOptions): RouterInstance => {
 };
 
 let globalRouter: RouterInstance | null = null;
+const routerInstallations: Array<{ readonly router: RouterInstance }> = [];
 
-export const setGlobalRouter = (router: RouterInstance): void => {
+export const setGlobalRouter = (router: RouterInstance): (() => void) => {
+	const installation = { router };
+	routerInstallations.push(installation);
 	globalRouter = router;
+	let removed = false;
+	return () => {
+		if (removed) return;
+		removed = true;
+		const index = routerInstallations.indexOf(installation);
+		if (index >= 0) routerInstallations.splice(index, 1);
+		globalRouter = routerInstallations.at(-1)?.router ?? null;
+	};
 };
 
 export const getGlobalRouter = (): RouterInstance | null => globalRouter;
@@ -452,13 +465,21 @@ export const getGlobalRouter = (): RouterInstance | null => globalRouter;
 export const installRouter = (
 	router: RouterInstance
 ): RouterInstance & { cleanup: () => void } => {
-	setGlobalRouter(router);
-	setCoreGlobalRouter(router);
-	provideRouter(router);
+	const restoreGlobalRouter = setGlobalRouter(router);
+	const restoreCoreRouter = setCoreGlobalRouter(router);
 
 	const initialRoute = Effect.runSync(SubscriptionRef.get(router.currentRoute));
-	createRouteSignal(router, initialRoute);
+	const restoreContext = installRouterContext(router, initialRoute);
 
-	const cleanup = router.start();
+	const stopRouter = router.start();
+	let cleanedUp = false;
+	const cleanup = (): void => {
+		if (cleanedUp) return;
+		cleanedUp = true;
+		stopRouter();
+		restoreContext();
+		restoreCoreRouter();
+		restoreGlobalRouter();
+	};
 	return Object.assign(router, { cleanup });
 };

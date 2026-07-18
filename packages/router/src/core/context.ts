@@ -33,6 +33,16 @@ const contextMap = new Map<symbol, unknown>();
 
 let globalRouteSignal: Signal<Route> | null = null;
 const routerRouteSignals = new WeakMap<object, Signal<Route>>();
+interface RouterContextInstallation {
+	readonly router: object;
+	readonly route: Signal<Route>;
+}
+const routerContextInstallations: RouterContextInstallation[] = [];
+let routerContextBase: {
+	readonly router: unknown;
+	readonly route: unknown;
+	readonly globalRouteSignal: Signal<Route> | null;
+} | null = null;
 
 // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters
 export const provide = <T>(key: symbol, value: T): void => {
@@ -52,6 +62,8 @@ export const injectWithDefault = <T>(key: symbol, defaultValue: T): T => {
 export const clearContext = (): void => {
 	contextMap.clear();
 	globalRouteSignal = null;
+	routerContextInstallations.length = 0;
+	routerContextBase = null;
 };
 
 export const injectRouter = (): unknown => inject(ROUTER_KEY);
@@ -76,6 +88,46 @@ export const createRouteSignal = (
 	provideRoute(sig);
 	globalRouteSignal = sig;
 	return sig;
+};
+
+export const installRouterContext = (
+	router: object,
+	initialRoute: Route
+): (() => void) => {
+	if (routerContextInstallations.length === 0) {
+		routerContextBase = {
+			router: contextMap.get(ROUTER_KEY),
+			route: contextMap.get(ROUTE_KEY),
+			globalRouteSignal,
+		};
+	}
+	provideRouter(router);
+	const route = createRouteSignal(router, initialRoute);
+	const installation = { router, route };
+	routerContextInstallations.push(installation);
+
+	let removed = false;
+	return () => {
+		if (removed) return;
+		removed = true;
+		const index = routerContextInstallations.indexOf(installation);
+		if (index >= 0) routerContextInstallations.splice(index, 1);
+		routerRouteSignals.delete(router);
+		const active = routerContextInstallations.at(-1);
+		if (active) {
+			contextMap.set(ROUTER_KEY, active.router);
+			contextMap.set(ROUTE_KEY, active.route);
+			globalRouteSignal = active.route;
+			return;
+		}
+		const base = routerContextBase;
+		if (base?.router === undefined) contextMap.delete(ROUTER_KEY);
+		else contextMap.set(ROUTER_KEY, base.router);
+		if (base?.route === undefined) contextMap.delete(ROUTE_KEY);
+		else contextMap.set(ROUTE_KEY, base.route);
+		globalRouteSignal = base?.globalRouteSignal ?? null;
+		routerContextBase = null;
+	};
 };
 
 export const getRouteSignal = (): Signal<Route> | null => {
