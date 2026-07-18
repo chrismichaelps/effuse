@@ -161,6 +161,13 @@ export {
 } from './server-errors.js';
 
 export {
+	defineServerRequest,
+	type ServerRequestContract,
+	type ServerRequestDefinition,
+	type ServerRequestOutput,
+} from './request-contract.js';
+
+export {
 	serverSchema,
 	type ServerOptionalSchema,
 	type ServerSchemaInfer,
