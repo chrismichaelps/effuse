@@ -139,7 +139,7 @@ const createRouteContentNode = (
 	CreateElementNode({
 		[EFFUSE_NODE]: true,
 		tag: 'div',
-		key: `route-${String(depth)}-${viewName}-${route.fullPath}`,
+		key: createViewIdentity(depth, viewName, route),
 		props: {
 			class: 'router-view-content',
 		},
@@ -196,8 +196,18 @@ const renderErrorFallback = (
 	return errorFallback;
 };
 
-const createViewKey = (depth: number, viewName: string, route: Route): string =>
-	`${String(depth)}:${viewName}:${route.fullPath}`;
+const createViewIdentity = (
+	depth: number,
+	viewName: string,
+	route: Route
+): string =>
+	`${String(depth)}:${viewName}:${route.matched[depth]?.fullPath ?? 'unmatched'}`;
+
+const createViewUpdateKey = (
+	depth: number,
+	viewName: string,
+	route: Route
+): string => `${createViewIdentity(depth, viewName, route)}:${route.fullPath}`;
 
 export type RouterViewFallback =
 	| EffuseChild
@@ -268,7 +278,7 @@ export const RouterView = define<RouterViewProps, RouterViewState>({
 			result
 				.then((mod) => {
 					if (
-						createViewKey(depth, getActiveViewName(), getActiveRoute()) !==
+						createViewUpdateKey(depth, getActiveViewName(), getActiveRoute()) !==
 						currentViewKey
 					)
 						return;
@@ -297,7 +307,7 @@ export const RouterView = define<RouterViewProps, RouterViewState>({
 				})
 				.catch((error: unknown) => {
 					if (
-						createViewKey(depth, getActiveViewName(), getActiveRoute()) !==
+						createViewUpdateKey(depth, getActiveViewName(), getActiveRoute()) !==
 						currentViewKey
 					)
 						return;
@@ -312,7 +322,7 @@ export const RouterView = define<RouterViewProps, RouterViewState>({
 		const updateView = () => {
 			const route = getActiveRoute();
 			const viewName = getActiveViewName();
-			const currentViewKey = createViewKey(depth, viewName, route);
+			const currentViewKey = createViewUpdateKey(depth, viewName, route);
 
 			if (lastViewKey === currentViewKey) {
 				return;
@@ -401,7 +411,7 @@ export const RouterView = define<RouterViewProps, RouterViewState>({
 		const checkRouteChange = () => {
 			const route = getActiveRoute();
 			const viewName = getActiveViewName();
-			const currentViewKey = createViewKey(depth, viewName, route);
+			const currentViewKey = createViewUpdateKey(depth, viewName, route);
 
 			if (lastViewKey !== currentViewKey) {
 				queueMicrotask(updateView);

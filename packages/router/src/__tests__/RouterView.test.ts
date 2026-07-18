@@ -153,6 +153,12 @@ describe('RouterView', () => {
 	});
 
 	it('renders three levels and switches nested siblings', async () => {
+		let workspaceScripts = 0;
+		let workspaceMounts = 0;
+		let workspaceUnmounts = 0;
+		let projectScripts = 0;
+		let projectMounts = 0;
+		let projectUnmounts = 0;
 		const OverviewPage = define({
 			script: () => ({}),
 			template: () =>
@@ -174,7 +180,17 @@ describe('RouterView', () => {
 				}),
 		});
 		const ProjectLayout = define({
-			script: () => ({}),
+			script: ({ onMount, onUnmount }) => {
+				projectScripts += 1;
+				onMount(() => {
+					projectMounts += 1;
+					return undefined;
+				});
+				onUnmount(() => {
+					projectUnmounts += 1;
+				});
+				return {};
+			},
 			template: () =>
 				CreateElementNode({
 					[EFFUSE_NODE]: true,
@@ -184,7 +200,17 @@ describe('RouterView', () => {
 				}),
 		});
 		const WorkspaceLayout = define({
-			script: () => ({}),
+			script: ({ onMount, onUnmount }) => {
+				workspaceScripts += 1;
+				onMount(() => {
+					workspaceMounts += 1;
+					return undefined;
+				});
+				onUnmount(() => {
+					workspaceUnmounts += 1;
+				});
+				return {};
+			},
 			template: () =>
 				CreateElementNode({
 					[EFFUSE_NODE]: true,
@@ -222,6 +248,9 @@ describe('RouterView', () => {
 		await vi.waitFor(() => {
 			expect(document.querySelector('[data-testid="overview-page"]')).not.toBeNull();
 		});
+		expect([workspaceScripts, workspaceMounts, projectScripts, projectMounts]).toEqual([
+			1, 1, 1, 1,
+		]);
 
 		await router.push('/workspace/project/settings');
 		await vi.waitFor(() => {
@@ -230,11 +259,127 @@ describe('RouterView', () => {
 		expect(document.querySelector('[data-testid="overview-page"]')).toBeNull();
 		expect(document.querySelector('[data-testid="workspace-layout"]')).not.toBeNull();
 		expect(document.querySelector('[data-testid="project-layout"]')).not.toBeNull();
+		expect([workspaceScripts, workspaceMounts, projectScripts, projectMounts]).toEqual([
+			1, 1, 1, 1,
+		]);
+		expect([workspaceUnmounts, projectUnmounts]).toEqual([0, 0]);
 
 		await mounted.unmount();
+		expect([workspaceUnmounts, projectUnmounts]).toEqual([1, 1]);
 		await router.push('/workspace/project/overview');
 		expect(document.querySelector('[data-testid="workspace-layout"]')).toBeNull();
 		expect(document.querySelector('[data-testid="overview-page"]')).toBeNull();
+	});
+
+	it('updates params, query, and hash props without remounting the route', async () => {
+		let scriptRuns = 0;
+		let mountCalls = 0;
+		let unmountCalls = 0;
+		const UserPage = define<{
+			readonly id: string;
+			readonly tab: string;
+			readonly hash: string;
+		}>({
+			script: ({ onMount, onUnmount }) => {
+				scriptRuns += 1;
+				onMount(() => {
+					mountCalls += 1;
+					return undefined;
+				});
+				onUnmount(() => {
+					unmountCalls += 1;
+				});
+				return {};
+			},
+			template: ({ id, tab, hash }) =>
+				CreateElementNode({
+					[EFFUSE_NODE]: true,
+					tag: 'p',
+					props: { 'data-testid': 'user-props' },
+					children: [id, ':', tab, ':', hash],
+				}),
+		});
+		const Shell = define({
+			script: () => ({}),
+			template: () => createOutlet(),
+		});
+		const router = createRouter({
+			history: createMemoryHistory('/users/1?tab=summary#top'),
+			routes: [
+				{
+					path: '/users/:id',
+					component: UserPage,
+					props: (route) => ({
+						tab: String(route.query.tab ?? ''),
+						hash: route.hash,
+					}),
+				},
+			],
+		});
+
+		installRouter(router);
+		await createApp(Shell).mount('#app');
+		await vi.waitFor(() => {
+			expect(document.querySelector('[data-testid="user-props"]')?.textContent).toBe(
+				'1:summary:#top'
+			);
+		});
+
+		await router.push('/users/2?tab=activity#latest');
+		await vi.waitFor(() => {
+			expect(document.querySelector('[data-testid="user-props"]')?.textContent).toBe(
+				'2:activity:#latest'
+			);
+		});
+
+		expect([scriptRuns, mountCalls, unmountCalls]).toEqual([1, 1, 0]);
+	});
+
+	it('remounts when navigation switches between alias and canonical records', async () => {
+		let scriptRuns = 0;
+		let unmountCalls = 0;
+		const UserPage = define({
+			script: ({ onUnmount }) => {
+				scriptRuns += 1;
+				onUnmount(() => {
+					unmountCalls += 1;
+				});
+				return {};
+			},
+			template: () =>
+				CreateElementNode({
+					[EFFUSE_NODE]: true,
+					tag: 'p',
+					props: { 'data-testid': 'aliased-user' },
+					children: ['User'],
+				}),
+		});
+		const Shell = define({
+			script: () => ({}),
+			template: () => createOutlet(),
+		});
+		const router = createRouter({
+			history: createMemoryHistory('/people/1'),
+			routes: [
+				{
+					path: '/users/:id',
+					alias: '/people/:id',
+					component: UserPage,
+				},
+			],
+		});
+
+		installRouter(router);
+		await createApp(Shell).mount('#app');
+		await vi.waitFor(() => {
+			expect(document.querySelector('[data-testid="aliased-user"]')).not.toBeNull();
+		});
+		await router.push('/users/1');
+		await vi.waitFor(() => {
+			expect(scriptRuns).toBe(2);
+		});
+
+		expect(unmountCalls).toBe(1);
 	});
 
 	it('renders nested default and named outlets at the same depth', async () => {
