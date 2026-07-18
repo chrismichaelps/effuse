@@ -81,6 +81,31 @@ interface BlueprintMountRecord {
 
 const dynamicMountRecords = new WeakMap<Comment, DynamicMountRecord>();
 const blueprintMountRecords = new WeakMap<Comment, BlueprintMountRecord>();
+const pendingDynamicMounts: Array<() => void> = [];
+let dynamicMountFlushScheduled = false;
+
+const scheduleDynamicMountFlush = (): void => {
+	if (dynamicMountFlushScheduled || pendingDynamicMounts.length === 0) return;
+
+	dynamicMountFlushScheduled = true;
+	queueMicrotask(() => {
+		try {
+			let next = pendingDynamicMounts.shift();
+			while (next) {
+				next();
+				next = pendingDynamicMounts.shift();
+			}
+		} finally {
+			dynamicMountFlushScheduled = false;
+			scheduleDynamicMountFlush();
+		}
+	});
+};
+
+const queueDynamicMount = (mount: () => void): void => {
+	pendingDynamicMounts.push(mount);
+	scheduleDynamicMountFlush();
+};
 
 const getRenderErrorMessage = (error: unknown): string => {
 	if (error instanceof Error) {
@@ -488,6 +513,7 @@ const mountDynamicValue = (
 	let previousValue: EffuseChild | undefined;
 	let effectHandle: EffectHandle | null = null;
 	let didNotifyRender = false;
+	let active = true;
 
 	dynamicMountRecords.set(anchor, {
 		getNodes: () => currentNodes,
@@ -558,6 +584,7 @@ const mountDynamicValue = (
 	};
 
 	const runEffect = (): void => {
+		if (!active) return;
 		effectHandle = watchEffect(() => {
 			let value: unknown;
 			try {
@@ -583,9 +610,10 @@ const mountDynamicValue = (
 		});
 	};
 
-	queueMicrotask(runEffect);
+	queueDynamicMount(runEffect);
 
 	cleanups.push(() => {
+		active = false;
 		if (Predicate.isNotNullable(effectHandle)) {
 			effectHandle.stop();
 		}

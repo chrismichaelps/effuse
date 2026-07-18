@@ -71,6 +71,54 @@ describe('blueprint template reactivity', () => {
 		expect(scriptRuns).toBe(1);
 	});
 
+	it('should settle nested signal and blueprint mounts in one microtask', async () => {
+		const Page = define({
+			script: () => ({}),
+			template: () =>
+				CreateElementNode({
+					[EFFUSE_NODE]: true,
+					tag: 'section',
+					props: { 'data-testid': 'nested-page' },
+					children: ['Nested page'],
+				}),
+		});
+		const matchedView = signal(
+			CreateBlueprintNode({
+				[EFFUSE_NODE]: true,
+				blueprint: Page,
+				props: {},
+				portals: null,
+			})
+		);
+		const View = define({
+			script: () => ({ matchedView }),
+			template: ({ matchedView }) =>
+				CreateElementNode({
+					[EFFUSE_NODE]: true,
+					tag: 'div',
+					props: { 'data-testid': 'nested-view' },
+					children: [matchedView],
+				}),
+		});
+		const App = define({
+			script: () => ({}),
+			template: () =>
+				CreateBlueprintNode({
+					[EFFUSE_NODE]: true,
+					blueprint: View,
+					props: {},
+					portals: null,
+				}),
+		});
+
+		mounted = await createApp(App).mount('#app');
+		await Promise.resolve();
+
+		expect(
+			document.querySelector('[data-testid="nested-page"]')?.textContent
+		).toBe('Nested page');
+	});
+
 	it('should keep component lifecycle stable during template updates', async () => {
 		const count = signal(0);
 		let mountCalls = 0;
