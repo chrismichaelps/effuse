@@ -54,11 +54,9 @@ export interface HookContext<
 	readonly runAsync: <T>(fn: () => Promise<T>) => Promise<T>;
 }
 
-export type HookSetupFn<
-	C,
-	R,
-	L extends LayerSource = readonly never[],
-> = (ctx: HookContext<C, L>) => R;
+export type HookSetupFn<C, R, L extends LayerSource = readonly never[]> = (
+	ctx: HookContext<C, L>
+) => R;
 
 export interface HookDefinition<
 	C = unknown,
@@ -70,7 +68,7 @@ export interface HookDefinition<
 }
 
 export type InferHookReturn<H> =
-	H extends HookDefinition<unknown, infer R, any> ? R : never;
+	H extends HookDefinition<unknown, infer R, LayerSource> ? R : never;
 
 export type InferHookConfig<H> =
-	H extends HookDefinition<infer C, unknown, any> ? C : never;
+	H extends HookDefinition<infer C, unknown, LayerSource> ? C : never;

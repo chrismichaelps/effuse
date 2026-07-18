@@ -36,6 +36,7 @@ import { computed } from '../reactivity/computed.js';
 import {
 	watch as standaloneWatch,
 	watchMultiple as standaloneWatchMultiple,
+	type WatchSource,
 } from '../effects/index.js';
 import { watchEffect as standaloneEffect } from '../effects/effect.js';
 import {
@@ -53,6 +54,7 @@ import {
 } from '../layers/context.js';
 import type { CompiledLayer } from '../layers/api/defineLayer.js';
 import type { LayerServicesFrom } from '../layers/api/defineLayer.js';
+import type { EffuseLayer } from '../layers/types.js';
 import {
 	createLayerEntryResolver,
 	resolveLayerService,
@@ -71,15 +73,12 @@ export interface EffuseRegistry {}
 
 type RouterType = EffuseRegistry extends { router: infer R } ? R : unknown;
 
-export interface ScriptContext<
-	P,
-	L extends LayerSource = readonly never[],
-> {
+export interface ScriptContext<P, L extends LayerSource = readonly never[]> {
 	readonly props: Readonly<P>;
 
 	readonly layers: LayersAccessor<L>;
 
-	useLayer: <Layer extends CompiledLayer<any, any>>(
+	useLayer: <Layer extends CompiledLayer<EffuseLayer, string>>(
 		layer: Layer
 	) => LayerEntryFrom<Layer>;
 
@@ -115,18 +114,12 @@ export interface ScriptContext<
 		sources: T,
 		callback: (
 			newValues: {
-				[K in keyof T]: T[K] extends Signal<infer V>
-					? V
-					: T[K] extends () => infer V
-						? V
-						: never;
+				[K in keyof T]: T[K] extends WatchSource<infer V> ? V : never;
 			},
 			oldValues: {
-				[K in keyof T]: T[K] extends Signal<infer V>
+				[K in keyof T]: T[K] extends WatchSource<infer V>
 					? V | undefined
-					: T[K] extends () => infer V
-						? V | undefined
-						: never;
+					: never;
 			},
 			onCleanup: OnCleanup
 		) => void,
@@ -147,7 +140,7 @@ export interface ScriptContext<
 	useService: {
 		(key: string): unknown;
 		<
-			Layer extends CompiledLayer<any, any>,
+			Layer extends CompiledLayer<EffuseLayer, string>,
 			Key extends Extract<keyof LayerServicesFrom<Layer>, string>,
 		>(
 			layer: Layer,
@@ -281,11 +274,7 @@ export const createScriptContext = <
 		},
 
 		watchMultiple: (sources, callback, options): void => {
-			const handle = standaloneWatchMultiple(
-				sources as any,
-				callback as any,
-				options
-			);
+			const handle = standaloneWatchMultiple(sources, callback, options);
 			lifecycle.onUnmount(() => handle.stop());
 		},
 
@@ -313,7 +302,7 @@ export const createScriptContext = <
 		},
 
 		useService: ((
-			keyOrLayer: string | CompiledLayer<any, any>,
+			keyOrLayer: string | CompiledLayer<EffuseLayer, string>,
 			maybeKey?: string
 		): unknown => {
 			if (!isLayerRuntimeReady()) {

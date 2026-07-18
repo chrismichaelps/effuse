@@ -24,7 +24,11 @@
 
 import { Predicate } from 'effect';
 import type { Component } from '../render/node.js';
-import type { AnyLayer, AnyResolvedLayer } from '../layers/types.js';
+import type {
+	AnyLayer,
+	AnyResolvedLayer,
+	EffuseLayer,
+} from '../layers/types.js';
 import {
 	type CompiledLayer,
 	createLayerRuntime,
@@ -41,11 +45,9 @@ export interface AppInstance {
 
 export type MountOptions = LayerRuntimeOptions;
 
-export type AppLayerInput = AnyLayer | CompiledLayer<any>;
+export type AppLayerInput = AnyLayer | CompiledLayer<EffuseLayer>;
 
-export type LazyAppLayerInput =
-	| AppLayerInput
-	| (() => Promise<AppLayerInput>);
+export type LazyAppLayerInput = AppLayerInput | (() => Promise<AppLayerInput>);
 
 export type AppLayerSource =
 	| readonly LazyAppLayerInput[]
