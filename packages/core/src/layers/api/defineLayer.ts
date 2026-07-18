@@ -383,7 +383,7 @@ export function defineLayer<
 		)
 	);
 
-	let merged: Layer.Layer<any, never, any> = layers[0]!;
+	let merged = layers[0]!;
 	for (let i = 1; i < layers.length; i++) {
 		const next = layers[i]!;
 		merged = Layer.merge(merged, next);
@@ -394,9 +394,9 @@ export function defineLayer<
 		for (const e of entries) {
 			obj[e.key] = Context.get(ctx, e.tag);
 		}
-		let c = Context.empty() as Context.Context<typeof obj>;
-		for (const [k, v] of Object.entries(obj)) {
-			c = Context.add(c, k as any, v);
+		let c = Context.empty();
+		for (const entry of entries) {
+			c = Context.add(c, entry.tag, obj[entry.key]);
 		}
 		return Effect.succeed(c);
 	});
@@ -420,7 +420,7 @@ export function defineLayer<
 	return {
 		...def,
 		name: definition.name,
-		effectLayer: final as Layer.Layer<
+		effectLayer: final as unknown as Layer.Layer<
 			EffuseServices<ConcreteLayerDefinition<N, T, Provides, Services, Server>>,
 			never,
 			Scope.Scope
@@ -431,7 +431,7 @@ export function defineLayer<
 	} as unknown as CompiledConcreteLayer<N, T, Provides, Services, Server>;
 }
 
-export type LayerInput = AnyLayer | CompiledLayer<any>;
+export type LayerInput = AnyLayer | CompiledLayer<EffuseLayer>;
 
 export type LayerInputSource =
 	| readonly LayerInput[]
@@ -439,9 +439,10 @@ export type LayerInputSource =
 
 export const isCompiledLayer = (
 	layer: LayerInput
-): layer is CompiledLayer<any> => 'effectLayer' in layer && 'tags' in layer;
+): layer is CompiledLayer<EffuseLayer> =>
+	'effectLayer' in layer && 'tags' in layer;
 
-export const compileLayer = (layer: LayerInput): CompiledLayer<any> =>
+export const compileLayer = (layer: LayerInput): CompiledLayer<EffuseLayer> =>
 	isCompiledLayer(layer) ? layer : defineLayer(layer);
 
 export const layerInputSourceToList = (
@@ -458,19 +459,20 @@ export const resolveLayerDefinitions = (
 		layerInputSourceToList(layers).map((layer) => compileLayer(layer))
 	);
 
-export type MergeServices<Layers extends readonly CompiledLayer<any>[]> =
-	Layers extends readonly [infer L, ...infer R]
-		? L extends CompiledLayer<infer T>
-			? EffuseServices<T> &
-					(R extends readonly CompiledLayer<any>[]
-						? MergeServices<R>
-						: EmptyLayerContract)
-			: never
-		: EmptyLayerContract;
+export type MergeServices<
+	Layers extends readonly CompiledLayer<EffuseLayer>[],
+> = Layers extends readonly [infer L, ...infer R]
+	? L extends CompiledLayer<infer T>
+		? EffuseServices<T> &
+				(R extends readonly CompiledLayer<EffuseLayer>[]
+					? MergeServices<R>
+					: EmptyLayerContract)
+		: never
+	: EmptyLayerContract;
 
-export function combineLayers<Layers extends readonly CompiledLayer<any>[]>(
-	...layers: Layers
-): Layer.Layer<MergeServices<Layers>, never, Scope.Scope> {
+export function combineLayers<
+	Layers extends readonly CompiledLayer<EffuseLayer>[],
+>(...layers: Layers): Layer.Layer<MergeServices<Layers>, never, Scope.Scope> {
 	if (layers.length === 0) {
 		return Layer.succeedContext(Context.empty()) as unknown as Layer.Layer<
 			EmptyLayerContract,
@@ -491,7 +493,7 @@ export function combineLayers<Layers extends readonly CompiledLayer<any>[]>(
 	return Layer.merge(m, Layer.scope);
 }
 
-export type LayerServicesFrom<T extends CompiledLayer<any>> =
+export type LayerServicesFrom<T extends CompiledLayer<EffuseLayer>> =
 	T extends CompiledLayer<infer L> ? EffuseServices<L> : never;
 
 export type ExtractServices<T> =
