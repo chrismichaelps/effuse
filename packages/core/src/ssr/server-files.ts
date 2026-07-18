@@ -38,6 +38,7 @@ import {
 	isHttpMethod,
 	normalizeServerRouteInput,
 } from './server-routes.js';
+import { parseRoutePattern } from '../routing/route-pattern.js';
 
 const HTTP_METHODS: readonly HttpMethod[] = [
 	'GET',
@@ -151,14 +152,11 @@ const stripFirstMatchingRoot = (
 const trimRouteFileSegment = (path: string): string =>
 	path.replace(/\/(?:route|index)$/i, '').replace(/^(?:route|index)$/i, '');
 
-const isRouteGroupSegment = (segment: string): boolean =>
-	segment.startsWith('(') && segment.endsWith(')');
-
 const stripRouteGroupSegments = (path: string): string =>
-	path
-		.split('/')
-		.filter((segment) => !isRouteGroupSegment(segment))
-		.join('/');
+	parseRoutePattern(path.startsWith('/') ? path : `/${path}`).path.replace(
+		/^\//,
+		''
+	);
 
 const joinPath = (basePath: string, path: string): string => {
 	const normalizedBase = `/${basePath.replace(/^\/+|\/+$/g, '')}`;
@@ -420,20 +418,8 @@ const collectActions = (
 	return actions;
 };
 
-const routeSignatureSegment = (segment: string): string => {
-	if (segment.startsWith('[[...') && segment.endsWith(']]')) return '[...]';
-	if (segment.startsWith('[...') && segment.endsWith(']')) return '[...]';
-	if (segment.startsWith('[') && segment.endsWith(']')) return '[]';
-	if (segment.startsWith(':')) return ':';
-	return segment;
-};
-
 const createRouteSignature = (path: string): string =>
-	path
-		.replace(/^\/+|\/+$/g, '')
-		.split('/')
-		.map(routeSignatureSegment)
-		.join('/');
+	parseRoutePattern(path).signature;
 
 const isGroupedInput = (
 	files:

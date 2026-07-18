@@ -437,6 +437,8 @@ export {
 
 export { runtime as hmrRuntime } from './hmr/global.js';
 
+export * from './routing/index.js';
+
 export {
 	useForm,
 	v,
