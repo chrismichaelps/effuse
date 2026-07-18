@@ -185,6 +185,10 @@ describe('route matching', () => {
 			expect(result.matched[0].routeGroups).toEqual(['app']);
 			expect(result.matched[1].fullPath).toBe('/dashboard');
 			expect(result.matched[1].routeGroups).toEqual(['app', 'admin']);
+			const resolved = resolveRoute('/dashboard', routes);
+			expect(resolved.canonicalRouteGroups).toEqual(['app', 'admin']);
+			expect(resolved.aliasRouteGroups).toEqual([]);
+			expect(resolved.routeGroups).toEqual(['app', 'admin']);
 		});
 
 		it('should reject route group and dynamic signature collisions', () => {
@@ -411,12 +415,25 @@ describe('route matching', () => {
 				const [parent, child] = resolved.matched;
 				expect(parent.aliasOf?.fullPath).toBe('/users/:id');
 				expect(parent.component).toBe(parentComponent);
+				expect(parent.canonicalRouteGroups).toEqual(['account']);
+				expect(parent.aliasRouteGroups).toEqual(['public']);
 				expect(parent.routeGroups).toEqual(['account', 'public']);
 				expect(child.aliasOf?.fullPath).toBe('/users/:id/details');
 				expect(child.component).toBe(childComponent);
 				expect(child.beforeEnter).toBe(beforeEnter);
 				expect(child.props).toBe(props);
+				expect(child.canonicalRouteGroups).toEqual(['account']);
+				expect(child.aliasRouteGroups).toEqual(['public']);
+				expect(child.routeGroups).toEqual(['account', 'public']);
+				expect(resolved.canonicalRouteGroups).toEqual(['account']);
+				expect(resolved.aliasRouteGroups).toEqual(['public']);
+				expect(resolved.routeGroups).toEqual(['account', 'public']);
 			}
+
+			const canonical = resolveRoute('/users/42/details', routes);
+			expect(canonical.canonicalRouteGroups).toEqual(['account']);
+			expect(canonical.aliasRouteGroups).toEqual([]);
+			expect(canonical.routeGroups).toEqual(['account']);
 
 			expect(
 				resolveRoute(

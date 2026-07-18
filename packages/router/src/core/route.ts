@@ -108,12 +108,22 @@ export interface RouteRecord {
 	readonly beforeEnter?: NavigationGuard;
 }
 
-export interface NormalizedRouteRecord extends RouteRecord {
+export interface RouteGroupMetadata {
+	/** Route groups declared by the canonical record and its canonical ancestors. */
+	readonly canonicalRouteGroups: readonly string[];
+	/** Additional route groups introduced by the alias path that matched the URL. */
+	readonly aliasRouteGroups: readonly string[];
+	/** Ordered, duplicate-free union of canonical and alias route groups. */
+	readonly routeGroups: readonly string[];
+}
+
+export interface NormalizedRouteRecord
+	extends RouteRecord,
+		RouteGroupMetadata {
 	readonly path: string;
 	readonly regex: RegExp;
 	readonly paramNames: readonly string[];
 	readonly fullPath: string;
-	readonly routeGroups?: readonly string[];
 	readonly parent: NormalizedRouteRecord | undefined;
 	readonly aliasOf?: NormalizedRouteRecord;
 }
@@ -128,7 +138,7 @@ export type RouteLocation =
 			hash?: string;
 	  };
 
-export interface ResolvedRoute {
+export interface ResolvedRoute extends RouteGroupMetadata {
 	readonly path: string;
 	readonly fullPath: string;
 	readonly params: Record<string, string>;
@@ -140,7 +150,7 @@ export interface ResolvedRoute {
 	readonly redirectedFrom?: ResolvedRoute;
 }
 
-export interface Route {
+export interface Route extends RouteGroupMetadata {
 	readonly path: string;
 	readonly fullPath: string;
 	readonly params: Record<string, string>;
@@ -560,12 +570,21 @@ const normalizeRouteRecord = (
 	const parsed = stripRouteGroups(rawFullPath);
 	const fullPath = parsed.path;
 	const { regex, paramNames } = pathToRegex(fullPath);
+	const canonicalRouteGroups = aliasOf
+		? [...aliasOf.canonicalRouteGroups]
+		: [...new Set([...(parent?.canonicalRouteGroups ?? []), ...parsed.groups])];
+	const aliasRouteGroups = aliasOf
+		? [
+				...new Set([
+					...(parent?.aliasRouteGroups ?? []),
+					...parsed.groups.filter(
+						(group) => !canonicalRouteGroups.includes(group)
+					),
+				]),
+			]
+		: [];
 	const routeGroups = [
-		...new Set([
-			...(aliasOf?.routeGroups ?? []),
-			...(parent?.routeGroups ?? []),
-			...parsed.groups,
-		]),
+		...new Set([...canonicalRouteGroups, ...aliasRouteGroups]),
 	];
 
 	return {
@@ -573,6 +592,8 @@ const normalizeRouteRecord = (
 		fullPath,
 		regex,
 		paramNames,
+		canonicalRouteGroups,
+		aliasRouteGroups,
 		routeGroups,
 		parent,
 		...(aliasOf ? { aliasOf } : {}),
@@ -726,6 +747,7 @@ export const resolveRoute = (
 	}
 
 	const fullPath = pathname + stringifyQuery(query) + hash;
+	const matchedRecord = matched.at(-1);
 
 	return {
 		path: pathname,
@@ -734,6 +756,9 @@ export const resolveRoute = (
 		query,
 		hash,
 		matched,
+		canonicalRouteGroups: matchedRecord?.canonicalRouteGroups ?? [],
+		aliasRouteGroups: matchedRecord?.aliasRouteGroups ?? [],
+		routeGroups: matchedRecord?.routeGroups ?? [],
 		name: pipe(
 			Arr.last(matched),
 			Option.flatMap((m) => Option.fromNullable(m.name)),
@@ -750,6 +775,9 @@ export const createRoute = (resolved: ResolvedRoute): Route => ({
 	query: resolved.query,
 	hash: resolved.hash,
 	matched: resolved.matched,
+	canonicalRouteGroups: resolved.canonicalRouteGroups,
+	aliasRouteGroups: resolved.aliasRouteGroups,
+	routeGroups: resolved.routeGroups,
 	name: resolved.name,
 	meta: resolved.meta,
 });

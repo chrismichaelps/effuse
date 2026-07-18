@@ -120,8 +120,8 @@ describe('createRouter lifecycle', () => {
 			history: createMemoryHistory('/'),
 			routes: [
 				{
-					path: '/users/:id',
-					alias: '/people/:id',
+					path: '/(account)/users/:id',
+					alias: '/(public)/people/:id',
 					name: 'user',
 					component: dummyComponent,
 				},
@@ -130,15 +130,34 @@ describe('createRouter lifecycle', () => {
 
 		router.addRoute(
 			{
-				path: 'settings',
+				path: '(preferences)/settings',
 				name: 'user-settings',
 				component: dummyComponent,
 			},
 			'user'
 		);
 
-		expect(router.resolve('/users/42/settings').name).toBe('user-settings');
-		expect(router.resolve('/people/42/settings').name).toBe('user-settings');
+		const canonical = router.resolve('/users/42/settings');
+		expect(canonical.name).toBe('user-settings');
+		expect(canonical.canonicalRouteGroups).toEqual([
+			'account',
+			'preferences',
+		]);
+		expect(canonical.aliasRouteGroups).toEqual([]);
+		expect(canonical.routeGroups).toEqual(['account', 'preferences']);
+
+		const aliased = router.resolve('/people/42/settings');
+		expect(aliased.name).toBe('user-settings');
+		expect(aliased.canonicalRouteGroups).toEqual([
+			'account',
+			'preferences',
+		]);
+		expect(aliased.aliasRouteGroups).toEqual(['public']);
+		expect(aliased.routeGroups).toEqual([
+			'account',
+			'preferences',
+			'public',
+		]);
 		expect(
 			router.resolve({
 				name: 'user-settings',

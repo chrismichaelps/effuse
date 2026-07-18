@@ -40,6 +40,7 @@ export {
 
 export {
 	type Route,
+	type RouteGroupMetadata,
 	type RouteRecord,
 	type RouteLocation,
 	type RouteComponent,

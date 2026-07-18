@@ -17,10 +17,11 @@ describe('useRoute', () => {
 
 	it('should return the current route if router is installed', () => {
 		const router = createRouter({
-			history: createMemoryHistory('/'),
+			history: createMemoryHistory('/start'),
 			routes: [
 				{
-					path: '/',
+					path: '/(app)/home',
+					alias: '/(start)/start',
 					component: define({
 						script: () => ({}),
 						template: () => 'Home',
@@ -34,7 +35,11 @@ describe('useRoute', () => {
 
 		const route = useRoute();
 		expect(route).toBeDefined();
-		expect(route.path).toBe('/');
+		expect(route.path).toBe('/start');
 		expect(route.name).toBe('home');
+		expect(route.canonicalRouteGroups).toEqual(['app']);
+		expect(route.aliasRouteGroups).toEqual(['start']);
+		expect(route.routeGroups).toEqual(['app', 'start']);
+		expect(Object.keys(route)).toContain('routeGroups');
 	});
 });
