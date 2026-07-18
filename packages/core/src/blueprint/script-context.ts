@@ -63,8 +63,15 @@ import {
 	type LayersAccessor,
 	type LayerSource,
 } from '../layers/api/layersAccessor.js';
-import { RouterNotConfiguredError } from '../layers/errors.js';
-import { StoreGetterNotConfiguredError } from '../errors.js';
+import {
+	LayerRuntimeNotInitializedError,
+	RouterNotConfiguredError,
+	ServiceNotFoundError,
+} from '../layers/errors.js';
+import {
+	StoreGetterNotConfiguredError,
+	StoreNotFoundError,
+} from '../errors.js';
 
 export type ExposedValues = object;
 
@@ -92,7 +99,7 @@ export interface ScriptContext<P, L extends LayerSource = readonly never[]> {
 
 	router: RouterType;
 
-	onMount: (callback: () => (() => void) | undefined) => void;
+	onMount: (callback: () => void | (() => void)) => void;
 
 	onUnmount: (callback: () => void) => void;
 
@@ -108,7 +115,7 @@ export interface ScriptContext<P, L extends LayerSource = readonly never[]> {
 			onCleanup: OnCleanup
 		) => void,
 		options?: WatchOptions
-	) => void;
+	) => EffectHandle;
 
 	watchMultiple: <T extends readonly (Signal<unknown> | (() => unknown))[]>(
 		sources: T,
@@ -124,7 +131,7 @@ export interface ScriptContext<P, L extends LayerSource = readonly never[]> {
 			onCleanup: OnCleanup
 		) => void,
 		options?: WatchOptions
-	) => void;
+	) => EffectHandle;
 
 	watchEffect: (
 		fn: (onCleanup: OnCleanup) => void | Promise<void>,
@@ -164,15 +171,53 @@ export interface ScriptState<E extends ExposedValues> {
 
 let globalStoreGetter: ((name: string) => unknown) | null = null;
 let globalRouter: unknown = null;
+const storeGetterInstallations: Array<{
+	readonly getter: (name: string) => unknown;
+}> = [];
+const routerInstallations: Array<{ readonly router: unknown }> = [];
 
 export const setGlobalStoreGetter = (
-	getter: (name: string) => unknown
-): void => {
+	getter: ((name: string) => unknown) | null
+): (() => void) => {
+	if (getter === null) {
+		clearGlobalStoreGetter();
+		return () => {};
+	}
+	const installation = { getter };
+	storeGetterInstallations.push(installation);
 	globalStoreGetter = getter;
+	let removed = false;
+	return () => {
+		if (removed) return;
+		removed = true;
+		const index = storeGetterInstallations.indexOf(installation);
+		if (index >= 0) storeGetterInstallations.splice(index, 1);
+		globalStoreGetter = storeGetterInstallations.at(-1)?.getter ?? null;
+	};
 };
 
-export const setGlobalRouter = (router: unknown): void => {
+export const clearGlobalStoreGetter = (): void => {
+	storeGetterInstallations.length = 0;
+	globalStoreGetter = null;
+};
+
+export const setGlobalRouter = (router: unknown): (() => void) => {
+	const installation = { router };
+	routerInstallations.push(installation);
 	globalRouter = router;
+	let removed = false;
+	return () => {
+		if (removed) return;
+		removed = true;
+		const index = routerInstallations.indexOf(installation);
+		if (index >= 0) routerInstallations.splice(index, 1);
+		globalRouter = routerInstallations.at(-1)?.router ?? null;
+	};
+};
+
+export const clearGlobalRouter = (): void => {
+	routerInstallations.length = 0;
+	globalRouter = null;
 };
 
 export const createScriptContext = <
@@ -194,8 +239,6 @@ export const createScriptContext = <
 		},
 	};
 
-	const getStore = storeGetter ?? globalStoreGetter;
-
 	const resolvedLayers = resolveLayersAccessor(
 		(layers ?? []) as L
 	) as LayersAccessor<L>;
@@ -204,6 +247,22 @@ export const createScriptContext = <
 	const { proxy: reactiveProps, update: updateProps } = createReactiveProps(
 		props as Record<string, unknown>
 	);
+	const resolveStore = (name: string): unknown => {
+		if (isLayerRuntimeReady()) {
+			const layerService = getLayerService(name);
+			if (layerService !== undefined) return layerService;
+		}
+		const activeStoreGetter = storeGetter ?? globalStoreGetter;
+		if (activeStoreGetter) {
+			const store = activeStoreGetter(name);
+			if (store !== undefined) return store;
+			throw new StoreNotFoundError({ storeName: name });
+		}
+		if (isLayerRuntimeReady()) {
+			throw new StoreNotFoundError({ storeName: name });
+		}
+		throw new StoreGetterNotConfiguredError({});
+	};
 
 	const context: ScriptContext<P, L> = {
 		props: reactiveProps as Readonly<P>,
@@ -220,29 +279,14 @@ export const createScriptContext = <
 
 		computed,
 
-		store: (name: string): unknown => {
-			if (isLayerRuntimeReady()) {
-				const layerService = getLayerService(name);
-				if (layerService !== undefined) {
-					return layerService;
-				}
-			}
-			if (!getStore) {
-				throw new StoreGetterNotConfiguredError({});
-			}
-			return getStore(name);
-		},
+		store: resolveStore,
 
-		router: (() => {
+		get router(): RouterType {
 			if (!globalRouter) {
-				return new Proxy({} as object, {
-					get: () => {
-						throw new RouterNotConfiguredError();
-					},
-				}) as RouterType;
+				throw new RouterNotConfiguredError();
 			}
 			return globalRouter as RouterType;
-		})(),
+		},
 
 		onMount: (callback): void => {
 			lifecycle.onMount(callback);
@@ -268,14 +312,16 @@ export const createScriptContext = <
 				onCleanup: OnCleanup
 			) => void,
 			options?: WatchOptions
-		): void => {
+		): EffectHandle => {
 			const handle = standaloneWatch(source, callback, options);
 			lifecycle.onUnmount(() => handle.stop());
+			return handle;
 		},
 
-		watchMultiple: (sources, callback, options): void => {
+		watchMultiple: (sources, callback, options): EffectHandle => {
 			const handle = standaloneWatchMultiple(sources, callback, options);
 			lifecycle.onUnmount(() => handle.stop());
+			return handle;
 		},
 
 		watchEffect: (
@@ -291,29 +337,25 @@ export const createScriptContext = <
 
 		useMemo,
 
-		useStore: (key: string): unknown => {
-			if (!isLayerRuntimeReady()) {
-				if (getStore) {
-					return getStore(key);
-				}
-				return undefined;
-			}
-			return getLayerService(key);
-		},
+		useStore: resolveStore,
 
 		useService: ((
 			keyOrLayer: string | CompiledLayer<EffuseLayer, string>,
 			maybeKey?: string
 		): unknown => {
-			if (!isLayerRuntimeReady()) {
-				return undefined;
-			}
-
 			if (typeof keyOrLayer !== 'string') {
 				return resolveLayerService(keyOrLayer, maybeKey, resolveLayer);
 			}
-
-			return getLayerService(keyOrLayer);
+			if (!isLayerRuntimeReady()) {
+				throw new LayerRuntimeNotInitializedError({
+					resource: `service "${keyOrLayer}"`,
+				});
+			}
+			const service = getLayerService(keyOrLayer);
+			if (service === undefined) {
+				throw new ServiceNotFoundError({ serviceKey: keyOrLayer });
+			}
+			return service;
 		}) as ScriptContext<P, L>['useService'],
 
 		useComponent: (name: string): Component | undefined => {

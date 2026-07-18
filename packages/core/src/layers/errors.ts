@@ -129,7 +129,7 @@ export class RouterNotConfiguredError extends Data.TaggedError(
 	readonly _tag: 'RouterNotConfiguredError';
 }> {
 	override get message(): string {
-		return '[Effuse] Router not configured. Call setGlobalRouter().';
+		return '[Effuse] Router not configured. Call installRouter() before component setup.';
 	}
 }
 

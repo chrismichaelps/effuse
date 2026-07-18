@@ -52,7 +52,21 @@ export class ScriptContextError extends Data.TaggedError('ScriptContextError')<{
 
 export class StoreGetterNotConfiguredError extends Data.TaggedError(
 	'StoreGetterNotConfiguredError'
-)<Record<string, never>> {}
+)<{
+	readonly reason?: never;
+}> {
+	get message(): string {
+		return '[Effuse] Store access is not configured. Register a layer service or call setGlobalStoreGetter().';
+	}
+}
+
+export class StoreNotFoundError extends Data.TaggedError('StoreNotFoundError')<{
+	readonly storeName: string;
+}> {
+	get message(): string {
+		return `[Effuse] Store or service "${this.storeName}" was not found in the active app context.`;
+	}
+}
 
 export class CauseExtractionError extends Data.TaggedError(
 	'CauseExtractionError'
@@ -81,9 +95,7 @@ export const mapEffuseErrors = <A, E>(
 		}
 		if (Predicate.isObject(e) && Predicate.hasProperty(e, '_tag')) {
 			const tag = e._tag;
-			const msg = Predicate.hasProperty(e, 'message')
-				? e.message
-				: String(e);
+			const msg = Predicate.hasProperty(e, 'message') ? e.message : String(e);
 			return Effect.fail(new Error(`[Effuse] ${String(tag)}: ${String(msg)}`));
 		}
 		return Effect.fail(new Error(String(e)));

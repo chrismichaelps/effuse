@@ -28,7 +28,10 @@ import { isSignal } from '../reactivity/signal.js';
 import type { ReadonlySignal } from '../types/index.js';
 import { getActiveLifecycle } from './lifecycle.js';
 import { devWarn } from '../utils/dev-warnings.js';
-import type { CompiledLayer, EffuseServices } from '../layers/api/defineLayer.js';
+import type {
+	CompiledLayer,
+	EffuseServices,
+} from '../layers/api/defineLayer.js';
 import { resolveLayerService } from '../layers/api/layersAccessor.js';
 import type { EffuseLayer } from '../layers/types.js';
 
@@ -83,12 +86,10 @@ export function useMemo<T>(fn: () => T, deps?: unknown[]): ReadonlySignal<T> {
  */
 export const useLayerService = <
 	T extends EffuseLayer,
-	K extends keyof EffuseServices<T>,
+	K extends Extract<keyof EffuseServices<T>, string>,
 >(
 	layer: CompiledLayer<T, string>,
 	key: K
-): EffuseServices<T>[K] | undefined => {
-	return resolveLayerService(layer, key as string) as
-		| EffuseServices<T>[K]
-		| undefined;
+): EffuseServices<T>[K] => {
+	return resolveLayerService(layer, key) as EffuseServices<T>[K];
 };

@@ -29,6 +29,7 @@ export {
 	PropValidationError,
 	ScriptContextError,
 	StoreGetterNotConfiguredError,
+	StoreNotFoundError,
 	CauseExtractionError,
 	ResourceFetchError,
 	LayerExecutionError,
