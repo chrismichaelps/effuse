@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
 	clearGlobalRouter as clearCoreRouter,
 	define,
@@ -75,5 +75,70 @@ describe('router installation ownership', () => {
 		second.cleanup();
 		expect(getGlobalRouter()).toBeNull();
 		expect(injectRouter()).toBeUndefined();
+	});
+
+	it('preserves installation state across module replacement', async () => {
+		const firstModule = await import('../core/router.js');
+		const first = firstModule.installRouter(createTestRouter('/hmr'));
+
+		vi.resetModules();
+		const replacementModule = await import('../core/router.js');
+		const replacementContext = await import('../core/context.js');
+		const replacementComposables = await import('../utils/composables.js');
+
+		expect(replacementModule.getGlobalRouter()).toBe(first);
+		expect(replacementContext.injectRouter()).toBe(first);
+		expect(replacementComposables.useRoute().path).toBe('/hmr');
+
+		first.cleanup();
+		expect(replacementModule.getGlobalRouter()).toBeNull();
+		expect(replacementContext.injectRouter()).toBeUndefined();
+	});
+
+	it('prevents stale module cleanup from clearing a replacement', async () => {
+		const firstModule = await import('../core/router.js');
+		const first = firstModule.installRouter(createTestRouter('/first'));
+
+		vi.resetModules();
+		const replacementModule = await import('../core/router.js');
+		const replacementContext = await import('../core/context.js');
+		const second = replacementModule.installRouter(createTestRouter('/second'));
+
+		first.cleanup();
+		expect(replacementModule.getGlobalRouter()).toBe(second);
+		expect(replacementContext.injectRouter()).toBe(second);
+		expect((await import('../utils/composables.js')).useRoute().path).toBe(
+			'/second'
+		);
+
+		second.cleanup();
+		expect(replacementModule.getGlobalRouter()).toBeNull();
+		expect(replacementContext.injectRouter()).toBeUndefined();
+	});
+
+	it('rolls back a failed replacement without clearing the active router', () => {
+		const first = installRouter(createTestRouter('/working'));
+		let context: ScriptContext<Record<string, unknown>> | undefined;
+		const Probe = define({
+			script: (value) => {
+				context = value;
+				return {};
+			},
+			template: () => null,
+		});
+		(Probe.state as (props: Record<string, unknown>) => unknown)({});
+		const failing = createTestRouter('/failing');
+		Object.defineProperty(failing, 'start', {
+			value: () => {
+				throw new Error('replacement start failed');
+			},
+		});
+
+		expect(() => installRouter(failing)).toThrow('replacement start failed');
+		expect(getGlobalRouter()).toBe(first);
+		expect(injectRouter()).toBe(first);
+		expect(context?.router).toBe(first);
+
+		first.cleanup();
 	});
 });

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
 	clearGlobalRouter,
 	clearGlobalStoreGetter,
@@ -29,7 +29,21 @@ describe('ScriptContext dependency contracts', () => {
 		const restore = setGlobalRouter(router);
 		expect(context.router).toBe(router);
 		restore();
-		expect(() => context.router).toThrow(RouterNotConfiguredError);
+		expect(() => context.router).toThrow(/Router not configured/);
+	});
+
+	it('preserves router installations across module replacement', async () => {
+		const firstModule = await import('../../blueprint/script-context.js');
+		const router = { push: () => undefined };
+		const restore = firstModule.setGlobalRouter(router);
+
+		vi.resetModules();
+		const replacementModule = await import('../../blueprint/script-context.js');
+		const { context } = replacementModule.createScriptContext({});
+
+		expect(context.router).toBe(router);
+		restore();
+		expect(() => context.router).toThrow(/Router not configured/);
 	});
 
 	it('uses one strict store contract for store and useStore', () => {
