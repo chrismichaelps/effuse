@@ -56,6 +56,18 @@ interface LinkState {
 	handleClick: (event: MouseEvent) => void;
 }
 
+const LINK_CONTROL_PROPS = new Set([
+	'to',
+	'activeClass',
+	'exactActiveClass',
+	'class',
+	'className',
+	'children',
+	'onClick',
+	'href',
+	'aria-current',
+]);
+
 export const Link = define<LinkProps, LinkState>({
 	script: ({ props, signal, onMount, onUnmount }): LinkState => {
 		const router = getGlobalRouter();
@@ -103,16 +115,23 @@ export const Link = define<LinkProps, LinkState>({
 		});
 
 		const handleClick = (event: MouseEvent): void => {
+			if (typeof props.onClick === 'function') {
+				(props.onClick as (event: MouseEvent) => void)(event);
+			}
+			if (event.defaultPrevented) return;
+
 			if (event.metaKey || event.altKey || event.ctrlKey || event.shiftKey)
 				return;
 
 			if (event.button !== 0) return;
 
-			event.preventDefault();
+			const target = typeof props.target === 'string' ? props.target : '';
+			if (target && target.toLowerCase() !== '_self') return;
+			if (props.download !== undefined && props.download !== false) return;
+			if (!router) return;
 
-			if (router) {
-				void router.push(resolveTo());
-			}
+			event.preventDefault();
+			void router.push(resolveTo());
 		};
 
 		return {
@@ -126,6 +145,9 @@ export const Link = define<LinkProps, LinkState>({
 	},
 
 	template: (ctx): ElementNode => {
+		const anchorProps = Object.fromEntries(
+			Object.entries(ctx.props).filter(([key]) => !LINK_CONTROL_PROPS.has(key))
+		);
 		const userClass =
 			(typeof ctx.props.class === 'string' && ctx.props.class) ||
 			(typeof ctx.props.className === 'string' && ctx.props.className) ||
@@ -158,6 +180,7 @@ export const Link = define<LinkProps, LinkState>({
 			[EFFUSE_NODE]: true,
 			tag: 'a',
 			props: {
+				...anchorProps,
 				href: ctx.href,
 				className: classSig,
 				onClick: ctx.handleClick,
