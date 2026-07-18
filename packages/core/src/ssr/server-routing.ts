@@ -62,6 +62,11 @@ import {
 	serverValidationErrorResponse,
 } from './validation.js';
 import { EFFUSE_ACTION_PREFIX } from './constants.js';
+import {
+	compareRoutePatterns,
+	compileRoutePattern,
+	matchRoutePattern,
+} from '../routing/route-pattern.js';
 
 interface MatchedServerHandler {
 	readonly handler: ServerHandler;
@@ -97,104 +102,6 @@ const decodeSegment = (segment: string): string => {
 	}
 };
 
-const matchRoutePath = (
-	routePath: string,
-	pathname: string
-): Record<string, string> | null => {
-	if (routePath === '*' || routePath === '/*') {
-		return {};
-	}
-
-	const routeSegments = splitPath(routePath);
-	const requestSegments = splitPath(pathname);
-	const catchAllIndex = routeSegments.findIndex(
-		(segment) =>
-			(segment.startsWith('[...') && segment.endsWith(']')) ||
-			(segment.startsWith('[[...') && segment.endsWith(']]'))
-	);
-	const catchAllSegment = routeSegments[catchAllIndex];
-	const hasRequiredCatchAll =
-		catchAllIndex !== -1 &&
-		catchAllSegment.startsWith('[...') &&
-		catchAllSegment.endsWith(']');
-
-	if (catchAllIndex === -1 && routeSegments.length !== requestSegments.length) {
-		return null;
-	}
-
-	if (
-		catchAllIndex !== -1 &&
-		(catchAllIndex !== routeSegments.length - 1 ||
-			requestSegments.length < catchAllIndex ||
-			(hasRequiredCatchAll && requestSegments.length === catchAllIndex))
-	) {
-		return null;
-	}
-
-	const params: Record<string, string> = {};
-
-	for (let i = 0; i < routeSegments.length; i++) {
-		const routeSegment = routeSegments[i];
-		const requestSegment = requestSegments[i];
-
-		if (routeSegment.startsWith('[[...') && routeSegment.endsWith(']]')) {
-			const name = routeSegment.slice(5, -2);
-			params[name] = requestSegments.slice(i).map(decodeSegment).join('/');
-			return params;
-		}
-
-		if (routeSegment.startsWith('[...') && routeSegment.endsWith(']')) {
-			const name = routeSegment.slice(4, -1);
-			params[name] = requestSegments.slice(i).map(decodeSegment).join('/');
-			return params;
-		}
-
-		if (routeSegment.startsWith(':')) {
-			params[routeSegment.slice(1)] = decodeSegment(requestSegment);
-			continue;
-		}
-
-		if (routeSegment.startsWith('[') && routeSegment.endsWith(']')) {
-			params[routeSegment.slice(1, -1)] = decodeSegment(requestSegment);
-			continue;
-		}
-
-		if (routeSegment !== requestSegment) {
-			return null;
-		}
-	}
-
-	return routeSegments.length === requestSegments.length ? params : null;
-};
-
-const routeSegmentSpecificity = (segment: string): number => {
-	if (segment === '*') return 0;
-	if (segment.startsWith('[[...') && segment.endsWith(']]')) return -1;
-	if (segment.startsWith('[...') && segment.endsWith(']')) {
-		return 0;
-	}
-	if (segment.startsWith(':')) return 2;
-	if (segment.startsWith('[') && segment.endsWith(']')) return 2;
-	return 3;
-};
-
-const compareRouteSpecificity = (
-	left: readonly string[],
-	right: readonly string[]
-): number => {
-	const maxLength = Math.max(left.length, right.length);
-	for (let index = 0; index < maxLength; index++) {
-		const leftScore =
-			left[index] === undefined ? 0 : routeSegmentSpecificity(left[index]);
-		const rightScore =
-			right[index] === undefined ? 0 : routeSegmentSpecificity(right[index]);
-		if (leftScore !== rightScore) {
-			return rightScore - leftScore;
-		}
-	}
-	return right.length - left.length;
-};
-
 const getHandlerForMethod = (
 	route: ServerRoute,
 	method: HttpMethod
@@ -222,13 +129,13 @@ const findApiHandler = (
 				layer,
 				layerIndex,
 				routeIndex,
-				segments: splitPath(entry.route.path),
+				pattern: compileRoutePattern(entry.route.path),
 			}))
 		)
 		.sort((left, right) => {
-			const specificity = compareRouteSpecificity(
-				left.segments,
-				right.segments
+			const specificity = compareRoutePatterns(
+				left.pattern.pattern,
+				right.pattern.pattern
 			);
 			if (specificity !== 0) {
 				return specificity;
@@ -239,9 +146,9 @@ const findApiHandler = (
 			return left.routeIndex - right.routeIndex;
 		});
 
-	for (const { entry, layer } of entries) {
+	for (const { entry, layer, pattern } of entries) {
 		const route = entry.route;
-		const params = matchRoutePath(route.path, url.pathname);
+		const params = matchRoutePattern(pattern, url.pathname);
 		if (!params) continue;
 
 		const handler = getHandlerForMethod(route, method);

@@ -271,6 +271,28 @@ describe('SSR handler', () => {
 			});
 		});
 
+		it('should normalize route groups and bracket params through shared grammar', async () => {
+			const ApiLayer = defineLayer({
+				name: 'api-shared-route-pattern',
+				server: {
+					api: {
+						'/api/(admin)/users/[id]': ({ params }) => ({ id: params.id }),
+					},
+				},
+			});
+			const handler = createHandler({
+				root: createRoot() as any,
+				layers: [ApiLayer],
+			});
+
+			const response = await handler(
+				new Request('http://localhost:3000/api/users/a%20b')
+			);
+
+			expect(response.status).toBe(200);
+			expect(await response.json()).toEqual({ id: 'a b' });
+		});
+
 		it('should require at least one segment for required catch-all routes', async () => {
 			const routeHandler = vi.fn(({ params }) => ({ slug: params.slug }));
 			const ApiLayer = defineLayer({
