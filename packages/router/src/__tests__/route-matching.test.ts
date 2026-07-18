@@ -353,6 +353,96 @@ describe('route matching', () => {
 			expect(paths).toContain('/people');
 			expect(paths).toContain('/folks');
 		});
+
+		it('should keep named navigation on the canonical path after sorting', () => {
+			for (const alias of [
+				'/people/:id',
+				['/directory/people/:id', '/people/:id'],
+			] as const) {
+				const routes = normalizeRoutes([
+					{
+						path: '/users/:id',
+						alias,
+						name: 'user',
+						component: () => 'user',
+					},
+				]);
+
+				expect(
+					resolveRoute({ name: 'user', params: { id: '42' } }, routes).path
+				).toBe('/users/42');
+			}
+		});
+
+		it('should expand nested children beneath every parent alias', () => {
+			const parentComponent = () => 'users';
+			const childComponent = () => 'details';
+			const beforeEnter = () => true;
+			const props = { source: 'route' };
+			const routes = normalizeRoutes([
+				{
+					path: '/(account)/users/:id',
+					alias: '/(public)/people/:id',
+					name: 'user',
+					component: parentComponent,
+					meta: { area: 'account' },
+					children: [
+						{
+							path: 'details',
+							alias: 'profile',
+							name: 'user-details',
+							component: childComponent,
+							beforeEnter,
+							props,
+							meta: { title: 'Details' },
+						},
+					],
+				},
+			]);
+
+			for (const path of ['/people/42/details', '/people/42/profile']) {
+				const resolved = resolveRoute(path, routes);
+				expect(resolved.params).toEqual({ id: '42' });
+				expect(resolved.meta).toEqual({
+					area: 'account',
+					title: 'Details',
+				});
+				expect(resolved.matched).toHaveLength(2);
+				const [parent, child] = resolved.matched;
+				expect(parent.aliasOf?.fullPath).toBe('/users/:id');
+				expect(parent.component).toBe(parentComponent);
+				expect(parent.routeGroups).toEqual(['account', 'public']);
+				expect(child.aliasOf?.fullPath).toBe('/users/:id/details');
+				expect(child.component).toBe(childComponent);
+				expect(child.beforeEnter).toBe(beforeEnter);
+				expect(child.props).toBe(props);
+			}
+
+			expect(
+				resolveRoute(
+					{ name: 'user-details', params: { id: '42' } },
+					routes
+				).path
+			).toBe('/users/42/details');
+		});
+
+		it('should reject aliases that collide with canonical signatures', () => {
+			const aliasRoute = {
+				path: '/users/:id',
+				alias: '/people/:id',
+			};
+			const canonicalRoute = { path: '/people/:name' };
+
+			for (const routes of [
+				[aliasRoute, canonicalRoute],
+				[canonicalRoute, aliasRoute],
+			]) {
+				expect(() => normalizeRoutes(routes)).toThrow(
+					'resolve to the same URL pattern'
+				);
+				expect(() => normalizeRoutes(routes)).toThrow('alias "/people/:id"');
+			}
+		});
 	});
 });
 

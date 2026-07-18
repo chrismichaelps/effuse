@@ -33,6 +33,7 @@ import {
 	type ResolvedRoute,
 	type NormalizedRouteRecord,
 	normalizeRoutes,
+	finalizeNormalizedRoutes,
 	resolveRoute,
 	createRoute,
 	parseUrl,
@@ -292,7 +293,9 @@ export const createRouter = (options: RouterOptions): RouterInstance => {
 
 	const router: RouterInstance = {
 		currentRoute: routeRef,
-		routes: normalizedRoutes,
+		get routes() {
+			return normalizedRoutes;
+		},
 		options,
 
 		push: (to) => Effect.runSync(navigate(to, { replace: false })),
@@ -316,18 +319,50 @@ export const createRouter = (options: RouterOptions): RouterInstance => {
 			return resolveRoute(to, normalizedRoutes, from);
 		},
 
-		hasRoute: (name) => normalizedRoutes.some((r) => r.name === name),
+		hasRoute: (name) =>
+			normalizedRoutes.some(
+				(r) => r.name === name && r.aliasOf === undefined
+			),
 
 		addRoute: (route, parentName) => {
 			const parent = parentName
-				? normalizedRoutes.find((r) => r.name === parentName)
+				? normalizedRoutes.find(
+						(r) => r.name === parentName && r.aliasOf === undefined
+					)
 				: undefined;
-			const newRoutes = normalizeRoutes([route], parent);
-			normalizedRoutes = [...normalizedRoutes, ...newRoutes];
+			const parentAliases = parent
+				? normalizedRoutes.filter((candidate) => candidate.aliasOf === parent)
+				: [];
+			const newRoutes = normalizeRoutes([route], parent, parentAliases);
+			normalizedRoutes = finalizeNormalizedRoutes([
+				...normalizedRoutes,
+				...newRoutes,
+			]);
 		},
 
 		removeRoute: (name) => {
-			normalizedRoutes = normalizedRoutes.filter((r) => r.name !== name);
+			const target = normalizedRoutes.find(
+				(r) => r.name === name && r.aliasOf === undefined
+			);
+			if (!target) return;
+
+			const removedCanonicalRoutes = new Set<NormalizedRouteRecord>([target]);
+			for (const route of normalizedRoutes) {
+				if (route.aliasOf) continue;
+				let current = route.parent;
+				while (current) {
+					if (current === target) {
+						removedCanonicalRoutes.add(route);
+						break;
+					}
+					current = current.parent;
+				}
+			}
+
+			normalizedRoutes = normalizedRoutes.filter(
+				(route) =>
+					!removedCanonicalRoutes.has(route.aliasOf ?? route)
+			);
 		},
 
 		getRoutes: () => normalizedRoutes,

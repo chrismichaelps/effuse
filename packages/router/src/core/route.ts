@@ -115,6 +115,7 @@ export interface NormalizedRouteRecord extends RouteRecord {
 	readonly fullPath: string;
 	readonly routeGroups?: readonly string[];
 	readonly parent: NormalizedRouteRecord | undefined;
+	readonly aliasOf?: NormalizedRouteRecord;
 }
 
 export type RouteLocation =
@@ -548,8 +549,14 @@ const assertNoRouteCollisions = (
 			!isAncestorRoute(existing, route) &&
 			!isAncestorRoute(route, existing)
 		) {
+			const existingDescription = existing.aliasOf
+				? `alias "${existing.fullPath}" for route "${existing.aliasOf.fullPath}"`
+				: `route "${existing.fullPath}"`;
+			const routeDescription = route.aliasOf
+				? `alias "${route.fullPath}" for route "${route.aliasOf.fullPath}"`
+				: `route "${route.fullPath}"`;
 			throw new TypeError(
-				`Routes "${existing.path}" and "${route.path}" resolve to the same URL pattern "${route.fullPath}".`
+				`The ${existingDescription} and ${routeDescription} resolve to the same URL pattern "${route.fullPath}".`
 			);
 		}
 		signatures.set(route.regex.source, route);
@@ -558,7 +565,8 @@ const assertNoRouteCollisions = (
 
 const normalizeRouteRecord = (
 	route: RouteRecord,
-	parent?: NormalizedRouteRecord
+	parent?: NormalizedRouteRecord,
+	aliasOf?: NormalizedRouteRecord
 ): NormalizedRouteRecord => {
 	const rawFullPath = parent
 		? `${parent.fullPath.replace(/\/$/, '')}/${route.path.replace(/^\//, '')}`
@@ -567,7 +575,13 @@ const normalizeRouteRecord = (
 	const parsed = stripRouteGroups(rawFullPath);
 	const fullPath = parsed.path;
 	const { regex, paramNames } = pathToRegex(fullPath);
-	const routeGroups = [...(parent?.routeGroups ?? []), ...parsed.groups];
+	const routeGroups = [
+		...new Set([
+			...(aliasOf?.routeGroups ?? []),
+			...(parent?.routeGroups ?? []),
+			...parsed.groups,
+		]),
+	];
 
 	return {
 		...route,
@@ -576,43 +590,78 @@ const normalizeRouteRecord = (
 		paramNames,
 		routeGroups,
 		parent,
+		...(aliasOf ? { aliasOf } : {}),
 	};
+};
+
+const normalizeRouteTree = (
+	route: RouteRecord,
+	canonicalParent: NormalizedRouteRecord | undefined,
+	aliasParents: readonly NormalizedRouteRecord[]
+): NormalizedRouteRecord[] => {
+	const canonical = normalizeRouteRecord(route, canonicalParent);
+	const variants: NormalizedRouteRecord[] = [canonical];
+	const aliases: readonly string[] = route.alias
+		? typeof route.alias === 'string'
+			? [route.alias]
+			: route.alias
+		: [];
+	const { alias: _ignored, ...routeWithoutAlias } = route;
+	void _ignored;
+
+	for (const alias of aliases) {
+		variants.push(
+			normalizeRouteRecord(
+				{ ...routeWithoutAlias, path: alias },
+				canonicalParent,
+				canonical
+			)
+		);
+	}
+
+	for (const aliasParent of aliasParents) {
+		variants.push(
+			normalizeRouteRecord(routeWithoutAlias, aliasParent, canonical)
+		);
+		for (const alias of aliases) {
+			variants.push(
+				normalizeRouteRecord(
+					{ ...routeWithoutAlias, path: alias },
+					aliasParent,
+					canonical
+				)
+			);
+		}
+	}
+
+	const result = [...variants];
+	for (const child of route.children ?? []) {
+		result.push(...normalizeRouteTree(child, canonical, variants.slice(1)));
+	}
+	return result;
+};
+
+export const finalizeNormalizedRoutes = (
+	routes: readonly NormalizedRouteRecord[]
+): NormalizedRouteRecord[] => {
+	const result = [...routes];
+	assertNoRouteCollisions(result);
+	result.sort(compareRouteSpecificity);
+	return result;
 };
 
 export const normalizeRoutes = (
 	routes: readonly RouteRecord[],
-	parent?: NormalizedRouteRecord
+	parent?: NormalizedRouteRecord,
+	aliasParents: readonly NormalizedRouteRecord[] = []
 ): NormalizedRouteRecord[] => {
 	const result: NormalizedRouteRecord[] = [];
 
 	for (const route of routes) {
-		const normalized = normalizeRouteRecord(route, parent);
-		result.push(normalized);
-
-		// Generate alias routes that share the same component/guards/meta.
-		if (route.alias) {
-			const aliases: readonly string[] =
-				typeof route.alias === 'string' ? [route.alias] : route.alias;
-			for (const alias of aliases) {
-				const { alias: _ignored, ...routeWithoutAlias } = route;
-				void _ignored;
-				const aliasRecord = normalizeRouteRecord(
-					{ ...routeWithoutAlias, path: alias },
-					parent
-				);
-				result.push(aliasRecord);
-			}
-		}
-
-		if (route.children) {
-			result.push(...normalizeRoutes(route.children, normalized));
-		}
+		result.push(...normalizeRouteTree(route, parent, aliasParents));
 	}
 
-	assertNoRouteCollisions(result);
-	result.sort(compareRouteSpecificity);
-
-	return result;
+	return finalizeNormalizedRoutes(result);
 };
 
 export const matchRoute = (
@@ -668,7 +717,9 @@ export const resolveRoute = (
 		query = location.query ?? {};
 		hash = location.hash ?? '';
 	} else {
-		const namedRoute = normalizedRoutes.find((r) => r.name === location.name);
+		const namedRoute = normalizedRoutes.find(
+			(r) => r.name === location.name && r.aliasOf === undefined
+		);
 		if (!namedRoute) {
 			throw new RouteNotFoundError({ name: location.name });
 		}
