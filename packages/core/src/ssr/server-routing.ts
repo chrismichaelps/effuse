@@ -169,11 +169,9 @@ const matchRoutePath = (
 
 const routeSegmentSpecificity = (segment: string): number => {
 	if (segment === '*') return 0;
-	if (
-		(segment.startsWith('[...') && segment.endsWith(']')) ||
-		(segment.startsWith('[[...') && segment.endsWith(']]'))
-	) {
-		return 1;
+	if (segment.startsWith('[[...') && segment.endsWith(']]')) return -1;
+	if (segment.startsWith('[...') && segment.endsWith(']')) {
+		return 0;
 	}
 	if (segment.startsWith(':')) return 2;
 	if (segment.startsWith('[') && segment.endsWith(']')) return 2;
@@ -187,9 +185,9 @@ const compareRouteSpecificity = (
 	const maxLength = Math.max(left.length, right.length);
 	for (let index = 0; index < maxLength; index++) {
 		const leftScore =
-			left[index] === undefined ? -1 : routeSegmentSpecificity(left[index]);
+			left[index] === undefined ? 0 : routeSegmentSpecificity(left[index]);
 		const rightScore =
-			right[index] === undefined ? -1 : routeSegmentSpecificity(right[index]);
+			right[index] === undefined ? 0 : routeSegmentSpecificity(right[index]);
 		if (leftScore !== rightScore) {
 			return rightScore - leftScore;
 		}

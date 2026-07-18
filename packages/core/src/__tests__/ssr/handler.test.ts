@@ -298,6 +298,33 @@ describe('SSR handler', () => {
 			expect(routeHandler).toHaveBeenCalledOnce();
 		});
 
+		it('should prefer exact routes over optional catch-alls in either order', async () => {
+			for (const paths of [
+				['/api/shop/[[...slug]]', '/api/shop'],
+				['/api/shop', '/api/shop/[[...slug]]'],
+			]) {
+				const api = Object.fromEntries(
+					paths.map((path) => [
+						path,
+						() => ({ route: path === '/api/shop' ? 'exact' : 'catch-all' }),
+					])
+				);
+				const ApiLayer = defineLayer({
+					name: `api-route-order-${paths[0]}`,
+					server: { api },
+				});
+				const handler = createHandler({
+					root: createRoot() as any,
+					layers: [ApiLayer],
+				});
+
+				const response = await handler(
+					new Request('http://localhost:3000/api/shop')
+				);
+				expect(await response.json()).toEqual({ route: 'exact' });
+			}
+		});
+
 		it('should return 405 when a layer API route exists but method is missing', async () => {
 			const ApiLayer = defineLayer({
 				name: 'api-methods',
