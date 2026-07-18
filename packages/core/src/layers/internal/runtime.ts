@@ -109,37 +109,57 @@ export const createLayerRuntime = async (
 	const cleanups = buildResult.results
 		.map((r) => r.cleanup)
 		.filter((c): c is CleanupFn => c !== undefined);
+	let disposePromise: Promise<void> | undefined;
 
 	return {
 		runtime,
 		cleanups,
-		dispose: async () => {
-			if (layerContextStore) {
-				disposedLayerContextStores.add(layerContextStore);
-			}
-			if (runtimeTracingService) {
-				disposedTracingServices.add(runtimeTracingService);
-			}
-
-			if (getGlobalLayerContextStore() === layerContextStore) {
-				restoreGlobalLayerContext(
-					isActiveLayerContextStore(previousLayerContextStore)
-						? previousLayerContextStore
-						: undefined
-				);
-			}
-			if (getGlobalTracing() === runtimeTracingService) {
-				if (isActiveTracingService(previousTracingService)) {
-					setGlobalTracing(previousTracingService);
-				} else {
-					clearGlobalTracing();
+		dispose: () => {
+			disposePromise ??= (async () => {
+				const failures: unknown[] = [];
+				if (layerContextStore) {
+					disposedLayerContextStores.add(layerContextStore);
 				}
-			}
+				if (runtimeTracingService) {
+					disposedTracingServices.add(runtimeTracingService);
+				}
 
-			if (buildResult.cleanup) {
-				buildResult.cleanup();
-			}
-			await runtime.dispose();
+				if (getGlobalLayerContextStore() === layerContextStore) {
+					restoreGlobalLayerContext(
+						isActiveLayerContextStore(previousLayerContextStore)
+							? previousLayerContextStore
+							: undefined
+					);
+				}
+				if (getGlobalTracing() === runtimeTracingService) {
+					if (isActiveTracingService(previousTracingService)) {
+						setGlobalTracing(previousTracingService);
+					} else {
+						clearGlobalTracing();
+					}
+				}
+
+				if (buildResult.cleanup) {
+					try {
+						await buildResult.cleanup();
+					} catch (error) {
+						failures.push(error);
+					}
+				}
+				try {
+					await runtime.dispose();
+				} catch (error) {
+					failures.push(error);
+				}
+				if (failures.length === 1) throw failures[0];
+				if (failures.length > 1) {
+					throw new AggregateError(
+						failures,
+						`[Effuse] Layer runtime cleanup failed in ${failures.length} resources.`
+					);
+				}
+			})();
+			return disposePromise;
 		},
 	} as LayerRuntime;
 };

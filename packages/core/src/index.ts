@@ -135,7 +135,11 @@ export {
 	setGlobalRouter,
 	clearGlobalRouter,
 	createComponentLifecycleSync,
+	LifecycleError,
 	type ComponentLifecycle,
+	type LifecycleErrorHandler,
+	type LifecycleFailure,
+	type LifecycleHook,
 	PropSchema,
 	PropsValidationError,
 	type PropDefinition,
@@ -275,6 +279,7 @@ export {
 	type AppLayerInput,
 	type LazyAppLayerInput,
 	type AppLayerSource,
+	type AppOptions,
 } from './app/index.js';
 
 export {

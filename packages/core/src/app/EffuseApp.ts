@@ -32,6 +32,7 @@ import {
 	type AppLayerInput,
 	type LazyAppLayerInput,
 	type AppLayerSource,
+	type AppOptions,
 } from './BaseEffuseApp.js';
 
 export type {
@@ -40,6 +41,7 @@ export type {
 	AppLayerInput,
 	LazyAppLayerInput,
 	AppLayerSource,
+	AppOptions,
 };
 
 export class EffuseApp extends BaseEffuseApp {

@@ -37,6 +37,7 @@ import { headToHtml } from './head-registry.js';
 import { runWithSSRContext } from './use-head.js';
 import { serializeHydrationData, type HydrationData } from './hydration.js';
 import type { SSRRuntime } from './runtime.js';
+import type { ComponentLifecycle } from '../blueprint/lifecycle.js';
 
 /**
  * Render a component tree to a full HTML string using the SSRRuntime.
@@ -238,11 +239,38 @@ const renderBlueprint = (
 		| ProvideScope
 		| undefined;
 
-	const viewResult = provideScope
-		? runWithProvideScope(provideScope, () => def.view(context))
-		: def.view(context);
+	let html: string | undefined;
+	let renderError: unknown;
+	let renderFailed = false;
+	try {
+		const viewResult = provideScope
+			? runWithProvideScope(provideScope, () => def.view(context))
+			: def.view(context);
+		html = renderNodeToString(viewResult);
+	} catch (error) {
+		renderFailed = true;
+		renderError = error;
+	}
 
-	return renderNodeToString(viewResult);
+	let cleanupError: unknown;
+	let cleanupFailed = false;
+	const lifecycle = (state as { lifecycle?: ComponentLifecycle }).lifecycle;
+	try {
+		lifecycle?.runCleanup();
+	} catch (error) {
+		cleanupFailed = true;
+		cleanupError = error;
+	}
+
+	if (renderFailed && cleanupFailed) {
+		throw new AggregateError(
+			[renderError, cleanupError],
+			'[Effuse] SSR component render and lifecycle cleanup both failed.'
+		);
+	}
+	if (renderFailed) throw renderError;
+	if (cleanupFailed) throw cleanupError;
+	return html ?? '';
 };
 
 const renderAttributes = (props: Record<string, unknown>): string => {

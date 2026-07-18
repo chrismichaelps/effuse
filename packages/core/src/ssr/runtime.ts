@@ -103,6 +103,7 @@ export const createSSRRuntime = async (
 	const managedRuntime = ManagedRuntime.make(servicesLayer);
 
 	let aggregatedCleanup: CleanupFn | undefined;
+	let disposePromise: Promise<void> | undefined;
 	let layerContextStore: LayerContextStore = {
 		propsRegistry: null,
 		layerRegistry: null,
@@ -145,8 +146,9 @@ export const createSSRRuntime = async (
 		run: <T>(fn: () => T): T => {
 			return runWithLayerContext(layerContextStore, fn);
 		},
-		dispose: async () => {
-			try {
+		dispose: () => {
+			disposePromise ??= (async () => {
+				const failures: unknown[] = [];
 				clearGlobalLayerContext();
 				clearGlobalTracing();
 				restoreGlobalLayerContext(previousLayerContextStore);
@@ -155,13 +157,27 @@ export const createSSRRuntime = async (
 				}
 
 				if (Predicate.isFunction(aggregatedCleanup)) {
-					aggregatedCleanup();
+					try {
+						await aggregatedCleanup();
+					} catch (error) {
+						failures.push(error);
+					}
 				}
 
-				await managedRuntime.dispose();
-			} catch {
-				// Ignore cleanup errors
-			}
+				try {
+					await managedRuntime.dispose();
+				} catch (error) {
+					failures.push(error);
+				}
+				if (failures.length === 1) throw failures[0];
+				if (failures.length > 1) {
+					throw new AggregateError(
+						failures,
+						`[Effuse] SSR layer runtime cleanup failed in ${failures.length} resources.`
+					);
+				}
+			})();
+			return disposePromise;
 		},
 	};
 };

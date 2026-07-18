@@ -22,8 +22,85 @@
  * SOFTWARE.
  */
 
-import { Effect, Exit, Predicate, Scope } from 'effect';
+import { Predicate } from 'effect';
 import { createAsyncContextStorage } from '../utils/async-context.js';
+
+export type LifecycleHook =
+	| 'beforeMount'
+	| 'mount'
+	| 'beforeUnmount'
+	| 'mountCleanup'
+	| 'unmount';
+
+export interface LifecycleFailure {
+	readonly hook: LifecycleHook;
+	readonly error: unknown;
+}
+
+export class LifecycleError extends AggregateError {
+	readonly _tag = 'LifecycleError';
+	readonly phase: 'mount' | 'cleanup';
+	readonly failures: readonly LifecycleFailure[];
+
+	constructor(
+		phase: 'mount' | 'cleanup',
+		failures: readonly LifecycleFailure[]
+	) {
+		super(
+			failures.map((failure) => failure.error),
+			`[Effuse] ${phase} lifecycle failed in ${failures.length} callback${failures.length === 1 ? '' : 's'}: ${failures.map((failure) => failure.hook).join(', ')}`
+		);
+		this.name = 'LifecycleError';
+		this.phase = phase;
+		this.failures = failures;
+	}
+}
+
+export type LifecycleErrorHandler = (error: LifecycleError) => void;
+
+const lifecycleErrorHandlers: Array<{
+	readonly handler: LifecycleErrorHandler;
+}> = [];
+
+export const installLifecycleErrorHandler = (
+	handler: LifecycleErrorHandler
+): (() => void) => {
+	const installation = { handler };
+	lifecycleErrorHandlers.push(installation);
+	let removed = false;
+	return () => {
+		if (removed) return;
+		removed = true;
+		const index = lifecycleErrorHandlers.indexOf(installation);
+		if (index >= 0) lifecycleErrorHandlers.splice(index, 1);
+	};
+};
+
+export const getCurrentLifecycleErrorHandler = ():
+	| LifecycleErrorHandler
+	| undefined => lifecycleErrorHandlers.at(-1)?.handler;
+
+export const reportLifecycleError = (
+	error: LifecycleError,
+	handler: LifecycleErrorHandler | undefined = getCurrentLifecycleErrorHandler()
+): void => {
+	if (handler) {
+		try {
+			handler(error);
+		} catch (handlerError) {
+			// eslint-disable-next-line no-console -- Error handlers must not hide either failure.
+			console.error(
+				new AggregateError(
+					[error, handlerError],
+					'[Effuse] Lifecycle error handler failed while reporting a lifecycle error.'
+				)
+			);
+		}
+		return;
+	}
+	// eslint-disable-next-line no-console -- Lifecycle failures must remain visible without an app handler.
+	console.error(error);
+};
 
 export interface ComponentLifecycle {
 	readonly onMount: (fn: () => void | (() => void)) => void;
@@ -39,46 +116,57 @@ interface LifecycleState {
 	readonly mountCallbacks: Array<() => void | (() => void)>;
 	readonly beforeUnmountCallbacks: Array<() => void>;
 	readonly mountCleanups: Array<() => void>;
+	readonly unmountCallbacks: Array<() => void>;
 	mounted: boolean;
 	cleanedUp: boolean;
 }
 
-const createLifecycleFns = (
-	scope: Scope.CloseableScope,
-	state: LifecycleState
-): ComponentLifecycle => {
+const runCallback = (
+	hook: LifecycleHook,
+	callback: () => void,
+	failures: LifecycleFailure[]
+): void => {
+	try {
+		callback();
+	} catch (error) {
+		failures.push({ hook, error });
+	}
+};
+
+const createLifecycleFns = (state: LifecycleState): ComponentLifecycle => {
 	const onBeforeMount = (fn: () => void): void => {
-		if (!state.mounted) {
+		if (!state.mounted && !state.cleanedUp) {
 			state.beforeMountCallbacks.push(fn);
 		}
 	};
 
 	const onMount = (fn: () => void | (() => void)): void => {
 		if (state.mounted) {
-			const cleanup = fn();
-			if (cleanup) state.mountCleanups.push(cleanup);
+			try {
+				const cleanup = fn();
+				if (cleanup) state.mountCleanups.push(cleanup);
+			} catch (error) {
+				throw new LifecycleError('mount', [{ hook: 'mount', error }]);
+			}
 		} else {
 			state.mountCallbacks.push(fn);
 		}
 	};
 
 	const onBeforeUnmount = (fn: () => void): void => {
-		state.beforeUnmountCallbacks.push(fn);
+		if (!state.cleanedUp) state.beforeUnmountCallbacks.push(fn);
 	};
 
 	const onUnmount = (fn: () => void): void => {
-		Effect.runSync(Scope.addFinalizer(scope, Effect.sync(fn)));
+		if (!state.cleanedUp) state.unmountCallbacks.push(fn);
 	};
 
 	const runMount = (): void => {
 		if (state.mounted || state.cleanedUp) return;
+		const failures: LifecycleFailure[] = [];
 
 		for (const fn of state.beforeMountCallbacks) {
-			try {
-				fn();
-			} catch {
-				/* swallow individual beforeMount errors */
-			}
+			runCallback('beforeMount', fn, failures);
 		}
 		state.beforeMountCallbacks.length = 0;
 
@@ -88,39 +176,37 @@ const createLifecycleFns = (
 			try {
 				const cleanup = fn();
 				if (cleanup) state.mountCleanups.push(cleanup);
-			} catch {
-				/* swallow individual mount errors so one bad callback doesn't break the rest */
+			} catch (error) {
+				failures.push({ hook: 'mount', error });
 			}
 		}
 		state.mountCallbacks.length = 0;
+		if (failures.length > 0) throw new LifecycleError('mount', failures);
 	};
 
 	const runCleanup = (): void => {
 		if (state.cleanedUp) return;
+		const failures: LifecycleFailure[] = [];
 
 		for (const fn of state.beforeUnmountCallbacks) {
-			try {
-				fn();
-			} catch {
-				/* swallow individual beforeUnmount errors */
-			}
+			runCallback('beforeUnmount', fn, failures);
 		}
 		state.beforeUnmountCallbacks.length = 0;
 
 		for (const cleanup of [...state.mountCleanups].reverse()) {
 			if (Predicate.isFunction(cleanup)) {
-				try {
-					cleanup();
-				} catch {
-					/* swallow individual cleanup errors */
-				}
+				runCallback('mountCleanup', cleanup, failures);
 			}
 		}
 		state.mountCleanups.length = 0;
 
-		Effect.runSync(Scope.close(scope, Exit.void));
+		for (const fn of [...state.unmountCallbacks].reverse()) {
+			runCallback('unmount', fn, failures);
+		}
+		state.unmountCallbacks.length = 0;
 		state.mounted = false;
 		state.cleanedUp = true;
+		if (failures.length > 0) throw new LifecycleError('cleanup', failures);
 	};
 
 	return {
@@ -138,14 +224,14 @@ const createState = (): LifecycleState => ({
 	mountCallbacks: [],
 	beforeUnmountCallbacks: [],
 	mountCleanups: [],
+	unmountCallbacks: [],
 	mounted: false,
 	cleanedUp: false,
 });
 
 export const createComponentLifecycleSync = (): ComponentLifecycle => {
-	const scope = Effect.runSync(Scope.make());
 	const state = createState();
-	return createLifecycleFns(scope, state);
+	return createLifecycleFns(state);
 };
 
 const activeLifecycleStorage = createAsyncContextStorage<ComponentLifecycle>();

@@ -51,6 +51,34 @@ describe('SSRRuntime', () => {
 			expect(isLayerRuntimeReady()).toBe(false);
 		});
 
+		it('should reject disposal after every layer cleanup has run', async () => {
+			const calls: string[] = [];
+			const FirstLayer = defineLayer({
+				name: 'first-cleanup',
+				setup: () => () => {
+					calls.push('first');
+					throw new Error('first cleanup failed');
+				},
+			});
+			const SecondLayer = defineLayer({
+				name: 'second-cleanup',
+				onUnmount: async () => {
+					await Promise.resolve();
+					calls.push('second');
+					throw new Error('second cleanup failed');
+				},
+			});
+			const runtime = await createSSRRuntime([FirstLayer, SecondLayer]);
+
+			await expect(runtime.dispose()).rejects.toMatchObject({
+				name: 'AggregateError',
+				errors: [expect.any(Error), expect.any(Error)],
+			});
+			expect(calls).toEqual(['second', 'first']);
+			await expect(runtime.dispose()).rejects.toBeInstanceOf(AggregateError);
+			expect(calls).toEqual(['second', 'first']);
+		});
+
 		it('should restore an existing app layer context after SSR dispose', async () => {
 			const appService = { source: 'app' };
 			const serverService = { source: 'server' };
