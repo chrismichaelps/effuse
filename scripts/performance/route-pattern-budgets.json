@@ -1,0 +1,8 @@
+{
+	"route.parse": { "medianNs": 50000, "p95Ns": 100000 },
+	"route.compile": { "medianNs": 100000, "p95Ns": 200000 },
+	"route.match": { "medianNs": 10000, "p95Ns": 25000 },
+	"route.resolve": { "medianNs": 25000, "p95Ns": 50000 },
+	"route.compare": { "medianNs": 75000, "p95Ns": 150000 },
+	"route.table-scan": { "medianNs": 100000, "p95Ns": 200000 }
+}
