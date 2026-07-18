@@ -1,5 +1,4 @@
 import { describe, expect, expectTypeOf, it, vi } from 'vitest';
-import { Schema } from 'effect';
 import { define, defineProps } from '../../blueprint/define.js';
 import {
 	PropSchema,
@@ -92,7 +91,7 @@ describe('define props runtime contract', () => {
 		});
 		const propsSchema = PropSchema.struct({
 			address: PropSchema.optional(addressSchema),
-			count: PropSchema.required(Schema.NumberFromString),
+			count: PropSchema.required(PropSchema.NumberFromString),
 			name: PropSchema.required(PropSchema.String),
 			role: PropSchema.optional(PropSchema.String, 'member'),
 		});
@@ -156,6 +155,52 @@ describe('define props runtime contract', () => {
 		expect(declaration).toEqual({});
 		expectTypeOf(Component).toBeCallableWith();
 		expect(asBlueprint(Component).state({})).toBeDefined();
+	});
+
+	it('composes native Effuse value schemas without external imports', () => {
+		const schema = PropSchema.struct({
+			active: PropSchema.required(PropSchema.BooleanFromString),
+			metadata: PropSchema.required(
+				PropSchema.object({ verified: PropSchema.boolean })
+			),
+			mode: PropSchema.required(
+				PropSchema.union(
+					PropSchema.literal('compact'),
+					PropSchema.literal('comfortable')
+				)
+			),
+			tags: PropSchema.required(PropSchema.array(PropSchema.string)),
+		});
+		const Component = define({
+			props: defineProps(schema),
+			script: ({ props }) => {
+				expectTypeOf(props.active).toEqualTypeOf<boolean>();
+				expectTypeOf(props.mode).toEqualTypeOf<
+					'compact' | 'comfortable'
+				>();
+				return {};
+			},
+			template: ({ active, metadata, mode, tags }) =>
+				`${String(active)}:${String(metadata.verified)}:${mode}:${tags.join(',')}`,
+		});
+
+		expectTypeOf(Component).toBeCallableWith({
+			active: 'true',
+			metadata: { verified: true },
+			mode: 'compact',
+			tags: ['dx', 'typed'],
+		});
+		const blueprint = asBlueprint(Component);
+		const state = blueprint.state({
+			active: 'true',
+			metadata: { verified: true },
+			mode: 'compact',
+			tags: ['dx', 'typed'],
+		});
+
+		expect(blueprint.view({ props: {}, state })).toBe(
+			'true:true:compact:dx,typed'
+		);
 	});
 
 	it('rejects competing schema sources', () => {

@@ -144,6 +144,7 @@ export {
 	PropsValidationError,
 	PropsSchemaConflictError,
 	type PropDefinition,
+	type PropValueSchema,
 	type PropSchemaBuilder,
 	type AnyPropSchemaBuilder,
 	type PropSchemaInfer,

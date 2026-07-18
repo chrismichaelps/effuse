@@ -60,12 +60,37 @@ export class PropsSchemaConflictError extends Data.TaggedError(
 	}
 }
 
+declare const PROP_VALUE_SCHEMA: unique symbol;
+
+/** Opaque Effuse value schema. Its validation engine is an implementation detail. */
+export interface PropValueSchema<Output, Input = Output> {
+	readonly [PROP_VALUE_SCHEMA]: {
+		readonly output: Output;
+		readonly input: Input;
+	};
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- heterogeneous schema combinators preserve member types.
+type AnyPropValueSchema = PropValueSchema<any, any>;
+type PropValueSchemaParts<S> =
+	S extends PropValueSchema<infer O, infer I> ? [O, I] : never;
+type PropValueOutput<S> = PropValueSchemaParts<S>[0];
+type PropValueInput<S> = PropValueSchemaParts<S>[1];
+
+const wrapValueSchema = <O, I>(
+	schema: Schema.Schema<O, I>
+): PropValueSchema<O, I> => schema as unknown as PropValueSchema<O, I>;
+
+const unwrapValueSchema = <O, I>(
+	schema: PropValueSchema<O, I>
+): Schema.Schema<O, I> => schema as unknown as Schema.Schema<O, I>;
+
 export interface PropDefinition<
 	Output,
 	Input = Output,
 	Required extends boolean = boolean,
 > {
-	readonly schema: Schema.Schema<Output, Input>;
+	readonly schema: PropValueSchema<Output, Input>;
 	readonly required: Required;
 	readonly defaultValue?: Output;
 	readonly _tag: 'PropDefinition';
@@ -79,7 +104,7 @@ export interface PropSchemaBuilder<
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- definitions retain their concrete types in the builder value.
 		[K in keyof Output]: PropDefinition<any, any, boolean>;
 	};
-	readonly schema: Schema.Schema<Output, Input>;
+	readonly schema: PropValueSchema<Output, Input>;
 	readonly validateSync: (props: unknown, componentName?: string) => Output;
 }
 
@@ -105,16 +130,16 @@ type SchemaInput<D> = {
 };
 
 // Build required prop definition
-function required<S extends Schema.Schema.AnyNoContext>(
+function required<S extends AnyPropValueSchema>(
 	schema: S
-): PropDefinition<Schema.Schema.Type<S>, Schema.Schema.Encoded<S>, true>;
+): PropDefinition<PropValueOutput<S>, PropValueInput<S>, true>;
 function required<
 	O extends Record<string, unknown>,
 	I extends Record<string, unknown>,
 >(builder: PropSchemaBuilder<O, I>): PropDefinition<O, I, true>;
 function required(
 	schemaOrBuilder:
-		| Schema.Schema.AnyNoContext
+		| AnyPropValueSchema
 		| PropSchemaBuilder<Record<string, unknown>, Record<string, unknown>>
 ): AnyPropDefinition {
 	if (
@@ -124,33 +149,29 @@ function required(
 	) {
 		const builder = schemaOrBuilder;
 		return {
-			schema: builder.schema as Schema.Schema<unknown, unknown>,
+			schema: builder.schema as PropValueSchema<unknown, unknown>,
 			required: true,
 			_tag: 'PropDefinition',
 		};
 	}
 	return {
-		schema: schemaOrBuilder as Schema.Schema<unknown, unknown>,
+		schema: schemaOrBuilder as PropValueSchema<unknown, unknown>,
 		required: true,
 		_tag: 'PropDefinition',
 	};
 }
 
-function optional<S extends Schema.Schema.AnyNoContext>(
+function optional<S extends AnyPropValueSchema>(
 	schema: S
 ): PropDefinition<
-	Schema.Schema.Type<S> | undefined,
-	Schema.Schema.Encoded<S> | undefined,
+	PropValueOutput<S> | undefined,
+	PropValueInput<S> | undefined,
 	false
 >;
-function optional<S extends Schema.Schema.AnyNoContext>(
+function optional<S extends AnyPropValueSchema>(
 	schema: S,
-	defaultValue: Schema.Schema.Type<S>
-): PropDefinition<
-	Schema.Schema.Type<S>,
-	Schema.Schema.Encoded<S> | undefined,
-	false
->;
+	defaultValue: PropValueOutput<S>
+): PropDefinition<PropValueOutput<S>, PropValueInput<S> | undefined, false>;
 function optional<
 	O extends Record<string, unknown>,
 	I extends Record<string, unknown>,
@@ -166,7 +187,7 @@ function optional<
 ): PropDefinition<O, I | undefined, false>;
 function optional(
 	schemaOrBuilder:
-		| Schema.Schema.AnyNoContext
+		| AnyPropValueSchema
 		| PropSchemaBuilder<Record<string, unknown>, Record<string, unknown>>,
 	defaultValue?: unknown
 ): AnyPropDefinition {
@@ -178,9 +199,13 @@ function optional(
 		Predicate.hasProperty(schemaOrBuilder, 'schema')
 	) {
 		const builder = schemaOrBuilder;
-		baseSchema = builder.schema as Schema.Schema<unknown, unknown>;
+		baseSchema = unwrapValueSchema(
+			builder.schema as PropValueSchema<unknown, unknown>
+		);
 	} else {
-		baseSchema = schemaOrBuilder as Schema.Schema<unknown, unknown>;
+		baseSchema = unwrapValueSchema(
+			schemaOrBuilder as PropValueSchema<unknown, unknown>
+		);
 	}
 
 	const schema = (defaultValue !== undefined
@@ -193,7 +218,7 @@ function optional(
 	>;
 
 	return {
-		schema,
+		schema: wrapValueSchema(schema),
 		required: false,
 		defaultValue,
 		_tag: 'PropDefinition',
@@ -209,7 +234,7 @@ const struct = <const D extends Record<string, AnyPropDefinition>>(
 
 	const schemaFields: Record<string, Schema.Schema<unknown>> = {};
 	for (const [key, def] of Object.entries(definitions)) {
-		schemaFields[key] = def.schema;
+		schemaFields[key] = unwrapValueSchema(def.schema);
 	}
 	const compositeSchema = Schema.Struct(schemaFields);
 
@@ -279,25 +304,101 @@ const struct = <const D extends Record<string, AnyPropDefinition>>(
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any -- runtime definitions preserve schema-specific variance.
 			[K in keyof ResultType]: PropDefinition<any, any, boolean>;
 		},
-		schema: compositeSchema as unknown as Schema.Schema<ResultType, InputType>,
+		schema: wrapValueSchema(
+			compositeSchema as unknown as Schema.Schema<ResultType, InputType>
+		),
 		validateSync,
 	};
+};
+
+type LiteralValue = string | number | boolean | null | bigint;
+type ValueObjectOutput<D> = { [K in keyof D]: PropValueOutput<D[K]> };
+type ValueObjectInput<D> = { [K in keyof D]: PropValueInput<D[K]> };
+
+const stringSchema = wrapValueSchema(Schema.String);
+const numberSchema = wrapValueSchema(Schema.Number);
+const booleanSchema = wrapValueSchema(Schema.Boolean);
+const unknownSchema = wrapValueSchema(Schema.Unknown);
+const numberFromStringSchema = wrapValueSchema(Schema.NumberFromString);
+const booleanFromStringSchema = wrapValueSchema(Schema.BooleanFromString);
+const dateFromStringSchema = wrapValueSchema(Schema.DateFromString);
+
+const literal = <const L extends readonly LiteralValue[]>(
+	...values: L
+): PropValueSchema<L[number]> =>
+	wrapValueSchema(Schema.Literal(...values) as Schema.Schema<L[number]>);
+
+const union = <const Members extends readonly AnyPropValueSchema[]>(
+	...members: Members
+): PropValueSchema<
+	PropValueOutput<Members[number]>,
+	PropValueInput<Members[number]>
+> =>
+	wrapValueSchema(
+		Schema.Union(...members.map(unwrapValueSchema)) as Schema.Schema<
+			PropValueOutput<Members[number]>,
+			PropValueInput<Members[number]>
+		>
+	);
+
+const array = <S extends AnyPropValueSchema>(
+	item: S
+): PropValueSchema<
+	readonly PropValueOutput<S>[],
+	readonly PropValueInput<S>[]
+> =>
+	wrapValueSchema(
+		Schema.Array(unwrapValueSchema(item)) as Schema.Schema<
+			readonly PropValueOutput<S>[],
+			readonly PropValueInput<S>[]
+		>
+	);
+
+const object = <const D extends Record<string, AnyPropValueSchema>>(
+	fields: D
+): PropValueSchema<ValueObjectOutput<D>, ValueObjectInput<D>> => {
+	const schemas = Object.fromEntries(
+		Object.entries(fields).map(([key, value]) => [
+			key,
+			unwrapValueSchema(value),
+		])
+	);
+	return wrapValueSchema(
+		Schema.Struct(schemas) as unknown as Schema.Schema<
+			ValueObjectOutput<D>,
+			ValueObjectInput<D>
+		>
+	);
 };
 
 export const PropSchema = {
 	required,
 	optional,
 	struct,
+	string: stringSchema,
+	number: numberSchema,
+	boolean: booleanSchema,
+	unknown: unknownSchema,
+	numberFromString: numberFromStringSchema,
+	booleanFromString: booleanFromStringSchema,
+	dateFromString: dateFromStringSchema,
+	literal,
+	union,
+	array,
+	object,
 
-	String: Schema.String,
-	Number: Schema.Number,
-	Boolean: Schema.Boolean,
-	Literal: Schema.Literal,
-	Union: Schema.Union,
-	Array: Schema.Array,
-	Struct: Schema.Struct,
-	Unknown: Schema.Unknown,
-	Optional: Schema.optional,
+	// PascalCase aliases preserve the existing Effuse schema vocabulary.
+	String: stringSchema,
+	Number: numberSchema,
+	Boolean: booleanSchema,
+	Unknown: unknownSchema,
+	NumberFromString: numberFromStringSchema,
+	BooleanFromString: booleanFromStringSchema,
+	DateFromString: dateFromStringSchema,
+	Literal: literal,
+	Union: union,
+	Array: array,
+	Struct: object,
 };
 
 type PropSchemaParts<S> =
