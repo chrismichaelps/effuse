@@ -236,9 +236,7 @@ describe('SSR handler', () => {
 
 			expect(response.status).toBe(500);
 			expect(onError).toHaveBeenCalledOnce();
-			expect(onError.mock.calls[0][0]).toBeInstanceOf(
-				LayerNameCollisionError
-			);
+			expect(onError.mock.calls[0][0]).toBeInstanceOf(LayerNameCollisionError);
 			expect(String(onError.mock.calls[0][0])).toContain(
 				'Layer "duplicate-handler" is registered more than once'
 			);
@@ -271,6 +269,33 @@ describe('SSR handler', () => {
 				id: 'u1',
 				tab: 'settings',
 			});
+		});
+
+		it('should require at least one segment for required catch-all routes', async () => {
+			const routeHandler = vi.fn(({ params }) => ({ slug: params.slug }));
+			const ApiLayer = defineLayer({
+				name: 'api-required-catch-all',
+				server: {
+					api: {
+						'/api/docs/[...slug]': routeHandler,
+					},
+				},
+			});
+			const handler = createHandler({
+				root: createRoot() as any,
+				layers: [ApiLayer],
+			});
+
+			const missing = await handler(
+				new Request('http://localhost:3000/api/docs')
+			);
+			const matched = await handler(
+				new Request('http://localhost:3000/api/docs/guides/routing')
+			);
+
+			expect(missing.headers.get('Content-Type')).toContain('text/html');
+			expect(await matched.json()).toEqual({ slug: 'guides/routing' });
+			expect(routeHandler).toHaveBeenCalledOnce();
 		});
 
 		it('should return 405 when a layer API route exists but method is missing', async () => {
@@ -407,9 +432,7 @@ describe('SSR handler', () => {
 			const AuthLayer = defineLayer({
 				name: 'auth-short-circuit',
 				server: {
-					middleware: [
-						() => new Response('Unauthorized', { status: 401 }),
-					],
+					middleware: [() => new Response('Unauthorized', { status: 401 })],
 				},
 			});
 			const ApiLayer = defineLayer({
@@ -514,7 +537,9 @@ describe('SSR handler', () => {
 				onServerTrace: (event) => events.push(event),
 			});
 
-			const response = await handler(new Request('http://localhost:3000/api/traced'));
+			const response = await handler(
+				new Request('http://localhost:3000/api/traced')
+			);
 
 			expect(response.status).toBe(200);
 			expect(events).toHaveLength(1);
@@ -656,7 +681,9 @@ describe('SSR handler', () => {
 				onServerTrace: (event) => events.push(event),
 			});
 
-			const response = await handler(new Request('http://localhost:3000/api/boom'));
+			const response = await handler(
+				new Request('http://localhost:3000/api/boom')
+			);
 
 			expect(response.status).toBe(500);
 			expect(onError).toHaveBeenCalledOnce();
@@ -753,9 +780,7 @@ describe('SSR handler', () => {
 
 			expect(response.status).toBe(500);
 			expect(onError).toHaveBeenCalledOnce();
-			expect(onError.mock.calls[0][0]).toBeInstanceOf(
-				LayerNameCollisionError
-			);
+			expect(onError.mock.calls[0][0]).toBeInstanceOf(LayerNameCollisionError);
 			expect(String(onError.mock.calls[0][0])).toContain(
 				'Layer "duplicate-stream" is registered more than once'
 			);

@@ -112,12 +112,22 @@ const matchRoutePath = (
 			(segment.startsWith('[...') && segment.endsWith(']')) ||
 			(segment.startsWith('[[...') && segment.endsWith(']]'))
 	);
+	const catchAllSegment = routeSegments[catchAllIndex];
+	const hasRequiredCatchAll =
+		catchAllIndex !== -1 &&
+		catchAllSegment.startsWith('[...') &&
+		catchAllSegment.endsWith(']');
 
 	if (catchAllIndex === -1 && routeSegments.length !== requestSegments.length) {
 		return null;
 	}
 
-	if (catchAllIndex !== -1 && requestSegments.length < catchAllIndex) {
+	if (
+		catchAllIndex !== -1 &&
+		(catchAllIndex !== routeSegments.length - 1 ||
+			requestSegments.length < catchAllIndex ||
+			(hasRequiredCatchAll && requestSegments.length === catchAllIndex))
+	) {
 		return null;
 	}
 
@@ -280,10 +290,11 @@ const findActionHandler = (
 		return null;
 	}
 
-	const actionSegments = splitPath(url.pathname.slice(EFFUSE_ACTION_PREFIX.length));
+	const actionSegments = splitPath(
+		url.pathname.slice(EFFUSE_ACTION_PREFIX.length)
+	);
 	const decodedSegments = actionSegments.map(decodeSegment);
-	const layerName =
-		decodedSegments.length > 1 ? decodedSegments[0] : undefined;
+	const layerName = decodedSegments.length > 1 ? decodedSegments[0] : undefined;
 	const actionName =
 		decodedSegments.length > 1
 			? decodedSegments.slice(1).join('/')
@@ -510,8 +521,9 @@ const collectMiddlewareLayers = (
 			return;
 		}
 		selected.add(layer.name);
-		for (const depName of (layer.dependencies as readonly string[] | undefined) ??
-			[]) {
+		for (const depName of (layer.dependencies as
+			| readonly string[]
+			| undefined) ?? []) {
 			const dependency = byName.get(depName);
 			if (dependency) {
 				visit(dependency);
@@ -553,7 +565,9 @@ const runServerMiddleware = async (
 		let called = false;
 		const result = await current(ctx, async () => {
 			if (called) {
-				throw new Error('Effuse server middleware called next() more than once.');
+				throw new Error(
+					'Effuse server middleware called next() more than once.'
+				);
 			}
 			called = true;
 			return dispatch(index + 1);
@@ -593,9 +607,7 @@ const createContext = (
 			redirect: (target: string | URL, status = 302) =>
 				Response.redirect(target, status),
 			error: (code, message, options) =>
-				layerServerErrorResponse(
-					new LayerServerError(code, message, options)
-				),
+				layerServerErrorResponse(new LayerServerError(code, message, options)),
 		},
 	};
 };
