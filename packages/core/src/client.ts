@@ -493,3 +493,11 @@ export {
 	type Directive,
 	type RefOptions,
 } from './refs/index.js';
+
+export {
+	serverSchema,
+	type ServerOptionalSchema,
+	type ServerSchemaInfer,
+	type ServerSchemaInput,
+	type ServerSchemaOutput,
+} from './ssr/server-schema.js';

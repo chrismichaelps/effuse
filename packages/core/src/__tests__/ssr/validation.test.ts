@@ -7,6 +7,11 @@ import { clearGlobalTracing } from '../../layers/tracing/index.js';
 import { CreateTextNode } from '../../render/node.js';
 import { EFFUSE_NODE } from '../../constants.js';
 import type { ServerValidationResult } from '../../ssr/validation.js';
+import {
+	serverSchema,
+	type ServerSchemaInput,
+	type ServerSchemaOutput,
+} from '../../ssr/server-schema.js';
 
 afterEach(() => {
 	clearGlobalLayerContext();
@@ -37,6 +42,81 @@ const failure = (message: string, path?: string): ServerValidationResult<never> 
 });
 
 describe('server request validation', () => {
+	it('validates and decodes with native Effuse server schemas', async () => {
+		const QuerySchema = serverSchema.object({
+			filter: serverSchema.string,
+			page: serverSchema.optional(serverSchema.numberFromString, 1),
+		});
+		type QueryInput = ServerSchemaInput<typeof QuerySchema>;
+		type QueryOutput = ServerSchemaOutput<typeof QuerySchema>;
+		expectTypeOf({} as QueryInput).toEqualTypeOf<{
+			filter: string;
+			page?: string;
+		}>();
+		expectTypeOf({} as QueryOutput).toEqualTypeOf<{
+			filter: string;
+			page: number;
+		}>();
+
+		const ApiLayer = defineLayer({
+			name: 'native-schema-api',
+			server: {
+				api: {
+					'/api/search': ({ validate }) => {
+						const query = validate.query(QuerySchema);
+						expectTypeOf(query).toEqualTypeOf<QueryOutput>();
+						return query;
+					},
+				},
+			},
+		});
+		const handler = createHandler({
+			root: createRoot() as any,
+			layers: [ApiLayer],
+		});
+
+		const response = await handler(
+			new Request('http://localhost:3000/api/search?filter=active&page=2')
+		);
+
+		expect(response.status).toBe(200);
+		await expect(response.json()).resolves.toEqual({
+			filter: 'active',
+			page: 2,
+		});
+	});
+
+	it('returns field paths for native Effuse schema failures', async () => {
+		const QuerySchema = serverSchema.object({
+			page: serverSchema.numberFromString,
+		});
+		const ApiLayer = defineLayer({
+			name: 'native-schema-errors',
+			server: {
+				api: {
+					'/api/pages': ({ validate }) => validate.query(QuerySchema),
+				},
+			},
+		});
+		const handler = createHandler({
+			root: createRoot() as any,
+			layers: [ApiLayer],
+		});
+
+		const response = await handler(
+			new Request('http://localhost:3000/api/pages?page=invalid')
+		);
+
+		expect(response.status).toBe(400);
+		expect(await response.json()).toMatchObject({
+			error: {
+				code: 'EFFUSE_VALIDATION_FAILED',
+				issues: [{ path: 'page' }],
+				source: 'query',
+			},
+		});
+	});
+
 	it('should validate route params, query, and headers', async () => {
 		const ApiLayer = defineLayer({
 			name: 'validated-api',
