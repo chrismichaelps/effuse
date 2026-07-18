@@ -4,7 +4,7 @@ import { RouterNotInstalledError } from '../errors.js';
 import { createRouter, installRouter } from '../core/router.js';
 import { createMemoryHistory } from '../core/history.js';
 import { clearContext } from '../core/context.js';
-import { define } from '@effuse/core';
+import { computed, define } from '@effuse/core';
 
 describe('useRoute', () => {
 	beforeEach(() => {
@@ -41,5 +41,56 @@ describe('useRoute', () => {
 		expect(route.aliasRouteGroups).toEqual(['start']);
 		expect(route.routeGroups).toEqual(['app', 'start']);
 		expect(Object.keys(route)).toContain('routeGroups');
+	});
+
+	it('keeps optional catch-all params reactive after navigation', async () => {
+		const component = define({
+			script: () => ({}),
+			template: () => 'Route',
+		});
+		const router = createRouter({
+			history: createMemoryHistory('/shop'),
+			routes: [
+				{
+					path: '/(store)/shop/[[...slug]]',
+					component,
+					name: 'shop',
+				},
+			],
+		});
+
+		installRouter(router);
+
+		const route = useRoute();
+		const slug = computed(() => route.params.slug ?? '');
+		expect(route.params.slug).toBe('');
+		expect(slug.value).toBe('');
+
+		await router.push('/shop/sale/today');
+
+		expect(route.params.slug).toBe('sale/today');
+		expect(slug.value).toBe('sale/today');
+		expect(route.routeGroups).toEqual(['store']);
+	});
+
+	it('exposes optional catch-all params on the initial route', () => {
+		const router = createRouter({
+			history: createMemoryHistory('/shop/sale/today'),
+			routes: [
+				{
+					path: '/(store)/shop/[[...slug]]',
+					component: define({
+						script: () => ({}),
+						template: () => 'Route',
+					}),
+				},
+			],
+		});
+
+		installRouter(router);
+
+		const route = useRoute();
+		expect(route.params.slug).toBe('sale/today');
+		expect(route.routeGroups).toEqual(['store']);
 	});
 });
