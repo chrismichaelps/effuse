@@ -40,10 +40,15 @@ export interface LayerServerErrorBody<
 	};
 }
 
+const LAYER_SERVER_ERROR: unique symbol = Symbol.for(
+	'effuse.layer-server-error'
+);
+
 export class LayerServerError<
 	Code extends string = string,
 	Details = unknown,
 > extends Error {
+	readonly [LAYER_SERVER_ERROR] = true;
 	readonly code: Code;
 	readonly details: Details | undefined;
 	readonly headers: HeadersInit | undefined;
@@ -82,7 +87,13 @@ export const createLayerServerErrorBody = <
 
 export const isLayerServerError = (
 	error: unknown
-): error is LayerServerError => error instanceof LayerServerError;
+): error is LayerServerError =>
+	error instanceof LayerServerError ||
+	(isRecord(error) &&
+		Reflect.get(error, LAYER_SERVER_ERROR) === true &&
+		typeof error.code === 'string' &&
+		typeof error.message === 'string' &&
+		typeof error.status === 'number');
 
 export const isLayerServerErrorBody = (
 	value: unknown
