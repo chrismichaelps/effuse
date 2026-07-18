@@ -4,7 +4,7 @@
  * Copyright (c) 2025 Chris M. Perez
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, expectTypeOf } from 'vitest';
 import {
 	matchRoute,
 	resolveRoute,
@@ -17,11 +17,10 @@ import {
 	isLazyRouteComponent,
 	EFFUSE_LAZY_ROUTE,
 } from '../core/route.js';
+import type { ExtractRouteParams, TypedRouteLocation } from '../types/index.js';
 
 const makeRoutes = (paths: string[]) =>
-	normalizeRoutes(
-		paths.map((path) => ({ path, component: () => path }))
-	);
+	normalizeRoutes(paths.map((path) => ({ path, component: () => path })));
 
 describe('route matching', () => {
 	describe('ranked matching', () => {
@@ -78,6 +77,126 @@ describe('route matching', () => {
 			const result = matchRoute('/product/42', routes);
 			expect(result.matched).toHaveLength(0);
 			expect(result.params).toEqual({});
+		});
+
+		it('should extract bracket params', () => {
+			const routes = makeRoutes(['/blog/[slug]']);
+			const result = matchRoute('/blog/hello-effuse', routes);
+
+			expect(result.matched[result.matched.length - 1].fullPath).toBe(
+				'/blog/[slug]'
+			);
+			expect(result.params).toEqual({ slug: 'hello-effuse' });
+			expect(matchRoute('/blog/hello/extra', routes).matched).toHaveLength(0);
+		});
+
+		it('should extract required catch-all bracket params', () => {
+			const routes = makeRoutes(['/docs/[...slug]']);
+			const result = matchRoute('/docs/guide/routing', routes);
+
+			expect(result.params).toEqual({ slug: 'guide/routing' });
+			expect(matchRoute('/docs', routes).matched).toHaveLength(0);
+		});
+
+		it('should extract optional catch-all bracket params', () => {
+			const routes = makeRoutes(['/shop/[[...slug]]']);
+
+			const withoutParam = matchRoute('/shop', routes);
+			expect(withoutParam.params).toEqual({ slug: '' });
+
+			const withParam = matchRoute('/shop/clothes/tops', routes);
+			expect(withParam.params).toEqual({ slug: 'clothes/tops' });
+		});
+
+		it('should decode bracket and catch-all params like server routes', () => {
+			const routes = makeRoutes(['/blog/[slug]', '/docs/[...slug]']);
+
+			expect(matchRoute('/blog/hello%20effuse', routes).params).toEqual({
+				slug: 'hello effuse',
+			});
+			expect(matchRoute('/docs/guides/routing%20rules', routes).params).toEqual(
+				{
+					slug: 'guides/routing rules',
+				}
+			);
+		});
+
+		it('should prefer an exact route over an optional catch-all', () => {
+			const routes = normalizeRoutes([
+				{ path: '/shop/[[...slug]]', name: 'shop-catch-all' },
+				{ path: '/shop', name: 'shop' },
+			]);
+
+			expect(matchRoute('/shop', routes).matched.at(-1)?.name).toBe('shop');
+		});
+
+		it('should rank routes by segment position instead of score totals', () => {
+			for (const routeRecords of [
+				[
+					{ path: '/:first/edit', name: 'dynamic-first' },
+					{ path: '/users/:id', name: 'static-first' },
+				],
+				[
+					{ path: '/users/:id', name: 'static-first' },
+					{ path: '/:first/edit', name: 'dynamic-first' },
+				],
+			]) {
+				const routes = normalizeRoutes(routeRecords);
+				expect(matchRoute('/users/edit', routes).matched.at(-1)?.name).toBe(
+					'static-first'
+				);
+			}
+		});
+	});
+
+	describe('route groups', () => {
+		it('should strip route groups from matchable URLs', () => {
+			const routes = normalizeRoutes([
+				{
+					path: '/(app)/dashboard',
+					component: () => 'dashboard',
+				},
+			]);
+
+			const result = matchRoute('/dashboard', routes);
+			expect(result.matched).toHaveLength(1);
+			expect(result.matched[0].fullPath).toBe('/dashboard');
+			expect(result.matched[0].routeGroups).toEqual(['app']);
+			expect(matchRoute('/(app)/dashboard', routes).matched).toHaveLength(0);
+		});
+
+		it('should inherit nested route group metadata', () => {
+			const routes = normalizeRoutes([
+				{
+					path: '/(app)',
+					component: () => 'app',
+					children: [
+						{
+							path: '(admin)/dashboard',
+							component: () => 'dashboard',
+						},
+					],
+				},
+			]);
+
+			const result = matchRoute('/dashboard', routes);
+			expect(result.matched).toHaveLength(2);
+			expect(result.matched[0].fullPath).toBe('/');
+			expect(result.matched[0].routeGroups).toEqual(['app']);
+			expect(result.matched[1].fullPath).toBe('/dashboard');
+			expect(result.matched[1].routeGroups).toEqual(['app', 'admin']);
+		});
+
+		it('should reject route group and dynamic signature collisions', () => {
+			expect(() =>
+				normalizeRoutes([
+					{ path: '/(app)/dashboard' },
+					{ path: '/(admin)/dashboard' },
+				])
+			).toThrow('resolve to the same URL pattern');
+			expect(() =>
+				normalizeRoutes([{ path: '/users/[id]' }, { path: '/users/[name]' }])
+			).toThrow('resolve to the same URL pattern');
 		});
 	});
 
@@ -189,9 +308,12 @@ describe('route matching', () => {
 		});
 
 		it('should reject lazy route modules without the requested component export', async () => {
-			const lazyComponent = lazyRoute(() => Promise.resolve({ missing: true }), {
-				export: 'Page',
-			});
+			const lazyComponent = lazyRoute(
+				() => Promise.resolve({ missing: true }),
+				{
+					export: 'Page',
+				}
+			);
 
 			await expect(lazyComponent()).rejects.toThrow(
 				'Effuse lazy route expected "Page" to export a route component.'
@@ -246,9 +368,79 @@ describe('resolveRoute', () => {
 		const routes = normalizeRoutes([
 			{ path: '/user/:id', name: 'user', component: () => 'user' },
 		]);
-		const resolved = resolveRoute({ name: 'user', params: { id: '42' } }, routes);
+		const resolved = resolveRoute(
+			{ name: 'user', params: { id: '42' } },
+			routes
+		);
 		expect(resolved.path).toBe('/user/42');
 		expect(resolved.name).toBe('user');
+	});
+
+	it('should resolve named location with bracket params', () => {
+		const routes = normalizeRoutes([
+			{ path: '/(content)/blog/[slug]', name: 'post', component: () => 'post' },
+			{
+				path: '/docs/[...slug]',
+				name: 'docs',
+				component: () => 'docs',
+			},
+		]);
+
+		const post = resolveRoute(
+			{ name: 'post', params: { slug: 'hello-effuse' } },
+			routes
+		);
+		expect(post.path).toBe('/blog/hello-effuse');
+		expect(post.params).toEqual({ slug: 'hello-effuse' });
+
+		const docs = resolveRoute(
+			{ name: 'docs', params: { slug: 'guide/routing' } },
+			routes
+		);
+		expect(docs.path).toBe('/docs/guide/routing');
+		expect(docs.params).toEqual({ slug: 'guide/routing' });
+	});
+
+	it('should encode named bracket params without flattening catch-alls', () => {
+		const routes = normalizeRoutes([
+			{ path: '/blog/[slug]', name: 'post' },
+			{ path: '/docs/[...slug]', name: 'docs' },
+			{ path: '/shop/[[...slug]]', name: 'shop' },
+		]);
+
+		expect(
+			resolveRoute({ name: 'post', params: { slug: 'hello world' } }, routes)
+				.path
+		).toBe('/blog/hello%20world');
+		expect(
+			resolveRoute(
+				{ name: 'docs', params: { slug: 'guides/routing rules' } },
+				routes
+			).path
+		).toBe('/docs/guides/routing%20rules');
+		expect(resolveRoute({ name: 'shop' }, routes).path).toBe('/shop');
+	});
+
+	it('should throw when named bracket params are missing', () => {
+		const routes = normalizeRoutes([
+			{ path: '/blog/[slug]', name: 'post', component: () => 'post' },
+		]);
+
+		expect(() => resolveRoute({ name: 'post' }, routes)).toThrow(
+			'Missing route param "slug" for "/blog/[slug]".'
+		);
+	});
+
+	it('should reject malformed, duplicate, and non-terminal route params', () => {
+		expect(() => makeRoutes(['/blog/[]'])).toThrow(
+			'Route params must have a name'
+		);
+		expect(() => makeRoutes(['/users/[id]/posts/[id]'])).toThrow(
+			'Duplicate route param "id"'
+		);
+		expect(() => makeRoutes(['/docs/[...slug]/edit'])).toThrow(
+			'must be the final URL segment'
+		);
 	});
 
 	it('should throw for unknown named route', () => {
@@ -329,5 +521,37 @@ describe('parseUrl', () => {
 		expect(url.pathname).toBe('/search');
 		expect(url.query.q).toBe('test');
 		expect(url.hash).toBe('#results');
+	});
+});
+
+describe('ExtractRouteParams', () => {
+	it('should infer colon and bracket route params', () => {
+		expectTypeOf<
+			ExtractRouteParams<'/(app)/users/:userId/posts/[slug]'>
+		>().toEqualTypeOf<{
+			userId: string;
+			slug: string;
+		}>();
+	});
+
+	it('should infer catch-all and optional catch-all route params', () => {
+		expectTypeOf<ExtractRouteParams<'/docs/[...slug]'>>().toEqualTypeOf<{
+			slug: string;
+		}>();
+		expectTypeOf<ExtractRouteParams<'/shop/[[...slug]]'>>().toEqualTypeOf<{
+			slug?: string;
+		}>();
+		expectTypeOf<
+			TypedRouteLocation<'shop', ExtractRouteParams<'/shop/[[...slug]]'>>
+		>().toMatchTypeOf<{
+			name: 'shop';
+			params?: { slug?: string };
+		}>();
+	});
+
+	it('should ignore route groups when no params are present', () => {
+		expectTypeOf<ExtractRouteParams<'/(marketing)/about'>>().toEqualTypeOf<
+			Record<string, never>
+		>();
 	});
 });
