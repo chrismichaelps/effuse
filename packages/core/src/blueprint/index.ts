@@ -34,7 +34,9 @@ export {
 	define,
 	defineProps,
 	type DefineOptions,
+	type DefineOptionsWithDeclaredProps,
 	type DefineOptionsWithInferredProps,
+	type DefinePropsDeclaration,
 	type InferExposed,
 	type InferProps,
 	type TemplateArgs,
@@ -45,7 +47,9 @@ export {
 	type ExposedValues,
 	type EffuseRegistry,
 	setGlobalStoreGetter,
+	clearGlobalStoreGetter,
 	setGlobalRouter,
+	clearGlobalRouter,
 } from './script-context.js';
 
 export {

@@ -1,7 +1,10 @@
 import { describe, it, expect, expectTypeOf, vi, afterEach } from 'vitest';
 import { createScriptContext } from '../../blueprint/script-context.js';
 import { runWithLayerContext } from '../../layers/context.js';
-import { ServiceNotFoundError } from '../../layers/errors.js';
+import {
+	LayerRuntimeNotInitializedError,
+	ServiceNotFoundError,
+} from '../../layers/errors.js';
 import { defineLayer } from '../../layers/api/defineLayer.js';
 import type { LayerServicesFrom } from '../../layers/api/defineLayer.js';
 import type { PropsRegistry } from '../../layers/services/PropsService.js';
@@ -474,10 +477,11 @@ describe('ScriptContext - layers accessor', () => {
 	});
 
 	describe('useService', () => {
-		it('should return undefined when runtime is not ready and no storeGetter', () => {
+		it('should fail explicitly when the layer runtime is not ready', () => {
 			const { context } = createScriptContext({});
-			const result = context.useService('anything');
-			expect(result).toBeUndefined();
+			expect(() => context.useService('anything')).toThrow(
+				LayerRuntimeNotInitializedError
+			);
 		});
 
 		it('should return cached service from registry', () => {

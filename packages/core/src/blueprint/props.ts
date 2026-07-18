@@ -81,7 +81,7 @@ function required<T>(
 ): PropDefinition<T> {
 	if (
 		Predicate.isObject(schemaOrBuilder) &&
-		Predicate.hasProperty(schemaOrBuilder, 'validate') &&
+		Predicate.hasProperty(schemaOrBuilder, 'validateSync') &&
 		Predicate.hasProperty(schemaOrBuilder, 'schema')
 	) {
 		const builder = schemaOrBuilder;
@@ -98,14 +98,18 @@ function required<T>(
 	};
 }
 
+function optional<T>(schema: Schema.Schema<T>): PropDefinition<T | undefined>;
 function optional<T>(
 	schema: Schema.Schema<T>,
-	defaultValue?: T
+	defaultValue: T
+): PropDefinition<T>;
+function optional<T extends Record<string, unknown>>(
+	builder: PropSchemaBuilder<T>
 ): PropDefinition<T | undefined>;
 function optional<T extends Record<string, unknown>>(
 	builder: PropSchemaBuilder<T>,
-	defaultValue?: T
-): PropDefinition<T | undefined>;
+	defaultValue: T
+): PropDefinition<T>;
 function optional<T>(
 	schemaOrBuilder:
 		| Schema.Schema<T>
@@ -116,7 +120,7 @@ function optional<T>(
 
 	if (
 		Predicate.isObject(schemaOrBuilder) &&
-		Predicate.hasProperty(schemaOrBuilder, 'validate') &&
+		Predicate.hasProperty(schemaOrBuilder, 'validateSync') &&
 		Predicate.hasProperty(schemaOrBuilder, 'schema')
 	) {
 		const builder = schemaOrBuilder;

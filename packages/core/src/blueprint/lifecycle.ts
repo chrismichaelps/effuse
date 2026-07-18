@@ -26,7 +26,7 @@ import { Effect, Exit, Predicate, Scope } from 'effect';
 import { createAsyncContextStorage } from '../utils/async-context.js';
 
 export interface ComponentLifecycle {
-	readonly onMount: (fn: () => (() => void) | undefined) => void;
+	readonly onMount: (fn: () => void | (() => void)) => void;
 	readonly onUnmount: (fn: () => void) => void;
 	readonly onBeforeMount: (fn: () => void) => void;
 	readonly onBeforeUnmount: (fn: () => void) => void;
@@ -36,7 +36,7 @@ export interface ComponentLifecycle {
 
 interface LifecycleState {
 	readonly beforeMountCallbacks: Array<() => void>;
-	readonly mountCallbacks: Array<() => (() => void) | undefined>;
+	readonly mountCallbacks: Array<() => void | (() => void)>;
 	readonly beforeUnmountCallbacks: Array<() => void>;
 	readonly mountCleanups: Array<() => void>;
 	mounted: boolean;
@@ -53,7 +53,7 @@ const createLifecycleFns = (
 		}
 	};
 
-	const onMount = (fn: () => (() => void) | undefined): void => {
+	const onMount = (fn: () => void | (() => void)): void => {
 		if (state.mounted) {
 			const cleanup = fn();
 			if (cleanup) state.mountCleanups.push(cleanup);
@@ -107,7 +107,7 @@ const createLifecycleFns = (
 		}
 		state.beforeUnmountCallbacks.length = 0;
 
-		for (const cleanup of state.mountCleanups) {
+		for (const cleanup of [...state.mountCleanups].reverse()) {
 			if (Predicate.isFunction(cleanup)) {
 				try {
 					cleanup();
@@ -164,7 +164,9 @@ export const withActiveLifecycle = <T>(
 export const runWithActiveLifecycle = <T>(fn: () => T): T => {
 	const lifecycle = getActiveLifecycle();
 	if (!lifecycle) {
-		throw new Error('No active lifecycle found. Call withActiveLifecycle first.');
+		throw new Error(
+			'No active lifecycle found. Call withActiveLifecycle first.'
+		);
 	}
 	return fn();
 };

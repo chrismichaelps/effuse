@@ -34,11 +34,14 @@ export interface BlueprintDef<P = Record<string, unknown>> {
 	loading?(): EffuseChild;
 }
 
-export interface Component<
-	P = Record<string, unknown>,
-> extends BlueprintDef<P> {
-	(props?: P): EffuseNode;
-}
+type ComponentArgs<P> = keyof P extends never
+	? [props?: P]
+	: Record<string, never> extends P
+		? [props?: P]
+		: [props: P];
+
+export type Component<P = Record<string, unknown>> = BlueprintDef<P> &
+	((...args: ComponentArgs<P>) => EffuseNode);
 
 export type EffuseNode = Data.TaggedEnum<{
 	Element: {

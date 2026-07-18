@@ -112,6 +112,11 @@ export { Suspense, type SuspenseProps } from './suspense/index.js';
 export { EFFUSE_NODE, FRAGMENT, NodeType } from './constants.js';
 
 export {
+	StoreGetterNotConfiguredError,
+	StoreNotFoundError,
+} from './errors/index.js';
+
+export {
 	blueprint,
 	define,
 	defineProps,
@@ -119,12 +124,16 @@ export {
 	instantiateBlueprint,
 	type BlueprintOptions,
 	type DefineOptions,
+	type DefineOptionsWithDeclaredProps,
 	type DefineOptionsWithInferredProps,
+	type DefinePropsDeclaration,
 	type TemplateContext,
 	type ScriptContext,
 	type EffuseRegistry,
 	setGlobalStoreGetter,
+	clearGlobalStoreGetter,
 	setGlobalRouter,
+	clearGlobalRouter,
 	createComponentLifecycleSync,
 	type ComponentLifecycle,
 	PropSchema,
