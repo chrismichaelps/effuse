@@ -441,6 +441,13 @@ describe('resolveRoute', () => {
 		expect(() => makeRoutes(['/docs/[...slug]/edit'])).toThrow(
 			'must be the final URL segment'
 		);
+		for (const path of [
+			'/docs/[[...slug]',
+			'/docs/[...slug]]',
+			'/docs/[[...slug]]]',
+		]) {
+			expect(() => makeRoutes([path])).toThrow('Invalid route segment');
+		}
 	});
 
 	it('should throw for unknown named route', () => {

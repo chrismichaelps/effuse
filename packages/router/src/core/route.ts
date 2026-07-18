@@ -269,22 +269,19 @@ const stripRouteGroups = (path: string): { path: string; groups: string[] } => {
 };
 
 const isOptionalCatchAllSegment = (segment: string): boolean =>
-	segment.startsWith('[[...') && segment.endsWith(']]');
+	/^\[\[\.\.\.([^/[\]]*)\]\]$/.test(segment);
 
 const isRequiredCatchAllSegment = (segment: string): boolean =>
-	segment.startsWith('[...') && segment.endsWith(']');
+	/^\[\.\.\.([^/[\]]*)\]$/.test(segment);
 
 const optionalCatchAllName = (segment: string): string => segment.slice(5, -2);
 
 const requiredCatchAllName = (segment: string): string => segment.slice(4, -1);
 
-const bracketParamName = (segment: string): string | null =>
-	segment.startsWith('[') &&
-	segment.endsWith(']') &&
-	!isRequiredCatchAllSegment(segment) &&
-	!isOptionalCatchAllSegment(segment)
-		? segment.slice(1, -1)
-		: null;
+const bracketParamName = (segment: string): string | null => {
+	const match = segment.match(/^\[([^/[\]]*)\]$/);
+	return match && !isRequiredCatchAllSegment(segment) ? (match[1] ?? '') : null;
+};
 
 const colonParamName = (
 	segment: string
