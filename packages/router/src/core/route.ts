@@ -110,6 +110,17 @@ export interface RouteRecord {
 	readonly meta?: Record<string, unknown>;
 	readonly redirect?: string | RouteLocation;
 	readonly alias?: string | readonly string[];
+	/**
+	 * Controls the props injected into the matched component. This option is the
+	 * single source of truth for prop injection — route params are never merged
+	 * on top of it:
+	 *
+	 * - absent or `true` — the route params are injected as props (default).
+	 * - `false` — nothing is injected; params remain available via `useRoute()`.
+	 * - object — exactly that object is injected; params are not auto-merged.
+	 * - function — exactly its return value is injected; it receives the current
+	 *   `route`, so it can spread `route.params` explicitly when desired.
+	 */
 	readonly props?:
 		| boolean
 		| Record<string, unknown>

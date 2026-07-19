@@ -59,29 +59,39 @@ const getMatchedComponent = (
 	return name === 'default' ? (matched.component ?? null) : null;
 };
 
+/**
+ * Resolves the props a matched route component receives.
+ *
+ * The route record's `props` option is the single source of truth for prop
+ * injection; route params are never merged on top of it elsewhere:
+ *
+ * - absent or `true` — the route params are injected as props (default).
+ * - `false` — nothing is injected; params remain available via `useRoute()`.
+ * - object — exactly that object is injected; params are not auto-merged.
+ * - function — exactly its return value is injected; the function receives
+ *   `route`, so it can spread `route.params` explicitly when desired.
+ */
 const getComponentProps = (
 	route: Route,
 	matched: NormalizedRouteRecord | undefined
 ): Record<string, unknown> => {
-	if (
-		!Predicate.isNotNullable(matched) ||
-		!Predicate.isNotNullable(matched.props)
-	)
-		return {};
+	if (!Predicate.isNotNullable(matched)) return {};
 
-	if (matched.props === true) {
+	const option = matched.props;
+
+	if (option === undefined || option === true) {
 		return { ...route.params };
 	}
 
-	if (matched.props === false) {
+	if (option === false) {
 		return {};
 	}
 
-	if (Predicate.isFunction(matched.props)) {
-		return matched.props(route);
+	if (Predicate.isFunction(option)) {
+		return option(route);
 	}
 
-	return matched.props;
+	return option;
 };
 
 const isBlueprintComponent = (component: unknown): component is BlueprintDef =>
@@ -98,20 +108,19 @@ const isLazyRouteModule = (
 
 const renderComponent = (
 	component: RouteComponent,
-	route: Route,
 	props: Record<string, unknown>
 ): EffuseChild => {
 	if (isBlueprintComponent(component)) {
 		return CreateBlueprintNode({
 			[EFFUSE_NODE]: true,
 			blueprint: component,
-			props: { ...props, ...route.params },
+			props: { ...props },
 			portals: null,
 		});
 	}
 
 	if (Predicate.isFunction(component)) {
-		return component({ ...props, ...route.params });
+		return component({ ...props });
 	}
 
 	return component as EffuseChild;
@@ -127,7 +136,7 @@ const renderRouteContent = (
 		return slot(component, route, props);
 	}
 
-	return renderComponent(component, route, props);
+	return renderComponent(component, props);
 };
 
 const createRouteContentNode = (
