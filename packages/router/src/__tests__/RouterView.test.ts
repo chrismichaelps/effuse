@@ -456,6 +456,42 @@ describe('RouterView', () => {
 		expect(observedId).toBe('42');
 	});
 
+	it('surfaces a collision diagnostic when a route-param prop and an exposed value share a name', async () => {
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const PostPage = define<
+			{ readonly slug: string },
+			{ readonly slug: string }
+		>({
+			script: () => ({ slug: 'from-script' }),
+			template: (ctx) =>
+				CreateElementNode({
+					[EFFUSE_NODE]: true,
+					tag: 'p',
+					props: { 'data-testid': 'post-collision' },
+					children: ['param=', ctx.props.slug, ' exposed=', ctx.exposed.slug],
+				}),
+		});
+		const Shell = define({ script: () => ({}), template: () => createOutlet() });
+		const router = createRouter({
+			history: createMemoryHistory('/posts/hello-world'),
+			routes: [{ path: '/posts/:slug', component: PostPage }],
+		});
+
+		installRouter(router);
+		await createApp(Shell).mount('#app');
+		await vi.waitFor(() => {
+			expect(
+				document.querySelector('[data-testid="post-collision"]')?.textContent
+			).toBe('param=hello-world exposed=from-script');
+		});
+		const collisionWarning = warn.mock.calls
+			.map((call) => String(call[0]))
+			.find((message) => message.includes('cannot flatten template'));
+		expect(collisionWarning).toBeDefined();
+		expect(collisionWarning).toContain('slug');
+		warn.mockRestore();
+	});
+
 	it('remounts when navigation switches between alias and canonical records', async () => {
 		let scriptRuns = 0;
 		let unmountCalls = 0;

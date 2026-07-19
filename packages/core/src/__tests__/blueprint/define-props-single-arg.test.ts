@@ -104,6 +104,12 @@ describe('single-arg template context', () => {
 				'Component "CollisionProbe" cannot flatten template key "label"'
 			)
 		);
+		expect(warn).toHaveBeenCalledWith(
+			expect.stringContaining('ctx.props.label')
+		);
+		expect(warn).toHaveBeenCalledWith(
+			expect.stringContaining('ctx.exposed.label')
+		);
 
 		(state.updateProps as (props: Record<string, unknown>) => void)({
 			label: 'updated-prop',
