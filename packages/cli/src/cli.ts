@@ -8,7 +8,7 @@ import { parseNumber } from './utils/index.js';
 import { CliError } from './errors/index.js';
 import { parseArgs } from './utils/args.js';
 
-type Preset = 'node' | 'vercel' | 'netlify' | 'cloudflare';
+type Preset = 'node' | 'bun' | 'vercel' | 'netlify' | 'cloudflare';
 
 const VALID_PRESETS: readonly string[] = Object.values(PRESETS);
 
@@ -90,7 +90,7 @@ const printHelp = (version: string) => {
 	console.log('Build Options:');
 	console.log('  --client-only          Bypass SSR build and only output static assets');
 	console.log('  --analyze              Generate bundle analysis report');
-	console.log('  --preset <preset>      Build preset (node, vercel, netlify, cloudflare)');
+	console.log('  --preset <preset>      Build preset (node, bun, vercel, netlify, cloudflare)');
 	console.log('  --verbose              Enable verbose logging');
 	console.log('  --quiet                Suppress non-error output');
 	console.log();
