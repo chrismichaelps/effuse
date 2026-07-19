@@ -44,6 +44,9 @@ importers:
       '@effuse/core':
         specifier: workspace:*
         version: link:../core
+      '@effuse/server':
+        specifier: 0.1.0
+        version: link:../server
       cac:
         specifier: ^6.7.14
         version: 6.7.14
