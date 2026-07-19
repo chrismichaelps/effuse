@@ -1,0 +1,99 @@
+{
+	"name": "@effuse/server",
+	"version": "0.1.0",
+	"description": "Portable Web Request/Response server runtime for Effuse, with reference Node and Bun adapters and a shared conformance suite.",
+	"author": "Chris M. Pérez",
+	"license": "MIT",
+	"publishConfig": {
+		"access": "public"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/chrismichaelps/effuse.git"
+	},
+	"bugs": {
+		"url": "https://github.com/chrismichaelps/effuse/issues"
+	},
+	"homepage": "https://github.com/chrismichaelps/effuse#readme",
+	"type": "module",
+	"main": "./dist/index.cjs",
+	"module": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"import": {
+				"types": "./dist/index.d.ts",
+				"default": "./dist/index.js"
+			},
+			"require": {
+				"types": "./dist/index.d.cts",
+				"default": "./dist/index.cjs"
+			}
+		},
+		"./node": {
+			"import": {
+				"types": "./dist/node/index.d.ts",
+				"default": "./dist/node/index.js"
+			},
+			"require": {
+				"types": "./dist/node/index.d.cts",
+				"default": "./dist/node/index.cjs"
+			}
+		},
+		"./bun": {
+			"import": {
+				"types": "./dist/bun/index.d.ts",
+				"default": "./dist/bun/index.js"
+			},
+			"require": {
+				"types": "./dist/bun/index.d.cts",
+				"default": "./dist/bun/index.cjs"
+			}
+		}
+	},
+	"files": [
+		"dist",
+		"src",
+		"CAPABILITIES.md"
+	],
+	"scripts": {
+		"build": "tsup",
+		"dev": "tsup --watch",
+		"lint": "eslint src --max-warnings 0",
+		"typecheck": "tsc --noEmit",
+		"pretest": "node ../../scripts/check-node-version.mjs",
+		"test": "vitest run",
+		"test:bun": "bun test src/__tests__/bun.test.ts",
+		"capabilities": "node scripts/generate-capabilities.mjs"
+	},
+	"keywords": [
+		"effuse",
+		"server",
+		"adapter",
+		"node",
+		"bun",
+		"ssr",
+		"fetch",
+		"web-standards",
+		"typescript"
+	],
+	"engines": {
+		"node": ">=22.14.0"
+	},
+	"peerDependencies": {
+		"@effuse/core": "1.2.4"
+	},
+	"dependencies": {
+		"effect": "^3.20.0"
+	},
+	"devDependencies": {
+		"@eslint/js": "^9.39.4",
+		"@effuse/core": "1.2.4",
+		"@types/node": "^25.5.0",
+		"eslint": "^10.0.3",
+		"tsup": "^8.5.1",
+		"typescript": "^5.9.3",
+		"typescript-eslint": "^8.57.1",
+		"vitest": "^4.1.0"
+	}
+}
