@@ -37,6 +37,7 @@ export {
 } from './contract.js';
 
 export { createNodeServer, nodeAdapter } from './node/index.js';
+export { toWebRequest, writeWebResponse } from './node/convert.js';
 export { createBunServer, bunAdapter } from './bun/index.js';
 
 export { adapterCapabilities, getCapabilities } from './capabilities.js';

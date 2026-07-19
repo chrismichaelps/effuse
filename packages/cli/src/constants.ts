@@ -52,6 +52,7 @@ export const ENV_KEYS = {
 
 export const PRESETS = {
 	NODE: 'node',
+	BUN: 'bun',
 	VERCEL: 'vercel',
 	NETLIFY: 'netlify',
 	CLOUDFLARE: 'cloudflare',

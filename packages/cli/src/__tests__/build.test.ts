@@ -208,7 +208,7 @@ binding = "ASSETS"
 			const content = `module.exports = {
   apps: [{
     name: "effuse-server",
-    script: "${DEFAULT_CONFIG.outDirServer}/index.js",
+    script: "${DEFAULT_CONFIG.outDirServer}/server.js",
     instances: 1,
     exec_mode: "cluster",
     max_memory_restart: "512M",
@@ -223,7 +223,7 @@ binding = "ASSETS"
 			expect(content).toContain('module.exports = {');
 			expect(content).toContain('apps: [{');
 			expect(content).toContain('name: "effuse-server"');
-			expect(content).toContain(`script: "${DEFAULT_CONFIG.outDirServer}/index.js"`);
+			expect(content).toContain(`script: "${DEFAULT_CONFIG.outDirServer}/server.js"`);
 			expect(content).toContain('instances: 1');
 			expect(content).toContain('exec_mode: "cluster"');
 			expect(content).toContain('max_memory_restart: "512M"');
@@ -312,9 +312,16 @@ describe('BuildService build output', () => {
 		});
 
 		it('should support all preset values', () => {
-			const presets = [PRESETS.NODE, PRESETS.VERCEL, PRESETS.NETLIFY, PRESETS.CLOUDFLARE];
+			const presets = [
+				PRESETS.NODE,
+				PRESETS.BUN,
+				PRESETS.VERCEL,
+				PRESETS.NETLIFY,
+				PRESETS.CLOUDFLARE,
+			];
 
 			expect(presets).toContain('node');
+			expect(presets).toContain('bun');
 			expect(presets).toContain('vercel');
 			expect(presets).toContain('netlify');
 			expect(presets).toContain('cloudflare');

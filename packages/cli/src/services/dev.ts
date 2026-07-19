@@ -1,5 +1,6 @@
 import express from 'express';
 import { createServer as createViteServer, type ViteDevServer } from 'vite';
+import { toWebRequest, writeWebResponse } from '@effuse/server';
 import { Console } from 'effect';
 import { resolve } from 'node:path';
 import { existsSync } from 'node:fs';
@@ -15,33 +16,6 @@ export interface DevOptions {
 	readonly https?: boolean;
 	readonly basePath?: string;
 }
-
-const createWebRequest = (req: express.Request): Request => {
-	const protocol = (req.get('X-Forwarded-Proto') ?? req.protocol) as 'http' | 'https';
-	const host = req.get('X-Forwarded-Host') ?? req.get('host') ?? 'localhost';
-	const origin = `${protocol}://${host}`;
-	const url = new URL(req.originalUrl || req.url, origin);
-
-	const headers = new Headers(req.headers as Record<string, string>);
-
-	const init: RequestInit = {
-		method: req.method,
-		headers,
-	};
-
-	const bodyMethods = ['POST', 'PUT', 'PATCH', 'DELETE'];
-	if (bodyMethods.includes(req.method) && req.body) {
-		init.body = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
-		const contentType = req.get('Content-Type');
-		if (contentType) {
-			headers.set('Content-Type', contentType);
-		} else {
-			headers.set('Content-Type', 'application/octet-stream');
-		}
-	}
-
-	return new Request(url.href, init);
-};
 
 const serveStaticFiles = (app: express.Express, root: string) => {
 	const publicDir = resolve(root, 'public');
@@ -133,9 +107,9 @@ export class DevService {
 		Console.log(`  Base:     ${basePath}\n`);
 
 		const app = express();
-		app.use(express.json({ limit: '10mb' }));
-		app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-
+		// The SSR handler consumes the raw request body as a Web `Request`
+		// stream (via `toWebRequest`), so no Express body parsers are mounted —
+		// they would drain the stream before the shared adapter can read it.
 		serveStaticFiles(app, cwd);
 
 		const vite = await createViteServer({
@@ -148,8 +122,13 @@ export class DevService {
 
 		app.use(vite.middlewares);
 
-		app.use('*', async (req, res) => {
+		// Final fallthrough middleware (mounted at '/', not '*') so `req.url`
+		// keeps the full request path — `toWebRequest` reads it directly, unlike
+		// `app.use('*')` which rewrites `req.url` to the matched suffix.
+		app.use(async (req, res) => {
 			const startTime = Date.now();
+			const controller = new AbortController();
+			res.on('close', () => controller.abort());
 
 			try {
 				const entryModule = await vite.ssrLoadModule(`/${entries.server}`);
@@ -159,33 +138,28 @@ export class DevService {
 					});
 				}
 
-				const webRequest = createWebRequest(req);
+				const webRequest = toWebRequest(req, `${host}:${port}`, controller.signal);
 				const webResponse: Response = await entryModule.handleRequest(webRequest);
 
-				res.status(webResponse.status);
-				webResponse.headers.forEach((value, key) => {
-					if (key.toLowerCase() !== 'content-encoding') {
-						res.setHeader(key, value);
-					}
-				});
+				// Dev never compresses SSR output; drop any encoding header so the
+				// raw stream is written verbatim, and surface render timing.
+				webResponse.headers.delete('content-encoding');
+				webResponse.headers.set('Server-Timing', `total;dur=${Date.now() - startTime}`);
 
-				const timing = Date.now() - startTime;
-				res.setHeader('Server-Timing', `total;dur=${timing}`);
-
-				if (!webResponse.body) {
-					return res.end();
-				}
-
-				const reader = webResponse.body.getReader();
-				while (true) {
-					const { done, value } = await reader.read();
-					if (done) break;
-					res.write(value);
-				}
-				res.end();
+				await writeWebResponse(
+					res,
+					webResponse,
+					controller.signal,
+					req.method === 'HEAD'
+				);
 			} catch (e: unknown) {
 				const nativeError = e instanceof Error ? e : new Error(String(e));
 				vite.ssrFixStacktrace(nativeError);
+
+				if (res.headersSent) {
+					if (!res.writableEnded) res.destroy();
+					return;
+				}
 
 				res.status(HTTP_STATUS.INTERNAL_ERROR);
 				res.setHeader('Content-Type', 'text/html');

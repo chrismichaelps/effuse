@@ -3,6 +3,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { copyFile, mkdir } from 'node:fs/promises';
 import { readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { createRequire } from 'node:module';
 import { Console } from 'effect';
 import { BuildError } from '../errors/index.js';
 import { APP_NAME, DEFAULT_CONFIG, PRESETS } from '../constants.js';
@@ -13,8 +14,28 @@ import { ManifestResolver } from './manifest.js';
 export interface BuildOptions {
 	readonly clientOnly?: boolean;
 	readonly analyze?: boolean;
-	readonly preset?: 'node' | 'vercel' | 'netlify' | 'cloudflare';
+	readonly preset?: 'node' | 'bun' | 'vercel' | 'netlify' | 'cloudflare';
 }
+
+/** The bundled listener entry emitted for the self-hosted node/bun presets. */
+const SERVER_LISTENER_FILE = 'server.js';
+
+// Resolve from the running CLI entry (its bin path) so the lookup works in both
+// the CJS and ESM builds — `import.meta.url` is not populated in the CJS bundle.
+const requireFromCli = createRequire(process.argv[1] ?? process.cwd());
+
+/**
+ * The CLI ships `@effuse/server`, so it resolves the adapter subpath from its
+ * own installation and aliases it into the app build. Users get a runnable
+ * node/bun server without adding `@effuse/server` to their own dependencies.
+ */
+const resolveAdapterEntry = (
+	runtime: 'node' | 'bun'
+): { readonly specifier: string; readonly path: string } => {
+	const specifier =
+		runtime === 'bun' ? '@effuse/server/bun' : '@effuse/server/node';
+	return { specifier, path: requireFromCli.resolve(specifier) };
+};
 
 const buildVite = async (config: InlineConfig): Promise<unknown> => {
 	try {
@@ -126,7 +147,7 @@ const generateEcosystemConfig = (cwd: string) => {
 	const config = `module.exports = {
   apps: [{
     name: "effuse-server",
-    script: "${DEFAULT_CONFIG.outDirServer}/index.js",
+    script: "${DEFAULT_CONFIG.outDirServer}/${SERVER_LISTENER_FILE}",
     instances: 1,
     exec_mode: "cluster",
     max_memory_restart: "512M",
@@ -237,15 +258,40 @@ export class BuildService {
 				? 'webworker'
 				: DEFAULT_CONFIG.target;
 
+		// Self-hosted presets emit an extra standalone listener that binds the
+		// shared @effuse/server adapter to the SSR handler and calls listen().
+		const selfHosted = preset === PRESETS.NODE || preset === PRESETS.BUN;
+		const adapterRuntime = preset === PRESETS.BUN ? 'bun' : 'node';
+		const adapter = selfHosted ? resolveAdapterEntry(adapterRuntime) : undefined;
+		const serverInput = selfHosted
+			? {
+					index: entries.server,
+					server: entryGenerator.generateServerBootstrap(
+						cwd,
+						entries.server,
+						adapterRuntime
+					),
+				}
+			: entries.server;
+
 		const serverConfig: InlineConfig = {
 			root: cwd,
 			mode: 'production',
+			// Resolve the adapter from the CLI's own install and bundle it into
+			// the listener, so the output runs without a separate
+			// @effuse/server install; node/bun builtins stay external.
+			...(adapter
+				? {
+						resolve: { alias: { [adapter.specifier]: adapter.path } },
+						ssr: { noExternal: ['@effuse/server'] },
+					}
+				: {}),
 			build: {
 				outDir: DEFAULT_CONFIG.outDirServer,
 				ssr: true,
 				target: serverTarget,
 				minify: DEFAULT_CONFIG.minify,
-				rollupOptions: { input: entries.server },
+				rollupOptions: { input: serverInput },
 			},
 		};
 
@@ -278,8 +324,13 @@ export class BuildService {
 		}
 
 		if (preset === PRESETS.NODE) {
-			Console.log(`[${APP_NAME}] Generating ecosystem.config.json...`);
+			Console.log(`[${APP_NAME}] Generating ecosystem.config.js...`);
 			generateEcosystemConfig(cwd);
+		}
+
+		const listenerPath = `${DEFAULT_CONFIG.outDirServer}/${SERVER_LISTENER_FILE}`;
+		if (preset === PRESETS.BUN) {
+			Console.log(`[${APP_NAME}] Standalone server: bun ${listenerPath}`);
 		}
 
 		Console.log(`\n[${APP_NAME}] Build complete!\n`);
@@ -287,6 +338,18 @@ export class BuildService {
 		Console.log(`    Client: ${DEFAULT_CONFIG.outDirClient}`);
 		Console.log(`    Server: ${DEFAULT_CONFIG.outDirServer}\n`);
 		Console.log(`  Deployment config:`);
-		Console.log(`    ${preset === PRESETS.VERCEL ? 'vercel.json' : preset === PRESETS.NETLIFY ? 'netlify.toml' : preset === PRESETS.CLOUDFLARE ? 'wrangler.toml' : 'ecosystem.config.js'}\n`);
+		Console.log(
+			`    ${
+				preset === PRESETS.VERCEL
+					? 'vercel.json'
+					: preset === PRESETS.NETLIFY
+						? 'netlify.toml'
+						: preset === PRESETS.CLOUDFLARE
+							? 'wrangler.toml'
+							: preset === PRESETS.BUN
+								? `${listenerPath} (run: bun ${listenerPath})`
+								: 'ecosystem.config.js'
+			}\n`
+		);
 	};
 }

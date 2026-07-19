@@ -101,4 +101,58 @@ describe('EntryGenerator', () => {
 		expect(result.generated).toBe(false);
 		expect(existsSync(resolve(tempDir, '.effuse'))).toBe(false);
 	});
+
+	describe('generateServerBootstrap', () => {
+		it('should bind createNodeServer and wire graceful shutdown for node', () => {
+			const bootstrap = generator.generateServerBootstrap(
+				tempDir,
+				'.effuse/entry-server.ts',
+				'node'
+			);
+
+			expect(bootstrap).toBe('.effuse/entry-node.ts');
+			const content = readFileSync(resolve(tempDir, bootstrap), 'utf-8');
+
+			expect(content).toContain(
+				"import { createNodeServer } from '@effuse/server/node'"
+			);
+			expect(content).toContain(
+				"import { handleRequest } from './entry-server.ts'"
+			);
+			expect(content).toContain('createNodeServer(handleRequest)');
+			expect(content).toContain('server.listen({ port, host })');
+			expect(content).toContain('server\n\t\t.close()');
+			expect(content).toContain("process.on('SIGTERM'");
+			expect(content).toContain("process.on('SIGINT'");
+		});
+
+		it('should bind createBunServer for the bun runtime', () => {
+			const bootstrap = generator.generateServerBootstrap(
+				tempDir,
+				'.effuse/entry-server.ts',
+				'bun'
+			);
+
+			expect(bootstrap).toBe('.effuse/entry-bun.ts');
+			const content = readFileSync(resolve(tempDir, bootstrap), 'utf-8');
+
+			expect(content).toContain(
+				"import { createBunServer } from '@effuse/server/bun'"
+			);
+			expect(content).toContain('createBunServer(handleRequest)');
+		});
+
+		it('should compute a relative import for a user server entry', () => {
+			const bootstrap = generator.generateServerBootstrap(
+				tempDir,
+				'src/entry-server.ts',
+				'node'
+			);
+
+			const content = readFileSync(resolve(tempDir, bootstrap), 'utf-8');
+			expect(content).toContain(
+				"import { handleRequest } from '../src/entry-server.ts'"
+			);
+		});
+	});
 });

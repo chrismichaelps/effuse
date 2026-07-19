@@ -228,3 +228,11 @@ export const nodeAdapter: ServerAdapter = {
 	runtime: 'node',
 	create: createNodeServer,
 };
+
+/**
+ * Low-level Node ⇄ Web conversion primitives, exported so integrations that
+ * must own their own `http.Server` (e.g. a Vite-backed dev server that
+ * interleaves Connect middleware) share the exact same request/response
+ * conversion the adapter uses, rather than reimplementing it.
+ */
+export { toWebRequest, writeWebResponse } from './convert.js';
