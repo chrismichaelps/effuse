@@ -22,6 +22,7 @@ import { createWebHistory } from '../core/history.js';
 import { createRouter, installRouter } from '../core/router.js';
 import { lazyRoute } from '../core/route.js';
 import { clearContext } from '../core/context.js';
+import { useRoute } from '../utils/composables.js';
 import { Link } from '../components/Link.js';
 import { RouterView } from '../components/RouterView.js';
 
@@ -344,6 +345,7 @@ describe('RouterView', () => {
 					path: '/users/:id',
 					component: UserPage,
 					props: (route) => ({
+						id: String(route.params.id ?? ''),
 						tab: String(route.query.tab ?? ''),
 						hash: route.hash,
 					}),
@@ -367,6 +369,127 @@ describe('RouterView', () => {
 		});
 
 		expect([scriptRuns, mountCalls, unmountCalls]).toEqual([1, 1, 0]);
+	});
+
+	it('injects route params as props by default when props is omitted', async () => {
+		const ItemPage = define<{ readonly id: string }>({
+			script: () => ({}),
+			template: ({ id }) =>
+				CreateElementNode({
+					[EFFUSE_NODE]: true,
+					tag: 'p',
+					props: { 'data-testid': 'item-default' },
+					children: ['id=', String(id)],
+				}),
+		});
+		const Shell = define({ script: () => ({}), template: () => createOutlet() });
+		const router = createRouter({
+			history: createMemoryHistory('/items/42'),
+			routes: [{ path: '/items/:id', component: ItemPage }],
+		});
+
+		installRouter(router);
+		await createApp(Shell).mount('#app');
+		await vi.waitFor(() => {
+			expect(document.querySelector('[data-testid="item-default"]')?.textContent).toBe(
+				'id=42'
+			);
+		});
+	});
+
+	it('injects only the object props and never merges route params', async () => {
+		const ItemPage = define<{ readonly id?: string; readonly label: string }>({
+			script: () => ({}),
+			template: ({ id, label }) =>
+				CreateElementNode({
+					[EFFUSE_NODE]: true,
+					tag: 'p',
+					props: { 'data-testid': 'item-object' },
+					children: ['label=', label, ' id=', String(id)],
+				}),
+		});
+		const Shell = define({ script: () => ({}), template: () => createOutlet() });
+		const router = createRouter({
+			history: createMemoryHistory('/items/42'),
+			routes: [
+				{ path: '/items/:id', component: ItemPage, props: { label: 'static' } },
+			],
+		});
+
+		installRouter(router);
+		await createApp(Shell).mount('#app');
+		await vi.waitFor(() => {
+			expect(document.querySelector('[data-testid="item-object"]')?.textContent).toBe(
+				'label=static id=undefined'
+			);
+		});
+	});
+
+	it('injects nothing when props is false yet keeps params on useRoute', async () => {
+		let observedId: string | undefined;
+		const ItemPage = define<{ readonly id?: string }>({
+			script: () => {
+				observedId = useRoute().params.id;
+				return {};
+			},
+			template: ({ id }) =>
+				CreateElementNode({
+					[EFFUSE_NODE]: true,
+					tag: 'p',
+					props: { 'data-testid': 'item-false' },
+					children: ['prop=', String(id)],
+				}),
+		});
+		const Shell = define({ script: () => ({}), template: () => createOutlet() });
+		const router = createRouter({
+			history: createMemoryHistory('/items/42'),
+			routes: [{ path: '/items/:id', component: ItemPage, props: false }],
+		});
+
+		installRouter(router);
+		await createApp(Shell).mount('#app');
+		await vi.waitFor(() => {
+			expect(document.querySelector('[data-testid="item-false"]')?.textContent).toBe(
+				'prop=undefined'
+			);
+		});
+		expect(observedId).toBe('42');
+	});
+
+	it('surfaces a collision diagnostic when a route-param prop and an exposed value share a name', async () => {
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const PostPage = define<
+			{ readonly slug: string },
+			{ readonly slug: string }
+		>({
+			script: () => ({ slug: 'from-script' }),
+			template: (ctx) =>
+				CreateElementNode({
+					[EFFUSE_NODE]: true,
+					tag: 'p',
+					props: { 'data-testid': 'post-collision' },
+					children: ['param=', ctx.props.slug, ' exposed=', ctx.exposed.slug],
+				}),
+		});
+		const Shell = define({ script: () => ({}), template: () => createOutlet() });
+		const router = createRouter({
+			history: createMemoryHistory('/posts/hello-world'),
+			routes: [{ path: '/posts/:slug', component: PostPage }],
+		});
+
+		installRouter(router);
+		await createApp(Shell).mount('#app');
+		await vi.waitFor(() => {
+			expect(
+				document.querySelector('[data-testid="post-collision"]')?.textContent
+			).toBe('param=hello-world exposed=from-script');
+		});
+		const collisionWarning = warn.mock.calls
+			.map((call) => String(call[0]))
+			.find((message) => message.includes('cannot flatten template'));
+		expect(collisionWarning).toBeDefined();
+		expect(collisionWarning).toContain('slug');
+		warn.mockRestore();
 	});
 
 	it('remounts when navigation switches between alias and canonical records', async () => {

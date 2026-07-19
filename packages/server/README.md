@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="../../public/logo/logo.svg" alt="logo" width="150px" />
+</p>
+
 # @effuse/server
 
 Portable Web `Request`/`Response` server runtime for [Effuse](https://github.com/chrismichaelps/effuse), with reference **Node** and **Bun** adapters and a shared conformance suite.

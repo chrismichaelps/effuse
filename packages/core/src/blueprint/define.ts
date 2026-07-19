@@ -235,15 +235,29 @@ const createTemplateContext = <E extends ExposedValues, P>(
 	);
 	if (newWarnings.length > 0) {
 		for (const key of newWarnings) state._templateWarnings.add(key);
-		const keys = newWarnings.map((key) =>
-			typeof key === 'symbol' ? String(key) : `"${key}"`
-		);
+		const label = (key: PropertyKey): string =>
+			typeof key === 'symbol' ? String(key) : `"${key}"`;
+		const accessorFor = (namespace: 'props' | 'exposed', key: PropertyKey) =>
+			typeof key === 'symbol'
+				? `ctx.${namespace}[${String(key)}]`
+				: `ctx.${namespace}.${key}`;
+		const describe = (key: PropertyKey): string =>
+			TEMPLATE_RESERVED_KEYS.has(key as TemplateReservedKey)
+				? `${label(key)} is a reserved template namespace; read your value as ${accessorFor(
+						'props',
+						key
+					)} or ${accessorFor('exposed', key)}`
+				: `${label(key)} is supplied by both a prop and an exposed value; read them as ${accessorFor(
+						'props',
+						key
+					)} and ${accessorFor('exposed', key)}`;
+		const keys = newWarnings.map(label);
 		devWarn(
 			`Component "${componentName}" cannot flatten template ${
 				newWarnings.length === 1 ? 'key' : 'keys'
-			} ${keys.join(', ')} because ${
-				newWarnings.length === 1 ? 'it collides or is' : 'they collide or are'
-			} reserved. Use ctx.props or ctx.exposed; ctx.children remains rendered child content.`
+			} ${keys.join(', ')}. ${newWarnings
+				.map(describe)
+				.join(' ')} ctx.children remains rendered child content.`
 		);
 	}
 
