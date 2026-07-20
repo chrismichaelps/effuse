@@ -570,6 +570,68 @@ describe('SSR handler', () => {
 			expect(await response.json()).toEqual({ ok: true });
 		});
 
+		it('should apply static headers, status, render-mode, prerender, and fallback', async () => {
+			const ApiLayer = defineLayer({
+				name: 'policy-api',
+				server: {
+					api: {
+						'/api/policy': {
+							GET: () => ({ ok: true }),
+							metadata: {
+								headers: { 'X-Frame-Options': 'DENY' },
+								status: 201,
+								renderMode: 'isr',
+								prerender: { revalidate: 120 },
+								fallback: 'blocking',
+							},
+						},
+					},
+				},
+			});
+			const handler = createHandler({
+				root: createRoot() as any,
+				layers: [ApiLayer],
+			});
+
+			const response = await handler(
+				new Request('http://localhost:3000/api/policy')
+			);
+
+			expect(response.status).toBe(201);
+			expect(response.headers.get('X-Frame-Options')).toBe('DENY');
+			expect(response.headers.get('X-Effuse-Render-Mode')).toBe('isr');
+			expect(response.headers.get('X-Effuse-Prerender')).toBe('revalidate=120');
+			expect(response.headers.get('X-Effuse-Fallback')).toBe('blocking');
+			expect(await response.json()).toEqual({ ok: true });
+		});
+
+		it('should apply a redirect policy as Location and status', async () => {
+			const ApiLayer = defineLayer({
+				name: 'redirect-api',
+				server: {
+					api: {
+						'/api/old': {
+							GET: () => ({ ok: true }),
+							metadata: {
+								redirect: { to: '/api/new', status: 308 },
+							},
+						},
+					},
+				},
+			});
+			const handler = createHandler({
+				root: createRoot() as any,
+				layers: [ApiLayer],
+			});
+
+			const response = await handler(
+				new Request('http://localhost:3000/api/old')
+			);
+
+			expect(response.status).toBe(308);
+			expect(response.headers.get('Location')).toBe('/api/new');
+		});
+
 		it('should emit server trace events for successful API routes', async () => {
 			const events: ServerTraceEvent[] = [];
 			const ApiLayer = defineLayer({

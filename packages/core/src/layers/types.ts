@@ -110,13 +110,43 @@ export interface ServerCorsMetadata {
 	readonly origin?: boolean | string | readonly string[];
 }
 
-export interface ServerRouteMetadata {
+export type ServerRenderMode = 'ssr' | 'ssg' | 'isr' | 'stream';
+
+export type ServerFallback = 'blocking' | 'static' | false;
+
+export interface ServerRedirectMetadata {
+	readonly to: string;
+	readonly status?: number;
+}
+
+export type ServerPrerenderMetadata = boolean | { readonly revalidate?: number };
+
+/**
+ * Declarative server policy for a route, action, layer, or the layers it extends
+ * and depends on. Policies compile down the hierarchy
+ * (parents -> dependencies -> layer -> route -> method) into one effective policy
+ * per endpoint; see `compileServerPolicy`. Each field has a fixed merge strategy
+ * declared in `ssr/policy-merge.ts` so overrides stay auditable.
+ */
+export interface ServerPolicy {
 	readonly cache?: ServerCacheMetadata;
 	readonly cors?: ServerCorsMetadata;
 	readonly maxDuration?: number;
 	readonly region?: string | readonly string[];
 	readonly runtime?: ServerRuntimeHint;
+	readonly headers?: Readonly<Record<string, string>>;
+	readonly status?: number;
+	readonly redirect?: ServerRedirectMetadata;
+	readonly renderMode?: ServerRenderMode;
+	readonly prerender?: ServerPrerenderMetadata;
+	readonly fallback?: ServerFallback;
 }
+
+/**
+ * @deprecated Use {@link ServerPolicy}. Retained as an alias for source and type
+ * compatibility while the policy vocabulary expands.
+ */
+export type ServerRouteMetadata = ServerPolicy;
 
 export type ServerLayerDiagnosticCode =
 	| 'metadata_conflict'
@@ -127,6 +157,13 @@ export type ServerLayerDiagnosticCode =
 	| 'server_file_invalid_method'
 	| 'server_file_invalid_route';
 
+export type ServerPolicySourceKind =
+	| 'parent'
+	| 'dependency'
+	| 'layer'
+	| 'route'
+	| 'method';
+
 export interface ServerLayerDiagnostic {
 	readonly code: ServerLayerDiagnosticCode;
 	readonly filePath?: string;
@@ -134,6 +171,10 @@ export interface ServerLayerDiagnostic {
 	readonly layer?: string;
 	readonly message: string;
 	readonly target: string;
+	/** The source whose value was overridden (loser). */
+	readonly from?: ServerPolicySourceKind;
+	/** The source that won the merge. */
+	readonly to?: ServerPolicySourceKind;
 }
 
 export interface ServerResponseHelpers {
