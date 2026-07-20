@@ -38,6 +38,7 @@ import {
 	type LayerInputSource,
 } from '../layers/api/defineLayer.js';
 import { createSSRRuntime } from './runtime.js';
+import { createRequestScope, type RequestScope } from './request-scope.js';
 import {
 	createServerTraceError,
 	emitServerTrace,
@@ -486,7 +487,8 @@ const runServerMiddleware = async (
 const createContext = (
 	request: Request,
 	layers: readonly AnyResolvedLayer[],
-	params: Record<string, string>
+	params: Record<string, string>,
+	scope: RequestScope
 ): ServerLayerContext => {
 	const url = new URL(request.url);
 	const { services, layerServices } = collectServices(layers);
@@ -499,6 +501,8 @@ const createContext = (
 		query,
 		services,
 		layerServices,
+		locals: scope.locals,
+		defer: scope.defer,
 		getService: <T = unknown>(key: string): T | undefined =>
 			getLayerService(key) as T | undefined,
 		json: <T = unknown>() => request.json() as Promise<T>,
@@ -535,12 +539,13 @@ export const handleLayerServerRequest = async (
 	}
 
 	const runtime = await createSSRRuntime(layers, { runSetup: true });
+	const scope = createRequestScope();
 	const startedAt = performance.now();
 	const timestamp = Date.now();
 
 	try {
 		return await runtime.run(async () => {
-			const ctx = createContext(request, runtime.layers, match.params);
+			const ctx = createContext(request, runtime.layers, match.params, scope);
 			const middleware = collectServerMiddleware(
 				runtime.layers,
 				match.layer,
@@ -591,6 +596,9 @@ export const handleLayerServerRequest = async (
 		createErrorTrace(500);
 		throw error;
 	} finally {
+		// Run request-scoped disposers inside the runtime scope so they can still
+		// reach scoped services, before the runtime itself is torn down.
+		await runtime.run(() => scope.runDisposers());
 		await runtime.dispose();
 	}
 };

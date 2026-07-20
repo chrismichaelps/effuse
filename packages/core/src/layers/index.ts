@@ -47,6 +47,8 @@ export type {
 	ServerRouteMetadata,
 	ServerResponseHelpers,
 	ServerLayerContext,
+	RequestLocals,
+	RequestDisposer,
 	ServerHandler,
 	ServerMiddleware,
 	ServerMiddlewareNext,
