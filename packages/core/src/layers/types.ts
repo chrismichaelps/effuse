@@ -209,7 +209,9 @@ export type ServerMiddleware<
 > = (
 	ctx: ServerLayerContext<S>,
 	next: ServerMiddlewareNext
-) => MaybePromise<ServerResult>;
+	// `void` lets a middleware run `next()` purely for its side effects and
+	// return nothing; the downstream response is then propagated automatically.
+) => MaybePromise<ServerResult | void>;
 
 export type ServerMethodHandlers<
 	S extends Record<string, unknown> = Record<string, unknown>,
