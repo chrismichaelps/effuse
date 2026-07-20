@@ -296,7 +296,9 @@ const isBodyInit = (value: unknown): value is BodyInit =>
 	ArrayBuffer.isView(value) ||
 	value instanceof ReadableStream;
 
-export const normalizeServerResult = (result: ServerResult): Response => {
+export const normalizeServerResult = (
+	result: ServerResult | void
+): Response => {
 	if (result instanceof Response) {
 		return result;
 	}
@@ -469,6 +471,7 @@ const runServerMiddleware = async (
 		}
 		const current = middleware[index];
 		let called = false;
+		let downstream: Response | undefined;
 		const result = await current(ctx, async () => {
 			if (called) {
 				throw new Error(
@@ -476,8 +479,15 @@ const runServerMiddleware = async (
 				);
 			}
 			called = true;
-			return dispatch(index + 1);
+			downstream = await dispatch(index + 1);
+			return downstream;
 		});
+		// A middleware that ran next() for its side effects but returned nothing
+		// (the common "await next(); /* after-work */" shape) propagates the
+		// downstream response rather than collapsing it into an empty 204.
+		if ((result === undefined || result === null) && called && downstream) {
+			return downstream;
+		}
 		return normalizeServerResult(result);
 	};
 
