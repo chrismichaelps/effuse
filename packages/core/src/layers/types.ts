@@ -147,6 +147,29 @@ export interface ServerResponseHelpers {
 	) => Response;
 }
 
+/**
+ * Request-scoped locals bag. A fresh instance is created for every request, so
+ * writes never leak across concurrent requests. Augment it with declaration
+ * merging to type your own per-request values:
+ *
+ * ```ts
+ * declare module '@effuse/core' {
+ *   interface RequestLocals {
+ *     user: AuthenticatedUser;
+ *   }
+ * }
+ * ```
+ */
+export interface RequestLocals {
+	[key: string]: unknown;
+}
+
+/**
+ * A cleanup callback registered for the current request via `ctx.defer`. It runs
+ * once the request settles (success or error), in reverse registration order.
+ */
+export type RequestDisposer = () => void | Promise<void>;
+
 export interface ServerLayerContext<
 	S extends Record<string, unknown> = Record<string, unknown>,
 > {
@@ -162,6 +185,17 @@ export interface ServerLayerContext<
 	formData: () => Promise<FormData>;
 	readonly validate: ServerValidationHelpers;
 	readonly response: ServerResponseHelpers;
+	/**
+	 * Request-scoped mutable state, isolated per request. Use it to pass values
+	 * between middleware and the matched handler without ambient globals.
+	 */
+	readonly locals: RequestLocals;
+	/**
+	 * Registers a cleanup callback to run when the request settles, in reverse
+	 * registration order. Disposer errors are isolated and never affect the
+	 * response or other disposers.
+	 */
+	readonly defer: (disposer: RequestDisposer) => void;
 }
 
 export type ServerHandler<

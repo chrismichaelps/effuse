@@ -45,6 +45,8 @@ export {
 	type SSRRuntimeOptions,
 } from './runtime.js';
 
+export { createRequestScope, type RequestScope } from './request-scope.js';
+
 export { useHead, isServer, runWithSSRContext } from './use-head.js';
 
 export { useSeoMeta, useServerSeoMeta, type SeoMetaInput } from './seo-meta.js';

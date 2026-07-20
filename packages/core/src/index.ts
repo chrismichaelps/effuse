@@ -256,6 +256,8 @@ export {
 	type ServerRouteMetadata,
 	type ServerResponseHelpers,
 	type ServerLayerContext,
+	type RequestLocals,
+	type RequestDisposer,
 	type ServerHandler,
 	type ServerMiddleware,
 	type ServerMiddlewareNext,
