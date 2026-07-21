@@ -216,6 +216,12 @@ export {
 	type ServerStreamResponse,
 } from './response-contract.js';
 
+export {
+	generateOpenApiDocument,
+	type OpenApiDocument,
+	type OpenApiInfo,
+} from './openapi.js';
+
 
 export {
 	serverSchema,
