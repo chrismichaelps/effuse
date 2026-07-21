@@ -39,6 +39,7 @@ import {
 } from '../layers/api/defineLayer.js';
 import { createSSRRuntime } from './runtime.js';
 import { createRequestScope, type RequestScope } from './request-scope.js';
+import type { AnyServerRequestContract } from './request-contract.js';
 import {
 	createServerTraceError,
 	emitServerTrace,
@@ -78,6 +79,7 @@ interface MatchedServerHandler {
 	readonly params: Record<string, string>;
 	readonly target: string;
 	readonly allowedMethods: readonly HttpMethod[];
+	readonly request?: AnyServerRequestContract;
 }
 
 interface LayerWithServiceKeys {
@@ -163,6 +165,7 @@ const findApiHandler = (
 				params,
 				target: route.path,
 				allowedMethods: getServerRouteMethods(route),
+				...(route.request ? { request: route.request } : {}),
 			};
 		}
 
@@ -588,9 +591,15 @@ export const handleLayerServerRequest = async (
 				match.layer,
 				match.middleware
 			);
-			const response = await runServerMiddleware(ctx, middleware, async () =>
-				normalizeServerResult(await match.handler(ctx))
-			);
+			const response = await runServerMiddleware(ctx, middleware, async () => {
+				// Contracts parse after middleware so auth and other cross-cutting
+				// concerns still run first, and before the handler so it only ever
+				// sees validated input.
+				const handlerCtx = match.request
+					? { ...ctx, input: await match.request.parse(ctx) }
+					: ctx;
+				return normalizeServerResult(await match.handler(handlerCtx));
+			});
 			const tracedResponse = applyServerMetadata(response, match.metadata);
 			emitServerTrace(observability, {
 				durationMs: performance.now() - startedAt,

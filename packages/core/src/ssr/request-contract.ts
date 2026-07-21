@@ -48,6 +48,18 @@ export type ServerRequestOutput<
 		SourceOutput<'formData', Definition['formData']>
 >;
 
+/** Any request contract, regardless of the sources it declares. */
+export type AnyServerRequestContract = ServerRequestContract<
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any -- contracts are consumed structurally by the route plumbing.
+	any
+>;
+
+/** The parsed output a contract produces for its handler's `ctx.input`. */
+export type ServerRequestContractOutput<Contract> =
+	Contract extends ServerRequestContract<infer Definition>
+		? ServerRequestOutput<Definition>
+		: never;
+
 export interface ServerRequestContract<
 	Definition extends ServerRequestDefinition<
 		AnyServerValidator | undefined,

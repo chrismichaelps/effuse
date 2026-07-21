@@ -26,6 +26,7 @@ import type { Component } from '../render/node.js';
 import type { HeadProps } from '../ssr/types.js';
 import type { LayerServerErrorOptions } from '../ssr/server-errors.js';
 import type { ServerValidationHelpers } from '../ssr/validation.js';
+import type { AnyServerRequestContract } from '../ssr/request-contract.js';
 import type { Signal } from '../reactivity/signal.js';
 
 export type MaybePromise<T> = T | Promise<T>;
@@ -258,6 +259,26 @@ export type ServerMethodHandlers<
 	S extends Record<string, unknown> = Record<string, unknown>,
 > = Partial<Record<HttpMethod, ServerHandler<S>>>;
 
+/**
+ * Handler context for a route that declares a request contract. `input` holds the
+ * contract's validated output, so handlers read decoded values instead of raw
+ * strings and never re-validate by hand.
+ */
+export type ServerContractContext<
+	Input,
+	S extends Record<string, unknown> = Record<string, unknown>,
+> = ServerLayerContext<S> & { readonly input: Input };
+
+export type ServerContractHandler<
+	Input,
+	S extends Record<string, unknown> = Record<string, unknown>,
+> = (ctx: ServerContractContext<Input, S>) => MaybePromise<ServerResult>;
+
+export type ServerContractMethodHandlers<
+	Input,
+	S extends Record<string, unknown> = Record<string, unknown>,
+> = Partial<Record<HttpMethod, ServerContractHandler<Input, S>>>;
+
 export type ServerRouteDefinition<
 	S extends Record<string, unknown> = Record<string, unknown>,
 > = ServerMethodHandlers<S> & {
@@ -265,6 +286,12 @@ export type ServerRouteDefinition<
 	readonly metadata?: ServerRouteMetadata;
 	readonly methods?: ServerMethodHandlers<S>;
 	readonly middleware?: readonly ServerMiddleware<S>[];
+	/**
+	 * Request contract parsed after middleware and before the handler. Its output
+	 * is exposed to the handler as `ctx.input`; invalid input short-circuits with
+	 * a stable validation response and never reaches the handler.
+	 */
+	readonly request?: AnyServerRequestContract;
 };
 
 export interface ServerRoute<
@@ -275,6 +302,7 @@ export interface ServerRoute<
 	readonly path: string;
 	readonly methods: ServerMethodHandlers<S>;
 	readonly middleware?: readonly ServerMiddleware<S>[];
+	readonly request?: AnyServerRequestContract;
 }
 
 export type ServerRouteInput<

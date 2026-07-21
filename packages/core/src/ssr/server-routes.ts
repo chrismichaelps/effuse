@@ -83,7 +83,8 @@ const hasRouteDefinitionOptions = (
 	'handler' in input ||
 	'metadata' in input ||
 	'methods' in input ||
-	'middleware' in input;
+	'middleware' in input ||
+	'request' in input;
 
 export const normalizeServerRouteInput = (
 	path: string,
@@ -118,6 +119,9 @@ export const normalizeServerRouteInput = (
 			: {}),
 		...(hasRouteDefinitionOptions(input) && input.middleware
 			? { middleware: input.middleware }
+			: {}),
+		...(hasRouteDefinitionOptions(input) && input.request
+			? { request: input.request }
 			: {}),
 	};
 };
