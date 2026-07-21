@@ -36,6 +36,7 @@ import type {
 	AnyServerRequestContract,
 	ServerRequestContractOutput,
 } from './request-contract.js';
+import type { AnyServerValidator } from './validation.js';
 
 export interface ServerContractRouteInput<
 	Contract extends AnyServerRequestContract,
@@ -53,6 +54,13 @@ export interface ServerContractRouteInput<
 	>;
 	readonly metadata?: ServerRouteMetadata;
 	readonly middleware?: readonly ServerMiddleware<S>[];
+	/**
+	 * Validates what the handler returns before it is serialized. A mismatch is a
+	 * server-side contract violation, not a client error: it fails closed with a
+	 * stable 500 that reports the offending field paths and never echoes the
+	 * offending payload.
+	 */
+	readonly response?: AnyServerValidator;
 }
 
 const HTTP_METHODS: readonly HttpMethod[] = [
@@ -105,6 +113,7 @@ export const defineServerRoute = <
 		path: input.path,
 		methods,
 		request: input.request,
+		...(input.response ? { response: input.response } : {}),
 		...(input.metadata ? { metadata: input.metadata } : {}),
 		...(input.middleware ? { middleware: input.middleware } : {}),
 	};

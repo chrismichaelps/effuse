@@ -158,3 +158,72 @@ describe('route request contracts', () => {
 		expect(await response.json()).toEqual({ raw: '7' });
 	});
 });
+
+describe('route response contracts', () => {
+	const okRoute = (handler: () => Record<string, unknown> | Response) =>
+		defineServerRoute({
+			path: '/api/report',
+			request: defineServerRequest({}),
+			response: serverSchema.object({ total: serverSchema.number }),
+			GET: handler,
+		});
+
+	it('passes through a result that satisfies the response contract', async () => {
+		const handler = handlerFor(
+			defineLayer({
+				name: 'report-ok',
+				server: { routes: [okRoute(() => ({ total: 7 }))] },
+			})
+		);
+
+		const response = await handler(
+			new Request('http://localhost:3000/api/report')
+		);
+
+		expect(response.status).toBe(200);
+		expect(await response.json()).toEqual({ total: 7 });
+	});
+
+	it('fails closed with a 500 when the handler breaks its own contract', async () => {
+		const handler = handlerFor(
+			defineLayer({
+				name: 'report-bad',
+				// `total` is a string: a server-side bug, not a client error.
+				server: { routes: [okRoute(() => ({ total: 'lots', secret: 'hunter2' }))] },
+			})
+		);
+
+		const response = await handler(
+			new Request('http://localhost:3000/api/report')
+		);
+
+		expect(response.status).toBe(500);
+		const raw = await response.text();
+		expect(raw).toContain('server_response_contract');
+		// Reports the offending path...
+		expect(raw).toContain('total');
+		// ...but redacts the rejected values. Validator messages embed the actual
+		// value, which for a response contract is server-side data.
+		expect(raw).not.toContain('lots');
+		expect(raw).not.toContain('hunter2');
+	});
+
+	it('leaves a handler-returned Response alone', async () => {
+		const route = defineServerRoute({
+			path: '/api/raw',
+			request: defineServerRequest({}),
+			response: serverSchema.object({ total: serverSchema.number }),
+			GET: () => new Response('plain', { status: 202 }),
+		});
+		const handler = handlerFor(
+			defineLayer({ name: 'raw', server: { routes: [route] } })
+		);
+
+		const response = await handler(
+			new Request('http://localhost:3000/api/raw')
+		);
+
+		expect(response.status).toBe(202);
+		expect(await response.text()).toBe('plain');
+	});
+});

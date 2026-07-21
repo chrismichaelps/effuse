@@ -25,7 +25,10 @@
 import type { Component } from '../render/node.js';
 import type { HeadProps } from '../ssr/types.js';
 import type { LayerServerErrorOptions } from '../ssr/server-errors.js';
-import type { ServerValidationHelpers } from '../ssr/validation.js';
+import type {
+	AnyServerValidator,
+	ServerValidationHelpers,
+} from '../ssr/validation.js';
 import type { AnyServerRequestContract } from '../ssr/request-contract.js';
 import type { Signal } from '../reactivity/signal.js';
 
@@ -292,6 +295,11 @@ export type ServerRouteDefinition<
 	 * a stable validation response and never reaches the handler.
 	 */
 	readonly request?: AnyServerRequestContract;
+	/**
+	 * Validates the handler's result before serialization. A mismatch fails closed
+	 * as a server-side contract violation rather than a client error.
+	 */
+	readonly response?: AnyServerValidator;
 };
 
 export interface ServerRoute<
@@ -303,6 +311,7 @@ export interface ServerRoute<
 	readonly methods: ServerMethodHandlers<S>;
 	readonly middleware?: readonly ServerMiddleware<S>[];
 	readonly request?: AnyServerRequestContract;
+	readonly response?: AnyServerValidator;
 }
 
 export type ServerRouteInput<

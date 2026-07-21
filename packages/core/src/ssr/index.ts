@@ -214,6 +214,7 @@ export {
 	type ServerValidationResult,
 	type ServerValidationSource,
 	type ServerValidationSuccess,
+	type AnyServerValidator,
 	type ServerValidator,
 } from './validation.js';
 
