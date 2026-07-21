@@ -64,6 +64,12 @@ export type ServerValidator<T> =
 			safeParse: (value: unknown) => ServerValidationResult<T>;
 	  };
 
+/** Any validator, regardless of the value it produces. */
+export type AnyServerValidator = ServerValidator<
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any -- validators are consumed structurally.
+	any
+>;
+
 export interface ServerValidationErrorBody {
 	readonly error: {
 		readonly code: 'EFFUSE_VALIDATION_FAILED';

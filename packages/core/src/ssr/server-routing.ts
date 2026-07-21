@@ -40,6 +40,7 @@ import {
 import { createSSRRuntime } from './runtime.js';
 import { createRequestScope, type RequestScope } from './request-scope.js';
 import type { AnyServerRequestContract } from './request-contract.js';
+import type { AnyServerValidator } from './validation.js';
 import {
 	createServerTraceError,
 	emitServerTrace,
@@ -62,6 +63,7 @@ import {
 	createServerValidationHelpers,
 	isServerValidationError,
 	serverValidationErrorResponse,
+	validateServerValue,
 } from './validation.js';
 import { EFFUSE_ACTION_PREFIX } from './constants.js';
 import {
@@ -80,6 +82,7 @@ interface MatchedServerHandler {
 	readonly target: string;
 	readonly allowedMethods: readonly HttpMethod[];
 	readonly request?: AnyServerRequestContract;
+	readonly response?: AnyServerValidator;
 }
 
 interface LayerWithServiceKeys {
@@ -166,6 +169,7 @@ const findApiHandler = (
 				target: route.path,
 				allowedMethods: getServerRouteMethods(route),
 				...(route.request ? { request: route.request } : {}),
+				...(route.response ? { response: route.response } : {}),
 			};
 		}
 
@@ -420,6 +424,48 @@ const applyServerMetadata = (
 	});
 };
 
+/**
+ * Validate a handler's result against the route's response contract. A mismatch
+ * is a server-side bug, not a client error, so it fails closed with a stable 500
+ * that reports the offending field paths only — the non-conforming payload is
+ * never echoed back to the caller.
+ *
+ * A handler that returns a `Response` has taken over serialization and is left
+ * alone; response contracts describe data results.
+ */
+const validateServerResponseContract = (
+	result: ServerResult,
+	validator: AnyServerValidator | undefined
+): ServerResult => {
+	if (!validator || result instanceof Response) {
+		return result;
+	}
+	try {
+		return validateServerValue('value', result, validator) as ServerResult;
+	} catch (error) {
+		if (isServerValidationError(error)) {
+			throw new LayerServerError(
+				'server_response_contract',
+				'Server response did not match the route response contract.',
+				{
+					status: 500,
+					details: {
+						// Only the offending field paths cross the wire. Validator
+						// messages embed the rejected value ("Expected number, actual
+						// \"lots\""), which for a response contract is server-side data
+						// the client must never see.
+						issues: error.issues.map((issue) => ({
+							path: issue.path,
+							...(issue.code ? { code: issue.code } : {}),
+						})),
+					},
+				}
+			);
+		}
+		throw error;
+	}
+};
+
 const collectServices = (
 	layers: readonly AnyResolvedLayer[]
 ): {
@@ -598,7 +644,10 @@ export const handleLayerServerRequest = async (
 				const handlerCtx = match.request
 					? { ...ctx, input: await match.request.parse(ctx) }
 					: ctx;
-				return normalizeServerResult(await match.handler(handlerCtx));
+				const result = await match.handler(handlerCtx);
+				return normalizeServerResult(
+					validateServerResponseContract(result, match.response)
+				);
 			});
 			const tracedResponse = applyServerMetadata(response, match.metadata);
 			emitServerTrace(observability, {

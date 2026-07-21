@@ -441,6 +441,7 @@ export {
 	type ServerValidationResult,
 	type ServerValidationSource,
 	type ServerValidationSuccess,
+	type AnyServerValidator,
 	type ServerValidator,
 	type ServerOptionalSchema,
 	type ServerSchemaInfer,
