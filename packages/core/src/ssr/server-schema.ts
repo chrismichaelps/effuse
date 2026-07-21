@@ -4,6 +4,7 @@ import {
 	type PropSchemaBuilder,
 	type PropValueSchema,
 } from '../blueprint/props.js';
+import { streamResponse } from './response-contract.js';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- schema combinators preserve concrete member types.
 type AnyValueSchema = PropValueSchema<any, any>;
@@ -131,4 +132,7 @@ export const serverSchema = {
 	array: PropSchema.array,
 	object,
 	optional,
+	// A streaming/binary response contract: the route hands its `Response` back
+	// untouched and the typed client surfaces it raw instead of decoding a body.
+	stream: streamResponse,
 };
