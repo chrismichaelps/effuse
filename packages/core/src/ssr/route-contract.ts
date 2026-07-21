@@ -40,6 +40,7 @@ import type { AnyServerValidator } from './validation.js';
 
 export interface ServerContractRouteInput<
 	Contract extends AnyServerRequestContract,
+	Response extends AnyServerValidator | undefined = undefined,
 	S extends Record<string, unknown> = Record<string, unknown>,
 > extends ServerContractMethodHandlers<ServerRequestContractOutput<Contract>, S> {
 	readonly path: string;
@@ -60,8 +61,34 @@ export interface ServerContractRouteInput<
 	 * stable 500 that reports the offending field paths and never echoes the
 	 * offending payload.
 	 */
-	readonly response?: AnyServerValidator;
+	readonly response?: Response;
 }
+
+declare const ROUTE_CONTRACT: unique symbol;
+
+/**
+ * A route that remembers its request and response contracts at the type level.
+ * The marker is phantom — never present at runtime — and exists so a typed client
+ * can recover the call's input and result types from the route itself.
+ */
+export interface TypedServerRoute<
+	Contract extends AnyServerRequestContract,
+	Response extends AnyServerValidator | undefined,
+	S extends Record<string, unknown> = Record<string, unknown>,
+> extends ServerRoute<S> {
+	readonly [ROUTE_CONTRACT]?: {
+		readonly request: Contract;
+		readonly response: Response;
+	};
+}
+
+/** Any contract-carrying route, whatever its request and response contracts. */
+export type AnyTypedServerRoute = TypedServerRoute<
+	AnyServerRequestContract,
+	AnyServerValidator | undefined,
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any -- route services are consumed structurally here.
+	any
+>;
 
 const HTTP_METHODS: readonly HttpMethod[] = [
 	'GET',
@@ -92,10 +119,11 @@ const isHttpMethod = (value: string): value is HttpMethod =>
  */
 export const defineServerRoute = <
 	const Contract extends AnyServerRequestContract,
+	const Response extends AnyServerValidator | undefined = undefined,
 	S extends Record<string, unknown> = Record<string, unknown>,
 >(
-	input: ServerContractRouteInput<Contract, S>
-): ServerRoute<S> => {
+	input: ServerContractRouteInput<Contract, Response, S>
+): TypedServerRoute<Contract, Response, S> => {
 	const methods: ServerMethodHandlers<S> = { ...(input.methods ?? {}) } as
 		ServerMethodHandlers<S>;
 

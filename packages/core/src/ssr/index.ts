@@ -188,8 +188,21 @@ export {
 
 export {
 	defineServerRoute,
+	type AnyTypedServerRoute,
 	type ServerContractRouteInput,
+	type TypedServerRoute,
 } from './route-contract.js';
+
+export {
+	createTypedRouteClient,
+	type TypedRouteCallOptions,
+	type TypedRouteCaller,
+	type TypedRouteClient,
+	type TypedRouteClientOptions,
+	type TypedRouteInput,
+	type TypedRouteResult,
+} from './typed-route-client.js';
+
 
 export {
 	serverSchema,
