@@ -179,10 +179,17 @@ export {
 
 export {
 	defineServerRequest,
+	type AnyServerRequestContract,
 	type ServerRequestContract,
+	type ServerRequestContractOutput,
 	type ServerRequestDefinition,
 	type ServerRequestOutput,
 } from './request-contract.js';
+
+export {
+	defineServerRoute,
+	type ServerContractRouteInput,
+} from './route-contract.js';
 
 export {
 	serverSchema,
