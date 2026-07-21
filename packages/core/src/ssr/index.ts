@@ -203,6 +203,11 @@ export {
 	type TypedRouteResult,
 } from './typed-route-client.js';
 
+export {
+	createInProcessRouteFetch,
+	type InProcessRouteFetchOptions,
+} from './in-process-route-client.js';
+
 
 export {
 	serverSchema,
