@@ -117,6 +117,21 @@ export {
 } from './manifest.js';
 
 export {
+	compileServerPolicy,
+	compileServerPolicyFromLayers,
+	type CompiledServerAction,
+	type CompiledServerManifest,
+	type CompiledServerRoute,
+} from './policy-compiler.js';
+
+export {
+	foldServerPolicy,
+	type FoldedPolicy,
+	type PolicyProvenanceEntry,
+	type PolicySource,
+} from './policy-merge.js';
+
+export {
 	fromServerFiles,
 	serverFileToActionName,
 	serverFileToRoutePath,

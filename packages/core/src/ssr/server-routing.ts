@@ -383,9 +383,36 @@ const applyServerMetadata = (
 		headers.set('X-Effuse-Max-Duration', String(metadata.maxDuration));
 	}
 
+	if (metadata.headers) {
+		for (const [key, value] of Object.entries(metadata.headers)) {
+			headers.set(key, value);
+		}
+	}
+	if (metadata.renderMode) {
+		headers.set('X-Effuse-Render-Mode', metadata.renderMode);
+	}
+	if (metadata.prerender !== undefined) {
+		headers.set(
+			'X-Effuse-Prerender',
+			typeof metadata.prerender === 'object'
+				? `revalidate=${String(metadata.prerender.revalidate ?? 0)}`
+				: String(metadata.prerender)
+		);
+	}
+	if (metadata.fallback !== undefined) {
+		headers.set('X-Effuse-Fallback', String(metadata.fallback));
+	}
+
+	if (metadata.redirect) {
+		headers.set('Location', metadata.redirect.to);
+	}
+
+	const status =
+		metadata.redirect?.status ?? metadata.status ?? response.status;
+
 	return new Response(response.body, {
 		headers,
-		status: response.status,
+		status,
 		statusText: response.statusText,
 	});
 };

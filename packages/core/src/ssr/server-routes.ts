@@ -36,6 +36,7 @@ import type {
 	ServerRouteDefinition,
 	ServerRouteInput,
 } from '../layers/types.js';
+import { foldServerPolicy } from './policy-merge.js';
 
 export type LayerServerRouteSource = 'api' | 'routes';
 
@@ -126,9 +127,6 @@ export const normalizeServerActionInput = (
 ): ServerActionDefinition =>
 	typeof input === 'function' ? { handler: input } : input;
 
-const metadataEqual = (left: unknown, right: unknown): boolean =>
-	JSON.stringify(left) === JSON.stringify(right);
-
 const attachDiagnosticLayer = (
 	layer: AnyResolvedLayer,
 	diagnostic: ServerMetadataDiagnostic
@@ -153,34 +151,14 @@ export const mergeServerRouteMetadata = (
 	readonly diagnostics: readonly ServerMetadataDiagnostic[];
 	readonly metadata?: ServerRouteMetadata;
 } => {
-	const layerMetadata = layer.server?.metadata;
-	if (!layerMetadata) {
-		return routeMetadata ? { metadata: routeMetadata, diagnostics: [] } : { diagnostics: [] };
-	}
-	if (!routeMetadata) {
-		return { metadata: layerMetadata, diagnostics: [] };
-	}
+	const { policy, diagnostics } = foldServerPolicy(target, [
+		{ kind: 'layer', name: layer.name, policy: layer.server?.metadata },
+		{ kind: 'route', name: target, policy: routeMetadata },
+	]);
 
-	const diagnostics: ServerMetadataDiagnostic[] = [];
-	for (const key of Object.keys(routeMetadata) as (keyof ServerRouteMetadata)[]) {
-		if (
-			layerMetadata[key] !== undefined &&
-			!metadataEqual(layerMetadata[key], routeMetadata[key])
-		) {
-			diagnostics.push({
-				code: 'metadata_conflict',
-				key,
-				layer: layer.name,
-				message: `Server metadata "${key}" on ${target} overrides layer metadata from ${layer.name}.`,
-				target,
-			});
-		}
-	}
-
-	return {
-		metadata: { ...layerMetadata, ...routeMetadata },
-		diagnostics,
-	};
+	return Object.keys(policy).length > 0
+		? { metadata: policy, diagnostics }
+		: { diagnostics };
 };
 
 export const getLayerServerRouteEntries = (
