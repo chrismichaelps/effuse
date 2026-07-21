@@ -42,6 +42,7 @@ export interface ServerContractRouteInput<
 	Contract extends AnyServerRequestContract,
 	Response extends AnyServerValidator | undefined = undefined,
 	S extends Record<string, unknown> = Record<string, unknown>,
+	Errors extends AnyServerValidator | undefined = undefined,
 > extends ServerContractMethodHandlers<ServerRequestContractOutput<Contract>, S> {
 	readonly path: string;
 	readonly request: Contract;
@@ -62,6 +63,12 @@ export interface ServerContractRouteInput<
 	 * offending payload.
 	 */
 	readonly response?: Response;
+	/**
+	 * Describes the error body the route returns on a non-2xx result. It is not
+	 * validated server-side — the handler owns the error response — but a typed
+	 * client uses it to type the parsed error surfaced through {@link isRouteError}.
+	 */
+	readonly errors?: Errors;
 }
 
 declare const ROUTE_CONTRACT: unique symbol;
@@ -75,19 +82,23 @@ export interface TypedServerRoute<
 	Contract extends AnyServerRequestContract,
 	Response extends AnyServerValidator | undefined,
 	S extends Record<string, unknown> = Record<string, unknown>,
+	Errors extends AnyServerValidator | undefined = undefined,
 > extends ServerRoute<S> {
+	readonly errors?: Errors;
 	readonly [ROUTE_CONTRACT]?: {
 		readonly request: Contract;
 		readonly response: Response;
+		readonly errors: Errors;
 	};
 }
 
-/** Any contract-carrying route, whatever its request and response contracts. */
+/** Any contract-carrying route, whatever its request, response, and error contracts. */
 export type AnyTypedServerRoute = TypedServerRoute<
 	AnyServerRequestContract,
 	AnyServerValidator | undefined,
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any -- route services are consumed structurally here.
-	any
+	any,
+	AnyServerValidator | undefined
 >;
 
 const HTTP_METHODS: readonly HttpMethod[] = [
@@ -121,9 +132,10 @@ export const defineServerRoute = <
 	const Contract extends AnyServerRequestContract,
 	const Response extends AnyServerValidator | undefined = undefined,
 	S extends Record<string, unknown> = Record<string, unknown>,
+	const Errors extends AnyServerValidator | undefined = undefined,
 >(
-	input: ServerContractRouteInput<Contract, Response, S>
-): TypedServerRoute<Contract, Response, S> => {
+	input: ServerContractRouteInput<Contract, Response, S, Errors>
+): TypedServerRoute<Contract, Response, S, Errors> => {
 	const methods: ServerMethodHandlers<S> = { ...(input.methods ?? {}) } as
 		ServerMethodHandlers<S>;
 
@@ -142,6 +154,7 @@ export const defineServerRoute = <
 		methods,
 		request: input.request,
 		...(input.response ? { response: input.response } : {}),
+		...(input.errors ? { errors: input.errors } : {}),
 		...(input.metadata ? { metadata: input.metadata } : {}),
 		...(input.middleware ? { middleware: input.middleware } : {}),
 	};

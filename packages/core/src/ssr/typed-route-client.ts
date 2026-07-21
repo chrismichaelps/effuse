@@ -87,11 +87,30 @@ export type TypedRouteResult<Response> = Response extends AnyServerValidator
 	: unknown;
 
 type RouteContractOf<Route> =
-	Route extends TypedServerRoute<infer Contract, infer Response, infer Services>
+	Route extends TypedServerRoute<
+		infer Contract,
+		infer Response,
+		infer Services,
+		infer Errors
+	>
 		? Services extends Record<string, unknown>
-			? { request: Contract; response: Response }
+			? { request: Contract; response: Response; errors: Errors }
 			: never
 		: never;
+
+/**
+ * The typed error a route call can fail with. A route declaring an `errors`
+ * contract types it to that contract's output; one without stays `undefined`.
+ * Recovered from a thrown {@link LayerServerClientError} via {@link isRouteError}.
+ */
+export type TypedRouteError<Route> =
+	RouteContractOf<Route> extends { errors: infer Errors }
+		? Errors extends AnyServerValidator
+			? [ServerSchemaOutput<Errors>] extends [never]
+				? ValidatorOutput<Errors>
+				: ServerSchemaOutput<Errors>
+			: undefined
+		: undefined;
 
 export interface TypedRouteCallOptions
 	extends Omit<RequestInit, 'body' | 'method'> {
@@ -181,7 +200,17 @@ const readTypedResponse = async (
 			.clone()
 			.text()
 			.catch(() => '');
-		throw new LayerServerClientError(response, body);
+		// A JSON error body is parsed and carried as typed `.data`; the raw string
+		// stays on `.body`. A non-JSON body leaves `.data` undefined.
+		let data: unknown;
+		if (response.headers.get('Content-Type')?.includes('application/json')) {
+			try {
+				data = JSON.parse(body);
+			} catch {
+				data = undefined;
+			}
+		}
+		throw new LayerServerClientError(response, body, data);
 	}
 	// A streaming/binary route surfaces the raw Response — the caller owns how the
 	// body is consumed, and buffering it here would defeat streaming and corrupt
@@ -264,3 +293,26 @@ export const createTypedRouteClient = <
 
 	return client as TypedRouteClient<Routes>;
 };
+
+/**
+ * Narrow a caught value to a client error for a specific route, typing its parsed
+ * `.data` as that route's error contract. TypeScript cannot type a `catch`
+ * variable, so this guard recovers the error shape at the call site:
+ *
+ * ```ts
+ * try {
+ *   await client.pay({ body: { amount: 500 } });
+ * } catch (error) {
+ *   if (isRouteError(payRoute, error)) {
+ *     error.data.code; // typed from payRoute's `errors` contract
+ *   }
+ * }
+ * ```
+ *
+ * The `route` argument is used only for type inference; narrowing is by instance.
+ */
+export const isRouteError = <Route extends AnyTypedServerRoute>(
+	_route: Route,
+	error: unknown
+): error is LayerServerClientError<TypedRouteError<Route>> =>
+	error instanceof LayerServerClientError;

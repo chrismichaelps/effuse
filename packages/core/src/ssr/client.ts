@@ -188,13 +188,20 @@ export interface GenerateLayerServerClientModuleOptions {
 	readonly manifestName?: string;
 }
 
-export class LayerServerClientError extends Error {
+export class LayerServerClientError<TData = unknown> extends Error {
 	readonly status: number;
 	readonly statusText: string;
 	readonly body: string;
 	readonly response: Response;
+	/**
+	 * The error body parsed from the response. When the failing route declares an
+	 * `errors` contract, a typed client narrows this to that contract's shape via
+	 * {@link isRouteError}; otherwise it is `undefined`. The raw `body` string is
+	 * always preserved unchanged.
+	 */
+	readonly data: TData;
 
-	constructor(response: Response, body: string) {
+	constructor(response: Response, body: string, data?: TData) {
 		super(
 			`Effuse server request failed with ${String(response.status)} ${response.statusText}`
 		);
@@ -203,6 +210,7 @@ export class LayerServerClientError extends Error {
 		this.statusText = response.statusText;
 		this.body = body;
 		this.response = response;
+		this.data = data as TData;
 	}
 }
 

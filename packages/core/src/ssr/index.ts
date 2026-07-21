@@ -195,10 +195,12 @@ export {
 
 export {
 	createTypedRouteClient,
+	isRouteError,
 	type TypedRouteCallOptions,
 	type TypedRouteCaller,
 	type TypedRouteClient,
 	type TypedRouteClientOptions,
+	type TypedRouteError,
 	type TypedRouteInput,
 	type TypedRouteResult,
 } from './typed-route-client.js';
