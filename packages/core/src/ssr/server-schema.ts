@@ -124,6 +124,8 @@ export const serverSchema = {
 	number: PropSchema.number,
 	boolean: PropSchema.boolean,
 	unknown: PropSchema.unknown,
+	// A multipart upload field, typed and validated as a `File`.
+	file: PropSchema.file,
 	numberFromString: PropSchema.numberFromString,
 	booleanFromString: PropSchema.booleanFromString,
 	dateFromString: PropSchema.dateFromString,

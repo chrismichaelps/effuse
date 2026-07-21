@@ -319,6 +319,9 @@ const stringSchema = wrapValueSchema(Schema.String);
 const numberSchema = wrapValueSchema(Schema.Number);
 const booleanSchema = wrapValueSchema(Schema.Boolean);
 const unknownSchema = wrapValueSchema(Schema.Unknown);
+// A multipart upload field: validates the value is a `File` and types it as one,
+// so a form-data contract can carry file uploads without hand-checking instances.
+const fileSchema = wrapValueSchema(Schema.instanceOf(File));
 const numberFromStringSchema = wrapValueSchema(Schema.NumberFromString);
 const booleanFromStringSchema = wrapValueSchema(Schema.BooleanFromString);
 const dateFromStringSchema = wrapValueSchema(Schema.DateFromString);
@@ -379,6 +382,7 @@ export const PropSchema = {
 	number: numberSchema,
 	boolean: booleanSchema,
 	unknown: unknownSchema,
+	file: fileSchema,
 	numberFromString: numberFromStringSchema,
 	booleanFromString: booleanFromStringSchema,
 	dateFromString: dateFromStringSchema,
