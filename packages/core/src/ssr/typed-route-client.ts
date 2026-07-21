@@ -31,6 +31,7 @@ import type {
 import type { AnyServerValidator, ServerValidator } from './validation.js';
 import type { ServerSchemaInput, ServerSchemaOutput } from './server-schema.js';
 import { createLayerRoutePath, LayerServerClientError } from './client.js';
+import { isStreamResponse } from './response-contract.js';
 
 type Simplify<T> = { [K in keyof T]: T[K] };
 
@@ -171,13 +172,22 @@ const toQueryRecord = (
 	return out;
 };
 
-const readTypedResponse = async (response: Response): Promise<unknown> => {
+const readTypedResponse = async (
+	response: Response,
+	stream: boolean
+): Promise<unknown> => {
 	if (!response.ok) {
 		const body = await response
 			.clone()
 			.text()
 			.catch(() => '');
 		throw new LayerServerClientError(response, body);
+	}
+	// A streaming/binary route surfaces the raw Response — the caller owns how the
+	// body is consumed, and buffering it here would defeat streaming and corrupt
+	// binary payloads.
+	if (stream) {
+		return response;
 	}
 	if (response.status === 204) {
 		return undefined;
@@ -208,6 +218,7 @@ export const createTypedRouteClient = <
 	const client: Record<string, unknown> = {};
 
 	for (const [name, route] of Object.entries(routes)) {
+		const isStream = isStreamResponse(route.response);
 		client[name] = async (
 			input: CallInput = {},
 			callOptions: TypedRouteCallOptions = {}
@@ -247,7 +258,7 @@ export const createTypedRouteClient = <
 				...(hasBody ? { body: JSON.stringify(input.body) } : {}),
 			});
 
-			return readTypedResponse(response);
+			return readTypedResponse(response, isStream);
 		};
 	}
 

@@ -208,6 +208,12 @@ export {
 	type InProcessRouteFetchOptions,
 } from './in-process-route-client.js';
 
+export {
+	streamResponse,
+	isStreamResponse,
+	type ServerStreamResponse,
+} from './response-contract.js';
+
 
 export {
 	serverSchema,
