@@ -2,6 +2,7 @@ import {
 	mkdirSync,
 	mkdtempSync,
 	readFileSync,
+	readdirSync,
 	rmSync,
 	symlinkSync,
 	writeFileSync,
@@ -180,5 +181,8 @@ describe('server registry compiler', () => {
 				outputPath: '.effuse/generated/server.ts',
 			})
 		);
+		expect(
+			readdirSync(dirname(outputPath)).filter((name) => name.includes('.tmp-'))
+		).toEqual([]);
 	});
 });
