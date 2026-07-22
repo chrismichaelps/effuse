@@ -50,6 +50,7 @@ describe('@effuse/core entrypoints', () => {
 		expect(source).not.toContain('createStreamingHandler');
 		expect(source).not.toContain('renderToString');
 		expect(source).not.toContain('fromServerFiles');
+		expect(source).not.toContain('defineServerMiddleware');
 	});
 
 	it('keeps client-facing context modules free of Node async hooks', () => {
