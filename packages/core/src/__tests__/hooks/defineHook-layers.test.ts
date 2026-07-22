@@ -306,6 +306,27 @@ describe('defineHook — typed layers accessor', () => {
 			const result = useHook({ threshold: 42 });
 			expect(result.threshold).toBe(42);
 		});
+
+		it('should expose an optional call for config unions with undefined', () => {
+			interface OptionalConfig {
+				initialValue: boolean;
+			}
+
+			const useOptional = defineHook<
+				OptionalConfig | undefined,
+				boolean
+			>({
+				setup(ctx) {
+					return ctx.config?.initialValue ?? false;
+				},
+			});
+
+			expectTypeOf(useOptional).toEqualTypeOf<
+				(config?: OptionalConfig) => boolean
+			>();
+			expect(useOptional()).toBe(false);
+			expect(useOptional({ initialValue: true })).toBe(true);
+		});
 	});
 
 	describe('defineHook — signal and computed in setup', () => {

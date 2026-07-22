@@ -67,6 +67,12 @@ export type HookSetupFn<C, R, L extends LayerSource = readonly never[]> = (
 	ctx: HookContext<C, L>
 ) => R;
 
+export type HookFunction<C, R> = [C] extends [undefined]
+	? () => R
+	: undefined extends C
+		? (config?: Exclude<C, undefined>) => R
+		: (config: C) => R;
+
 export interface HookDefinition<
 	C = unknown,
 	R = unknown,

@@ -22,8 +22,16 @@
  * SOFTWARE.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { signal } from '@effuse/core';
+import {
+	describe,
+	it,
+	expect,
+	expectTypeOf,
+	vi,
+	beforeEach,
+	afterEach,
+} from 'vitest';
+import { signal, type ReadonlySignal } from '@effuse/core';
 import { useThrottle } from './index.js';
 
 describe('useThrottle', () => {
@@ -40,6 +48,15 @@ describe('useThrottle', () => {
 	});
 
 	describe('initialization', () => {
+		it('should preserve the source value type', () => {
+			const source = signal<string | null>('initial');
+			const result = useThrottle({ value: source });
+
+			expectTypeOf(result.value).toEqualTypeOf<
+				ReadonlySignal<string | null>
+			>();
+		});
+
 		it('should return initial value immediately', () => {
 			const source = signal('initial');
 			const { value } = useThrottle({ value: source });

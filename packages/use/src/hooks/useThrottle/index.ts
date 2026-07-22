@@ -54,7 +54,7 @@ export interface UseThrottleReturn<T> {
 	readonly isThrottled: ReadonlySignal<boolean>;
 }
 
-export const useThrottle = defineHook<
+const useThrottleHook = defineHook<
 	UseThrottleConfig<unknown>,
 	UseThrottleReturn<unknown>
 >({
@@ -170,3 +170,7 @@ export const useThrottle = defineHook<
 		};
 	},
 });
+
+export const useThrottle = useThrottleHook as <T>(
+	config: UseThrottleConfig<T>
+) => UseThrottleReturn<T>;

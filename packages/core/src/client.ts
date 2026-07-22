@@ -185,6 +185,7 @@ export {
 	type HookContext,
 	type HookDefinition,
 	type HookSetupFn,
+	type HookFunction,
 	type HookCleanup,
 	type HookScope,
 	type HookFinalizer,
