@@ -45,3 +45,7 @@ request matching. Keeping these cases separate prevents cold graph construction
 from hiding request-path regressions. Both Node and Bun scripts enforce the same
 conservative budgets until runtime-specific CI baselines justify narrower
 limits.
+
+`server.files-compile` and `server.files-match` apply the same split to a
+49-entry lazy file registry. The match case stops before dynamic import, so its
+budget isolates route selection from user module initialization and I/O.

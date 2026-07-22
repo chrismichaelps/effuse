@@ -152,6 +152,21 @@ export {
 } from './server-files.js';
 
 export {
+	compileServerFileRegistry,
+	matchServerFileRequest,
+	type CompiledServerFileRegistry,
+	type LazyServerActionFileEntry,
+	type LazyServerApiFileEntry,
+	type LazyServerFileEntry,
+	type ServerActionFileMatch,
+	type ServerApiFileMatch,
+	type ServerFileMatch,
+	type ServerFileMatchOptions,
+	type ServerFileModule,
+	type ServerFileRegistrySource,
+} from './lazy-server-files.js';
+
+export {
 	callLayerManifestAction,
 	callLayerManifestRoute,
 	createLayerRoutePath,

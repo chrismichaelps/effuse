@@ -8,8 +8,10 @@ import {
 } from '../../packages/core/dist/client.js';
 import {
 	compileLayerServerRouter,
+	compileServerFileRegistry,
 	defineLayer,
 	matchLayerServerRequest,
+	matchServerFileRequest,
 } from '../../packages/core/dist/server.js';
 import {
 	evaluateBudgets,
@@ -42,9 +44,21 @@ const ServerBenchmarkLayer = defineLayer({
 const compiledServerRouter = compileLayerServerRouter([ServerBenchmarkLayer]);
 const serverRequests = Array.from(
 	{ length: 48 },
-	(_, index) =>
-		new Request(`http://localhost/api/catalog/category-${index}/42`)
+	(_, index) => new Request(`http://localhost/api/catalog/category-${index}/42`)
 );
+const lazyServerEntries = Array.from({ length: 48 }, (_, index) => ({
+	kind: 'api',
+	filePath: `category-${index}.ts`,
+	path: `/api/catalog/category-${index}/[id]`,
+	load: async () => ({ GET: () => ({ ok: true }) }),
+}));
+lazyServerEntries.push({
+	kind: 'api',
+	filePath: 'category.ts',
+	path: '/api/catalog/[section]/[id]',
+	load: async () => ({ GET: () => ({ ok: true }) }),
+});
+const compiledFileRegistry = compileServerFileRegistry(lazyServerEntries);
 
 let routeIndex = 0;
 const cases = [
@@ -97,6 +111,20 @@ const cases = [
 			matchLayerServerRequest(
 				serverRequests[routeIndex++ % serverRequests.length],
 				compiledServerRouter
+			),
+	},
+	{
+		name: 'server.files-compile',
+		iterations: Math.max(50, options.iterations / 20),
+		operation: () => compileServerFileRegistry(lazyServerEntries),
+	},
+	{
+		name: 'server.files-match',
+		iterations: Math.max(100, options.iterations / 10),
+		operation: () =>
+			matchServerFileRequest(
+				serverRequests[routeIndex++ % serverRequests.length],
+				compiledFileRegistry
 			),
 	},
 ];

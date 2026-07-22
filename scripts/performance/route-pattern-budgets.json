@@ -6,5 +6,7 @@
 	"route.compare": { "medianNs": 75000, "p95Ns": 150000 },
 	"route.table-scan": { "medianNs": 100000, "p95Ns": 200000 },
 	"server.router-compile": { "medianNs": 1000000, "p95Ns": 3000000 },
-	"server.router-match": { "medianNs": 50000, "p95Ns": 100000 }
+	"server.router-match": { "medianNs": 50000, "p95Ns": 100000 },
+	"server.files-compile": { "medianNs": 1000000, "p95Ns": 3000000 },
+	"server.files-match": { "medianNs": 50000, "p95Ns": 100000 }
 }

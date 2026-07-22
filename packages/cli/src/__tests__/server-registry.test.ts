@@ -140,8 +140,14 @@ describe('server registry compiler', () => {
 		expect(first).toBe(second);
 		expect(first).toContain('import("../src/server/api/users/[id]/route.mts")');
 		expect(first).toContain('import("../src/server/actions/users/refresh.mjs")');
+		expect(first).toContain('export const serverRegistry = Object.freeze([');
+		expect(first).toContain('Object.freeze({ ...{"kind":"api"');
 		expect(first).toContain('export async function loadServerFiles()');
-		expect(first).toContain("signature\":\"api/users/[]");
+		expect(first).toContain(
+			'export const compiledServerRegistry = compileServerFileRegistry(serverRegistry)'
+		);
+		expect(first).toContain('export function matchServerFile(request: Request');
+		expect(first).toContain('signature":"api/users/[]');
 		expect(first).not.toContain('node:fs');
 	});
 

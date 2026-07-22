@@ -72,7 +72,7 @@ describe('Effuse server registry Vite plugin', () => {
 
 		expect(existsSync(outputPath)).toBe(true);
 		expect(readFileSync(outputPath, 'utf-8')).toContain(
-			'export const serverRegistry = [\n\n] as const'
+			'export const serverRegistry = Object.freeze([\n\n] as const)'
 		);
 		expect(watched).toEqual([]);
 		expect(watcher.add).toHaveBeenCalledWith([
