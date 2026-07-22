@@ -91,6 +91,52 @@ describe('generateOpenApiDocument', () => {
 		expect(op.responses.default.content?.['application/json']).toBeDefined();
 	});
 
+	it('describes recursively composed object arrays', () => {
+		const route = defineServerRoute({
+			path: '/api/posts',
+			request: defineServerRequest({}),
+			response: serverSchema.object({
+				items: serverSchema.array(
+					serverSchema.object({
+						id: serverSchema.numberFromString,
+						title: serverSchema.string,
+					})
+				),
+			}),
+			GET: () => ({ items: [{ id: 1, title: 'Effuse' }] }),
+		});
+		const doc = generateOpenApiDocument({ route }, info);
+		const operation = doc.paths['/api/posts'].get as {
+			responses: Record<
+				string,
+				{
+					content?: Record<string, { schema: Record<string, unknown> }>;
+				}
+			>;
+		};
+
+		expect(
+			operation.responses['200'].content?.['application/json']?.schema
+		).toMatchObject({
+			type: 'object',
+			properties: {
+				items: {
+					type: 'array',
+					items: {
+						type: 'object',
+						properties: {
+							id: { $ref: '#/components/schemas/NumberFromString' },
+						},
+						required: ['id', 'title'],
+					},
+				},
+			},
+		});
+		expect(doc.components?.schemas.NumberFromString).toMatchObject({
+			type: 'string',
+		});
+	});
+
 	it('describes a streaming response as binary', () => {
 		const doc = generateOpenApiDocument({ download: downloadRoute }, info);
 		const op = doc.paths['/api/download'].get as {

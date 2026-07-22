@@ -74,7 +74,11 @@ export interface PropValueSchema<Output, Input = Output> {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- heterogeneous schema combinators preserve member types.
 type AnyPropValueSchema = PropValueSchema<any, any>;
 type PropValueSchemaParts<S> =
-	S extends PropValueSchema<infer O, infer I> ? [O, I] : never;
+	S extends PropValueSchema<infer O, infer I>
+		? [O, I]
+		: S extends PropSchemaBuilder<infer O, infer I>
+			? [O, I]
+			: never;
 type PropValueOutput<S> = PropValueSchemaParts<S>[0];
 type PropValueInput<S> = PropValueSchemaParts<S>[1];
 
@@ -110,8 +114,26 @@ export interface PropSchemaBuilder<
 }
 
 export interface AnyPropSchemaBuilder {
+	readonly schema: PropValueSchema<unknown, unknown>;
 	readonly validateSync: (props: unknown, componentName?: string) => unknown;
 }
+
+type AnyPropSchemaMember = AnyPropValueSchema | AnyPropSchemaBuilder;
+
+const isPropSchemaBuilder = (
+	schema: AnyPropSchemaMember
+): schema is AnyPropSchemaBuilder =>
+	Predicate.isObject(schema) &&
+	Predicate.hasProperty(schema, 'validateSync') &&
+	Predicate.hasProperty(schema, 'schema');
+
+const normalizeSchemaMember = <S extends AnyPropSchemaMember>(
+	schema: S
+): PropValueSchema<PropValueOutput<S>, PropValueInput<S>> =>
+	(isPropSchemaBuilder(schema) ? schema.schema : schema) as PropValueSchema<
+		PropValueOutput<S>,
+		PropValueInput<S>
+	>;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- preserves each definition's invariant schema types during inference.
 type AnyPropDefinition = PropDefinition<any, any, boolean>;
@@ -143,11 +165,7 @@ function required(
 		| AnyPropValueSchema
 		| PropSchemaBuilder<Record<string, unknown>, Record<string, unknown>>
 ): AnyPropDefinition {
-	if (
-		Predicate.isObject(schemaOrBuilder) &&
-		Predicate.hasProperty(schemaOrBuilder, 'validateSync') &&
-		Predicate.hasProperty(schemaOrBuilder, 'schema')
-	) {
+	if (isPropSchemaBuilder(schemaOrBuilder)) {
 		const builder = schemaOrBuilder;
 		return {
 			schema: builder.schema as PropValueSchema<unknown, unknown>,
@@ -194,11 +212,7 @@ function optional(
 ): AnyPropDefinition {
 	let baseSchema: Schema.Schema<unknown, unknown>;
 
-	if (
-		Predicate.isObject(schemaOrBuilder) &&
-		Predicate.hasProperty(schemaOrBuilder, 'validateSync') &&
-		Predicate.hasProperty(schemaOrBuilder, 'schema')
-	) {
+	if (isPropSchemaBuilder(schemaOrBuilder)) {
 		const builder = schemaOrBuilder;
 		baseSchema = unwrapValueSchema(
 			builder.schema as PropValueSchema<unknown, unknown>
@@ -337,39 +351,45 @@ const literal = <const L extends readonly LiteralValue[]>(
 ): PropValueSchema<L[number]> =>
 	wrapValueSchema(Schema.Literal(...values) as Schema.Schema<L[number]>);
 
-const union = <const Members extends readonly AnyPropValueSchema[]>(
+const union = <const Members extends readonly AnyPropSchemaMember[]>(
 	...members: Members
 ): PropValueSchema<
 	PropValueOutput<Members[number]>,
 	PropValueInput<Members[number]>
 > =>
 	wrapValueSchema(
-		Schema.Union(...members.map(unwrapValueSchema)) as Schema.Schema<
+		Schema.Union(
+			...members.map((member) =>
+				unwrapValueSchema(normalizeSchemaMember(member))
+			)
+		) as Schema.Schema<
 			PropValueOutput<Members[number]>,
 			PropValueInput<Members[number]>
 		>
 	);
 
-const array = <S extends AnyPropValueSchema>(
+const array = <S extends AnyPropSchemaMember>(
 	item: S
 ): PropValueSchema<
 	readonly PropValueOutput<S>[],
 	readonly PropValueInput<S>[]
 > =>
 	wrapValueSchema(
-		Schema.Array(unwrapValueSchema(item)) as Schema.Schema<
+		Schema.Array(
+			unwrapValueSchema(normalizeSchemaMember(item))
+		) as Schema.Schema<
 			readonly PropValueOutput<S>[],
 			readonly PropValueInput<S>[]
 		>
 	);
 
-const object = <const D extends Record<string, AnyPropValueSchema>>(
+const object = <const D extends Record<string, AnyPropSchemaMember>>(
 	fields: D
 ): PropValueSchema<ValueObjectOutput<D>, ValueObjectInput<D>> => {
 	const schemas = Object.fromEntries(
 		Object.entries(fields).map(([key, value]) => [
 			key,
-			unwrapValueSchema(value),
+			unwrapValueSchema(normalizeSchemaMember(value)),
 		])
 	);
 	return wrapValueSchema(
@@ -420,11 +440,7 @@ export const PropSchema = {
 export const toJsonSchema = (
 	schema: PropValueSchema<unknown, unknown> | AnyPropSchemaBuilder
 ): Record<string, unknown> => {
-	const valueSchema =
-		Predicate.hasProperty(schema, 'validateSync') &&
-		Predicate.hasProperty(schema, 'schema')
-			? (schema.schema as PropValueSchema<unknown, unknown>)
-			: (schema as PropValueSchema<unknown, unknown>);
+	const valueSchema = normalizeSchemaMember(schema);
 	return JSONSchema.make(
 		unwrapValueSchema(valueSchema) as Schema.Schema<unknown, unknown>
 	) as unknown as Record<string, unknown>;
