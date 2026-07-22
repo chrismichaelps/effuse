@@ -24,6 +24,11 @@
 
 import type { PropValueSchema } from '../blueprint/props.js';
 import { toJsonSchema } from '../blueprint/props.js';
+import {
+	parseRoutePattern,
+	type RoutePatternParam,
+} from '../routing/route-pattern.js';
+import type { HttpMethod } from '../layers/types.js';
 import type { AnyTypedServerRoute } from './route-contract.js';
 import { isStreamResponse } from './response-contract.js';
 
@@ -50,9 +55,44 @@ type AnyValueSchema = PropValueSchema<unknown, unknown>;
 
 const BINARY_SCHEMA: JsonObject = { type: 'string', format: 'binary' };
 
-/** Convert Effuse route params (`:id`) to OpenAPI path templates (`{id}`). */
-const toTemplatePath = (path: string): string =>
-	path.replace(/:([A-Za-z0-9_]+)/g, '{$1}');
+interface TemplatePath {
+	readonly path: string;
+	readonly params: ReadonlySet<string>;
+}
+
+/** Convert the complete Effuse route grammar into valid OpenAPI path variants. */
+const toTemplatePaths = (source: string): readonly TemplatePath[] => {
+	const pattern = parseRoutePattern(source);
+	if (pattern.urlSegments.some((segment) => segment.kind === 'wildcard')) {
+		throw new TypeError(
+			`Effuse OpenAPI cannot describe unnamed wildcard route "${source}". Use a named catch-all parameter.`
+		);
+	}
+
+	let variants: { segments: string[]; params: Set<string> }[] = [
+		{ segments: [], params: new Set() },
+	];
+	for (const segment of pattern.urlSegments) {
+		if (segment.kind === 'static') {
+			variants = variants.map((variant) => ({
+				...variant,
+				segments: [...variant.segments, segment.value],
+			}));
+			continue;
+		}
+		if (segment.kind !== 'param') continue;
+		const included = variants.map((variant) => ({
+			segments: [...variant.segments, `{${segment.name}}`],
+			params: new Set([...variant.params, segment.name]),
+		}));
+		variants = segment.optional ? [...variants, ...included] : included;
+	}
+
+	return variants.map((variant) => ({
+		path: variant.segments.length > 0 ? `/${variant.segments.join('/')}` : '/',
+		params: variant.params,
+	}));
+};
 
 /**
  * Rewrite JSON Schema `#/$defs/X` pointers to OpenAPI `#/components/schemas/X`.
@@ -83,16 +123,32 @@ const rewriteRefs = (value: unknown): unknown => {
  */
 const toSchemaObject = (
 	schema: AnyValueSchema,
-	components: Record<string, JsonObject>
+	components: Record<string, JsonObject>,
+	context: string
 ): JsonObject => {
-	const raw = toJsonSchema(schema) as JsonObject & {
-		readonly $defs?: Record<string, JsonObject>;
-	};
+	let raw: JsonObject & { readonly $defs?: Record<string, JsonObject> };
+	try {
+		raw = toJsonSchema(schema) as JsonObject & {
+			readonly $defs?: Record<string, JsonObject>;
+		};
+	} catch (cause) {
+		throw new TypeError(
+			`Effuse OpenAPI cannot describe ${context}. Use a JSON-Schema-compatible serverSchema contract.`,
+			{ cause }
+		);
+	}
 	const { $schema: _schema, $defs, ...body } = raw;
 	void _schema;
 	if ($defs) {
 		for (const [name, definition] of Object.entries($defs)) {
-			components[name] = rewriteRefs(definition) as JsonObject;
+			const rewritten = rewriteRefs(definition) as JsonObject;
+			const existing = components[name];
+			if (existing && JSON.stringify(existing) !== JSON.stringify(rewritten)) {
+				throw new TypeError(
+					`Effuse OpenAPI component schema "${name}" has conflicting definitions.`
+				);
+			}
+			components[name] = rewritten;
 		}
 	}
 	return rewriteRefs(body) as JsonObject;
@@ -105,20 +161,26 @@ const toSchemaObject = (
 const parametersFrom = (
 	schema: AnyValueSchema | undefined,
 	location: 'path' | 'query' | 'header',
-	components: Record<string, JsonObject>
+	components: Record<string, JsonObject>,
+	context: string,
+	pathParams: ReadonlyMap<string, RoutePatternParam> = new Map(),
+	includedPathParams?: ReadonlySet<string>
 ): JsonObject[] => {
 	if (!schema) {
 		return [];
 	}
-	const object = toSchemaObject(schema, components);
+	const object = toSchemaObject(schema, components, context);
 	const properties = (object.properties as Record<string, JsonObject>) ?? {};
 	const required = new Set((object.required as string[] | undefined) ?? []);
-	return Object.entries(properties).map(([name, propertySchema]) => ({
-		name,
-		in: location,
-		required: location === 'path' ? true : required.has(name),
-		schema: propertySchema,
-	}));
+	return Object.entries(properties)
+		.filter(([name]) => !includedPathParams || includedPathParams.has(name))
+		.map(([name, propertySchema]) => ({
+			name,
+			in: location,
+			required: location === 'path' ? true : required.has(name),
+			schema: propertySchema,
+			...(pathParams.get(name)?.catchAll ? { 'x-effuse-catch-all': true } : {}),
+		}));
 };
 
 interface RequestSchemas {
@@ -131,15 +193,35 @@ interface RequestSchemas {
 
 const buildOperation = (
 	route: AnyTypedServerRoute,
-	components: Record<string, JsonObject>
+	method: HttpMethod,
+	components: Record<string, JsonObject>,
+	pathParams: ReadonlyMap<string, RoutePatternParam>,
+	includedPathParams: ReadonlySet<string>
 ): JsonObject => {
 	const request = (route.request?.schemas ?? {}) as RequestSchemas;
 	const operation: JsonObject = {};
 
 	const parameters = [
-		...parametersFrom(request.params, 'path', components),
-		...parametersFrom(request.query, 'query', components),
-		...parametersFrom(request.headers, 'header', components),
+		...parametersFrom(
+			request.params,
+			'path',
+			components,
+			`${route.path} path parameters`,
+			pathParams,
+			includedPathParams
+		),
+		...parametersFrom(
+			request.query,
+			'query',
+			components,
+			`${route.path} query parameters`
+		),
+		...parametersFrom(
+			request.headers,
+			'header',
+			components,
+			`${route.path} header parameters`
+		),
 	];
 	if (parameters.length > 0) {
 		operation.parameters = parameters;
@@ -147,42 +229,62 @@ const buildOperation = (
 
 	if (request.json) {
 		operation.requestBody = {
+			required: true,
 			content: {
 				'application/json': {
-					schema: toSchemaObject(request.json, components),
+					schema: toSchemaObject(
+						request.json,
+						components,
+						`${route.path} JSON request body`
+					),
 				},
 			},
 		};
 	} else if (request.formData) {
 		operation.requestBody = {
+			required: true,
 			content: {
 				'multipart/form-data': {
-					schema: toSchemaObject(request.formData, components),
+					schema: toSchemaObject(
+						request.formData,
+						components,
+						`${route.path} form-data request body`
+					),
 				},
 			},
 		};
 	}
 
 	const responses: JsonObject = {};
-	if (isStreamResponse(route.response)) {
-		responses['200'] = {
+	const successStatus = String(route.metadata?.status ?? 200);
+	const hasResponseBody = method !== 'HEAD' && successStatus !== '204';
+	const contentType = Object.entries(route.metadata?.headers ?? {}).find(
+		([name]) => name.toLowerCase() === 'content-type'
+	)?.[1];
+	if (isStreamResponse(route.response) && hasResponseBody) {
+		responses[successStatus] = {
 			description: 'OK',
-			content: { 'application/octet-stream': { schema: { ...BINARY_SCHEMA } } },
+			content: {
+				[contentType ?? 'application/octet-stream']: {
+					schema: { ...BINARY_SCHEMA },
+				},
+			},
 		};
-	} else if (route.response) {
-		responses['200'] = {
+	} else if (route.response && hasResponseBody) {
+		responses[successStatus] = {
 			description: 'OK',
 			content: {
 				'application/json': {
 					schema: toSchemaObject(
 						route.response as unknown as AnyValueSchema,
-						components
+						components,
+						`${route.path} response body`
 					),
 				},
 			},
 		};
 	} else {
-		responses['200'] = { description: 'OK' };
+		responses[successStatus] = { description: 'OK' };
 	}
 	if (route.errors) {
 		// The error contract carries no status code, so it maps to the catch-all
@@ -193,7 +295,8 @@ const buildOperation = (
 				'application/json': {
 					schema: toSchemaObject(
 						route.errors as unknown as AnyValueSchema,
-						components
+						components,
+						`${route.path} error response body`
 					),
 				},
 			},
@@ -224,11 +327,58 @@ export const generateOpenApiDocument = (
 	const paths: Record<string, Record<string, JsonObject>> = {};
 
 	for (const route of list) {
-		const path = toTemplatePath(route.path);
-		const pathItem = paths[path] ?? (paths[path] = {});
-		const operation = buildOperation(route, components);
-		for (const method of Object.keys(route.methods)) {
-			pathItem[method.toLowerCase()] = operation;
+		const pattern = parseRoutePattern(route.path);
+		const pathParams = new Map(
+			pattern.params.map((param) => [param.name, param])
+		);
+		const request = (route.request?.schemas ?? {}) as RequestSchemas;
+		const parameterSchema = request.params
+			? toSchemaObject(
+					request.params,
+					components,
+					`${route.path} path parameters`
+				)
+			: undefined;
+		const schemaParamNames = new Set(
+			Object.keys(
+				(parameterSchema?.properties as
+					| Record<string, JsonObject>
+					| undefined) ?? {}
+			)
+		);
+		for (const name of pathParams.keys()) {
+			if (!schemaParamNames.has(name)) {
+				throw new TypeError(
+					`Effuse OpenAPI route "${route.path}" is missing request.params schema field "${name}".`
+				);
+			}
+		}
+		for (const name of schemaParamNames) {
+			if (!pathParams.has(name)) {
+				throw new TypeError(
+					`Effuse OpenAPI route "${route.path}" declares non-route params field "${name}".`
+				);
+			}
+		}
+
+		for (const template of toTemplatePaths(route.path)) {
+			const pathItem = paths[template.path] ?? (paths[template.path] = {});
+			for (const methodName of Object.keys(route.methods)) {
+				const method = methodName as HttpMethod;
+				const key = method.toLowerCase();
+				if (pathItem[key]) {
+					throw new TypeError(
+						`Effuse OpenAPI duplicate operation ${method} ${template.path}.`
+					);
+				}
+				pathItem[key] = buildOperation(
+					route,
+					method,
+					components,
+					pathParams,
+					template.params
+				);
+			}
 		}
 	}
 
