@@ -31,7 +31,7 @@ import {
 	beforeEach,
 	afterEach,
 } from 'vitest';
-import { signal, type ReadonlySignal } from '@effuse/core';
+import { readonlySignal, signal, type ReadonlySignal } from '@effuse/core';
 import { useDebounce } from './index.js';
 
 describe('useDebounce', () => {
@@ -77,9 +77,16 @@ describe('useDebounce', () => {
 		it('should preserve the source value type', () => {
 			const source = signal({ id: 42, label: 'answer' });
 			const result = useDebounce({ value: source });
+			const readonlySource = readonlySignal(
+				signal<Readonly<{ id: number }>>({ id: 7 })
+			);
+			const readonlyResult = useDebounce({ value: readonlySource });
 
 			expectTypeOf(result.value).toEqualTypeOf<
 				ReadonlySignal<{ id: number; label: string }>
+			>();
+			expectTypeOf(readonlyResult.value).toEqualTypeOf<
+				ReadonlySignal<Readonly<{ id: number }>>
 			>();
 		});
 

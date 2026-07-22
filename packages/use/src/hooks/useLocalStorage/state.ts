@@ -23,18 +23,56 @@
  */
 
 import { Data } from 'effect';
+import type {
+	TaggedHandlers,
+	TaggedUnion,
+	TaggedVariant,
+} from '../../internal/tagged.js';
 
-export type StorageState<T> = Data.TaggedEnum<{
+type StorageStateCases<T> = {
 	readonly Unavailable: { readonly fallback: T };
 	readonly Loaded: { readonly value: T };
 	readonly Error: { readonly error: string; readonly fallback: T };
-}>;
+};
+
+export type StorageState<T> = TaggedUnion<StorageStateCases<T>>;
 
 interface StorageStateDefinition extends Data.TaggedEnum.WithGenerics<1> {
 	readonly taggedEnum: StorageState<this['A']>;
 }
 
-export const StorageState = Data.taggedEnum<StorageStateDefinition>();
+interface StorageStateConstructors {
+	readonly Unavailable: <T>(fields: {
+		readonly fallback: T;
+	}) => TaggedVariant<'Unavailable', { readonly fallback: T }>;
+	readonly Loaded: <T>(fields: {
+		readonly value: T;
+	}) => TaggedVariant<'Loaded', { readonly value: T }>;
+	readonly Error: <T>(fields: {
+		readonly error: string;
+		readonly fallback: T;
+	}) => TaggedVariant<
+		'Error',
+		{ readonly error: string; readonly fallback: T }
+	>;
+	readonly $is: <K extends StorageState<unknown>['_tag']>(
+		tag: K
+	) => <T>(
+		value: StorageState<T>
+	) => value is Extract<StorageState<T>, { readonly _tag: K }>;
+	readonly $match: {
+		<T, R>(
+			cases: TaggedHandlers<StorageStateCases<T>, R>
+		): (value: StorageState<T>) => R;
+		<T, R>(
+			value: StorageState<T>,
+			cases: TaggedHandlers<StorageStateCases<T>, R>
+		): R;
+	};
+}
+
+export const StorageState = Data.taggedEnum<StorageStateDefinition>() as unknown as
+	StorageStateConstructors;
 
 export const isUnavailable = StorageState.$is('Unavailable');
 export const isLoaded = StorageState.$is('Loaded');

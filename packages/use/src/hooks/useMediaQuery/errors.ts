@@ -23,15 +23,27 @@
  */
 
 import { Data } from 'effect';
+import type { TaggedErrorConstructor } from '../../internal/tagged.js';
 
-export class MediaQueryError extends Data.TaggedError('MediaQueryError')<{
+interface MediaQueryErrorFields {
 	readonly query: string;
 	readonly reason: string;
-}> {
+}
+
+export interface MediaQueryError extends Error, MediaQueryErrorFields {
+	readonly _tag: 'MediaQueryError';
+}
+
+const MediaQueryErrorRuntime = class extends Data.TaggedError('MediaQueryError')<
+	MediaQueryErrorFields
+> {
 	get message(): string {
 		return `[useMediaQuery] Failed for query "${this.query}": ${this.reason}`;
 	}
-}
+};
+
+export const MediaQueryError = MediaQueryErrorRuntime as unknown as
+	TaggedErrorConstructor<MediaQueryErrorFields, MediaQueryError>;
 
 export const mediaQueryUnavailable = (query: string): MediaQueryError =>
 	new MediaQueryError({

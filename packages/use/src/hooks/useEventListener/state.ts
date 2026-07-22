@@ -23,16 +23,21 @@
  */
 
 import { Data } from 'effect';
+import type {
+	TaggedEnumConstructors,
+	TaggedUnion,
+} from '../../internal/tagged.js';
 
-/* eslint-disable @typescript-eslint/no-empty-object-type -- Effect Data.TaggedEnum uses {} for no-payload variants. */
-export type ListenerState = Data.TaggedEnum<{
-	readonly Inactive: {};
+type ListenerStateCases = {
+	readonly Inactive: Record<never, never>;
 	readonly Active: { readonly eventName: string };
 	readonly Error: { readonly reason: string };
-}>;
-/* eslint-enable @typescript-eslint/no-empty-object-type */
+};
 
-export const ListenerState = Data.taggedEnum<ListenerState>();
+export type ListenerState = TaggedUnion<ListenerStateCases>;
+
+export const ListenerState = Data.taggedEnum<ListenerState>() as unknown as
+	TaggedEnumConstructors<ListenerStateCases>;
 
 export const isInactive = ListenerState.$is('Inactive');
 export const isActive = ListenerState.$is('Active');

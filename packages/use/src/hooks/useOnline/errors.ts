@@ -23,14 +23,26 @@
  */
 
 import { Data } from 'effect';
+import type { TaggedErrorConstructor } from '../../internal/tagged.js';
 
-export class NetworkError extends Data.TaggedError('NetworkError')<{
+interface NetworkErrorFields {
 	readonly reason: string;
-}> {
+}
+
+export interface NetworkError extends Error, NetworkErrorFields {
+	readonly _tag: 'NetworkError';
+}
+
+const NetworkErrorRuntime = class extends Data.TaggedError('NetworkError')<
+	NetworkErrorFields
+> {
 	get message(): string {
 		return `[useOnline] ${this.reason}`;
 	}
-}
+};
+
+export const NetworkError = NetworkErrorRuntime as unknown as
+	TaggedErrorConstructor<NetworkErrorFields, NetworkError>;
 
 export const networkUnavailable = (): NetworkError =>
 	new NetworkError({ reason: 'Navigator is not available (SSR context)' });
