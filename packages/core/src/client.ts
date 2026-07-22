@@ -502,6 +502,37 @@ export {
 } from './ssr/request-contract.js';
 
 export {
+	defineServerRoute,
+	type AnyTypedServerRoute,
+	type ServerContractRouteInput,
+	type TypedServerRoute,
+} from './ssr/route-contract.js';
+
+export {
+	createTypedRouteClient,
+	isRouteError,
+	type TypedRouteCallOptions,
+	type TypedRouteCaller,
+	type TypedRouteClient,
+	type TypedRouteClientOptions,
+	type TypedRouteError,
+	type TypedRouteInput,
+	type TypedRouteResult,
+} from './ssr/typed-route-client.js';
+
+export {
+	streamResponse,
+	isStreamResponse,
+	type ServerStreamResponse,
+} from './ssr/response-contract.js';
+
+export {
+	generateOpenApiDocument,
+	type OpenApiDocument,
+	type OpenApiInfo,
+} from './ssr/openapi.js';
+
+export {
 	serverSchema,
 	type ServerOptionalSchema,
 	type ServerSchemaInfer,
