@@ -24,7 +24,11 @@
 
 import type { LayerInputSource } from '../layers/api/defineLayer.js';
 import type { ServerObservabilityHooks } from './observability.js';
-import { handleLayerServerRequest } from './server-routing.js';
+import {
+	compileLayerServerRouter,
+	handleLayerServerRequest,
+	type CompiledLayerServerRouter,
+} from './server-routing.js';
 
 export interface InProcessRouteFetchOptions {
 	readonly observability?: ServerObservabilityHooks;
@@ -60,6 +64,7 @@ export const createInProcessRouteFetch = (
 	layers: LayerInputSource,
 	options: InProcessRouteFetchOptions = {}
 ): typeof fetch => {
+	let serverRouter: CompiledLayerServerRouter | undefined;
 	return (async (
 		input: RequestInfo | URL,
 		init?: RequestInit
@@ -71,7 +76,7 @@ export const createInProcessRouteFetch = (
 
 		const response = await handleLayerServerRequest(
 			request,
-			layers,
+			(serverRouter ??= compileLayerServerRouter(layers)),
 			options.observability
 		);
 

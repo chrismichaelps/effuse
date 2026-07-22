@@ -53,6 +53,8 @@ import {
 	getLayerServerRouteEntries,
 	getServerRouteMethods,
 	isHttpMethod,
+	type LayerServerActionEntry,
+	type LayerServerRouteEntry,
 } from './server-routes.js';
 import {
 	isLayerServerError,
@@ -84,6 +86,125 @@ interface MatchedServerHandler {
 	readonly request?: AnyServerRequestContract;
 	readonly response?: AnyServerValidator;
 }
+
+interface CompiledApiEntry {
+	readonly allowedMethods: readonly HttpMethod[];
+	readonly entry: LayerServerRouteEntry;
+	readonly layer: AnyResolvedLayer;
+	readonly path: string;
+	readonly pattern: ReturnType<typeof compileRoutePattern>;
+}
+
+interface CompiledActionEntry {
+	readonly entry: LayerServerActionEntry;
+	readonly layer: AnyResolvedLayer;
+}
+
+interface CompiledLayerServerRouterData {
+	readonly layers: readonly AnyResolvedLayer[];
+	readonly routes: readonly CompiledApiEntry[];
+	readonly qualifiedActions: ReadonlyMap<string, CompiledActionEntry>;
+	readonly unqualifiedActions: ReadonlyMap<string, CompiledActionEntry>;
+}
+
+export interface CompiledLayerServerRouter {
+	readonly kind: 'effuse-layer-server-router';
+	readonly layerCount: number;
+	readonly routeCount: number;
+	readonly actionCount: number;
+}
+
+export type LayerServerRouterSource =
+	| LayerInputSource
+	| CompiledLayerServerRouter;
+
+const compiledRouterData = new WeakMap<
+	CompiledLayerServerRouter,
+	CompiledLayerServerRouterData
+>();
+
+const isCompiledLayerServerRouter = (
+	source: LayerServerRouterSource
+): source is CompiledLayerServerRouter =>
+	compiledRouterData.has(source as CompiledLayerServerRouter);
+
+export const compileLayerServerRouter = (
+	source: LayerServerRouterSource
+): CompiledLayerServerRouter => {
+	if (isCompiledLayerServerRouter(source)) return source;
+	const layers = Object.freeze([...resolveLayerDefinitions(source)]);
+	const routes = Object.freeze(
+		layers
+			.flatMap((layer, layerIndex) =>
+				getLayerServerRouteEntries(layer).map((entry, routeIndex) => ({
+					allowedMethods: Object.freeze([
+						...getServerRouteMethods(entry.route),
+					]),
+					entry,
+					layer,
+					layerIndex,
+					path: entry.route.path,
+					pattern: compileRoutePattern(entry.route.path),
+					routeIndex,
+				}))
+			)
+			.sort((left, right) => {
+				const specificity = compareRoutePatterns(
+					left.pattern.pattern,
+					right.pattern.pattern
+				);
+				if (specificity !== 0) return specificity;
+				if (left.layerIndex !== right.layerIndex) {
+					return left.layerIndex - right.layerIndex;
+				}
+				return left.routeIndex - right.routeIndex;
+			})
+			.map(({ allowedMethods, entry, layer, path, pattern }) =>
+				Object.freeze({ allowedMethods, entry, layer, path, pattern })
+			)
+	);
+	const qualifiedActions = new Map<string, CompiledActionEntry>();
+	const unqualifiedActions = new Map<string, CompiledActionEntry>();
+	const claimedLayerNames = new Set<string>();
+	let actionCount = 0;
+	for (const layer of layers) {
+		const actions = getLayerServerActionEntries(layer);
+		actionCount += actions.length;
+		const ownsQualifiedName = !claimedLayerNames.has(layer.name);
+		claimedLayerNames.add(layer.name);
+		for (const entry of actions) {
+			const compiled = Object.freeze({ entry, layer });
+			if (!unqualifiedActions.has(entry.name)) {
+				unqualifiedActions.set(entry.name, compiled);
+			}
+			if (ownsQualifiedName) {
+				qualifiedActions.set(`${layer.name}\u0000${entry.name}`, compiled);
+			}
+		}
+	}
+	const router = Object.freeze({
+		kind: 'effuse-layer-server-router' as const,
+		layerCount: layers.length,
+		routeCount: routes.length,
+		actionCount,
+	});
+	compiledRouterData.set(router, {
+		layers,
+		routes,
+		qualifiedActions,
+		unqualifiedActions,
+	});
+	return router;
+};
+
+const getCompiledRouterData = (
+	source: LayerServerRouterSource
+): CompiledLayerServerRouterData => {
+	const router = compileLayerServerRouter(source);
+	const data = compiledRouterData.get(router);
+	if (!data) throw new TypeError('Invalid Effuse compiled server router.');
+	return data;
+};
 
 interface LayerWithServiceKeys {
 	readonly serviceKeys: readonly string[];
@@ -120,7 +241,7 @@ const getHandlerForMethod = (
 
 const findApiHandler = (
 	request: Request,
-	layers: readonly AnyResolvedLayer[]
+	data: CompiledLayerServerRouterData
 ): MatchedServerHandler | null => {
 	const url = new URL(request.url);
 	const method = request.method.toUpperCase();
@@ -128,31 +249,7 @@ const findApiHandler = (
 		return null;
 	}
 
-	const entries = layers
-		.flatMap((layer, layerIndex) =>
-			getLayerServerRouteEntries(layer).map((entry, routeIndex) => ({
-				entry,
-				layer,
-				layerIndex,
-				routeIndex,
-				pattern: compileRoutePattern(entry.route.path),
-			}))
-		)
-		.sort((left, right) => {
-			const specificity = compareRoutePatterns(
-				left.pattern.pattern,
-				right.pattern.pattern
-			);
-			if (specificity !== 0) {
-				return specificity;
-			}
-			if (left.layerIndex !== right.layerIndex) {
-				return left.layerIndex - right.layerIndex;
-			}
-			return left.routeIndex - right.routeIndex;
-		});
-
-	for (const { entry, layer, pattern } of entries) {
+	for (const { allowedMethods, entry, layer, path, pattern } of data.routes) {
 		const route = entry.route;
 		const params = matchRoutePattern(pattern, url.pathname);
 		if (!params) continue;
@@ -166,8 +263,8 @@ const findApiHandler = (
 				metadata: entry.metadata,
 				middleware: route.middleware ?? [],
 				params,
-				target: route.path,
-				allowedMethods: getServerRouteMethods(route),
+				target: path,
+				allowedMethods,
 				...(route.request ? { request: route.request } : {}),
 				...(route.response ? { response: route.response } : {}),
 			};
@@ -178,7 +275,7 @@ const findApiHandler = (
 				new Response(null, {
 					status: 405,
 					headers: {
-						Allow: getServerRouteMethods(route).join(', '),
+						Allow: allowedMethods.join(', '),
 					},
 				}),
 			kind: 'api',
@@ -186,8 +283,8 @@ const findApiHandler = (
 			metadata: entry.metadata,
 			middleware: route.middleware ?? [],
 			params,
-			target: route.path,
-			allowedMethods: getServerRouteMethods(route),
+			target: path,
+			allowedMethods,
 		};
 	}
 
@@ -196,7 +293,7 @@ const findApiHandler = (
 
 const findActionHandler = (
 	request: Request,
-	layers: readonly AnyResolvedLayer[]
+	data: CompiledLayerServerRouterData
 ): MatchedServerHandler | null => {
 	const url = new URL(request.url);
 	if (!url.pathname.startsWith(EFFUSE_ACTION_PREFIX)) {
@@ -233,13 +330,11 @@ const findActionHandler = (
 	}
 
 	if (layerName) {
-		const layer = layers.find((candidate) => candidate.name === layerName);
-		const action = layer
-			? getLayerServerActionEntries(layer).find(
-					(candidate) => candidate.name === actionName
-				)
-			: undefined;
-		if (layer && action) {
+		const compiled = data.qualifiedActions.get(
+			`${layerName}\u0000${actionName}`
+		);
+		if (compiled) {
+			const { entry: action, layer } = compiled;
 			return {
 				handler: action.action.handler,
 				kind: 'action',
@@ -254,22 +349,19 @@ const findActionHandler = (
 		return null;
 	}
 
-	for (const layer of layers) {
-		const action = getLayerServerActionEntries(layer).find(
-			(candidate) => candidate.name === actionName
-		);
-		if (action) {
-			return {
-				handler: action.action.handler,
-				kind: 'action',
-				layer,
-				metadata: action.metadata,
-				middleware: action.action.middleware ?? [],
-				params: { action: actionName },
-				target: actionName,
-				allowedMethods: ['POST'],
-			};
-		}
+	const compiled = data.unqualifiedActions.get(actionName);
+	if (compiled) {
+		const { entry: action, layer } = compiled;
+		return {
+			handler: action.action.handler,
+			kind: 'action',
+			layer,
+			metadata: action.metadata,
+			middleware: action.action.middleware ?? [],
+			params: { action: actionName },
+			target: actionName,
+			allowedMethods: ['POST'],
+		};
 	}
 
 	return null;
@@ -609,17 +701,20 @@ const createContext = (
 
 export const matchLayerServerRequest = (
 	request: Request,
-	layers: readonly AnyResolvedLayer[]
-): MatchedServerHandler | null =>
-	findActionHandler(request, layers) ?? findApiHandler(request, layers);
+	source: LayerServerRouterSource
+): MatchedServerHandler | null => {
+	const data = getCompiledRouterData(source);
+	return findActionHandler(request, data) ?? findApiHandler(request, data);
+};
 
 export const handleLayerServerRequest = async (
 	request: Request,
-	rawLayers: LayerInputSource,
+	source: LayerServerRouterSource,
 	observability?: ServerObservabilityHooks
 ): Promise<Response | null> => {
-	const layers = resolveLayerDefinitions(rawLayers);
-	const match = matchLayerServerRequest(request, layers);
+	const data = getCompiledRouterData(source);
+	const layers = data.layers;
+	const match = findActionHandler(request, data) ?? findApiHandler(request, data);
 	if (!match) {
 		return null;
 	}
