@@ -45,6 +45,7 @@ export interface UseHooksCategories {
 	readonly useDocumentVisibility: boolean;
 	readonly useClipboard: boolean;
 	readonly usePreferredColorScheme: boolean;
+	readonly useAsyncTask: boolean;
 	readonly useDebounce: boolean;
 	readonly useThrottle: boolean;
 }
@@ -60,6 +61,7 @@ export const defaultUseHooksCategories: UseHooksCategories = {
 	useDocumentVisibility: true,
 	useClipboard: true,
 	usePreferredColorScheme: true,
+	useAsyncTask: true,
 	useDebounce: true,
 	useThrottle: true,
 };

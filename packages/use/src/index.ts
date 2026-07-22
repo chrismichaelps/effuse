@@ -101,6 +101,14 @@ export {
 } from './hooks/usePreferredColorScheme/index.js';
 
 export {
+	useAsyncTask,
+	type AsyncTask,
+	type AsyncTaskStatus,
+	type UseAsyncTaskConfig,
+	type UseAsyncTaskReturn,
+} from './hooks/useAsyncTask/index.js';
+
+export {
 	useDebounce,
 	DebounceError,
 	type UseDebounceConfig,
