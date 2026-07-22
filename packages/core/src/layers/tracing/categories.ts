@@ -42,6 +42,7 @@ export interface UseHooksCategories {
 	readonly useOnline: boolean;
 	readonly useInterval: boolean;
 	readonly useTimeout: boolean;
+	readonly useDocumentVisibility: boolean;
 	readonly useDebounce: boolean;
 	readonly useThrottle: boolean;
 }
@@ -54,6 +55,7 @@ export const defaultUseHooksCategories: UseHooksCategories = {
 	useOnline: true,
 	useInterval: true,
 	useTimeout: true,
+	useDocumentVisibility: true,
 	useDebounce: true,
 	useThrottle: true,
 };

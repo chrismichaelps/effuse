@@ -74,6 +74,14 @@ export {
 } from './hooks/useTimeout/index.js';
 
 export {
+	useDocumentVisibility,
+	DocumentVisibilityError,
+	type VisibilityState,
+	type UseDocumentVisibilityConfig,
+	type UseDocumentVisibilityReturn,
+} from './hooks/useDocumentVisibility/index.js';
+
+export {
 	useDebounce,
 	DebounceError,
 	type UseDebounceConfig,
