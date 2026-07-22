@@ -57,10 +57,12 @@ export interface HookContext<
 	readonly computed: <T>(fn: () => T) => ReadonlySignal<T>;
 	readonly watchEffect: (fn: HookEffectCallback) => EffectHandle;
 	readonly onMount: (fn: EffectCallback) => void;
+	readonly onCleanup: (fn: HookFinalizer) => void;
+	readonly abortSignal: AbortSignal;
 	readonly scope: HookScope;
 	readonly layers: LayersAccessor<L>;
 	readonly use: <R>(hook: () => R) => R;
-	readonly runAsync: <T>(fn: () => Promise<T>) => Promise<T>;
+	readonly runAsync: <T>(fn: (signal: AbortSignal) => Promise<T>) => Promise<T>;
 }
 
 export type HookSetupFn<C, R, L extends LayerSource = readonly never[]> = (

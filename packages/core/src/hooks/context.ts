@@ -50,7 +50,7 @@ import {
 	type LayersAccessor,
 } from '../layers/api/layersAccessor.js';
 
-const createHookScope = (): HookScope => {
+const createHookScope = (onDisposeStart: () => void): HookScope => {
 	const finalizers: HookFinalizer[] = [];
 	let disposal: Promise<void> | undefined;
 	let disposalStarted = false;
@@ -67,6 +67,7 @@ const createHookScope = (): HookScope => {
 		dispose: () => {
 			if (disposal) return disposal;
 			disposalStarted = true;
+			onDisposeStart();
 			disposal = (async () => {
 				const failures: unknown[] = [];
 				for (const fn of [...finalizers].reverse()) {
@@ -116,7 +117,8 @@ export const createHookContext = <C, L extends LayerSource = readonly never[]>(
 	ctx: HookContext<C, L>;
 	dispose: () => Promise<void>;
 } => {
-	const scope = createHookScope();
+	const abortController = new AbortController();
+	const scope = createHookScope(() => abortController.abort());
 	const name = hookName ?? 'anonymous';
 	let effectIndex = 0;
 	const effectHandles: EffectHandle[] = [];
@@ -158,7 +160,12 @@ export const createHookContext = <C, L extends LayerSource = readonly never[]>(
 
 	const use = <R>(hook: () => R): R => hook();
 
-	const runAsync = async <T>(fn: () => Promise<T>): Promise<T> => fn();
+	const runAsync = async <T>(
+		fn: (signal: AbortSignal) => Promise<T>
+	): Promise<T> => {
+		abortController.signal.throwIfAborted();
+		return fn(abortController.signal);
+	};
 
 	const dispose = (): Promise<void> => {
 		if (disposal) return disposal;
@@ -189,6 +196,8 @@ export const createHookContext = <C, L extends LayerSource = readonly never[]>(
 		computed,
 		watchEffect: wrappedEffect,
 		onMount,
+		onCleanup: scope.addFinalizer,
+		abortSignal: abortController.signal,
 		scope,
 		layers: resolveLayersAccessor(layers) as LayersAccessor<L>,
 		use,
