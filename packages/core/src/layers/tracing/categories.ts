@@ -43,6 +43,7 @@ export interface UseHooksCategories {
 	readonly useInterval: boolean;
 	readonly useTimeout: boolean;
 	readonly useDocumentVisibility: boolean;
+	readonly useClipboard: boolean;
 	readonly useDebounce: boolean;
 	readonly useThrottle: boolean;
 }
@@ -56,6 +57,7 @@ export const defaultUseHooksCategories: UseHooksCategories = {
 	useInterval: true,
 	useTimeout: true,
 	useDocumentVisibility: true,
+	useClipboard: true,
 	useDebounce: true,
 	useThrottle: true,
 };
