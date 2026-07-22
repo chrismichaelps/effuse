@@ -82,6 +82,17 @@ export {
 } from './hooks/useDocumentVisibility/index.js';
 
 export {
+	useClipboard,
+	ClipboardError,
+	type ClipboardErrorCode,
+	type ClipboardOperation,
+	type ClipboardPermissionState,
+	type ClipboardPermissions,
+	type UseClipboardConfig,
+	type UseClipboardReturn,
+} from './hooks/useClipboard/index.js';
+
+export {
 	useDebounce,
 	DebounceError,
 	type UseDebounceConfig,
