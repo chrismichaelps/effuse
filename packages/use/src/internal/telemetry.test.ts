@@ -65,6 +65,7 @@ describe('internal/telemetry', () => {
 				'useOnline',
 				'useInterval',
 				'useTimeout',
+				'useDocumentVisibility',
 				'useDebounce',
 			];
 
