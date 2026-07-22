@@ -157,6 +157,7 @@ export type ServerRouteMetadata = ServerPolicy;
 export type ServerLayerDiagnosticCode =
 	| 'metadata_conflict'
 	| 'server_file_ambiguous_route'
+	| 'server_file_contract_mismatch'
 	| 'server_file_duplicate_action'
 	| 'server_file_duplicate_route'
 	| 'server_file_invalid_action'
