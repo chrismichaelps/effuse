@@ -23,6 +23,7 @@
  */
 
 import { Schema } from 'effect';
+import type { RouteParamInput } from '@effuse/core';
 import type { RouteRecord, Route, RouteLocation } from '../core/route.js';
 
 export interface TypedRouteRecord<
@@ -45,31 +46,7 @@ export interface TypedRoute<
 	readonly meta: Meta;
 }
 
-type SegmentRouteParams<Segment extends string> =
-	Segment extends `[[...${infer Param}]]`
-		? { [K in Param]?: string }
-		: Segment extends `[...${infer Param}]`
-			? { [K in Param]: string }
-			: Segment extends `[${infer Param}]`
-				? { [K in Param]: string }
-				: Segment extends `:${infer RawParam}`
-					? RawParam extends `${infer Param}?`
-						? { [K in Param]?: string }
-						: { [K in RawParam]: string }
-					: Record<never, never>;
-
-type RouteParamsFromPath<Path extends string> =
-	Path extends `${infer Segment}/${infer Rest}`
-		? SegmentRouteParams<Segment> & RouteParamsFromPath<Rest>
-		: SegmentRouteParams<Path>;
-
-type SimplifyRouteParams<T> = keyof T extends never
-	? Record<string, never>
-	: { [K in keyof T]: T[K] };
-
-export type ExtractRouteParams<Path extends string> = SimplifyRouteParams<
-	RouteParamsFromPath<Path>
->;
+export type ExtractRouteParams<Path extends string> = RouteParamInput<Path>;
 
 export type TypedRouteLocation<
 	Name extends string,

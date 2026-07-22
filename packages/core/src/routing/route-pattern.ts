@@ -29,6 +29,65 @@ export interface CompiledRoutePattern {
 	readonly paramNames: readonly string[];
 }
 
+type SegmentParamName<Segment extends string> =
+	Segment extends `[[...${infer Name}]]`
+		? Name
+		: Segment extends `[...${infer Name}]`
+			? Name
+			: Segment extends `[${infer Name}]`
+				? Name
+				: Segment extends `:${infer RawName}`
+					? RawName extends `${infer Name}?`
+						? Name
+						: RawName
+					: never;
+
+type OptionalSegmentParamName<Segment extends string> =
+	Segment extends `[[...${infer Name}]]`
+		? Name
+		: Segment extends `:${infer Name}?`
+			? Name
+			: never;
+
+type PathParamNames<Path extends string> =
+	Path extends `${infer Segment}/${infer Rest}`
+		? SegmentParamName<Segment> | PathParamNames<Rest>
+		: SegmentParamName<Path>;
+
+type OptionalPathParamNames<Path extends string> =
+	Path extends `${infer Segment}/${infer Rest}`
+		? OptionalSegmentParamName<Segment> | OptionalPathParamNames<Rest>
+		: OptionalSegmentParamName<Path>;
+
+type RequiredPathParamNames<Path extends string> = Exclude<
+	PathParamNames<Path>,
+	OptionalPathParamNames<Path>
+>;
+
+type SimplifyRouteParams<T> = { [K in keyof T]: T[K] };
+
+/** Params accepted when resolving a route; optional segments may be omitted. */
+export type RouteParamInput<Path extends string> = string extends Path
+	? Readonly<Record<string, string | undefined>>
+	: [PathParamNames<Path>] extends [never]
+		? Record<string, never>
+		: SimplifyRouteParams<
+				{
+					readonly [K in RequiredPathParamNames<Path>]: string;
+				} & {
+					readonly [K in OptionalPathParamNames<Path>]?: string;
+				}
+			>;
+
+/** Params produced by a successful match; optional segments use an empty string. */
+export type MatchedRouteParams<Path extends string> = string extends Path
+	? Readonly<Record<string, string>>
+	: [PathParamNames<Path>] extends [never]
+		? Record<string, never>
+		: SimplifyRouteParams<{
+				readonly [K in PathParamNames<Path>]: string;
+			}>;
+
 const GROUP_SEGMENT = /^\(([^/()]+)\)$/;
 const OPTIONAL_CATCH_ALL_SEGMENT = /^\[\[\.\.\.([^/[\]]+)\]\]$/;
 const CATCH_ALL_SEGMENT = /^\[\.\.\.([^/[\]]+)\]$/;

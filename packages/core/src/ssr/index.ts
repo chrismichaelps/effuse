@@ -132,14 +132,18 @@ export {
 } from './policy-merge.js';
 
 export {
+	defineServerFileHandler,
 	fromServerFiles,
 	serverFileToActionName,
 	serverFileToRoutePath,
 	type ServerActionFileModule,
 	type ServerApiFileModule,
+	type ServerFileContext,
+	type ServerFileHandler,
 	type ServerFileSource,
 	type ServerFilesInput,
 	type ServerFilesOptions,
+	type ServerRouteParams,
 } from './server-files.js';
 
 export {
@@ -221,7 +225,6 @@ export {
 	type OpenApiDocument,
 	type OpenApiInfo,
 } from './openapi.js';
-
 
 export {
 	serverSchema,

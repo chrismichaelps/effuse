@@ -354,6 +354,13 @@ export {
 } from './ssr/client.js';
 
 export {
+	defineServerFileHandler,
+	type ServerFileContext,
+	type ServerFileHandler,
+	type ServerRouteParams,
+} from './ssr/server-files.js';
+
+export {
 	createLayerServerErrorBody,
 	isLayerServerError,
 	isLayerServerErrorBody,
