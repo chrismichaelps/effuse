@@ -70,6 +70,91 @@ describe('defineHook lifecycle ownership', () => {
 		expect(cleanup).toHaveBeenCalledOnce();
 	});
 
+	it('owns a distinct abort signal for each hook invocation', () => {
+		const signals: AbortSignal[] = [];
+		const useSignal = defineHook({
+			setup(ctx) {
+				signals.push(ctx.abortSignal);
+				return ctx.abortSignal;
+			},
+		});
+
+		const first = useSignal();
+		const second = useSignal();
+
+		expect(first).not.toBe(second);
+		expect(signals).toEqual([first, second]);
+		expect(first.aborted).toBe(false);
+		expect(second.aborted).toBe(false);
+	});
+
+	it('aborts before cleanup and preserves LIFO finalizers', async () => {
+		const { ctx, dispose } = createHookContext(undefined, [], 'useAbortOrder');
+		const order: string[] = [];
+		let aborts = 0;
+		ctx.abortSignal.addEventListener('abort', () => {
+			aborts += 1;
+			order.push('abort');
+		});
+		ctx.onCleanup(() => {
+			expect(ctx.abortSignal.aborted).toBe(true);
+			order.push('first');
+		});
+		ctx.onCleanup(() => {
+			order.push('second');
+		});
+
+		const firstDisposal = dispose();
+		expect(ctx.abortSignal.aborted).toBe(true);
+		expect(dispose()).toBe(firstDisposal);
+		await firstDisposal;
+
+		expect(aborts).toBe(1);
+		expect(order).toEqual(['abort', 'second', 'first']);
+	});
+
+	it('passes the owned signal to async work without awaiting it on disposal', async () => {
+		const { ctx, dispose } = createHookContext(undefined, [], 'useAsyncWork');
+		let received: AbortSignal | undefined;
+		const pending = ctx.runAsync(
+			(signal) =>
+				new Promise<void>(() => {
+					received = signal;
+				})
+		);
+
+		expect(received).toBe(ctx.abortSignal);
+		await expect(dispose()).resolves.toBeUndefined();
+		expect(received?.aborted).toBe(true);
+		void pending;
+	});
+
+	it('keeps zero-argument async callbacks source compatible', async () => {
+		const { ctx, dispose } = createHookContext(undefined, [], 'useLegacyAsync');
+
+		await expect(ctx.runAsync(async () => 'done')).resolves.toBe('done');
+		await dispose();
+		await expect(ctx.runAsync(async () => 'late')).rejects.toMatchObject({
+			name: 'AbortError',
+		});
+	});
+
+	it('aborts component-owned work on unmount', () => {
+		const lifecycle = createComponentLifecycleSync();
+		let ownedSignal: AbortSignal | undefined;
+		const useAsyncHook = defineHook({
+			setup(ctx) {
+				ownedSignal = ctx.abortSignal;
+				return undefined;
+			},
+		});
+
+		withActiveLifecycle(lifecycle, () => useAsyncHook());
+		expect(ownedSignal?.aborted).toBe(false);
+		lifecycle.runCleanup();
+		expect(ownedSignal?.aborted).toBe(true);
+	});
+
 	it('disposes finalizers once in LIFO order and aggregates failures', async () => {
 		const { ctx } = createHookContext(undefined, [], 'useFinalizers');
 		const order: string[] = [];
@@ -101,6 +186,7 @@ describe('defineHook lifecycle ownership', () => {
 
 	it('stops effects when setup fails and preserves the setup error', () => {
 		const source = signal(0);
+		let setupSignal: AbortSignal | undefined;
 		const effect = vi.fn(() => {
 			source.value;
 		});
@@ -108,12 +194,14 @@ describe('defineHook lifecycle ownership', () => {
 		const useFailingHook = defineHook({
 			name: 'useFailingHook',
 			setup(ctx) {
+				setupSignal = ctx.abortSignal;
 				ctx.watchEffect(effect);
 				throw setupError;
 			},
 		});
 
 		expect(() => useFailingHook()).toThrow(setupError);
+		expect(setupSignal?.aborted).toBe(true);
 		source.value = 1;
 		expect(effect).toHaveBeenCalledOnce();
 	});
