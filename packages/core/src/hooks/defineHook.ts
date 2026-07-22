@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-import { createHookContext } from './context.js';
+import { createHookContext, reportHookCleanupError } from './context.js';
 import { traceHookSetup } from '../layers/tracing/hooks.js';
 import type { HookSetupFn } from './types.js';
 import {
@@ -44,9 +44,21 @@ export function defineHook<
 
 	const hookFn = (config?: C): R => {
 		const start = performance.now();
-		const { ctx } = createHookContext<C, L>(config as C, layers, hookName);
-		assertLayerBindingsRegistered(layers, { kind: 'hook', name: hookName });
-		const result = definition.setup(ctx);
+		const { ctx, dispose } = createHookContext<C, L>(
+			config as C,
+			layers,
+			hookName
+		);
+		let result: R;
+		try {
+			assertLayerBindingsRegistered(layers, { kind: 'hook', name: hookName });
+			result = definition.setup(ctx);
+		} catch (error) {
+			void dispose().catch((cleanupError: unknown) => {
+				reportHookCleanupError(hookName, 'setup rollback', cleanupError);
+			});
+			throw error;
+		}
 		const duration = performance.now() - start;
 
 		traceHookSetup(hookName, duration, config as Record<string, unknown>);

@@ -22,7 +22,12 @@
  * SOFTWARE.
  */
 
-import type { Signal, ReadonlySignal } from '../types/index.js';
+import type {
+	EffectHandle,
+	OnCleanup,
+	ReadonlySignal,
+	Signal,
+} from '../types/index.js';
 import type {
 	LayerSource,
 	LayersAccessor,
@@ -33,6 +38,10 @@ export type HookCleanup = () => void;
 export type HookFinalizer = () => void | Promise<void>;
 
 export type EffectCallback = () => HookCleanup | undefined;
+
+export type HookEffectCallback = (
+	onCleanup: OnCleanup
+) => void | Promise<void> | HookCleanup;
 
 export interface HookScope {
 	addFinalizer: (fn: HookFinalizer) => void;
@@ -46,7 +55,7 @@ export interface HookContext<
 	readonly config: C;
 	readonly signal: <T>(initial: T) => Signal<T>;
 	readonly computed: <T>(fn: () => T) => ReadonlySignal<T>;
-	readonly watchEffect: (fn: EffectCallback) => void;
+	readonly watchEffect: (fn: HookEffectCallback) => EffectHandle;
 	readonly onMount: (fn: EffectCallback) => void;
 	readonly scope: HookScope;
 	readonly layers: LayersAccessor<L>;

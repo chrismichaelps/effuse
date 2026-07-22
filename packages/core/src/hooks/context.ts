@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-import { Effect, Scope, Exit, Predicate } from 'effect';
+import { Predicate } from 'effect';
 import { signal } from '../reactivity/signal.js';
 import { computed } from '../reactivity/computed.js';
 import { watchEffect as reactiveEffect } from '../effects/effect.js';
@@ -31,14 +31,19 @@ import {
 	traceHookCleanup,
 	traceHookDispose,
 } from '../layers/tracing/hooks.js';
-import { getActiveLifecycle } from '../blueprint/lifecycle.js';
+import {
+	getActiveLifecycle,
+	LifecycleError,
+	reportLifecycleError,
+} from '../blueprint/lifecycle.js';
 import type {
 	HookContext,
-	HookCleanup,
 	HookScope,
 	HookFinalizer,
 	EffectCallback,
+	HookEffectCallback,
 } from './types.js';
+import type { EffectHandle } from '../types/index.js';
 import {
 	resolveLayersAccessor,
 	type LayerSource,
@@ -46,26 +51,64 @@ import {
 } from '../layers/api/layersAccessor.js';
 
 const createHookScope = (): HookScope => {
-	const internalScope = Effect.runSync(Scope.make());
 	const finalizers: HookFinalizer[] = [];
+	let disposal: Promise<void> | undefined;
+	let disposalStarted = false;
 
 	return {
 		addFinalizer: (fn: HookFinalizer) => {
+			if (disposalStarted) {
+				throw new Error(
+					'[Effuse] Cannot add a hook finalizer after disposal has started.'
+				);
+			}
 			finalizers.push(fn);
 		},
-		dispose: async () => {
-			for (const fn of finalizers.reverse()) {
-				await fn();
-			}
-			Effect.runSync(Scope.close(internalScope, Exit.void));
+		dispose: () => {
+			if (disposal) return disposal;
+			disposalStarted = true;
+			disposal = (async () => {
+				const failures: unknown[] = [];
+				for (const fn of [...finalizers].reverse()) {
+					try {
+						await fn();
+					} catch (error) {
+						failures.push(error);
+					}
+				}
+				finalizers.length = 0;
+
+				if (failures.length > 0) {
+					throw new AggregateError(
+						failures,
+						`[Effuse] Hook scope disposal failed in ${String(failures.length)} finalizer${failures.length === 1 ? '' : 's'}.`
+					);
+				}
+			})();
+			return disposal;
 		},
 	};
 };
 
-export const createHookContext = <
-	C,
-	L extends LayerSource = readonly never[],
->(
+export const reportHookCleanupError = (
+	name: string,
+	operation: 'disposal' | 'setup rollback',
+	error: unknown
+): void => {
+	reportLifecycleError(
+		new LifecycleError('cleanup', [
+			{
+				hook: 'unmount',
+				error: new AggregateError(
+					[error],
+					`[Effuse] Hook "${name}" ${operation} failed.`
+				),
+			},
+		])
+	);
+};
+
+export const createHookContext = <C, L extends LayerSource = readonly never[]>(
 	config: C,
 	layers: L,
 	hookName?: string
@@ -73,52 +116,72 @@ export const createHookContext = <
 	ctx: HookContext<C, L>;
 	dispose: () => Promise<void>;
 } => {
-	const cleanups: HookCleanup[] = [];
 	const scope = createHookScope();
 	const name = hookName ?? 'anonymous';
 	let effectIndex = 0;
+	const effectHandles: EffectHandle[] = [];
+	let disposal: Promise<void> | undefined;
 
-	const wrappedEffect = (fn: EffectCallback) => {
+	const wrappedEffect = (fn: HookEffectCallback): EffectHandle => {
 		const currentIndex = effectIndex++;
-		reactiveEffect(() => {
+		const handle = reactiveEffect((onCleanup) => {
 			const start = performance.now();
-			const result = fn();
+			const result = fn(onCleanup);
 			const duration = performance.now() - start;
 
 			traceHookEffect(name, currentIndex, duration);
 
 			if (Predicate.isFunction(result)) {
-				cleanups.push(() => {
+				onCleanup(() => {
 					traceHookCleanup(`${name}[${String(currentIndex)}]`);
 					result();
 				});
+				return undefined;
 			}
+
+			return result;
 		});
+		effectHandles.push(handle);
+		scope.addFinalizer(() => handle.stop());
+		return handle;
 	};
 
 	const onMount = (fn: EffectCallback) => {
 		const lifecycle = getActiveLifecycle();
 		if (lifecycle) {
 			lifecycle.onMount(() => fn());
+			return;
 		}
+		const cleanup = fn();
+		if (cleanup) scope.addFinalizer(cleanup);
 	};
 
 	const use = <R>(hook: () => R): R => hook();
 
 	const runAsync = async <T>(fn: () => Promise<T>): Promise<T> => fn();
 
-	const dispose = async () => {
+	const dispose = (): Promise<void> => {
+		if (disposal) return disposal;
 		const start = performance.now();
-		const cleanupCount = cleanups.length;
-
-		for (const cleanup of cleanups.reverse()) {
-			cleanup();
+		for (const handle of [...effectHandles].reverse()) {
+			handle.stop();
 		}
-		await scope.dispose();
-
-		const duration = performance.now() - start;
-		traceHookDispose(name, duration, cleanupCount);
+		disposal = scope.dispose().finally(() => {
+			const duration = performance.now() - start;
+			traceHookDispose(name, duration, effectHandles.length);
+			effectHandles.length = 0;
+		});
+		return disposal;
 	};
+
+	const lifecycle = getActiveLifecycle();
+	if (lifecycle) {
+		lifecycle.onUnmount(() => {
+			void dispose().catch((error: unknown) => {
+				reportHookCleanupError(name, 'disposal', error);
+			});
+		});
+	}
 
 	const ctx: HookContext<C, L> = {
 		config,
