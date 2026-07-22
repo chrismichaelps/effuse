@@ -23,14 +23,26 @@
  */
 
 import { Data } from 'effect';
+import type { TaggedErrorConstructor } from '../../internal/tagged.js';
 
-export class DebounceError extends Data.TaggedError('DebounceError')<{
+interface DebounceErrorFields {
 	readonly reason: string;
-}> {
+}
+
+export interface DebounceError extends Error, DebounceErrorFields {
+	readonly _tag: 'DebounceError';
+}
+
+const DebounceErrorRuntime = class extends Data.TaggedError('DebounceError')<
+	DebounceErrorFields
+> {
 	get message(): string {
 		return `[useDebounce] ${this.reason}`;
 	}
-}
+};
+
+export const DebounceError = DebounceErrorRuntime as unknown as
+	TaggedErrorConstructor<DebounceErrorFields, DebounceError>;
 
 export const debounceInvalidDelay = (delay: number): DebounceError =>
 	new DebounceError({

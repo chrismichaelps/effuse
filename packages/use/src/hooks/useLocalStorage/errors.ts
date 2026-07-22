@@ -23,16 +23,28 @@
  */
 
 import { Data } from 'effect';
+import type { TaggedErrorConstructor } from '../../internal/tagged.js';
 
-export class LocalStorageError extends Data.TaggedError('LocalStorageError')<{
+interface LocalStorageErrorFields {
 	readonly key: string;
 	readonly operation: 'read' | 'write' | 'remove';
 	readonly reason: string;
-}> {
+}
+
+export interface LocalStorageError extends Error, LocalStorageErrorFields {
+	readonly _tag: 'LocalStorageError';
+}
+
+const LocalStorageErrorRuntime = class extends Data.TaggedError(
+	'LocalStorageError'
+)<LocalStorageErrorFields> {
 	get message(): string {
 		return `[useLocalStorage] Failed to ${this.operation} key "${this.key}": ${this.reason}`;
 	}
-}
+};
+
+export const LocalStorageError = LocalStorageErrorRuntime as unknown as
+	TaggedErrorConstructor<LocalStorageErrorFields, LocalStorageError>;
 
 export const storageReadError = (
 	key: string,

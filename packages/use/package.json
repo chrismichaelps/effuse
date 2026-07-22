@@ -28,7 +28,7 @@
 		"src"
 	],
 	"scripts": {
-		"build": "tsup",
+		"build": "tsup && node scripts/check-public-types.mjs",
 		"dev": "tsup --watch",
 		"lint": "eslint src",
 		"test": "vitest run",

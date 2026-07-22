@@ -23,17 +23,52 @@
  */
 
 import { Data } from 'effect';
+import type {
+	TaggedHandlers,
+	TaggedUnion,
+	TaggedVariant,
+} from '../../internal/tagged.js';
 
-export type ThrottleState<T> = Data.TaggedEnum<{
+type ThrottleStateCases<T> = {
 	readonly Ready: { readonly value: T };
 	readonly Throttled: { readonly value: T; readonly lastValue: T };
-}>;
+};
+
+export type ThrottleState<T> = TaggedUnion<ThrottleStateCases<T>>;
 
 interface ThrottleStateDefinition extends Data.TaggedEnum.WithGenerics<1> {
 	readonly taggedEnum: ThrottleState<this['A']>;
 }
 
-export const ThrottleState = Data.taggedEnum<ThrottleStateDefinition>();
+interface ThrottleStateConstructors {
+	readonly Ready: <T>(fields: {
+		readonly value: T;
+	}) => TaggedVariant<'Ready', { readonly value: T }>;
+	readonly Throttled: <T>(fields: {
+		readonly value: T;
+		readonly lastValue: T;
+	}) => TaggedVariant<
+		'Throttled',
+		{ readonly value: T; readonly lastValue: T }
+	>;
+	readonly $is: <K extends ThrottleState<unknown>['_tag']>(
+		tag: K
+	) => <T>(
+		value: ThrottleState<T>
+	) => value is Extract<ThrottleState<T>, { readonly _tag: K }>;
+	readonly $match: {
+		<T, R>(
+			cases: TaggedHandlers<ThrottleStateCases<T>, R>
+		): (value: ThrottleState<T>) => R;
+		<T, R>(
+			value: ThrottleState<T>,
+			cases: TaggedHandlers<ThrottleStateCases<T>, R>
+		): R;
+	};
+}
+
+export const ThrottleState = Data.taggedEnum<ThrottleStateDefinition>() as unknown as
+	ThrottleStateConstructors;
 
 export const isReady = ThrottleState.$is('Ready');
 export const isThrottled = ThrottleState.$is('Throttled');

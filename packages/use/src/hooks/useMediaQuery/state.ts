@@ -23,16 +23,21 @@
  */
 
 import { Data } from 'effect';
+import type {
+	TaggedEnumConstructors,
+	TaggedUnion,
+} from '../../internal/tagged.js';
 
-/* eslint-disable @typescript-eslint/no-empty-object-type -- Effect Data.TaggedEnum uses {} for no-payload variants. */
-export type MediaQueryState = Data.TaggedEnum<{
-	readonly Unavailable: {};
-	readonly Matched: {};
-	readonly Unmatched: {};
-}>;
-/* eslint-enable @typescript-eslint/no-empty-object-type */
+type MediaQueryStateCases = {
+	readonly Unavailable: Record<never, never>;
+	readonly Matched: Record<never, never>;
+	readonly Unmatched: Record<never, never>;
+};
 
-export const MediaQueryState = Data.taggedEnum<MediaQueryState>();
+export type MediaQueryState = TaggedUnion<MediaQueryStateCases>;
+
+export const MediaQueryState = Data.taggedEnum<MediaQueryState>() as unknown as
+	TaggedEnumConstructors<MediaQueryStateCases>;
 
 export const isUnavailable = MediaQueryState.$is('Unavailable');
 export const isMatched = MediaQueryState.$is('Matched');

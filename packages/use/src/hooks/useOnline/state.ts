@@ -23,16 +23,21 @@
  */
 
 import { Data } from 'effect';
+import type {
+	TaggedEnumConstructors,
+	TaggedUnion,
+} from '../../internal/tagged.js';
 
-/* eslint-disable @typescript-eslint/no-empty-object-type -- Effect Data.TaggedEnum uses {} for no-payload variants. */
-export type NetworkState = Data.TaggedEnum<{
-	readonly Online: {};
-	readonly Offline: {};
-	readonly Unknown: {};
-}>;
-/* eslint-enable @typescript-eslint/no-empty-object-type */
+type NetworkStateCases = {
+	readonly Online: Record<never, never>;
+	readonly Offline: Record<never, never>;
+	readonly Unknown: Record<never, never>;
+};
 
-export const NetworkState = Data.taggedEnum<NetworkState>();
+export type NetworkState = TaggedUnion<NetworkStateCases>;
+
+export const NetworkState = Data.taggedEnum<NetworkState>() as unknown as
+	TaggedEnumConstructors<NetworkStateCases>;
 
 export const isOnline = NetworkState.$is('Online');
 export const isOffline = NetworkState.$is('Offline');

@@ -23,16 +23,21 @@
  */
 
 import { Data } from 'effect';
+import type {
+	TaggedEnumConstructors,
+	TaggedUnion,
+} from '../../internal/tagged.js';
 
-/* eslint-disable @typescript-eslint/no-empty-object-type -- Effect Data.TaggedEnum uses {} for no-payload variants. */
-export type IntervalState = Data.TaggedEnum<{
-	readonly Stopped: {};
+type IntervalStateCases = {
+	readonly Stopped: Record<never, never>;
 	readonly Running: { readonly count: number };
 	readonly Paused: { readonly count: number };
-}>;
-/* eslint-enable @typescript-eslint/no-empty-object-type */
+};
 
-export const IntervalState = Data.taggedEnum<IntervalState>();
+export type IntervalState = TaggedUnion<IntervalStateCases>;
+
+export const IntervalState = Data.taggedEnum<IntervalState>() as unknown as
+	TaggedEnumConstructors<IntervalStateCases>;
 
 export const isStopped = IntervalState.$is('Stopped');
 export const isRunning = IntervalState.$is('Running');
