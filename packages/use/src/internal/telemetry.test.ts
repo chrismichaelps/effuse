@@ -64,6 +64,7 @@ describe('internal/telemetry', () => {
 				'useMediaQuery',
 				'useOnline',
 				'useInterval',
+				'useTimeout',
 				'useDebounce',
 			];
 
