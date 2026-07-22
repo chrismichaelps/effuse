@@ -3,6 +3,7 @@ export { CliConfigService } from './config/index.js';
 export { DevService } from './services/dev.js';
 export { BuildService } from './services/build.js';
 export { ManifestResolver, DEFAULT_SERVER_MANIFEST_PATH } from './services/manifest.js';
+export * from './services/server-registry.js';
 export * from './constants.js';
 export * from './errors/index.js';
 export * from './utils/index.js';
