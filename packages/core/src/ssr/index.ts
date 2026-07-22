@@ -167,6 +167,23 @@ export {
 } from './lazy-server-files.js';
 
 export {
+	defineServerMiddleware,
+	type DefinedServerMiddleware,
+	type DefinedServerRequestMiddleware,
+	type DefinedServerRouteMiddleware,
+	type NormalizedServerMiddlewareMatch,
+	type ServerMiddlewareMatchInput,
+	type ServerMiddlewareMethod,
+	type ServerMiddlewarePhase,
+	type ServerMiddlewareTarget,
+	type ServerRequestMiddleware,
+	type ServerRequestMiddlewareContext,
+	type ServerRequestMiddlewareDefinition,
+	type ServerRequestMiddlewareNext,
+	type ServerRouteMiddlewareDefinition,
+} from './middleware-definition.js';
+
+export {
 	callLayerManifestAction,
 	callLayerManifestRoute,
 	createLayerRoutePath,
