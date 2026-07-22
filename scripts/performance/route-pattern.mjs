@@ -7,6 +7,11 @@ import {
 	resolveRoutePattern,
 } from '../../packages/core/dist/client.js';
 import {
+	compileLayerServerRouter,
+	defineLayer,
+	matchLayerServerRequest,
+} from '../../packages/core/dist/server.js';
+import {
 	evaluateBudgets,
 	formatResults,
 	runBenchmark,
@@ -23,6 +28,23 @@ const routeTable = Array.from({ length: 48 }, (_, index) =>
 	compileRoutePattern(`/catalog/category-${index}/[id]`)
 );
 routeTable.push(compileRoutePattern('/catalog/[section]/[id]'));
+const serverApi = Object.fromEntries(
+	Array.from({ length: 48 }, (_, index) => [
+		`/api/catalog/category-${index}/[id]`,
+		() => ({ ok: true }),
+	])
+);
+serverApi['/api/catalog/[section]/[id]'] = () => ({ ok: true });
+const ServerBenchmarkLayer = defineLayer({
+	name: 'server-router-benchmark',
+	server: { api: serverApi },
+});
+const compiledServerRouter = compileLayerServerRouter([ServerBenchmarkLayer]);
+const serverRequests = Array.from(
+	{ length: 48 },
+	(_, index) =>
+		new Request(`http://localhost/api/catalog/category-${index}/42`)
+);
 
 let routeIndex = 0;
 const cases = [
@@ -62,6 +84,20 @@ const cases = [
 			}
 			return null;
 		},
+	},
+	{
+		name: 'server.router-compile',
+		iterations: Math.max(50, options.iterations / 20),
+		operation: () => compileLayerServerRouter([ServerBenchmarkLayer]),
+	},
+	{
+		name: 'server.router-match',
+		iterations: Math.max(100, options.iterations / 10),
+		operation: () =>
+			matchLayerServerRequest(
+				serverRequests[routeIndex++ % serverRequests.length],
+				compiledServerRouter
+			),
 	},
 ];
 

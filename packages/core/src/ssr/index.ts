@@ -69,9 +69,12 @@ export {
 } from './handler.js';
 
 export {
+	compileLayerServerRouter,
 	handleLayerServerRequest,
 	matchLayerServerRequest,
 	normalizeServerResult,
+	type CompiledLayerServerRouter,
+	type LayerServerRouterSource,
 } from './server-routing.js';
 
 export { EFFUSE_ACTION_PREFIX } from './constants.js';

@@ -37,3 +37,11 @@ and enforce `route-pattern-budgets.json`.
 Cross-framework results must use equivalent features, payloads, production
 builds, warmup, sample counts, and runtime constraints. Publish losses and
 unmeasured areas alongside wins.
+
+`server.router-compile` measures full layer resolution, pattern compilation,
+specificity sorting, and action indexing for a 49-route graph.
+`server.router-match` reuses that compiled graph and measures steady-state
+request matching. Keeping these cases separate prevents cold graph construction
+from hiding request-path regressions. Both Node and Bun scripts enforce the same
+conservative budgets until runtime-specific CI baselines justify narrower
+limits.

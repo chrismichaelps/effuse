@@ -28,7 +28,11 @@ import type { RequestContext, ServerAppOptions } from './types.js';
 import type { ServerTraceEvent } from './observability.js';
 import { createServerApp } from './server-app.js';
 import { createHash } from 'node:crypto';
-import { handleLayerServerRequest } from './server-routing.js';
+import {
+	compileLayerServerRouter,
+	handleLayerServerRequest,
+	type CompiledLayerServerRouter,
+} from './server-routing.js';
 
 export interface HandlerConfig {
 	root: Component;
@@ -47,6 +51,9 @@ export interface HandlerConfig {
 }
 
 export const createHandler = (config: HandlerConfig) => {
+	let serverRouter: CompiledLayerServerRouter | undefined;
+	const getServerRouter = (): CompiledLayerServerRouter =>
+		(serverRouter ??= compileLayerServerRouter(config.layers ?? []));
 	const serverApp = createServerApp(config.root)
 		.useLayers(config.layers ?? [])
 		.configure(config.options ?? {});
@@ -61,7 +68,7 @@ export const createHandler = (config: HandlerConfig) => {
 
 			const serverResponse = await handleLayerServerRequest(
 				req,
-				config.layers ?? [],
+				getServerRouter(),
 				{
 					onTrace: config.onServerTrace,
 					onTraceError: config.onServerTraceError,
@@ -134,6 +141,9 @@ export const createHandler = (config: HandlerConfig) => {
  * Use this when TTFB is critical (e.g., large pages, slow data fetching).
  */
 export const createStreamingHandler = (config: HandlerConfig) => {
+	let serverRouter: CompiledLayerServerRouter | undefined;
+	const getServerRouter = (): CompiledLayerServerRouter =>
+		(serverRouter ??= compileLayerServerRouter(config.layers ?? []));
 	const serverApp = createServerApp(config.root)
 		.useLayers(config.layers ?? [])
 		.configure(config.options ?? {});
@@ -148,7 +158,7 @@ export const createStreamingHandler = (config: HandlerConfig) => {
 
 			const serverResponse = await handleLayerServerRequest(
 				req,
-				config.layers ?? [],
+				getServerRouter(),
 				{
 					onTrace: config.onServerTrace,
 					onTraceError: config.onServerTraceError,
