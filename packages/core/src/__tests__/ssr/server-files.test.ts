@@ -1,10 +1,12 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, expectTypeOf, afterEach } from 'vitest';
 import { callLayerAction } from '../../ssr/actions.js';
 import { createHandler } from '../../ssr/handler.js';
 import { createLayerServerManifest } from '../../ssr/manifest.js';
 import {
+	defineServerFileHandler,
 	fromServerFiles,
 	type ServerApiFileModule,
+	type ServerFileContext,
 	serverFileToActionName,
 	serverFileToRoutePath,
 } from '../../ssr/server-files.js';
@@ -30,10 +32,56 @@ const createHandlerFetch =
 	};
 
 describe('server file routes', () => {
+	it('should infer exact params and preserve handler identity', () => {
+		const handler = (context: ServerFileContext<'/api/users/[id]'>) => {
+			expectTypeOf(context.params).toEqualTypeOf<Readonly<{ id: string }>>();
+			// @ts-expect-error undeclared route params must not compile
+			context.params.userId;
+			return { id: context.params.id };
+		};
+		const GET = defineServerFileHandler('/api/users/[id]', handler);
+
+		expect(GET).toBe(handler);
+		expect(GET({ params: { id: 'u1' } } as never)).toEqual({ id: 'u1' });
+
+		const optional = defineServerFileHandler(
+			'/api/(docs)/docs/[[...slug]]',
+			({ params }) => {
+				expectTypeOf(params).toEqualTypeOf<Readonly<{ slug: string }>>();
+				return params.slug || 'index';
+			}
+		);
+		expect(optional({ params: { slug: '' } } as never)).toBe('index');
+	});
+
+	it('should reject a handler path that drifts from its file route', () => {
+		const Layer = defineLayer({
+			name: 'file-path-mismatch',
+			server: fromServerFiles({
+				'./src/server/api/users/[id]/route.ts': {
+					GET: defineServerFileHandler('/api/projects/[id]', ({ params }) => ({
+						id: params.id,
+					})),
+				},
+			}),
+		});
+		const manifest = createLayerServerManifest([Layer]);
+
+		expect(manifest.routes).toEqual([]);
+		expect(manifest.diagnostics).toEqual([
+			expect.objectContaining({
+				code: 'server_file_path_mismatch',
+				filePath: './src/server/api/users/[id]/route.ts',
+				key: '/api/projects/[id]',
+				target: '/api/users/[id]',
+			}),
+		]);
+	});
+
 	it('should convert server file paths into Effuse route and action names', () => {
-		expect(
-			serverFileToRoutePath('./src/server/api/users/[id]/route.ts')
-		).toBe('/api/users/[id]');
+		expect(serverFileToRoutePath('./src/server/api/users/[id]/route.ts')).toBe(
+			'/api/users/[id]'
+		);
 		expect(serverFileToRoutePath('./app/api/users/[id]/route.ts')).toBe(
 			'/api/users/[id]'
 		);
@@ -51,9 +99,9 @@ describe('server file routes', () => {
 		expect(
 			serverFileToActionName('./src/server/actions/users/refresh.ts')
 		).toBe('users/refresh');
-		expect(
-			serverFileToActionName('./app/actions/users/refresh.ts')
-		).toBe('users/refresh');
+		expect(serverFileToActionName('./app/actions/users/refresh.ts')).toBe(
+			'users/refresh'
+		);
 		expect(
 			serverFileToActionName('./app/actions/(admin)/users/refresh.ts')
 		).toBe('users/refresh');
@@ -76,17 +124,23 @@ describe('server file routes', () => {
 			server: fromServerFiles({
 				api: {
 					'./src/server/api/users/[id]/route.ts': {
-						GET: ({ params, query }) => ({
-							id: params.id,
-							tab: query.tab,
-						}),
-						POST: async ({ json, params }) => {
-							const input = await json<{ name: string }>();
-							return {
+						GET: defineServerFileHandler(
+							'/api/users/[id]',
+							({ params, query }) => ({
 								id: params.id,
-								name: input.name,
-							};
-						},
+								tab: query.tab,
+							})
+						),
+						POST: defineServerFileHandler(
+							'/api/users/[id]',
+							async ({ json, params }) => {
+								const input = await json<{ name: string }>();
+								return {
+									id: params.id,
+									name: input.name,
+								};
+							}
+						),
 					},
 					'./src/server/api/health.ts': {
 						default: () => ({ ok: true }),

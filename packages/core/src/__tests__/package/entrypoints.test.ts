@@ -39,6 +39,7 @@ describe('@effuse/core entrypoints', () => {
 		expect(source).toContain('createTypedRouteClient');
 		expect(source).toContain('isRouteError');
 		expect(source).toContain('generateOpenApiDocument');
+		expect(source).toContain('defineServerFileHandler');
 		expect(source).not.toContain('handleLayerServerRequest');
 		expect(source).not.toContain('matchLayerServerRequest');
 		expect(source).not.toContain('normalizeServerResult');

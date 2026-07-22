@@ -5,6 +5,8 @@ export {
 	parseRoutePattern,
 	resolveRoutePattern,
 	type CompiledRoutePattern,
+	type MatchedRouteParams,
+	type RouteParamInput,
 	type RoutePattern,
 	type RoutePatternParam,
 	type RoutePatternSegment,

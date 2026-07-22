@@ -123,7 +123,9 @@ export interface ServerRedirectMetadata {
 	readonly status?: number;
 }
 
-export type ServerPrerenderMetadata = boolean | { readonly revalidate?: number };
+export type ServerPrerenderMetadata =
+	| boolean
+	| { readonly revalidate?: number };
 
 /**
  * Declarative server policy for a route, action, layer, or the layers it extends
@@ -159,7 +161,8 @@ export type ServerLayerDiagnosticCode =
 	| 'server_file_duplicate_route'
 	| 'server_file_invalid_action'
 	| 'server_file_invalid_method'
-	| 'server_file_invalid_route';
+	| 'server_file_invalid_route'
+	| 'server_file_path_mismatch';
 
 export type ServerPolicySourceKind =
 	| 'parent'
