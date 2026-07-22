@@ -28,6 +28,7 @@ import {
 	Either,
 	Exit,
 	Cause,
+	JSONSchema,
 	ParseResult,
 	Array as Arr,
 	Option,
@@ -321,7 +322,12 @@ const booleanSchema = wrapValueSchema(Schema.Boolean);
 const unknownSchema = wrapValueSchema(Schema.Unknown);
 // A multipart upload field: validates the value is a `File` and types it as one,
 // so a form-data contract can carry file uploads without hand-checking instances.
-const fileSchema = wrapValueSchema(Schema.instanceOf(File));
+// The jsonSchema annotation lets OpenAPI generation represent it as binary.
+const fileSchema = wrapValueSchema(
+	Schema.instanceOf(File).annotations({
+		jsonSchema: { type: 'string', format: 'binary' },
+	})
+);
 const numberFromStringSchema = wrapValueSchema(Schema.NumberFromString);
 const booleanFromStringSchema = wrapValueSchema(Schema.BooleanFromString);
 const dateFromStringSchema = wrapValueSchema(Schema.DateFromString);
@@ -403,6 +409,25 @@ export const PropSchema = {
 	Union: union,
 	Array: array,
 	Struct: object,
+};
+
+/**
+ * Produce a JSON Schema (draft-07) for a value schema or object-schema builder.
+ * Used by OpenAPI generation to describe request/response contracts;
+ * transformations (e.g. numberFromString) are described by their encoded/wire
+ * form. A builder (from `object`/`struct`) is unwrapped via its `.schema`.
+ */
+export const toJsonSchema = (
+	schema: PropValueSchema<unknown, unknown> | AnyPropSchemaBuilder
+): Record<string, unknown> => {
+	const valueSchema =
+		Predicate.hasProperty(schema, 'validateSync') &&
+		Predicate.hasProperty(schema, 'schema')
+			? (schema.schema as PropValueSchema<unknown, unknown>)
+			: (schema as PropValueSchema<unknown, unknown>);
+	return JSONSchema.make(
+		unwrapValueSchema(valueSchema) as Schema.Schema<unknown, unknown>
+	) as unknown as Record<string, unknown>;
 };
 
 type PropSchemaParts<S> =
