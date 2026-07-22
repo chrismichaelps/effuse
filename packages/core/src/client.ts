@@ -358,6 +358,7 @@ export {
 	type ServerFileContractContext,
 	type ServerFileContext,
 	type ServerFileHandler,
+	type ServerFileHandlerContracts,
 	type ServerRouteParams,
 } from './ssr/server-files.js';
 
