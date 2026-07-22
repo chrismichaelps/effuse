@@ -10,6 +10,7 @@ import { APP_NAME, DEFAULT_CONFIG, PRESETS } from '../constants.js';
 import { fileExists } from '../utils/index.js';
 import { EntryGenerator } from './entry-generator.js';
 import { ManifestResolver } from './manifest.js';
+import { effuseServerRegistryPlugin } from '../plugins/server-registry.js';
 
 export interface BuildOptions {
 	readonly clientOnly?: boolean;
@@ -212,6 +213,7 @@ export class BuildService {
 		const clientConfig: InlineConfig = {
 			root: cwd,
 			mode: 'production',
+			plugins: [effuseServerRegistryPlugin()],
 			build: {
 				outDir: DEFAULT_CONFIG.outDirClient,
 				emptyOutDir: true,

@@ -4,6 +4,8 @@ import {
 	mkdirSync,
 	readdirSync,
 	realpathSync,
+	renameSync,
+	rmSync,
 	statSync,
 	writeFileSync,
 } from 'node:fs';
@@ -232,6 +234,13 @@ export const writeServerRegistryModule = (
 	);
 	const source = generateServerRegistryModule(registry, options);
 	mkdirSync(dirname(outputPath), { recursive: true });
-	writeFileSync(outputPath, source, 'utf-8');
+	const temporaryPath = `${outputPath}.tmp-${String(process.pid)}-${String(Date.now())}`;
+	try {
+		writeFileSync(temporaryPath, source, 'utf-8');
+		renameSync(temporaryPath, outputPath);
+	} catch (error) {
+		rmSync(temporaryPath, { force: true });
+		throw error;
+	}
 	return outputPath;
 };
