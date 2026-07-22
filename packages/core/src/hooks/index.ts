@@ -37,6 +37,7 @@ export type {
 	HookContext,
 	HookDefinition,
 	HookSetupFn,
+	HookFunction,
 	HookCleanup,
 	HookScope,
 	HookFinalizer,

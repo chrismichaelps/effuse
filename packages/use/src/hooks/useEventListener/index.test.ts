@@ -22,8 +22,19 @@
  * SOFTWARE.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { useEventListener } from './index.js';
+import {
+	describe,
+	it,
+	expect,
+	expectTypeOf,
+	vi,
+	beforeEach,
+	afterEach,
+} from 'vitest';
+import {
+	useEventListener,
+	type UseEventListenerConfig,
+} from './index.js';
 
 describe('useEventListener', () => {
 	const mockAddEventListener = vi.fn();
@@ -79,6 +90,52 @@ describe('useEventListener', () => {
 	});
 
 	describe('custom target', () => {
+		it('should infer event payloads from the target type', () => {
+			const assertTargetTypes = (): void => {
+				useEventListener({
+					target: document,
+					event: 'visibilitychange',
+					handler: (event) => {
+						expectTypeOf(event).toEqualTypeOf<Event>();
+					},
+				});
+
+				useEventListener({
+					target: {} as HTMLElement,
+					event: 'click',
+					handler: (event) => {
+						expectTypeOf(event).toEqualTypeOf<MouseEvent>();
+					},
+				});
+
+				useEventListener({
+					target: {} as MediaQueryList,
+					event: 'change',
+					handler: (event) => {
+						expectTypeOf(event).toEqualTypeOf<MediaQueryListEvent>();
+					},
+				});
+
+				useEventListener({
+					target: {} as EventTarget,
+					event: 'custom-event',
+					handler: (event) => {
+						expectTypeOf(event).toEqualTypeOf<Event>();
+					},
+				});
+
+				const invalidDocumentEvent: UseEventListenerConfig<Document> = {
+					target: document,
+					// @ts-expect-error Document does not expose MediaQueryList events.
+					event: 'change',
+					handler: () => undefined,
+				};
+				void invalidDocumentEvent;
+			};
+
+			expectTypeOf(assertTargetTypes).toBeFunction();
+		});
+
 		it('should attach to custom element', () => {
 			const element = {
 				tagName: 'DIV',

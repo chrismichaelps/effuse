@@ -24,7 +24,7 @@
 
 import { createHookContext, reportHookCleanupError } from './context.js';
 import { traceHookSetup } from '../layers/tracing/hooks.js';
-import type { HookSetupFn } from './types.js';
+import type { HookFunction, HookSetupFn } from './types.js';
 import {
 	assertLayerBindingsRegistered,
 	type LayerSource,
@@ -38,7 +38,7 @@ export function defineHook<
 	readonly name?: string;
 	readonly layers?: L;
 	readonly setup: HookSetupFn<C, R, L>;
-}): C extends undefined ? () => R : (config: C) => R {
+}): HookFunction<C, R> {
 	const hookName = definition.name || definition.setup.name || 'anonymous';
 	const layers = (definition.layers ?? []) as L;
 
@@ -66,5 +66,5 @@ export function defineHook<
 		return result;
 	};
 
-	return hookFn as C extends undefined ? () => R : (config: C) => R;
+	return hookFn as HookFunction<C, R>;
 }
