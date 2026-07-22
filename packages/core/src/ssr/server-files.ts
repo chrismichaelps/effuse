@@ -37,17 +37,15 @@ import type {
 	ServerRouteInput,
 	ServerResult,
 } from '../layers/types.js';
-import {
-	isHttpMethod,
-	normalizeServerRouteInput,
-} from './server-routes.js';
+import { isHttpMethod, normalizeServerRouteInput } from './server-routes.js';
 import { parseRoutePattern } from '../routing/route-pattern.js';
 import type { MatchedRouteParams } from '../routing/route-pattern.js';
 import type {
 	AnyServerRequestContract,
 	ServerRequestContractOutput,
 } from './request-contract.js';
-import type { AnyServerValidator } from './validation.js';
+import type { AnyServerValidator, ServerValidator } from './validation.js';
+import type { PropSchemaBuilder } from '../blueprint/props.js';
 
 const HTTP_METHODS: readonly HttpMethod[] = [
 	'GET',
@@ -84,16 +82,30 @@ export type ServerFileHandler<
 	Path extends string,
 	Services extends Record<string, unknown> = Record<string, unknown>,
 	Contract extends AnyServerRequestContract | undefined = undefined,
+	ResponseContract extends AnyServerValidator | undefined = undefined,
 > = ServerHandler<Services> & {
 	readonly [SERVER_FILE_HANDLER_PATH]: {
 		readonly path: Path;
 		readonly request: Contract;
+		readonly response: ResponseContract;
 	};
 };
+
+export interface ServerFileHandlerContracts<
+	Contract extends AnyServerRequestContract,
+	ResponseContract extends AnyServerValidator,
+> {
+	readonly request: Contract;
+	readonly response: ResponseContract;
+}
+
+type ServerFileResponseOutput<Contract extends AnyServerValidator> =
+	Contract extends ServerValidator<infer Output> ? Output : never;
 
 interface ServerFileHandlerDescriptor {
 	readonly path: string;
 	readonly request?: AnyServerRequestContract;
+	readonly response?: AnyServerValidator;
 }
 
 const serverFileHandlerDescriptors = new WeakMap<
@@ -122,18 +134,87 @@ export function defineServerFileHandler<
 		context: ServerFileContractContext<Path, Contract, Services>
 	) => MaybePromise<ServerResult>
 ): ServerFileHandler<Path, Services, Contract>;
+export function defineServerFileHandler<
+	const Path extends string,
+	const Contract extends AnyServerRequestContract,
+	Output extends Record<string, unknown>,
+	Input extends Record<string, unknown>,
+	Services extends Record<string, unknown> = Record<string, unknown>,
+>(
+	path: Path,
+	contracts: ServerFileHandlerContracts<
+		Contract,
+		PropSchemaBuilder<Output, Input>
+	>,
+	handler: (
+		context: ServerFileContractContext<Path, Contract, Services>
+	) => MaybePromise<Output>
+): ServerFileHandler<
+	Path,
+	Services,
+	Contract,
+	PropSchemaBuilder<Output, Input>
+>;
+export function defineServerFileHandler<
+	const Path extends string,
+	const Contract extends AnyServerRequestContract,
+	const ResponseContract extends AnyServerValidator,
+	Services extends Record<string, unknown> = Record<string, unknown>,
+>(
+	path: Path,
+	contracts: ServerFileHandlerContracts<Contract, ResponseContract>,
+	handler: (
+		context: ServerFileContractContext<Path, Contract, Services>
+	) => MaybePromise<NoInfer<ServerFileResponseOutput<ResponseContract>>>
+): ServerFileHandler<Path, Services, Contract, ResponseContract>;
+export function defineServerFileHandler<
+	const Path extends string,
+	Output extends Record<string, unknown>,
+	Input extends Record<string, unknown>,
+	Services extends Record<string, unknown> = Record<string, unknown>,
+>(
+	path: Path,
+	contracts: Readonly<{ response: PropSchemaBuilder<Output, Input> }>,
+	handler: (context: ServerFileContext<Path, Services>) => MaybePromise<Output>
+): ServerFileHandler<
+	Path,
+	Services,
+	undefined,
+	PropSchemaBuilder<Output, Input>
+>;
+export function defineServerFileHandler<
+	const Path extends string,
+	const ResponseContract extends AnyServerValidator,
+	Services extends Record<string, unknown> = Record<string, unknown>,
+>(
+	path: Path,
+	contracts: Readonly<{ response: ResponseContract }>,
+	handler: (
+		context: ServerFileContext<Path, Services>
+	) => MaybePromise<NoInfer<ServerFileResponseOutput<ResponseContract>>>
+): ServerFileHandler<Path, Services, undefined, ResponseContract>;
 export function defineServerFileHandler(
 	path: string,
 	requestOrHandler:
 		| AnyServerRequestContract
+		| Readonly<{
+				request?: AnyServerRequestContract;
+				response: AnyServerValidator;
+		  }>
 		| ((context: ServerFileContext<string>) => MaybePromise<ServerResult>),
-	maybeHandler?: (
-		context: ServerFileContractContext<string, AnyServerRequestContract>
-	) => MaybePromise<ServerResult>
-): ServerFileHandler<string> {
+	maybeHandler?: (...args: never[]) => unknown
+): ServerHandler {
 	const normalizedPath = parseRoutePattern(path).path;
-	const request =
-		typeof requestOrHandler === 'function' ? undefined : requestOrHandler;
+	let request: AnyServerRequestContract | undefined;
+	let response: AnyServerValidator | undefined;
+	if (typeof requestOrHandler !== 'function') {
+		if ('response' in requestOrHandler) {
+			request = requestOrHandler.request;
+			response = requestOrHandler.response;
+		} else {
+			request = requestOrHandler;
+		}
+	}
 	const handler =
 		typeof requestOrHandler === 'function' ? requestOrHandler : maybeHandler;
 	if (!handler) {
@@ -142,8 +223,9 @@ export function defineServerFileHandler(
 	serverFileHandlerDescriptors.set(handler, {
 		path: normalizedPath,
 		...(request ? { request } : {}),
+		...(response ? { response } : {}),
 	});
-	return handler as unknown as ServerFileHandler<string>;
+	return handler as unknown as ServerHandler;
 }
 
 export interface ServerApiFileModule {
@@ -257,7 +339,9 @@ const stripRouteGroupSegments = (path: string): string =>
 const joinPath = (basePath: string, path: string): string => {
 	const normalizedBase = `/${basePath.replace(/^\/+|\/+$/g, '')}`;
 	const normalizedPath = path.replace(/^\/+|\/+$/g, '');
-	return normalizedPath ? `${normalizedBase}/${normalizedPath}` : normalizedBase;
+	return normalizedPath
+		? `${normalizedBase}/${normalizedPath}`
+		: normalizedBase;
 };
 
 export const serverFileToRoutePath = (
@@ -508,6 +592,26 @@ const createServerFileRoute = (
 			filePath,
 		};
 	}
+	const mismatchedResponses = handlerDescriptors.filter(
+		(descriptor) =>
+			descriptor.response !== undefined &&
+			descriptor.response !== module.response
+	);
+	if (mismatchedResponses.length > 0) {
+		return {
+			diagnostics: [
+				...diagnostics,
+				createFileDiagnostic(
+					'server_file_contract_mismatch',
+					filePath,
+					normalizedPath,
+					'response',
+					`Server file ${filePath} must export the same response contract passed to defineServerFileHandler.`
+				),
+			],
+			filePath,
+		};
+	}
 	const input = resolveRouteInput(module);
 	if (!input) {
 		return {
@@ -552,7 +656,9 @@ const createServerFileRoute = (
 const joinActionName = (baseName: string, name: string): string => {
 	const normalizedBase = baseName.replace(/^\/+|\/+$/g, '');
 	const normalizedName = name.replace(/^\/+|\/+$/g, '');
-	return normalizedBase ? `${normalizedBase}/${normalizedName}` : normalizedName;
+	return normalizedBase
+		? `${normalizedBase}/${normalizedName}`
+		: normalizedName;
 };
 
 const collectActions = (
@@ -636,7 +742,10 @@ export const fromServerFiles = (
 	const actions: Record<string, ServerActionInput> = {};
 	const diagnostics: ServerLayerDiagnostic[] = [];
 	const routeFilesByPath = new Map<string, string>();
-	const routeFilesBySignature = new Map<string, { path: string; filePath: string }>();
+	const routeFilesBySignature = new Map<
+		string,
+		{ path: string; filePath: string }
+	>();
 
 	for (const [filePath, module] of Object.entries(grouped.api ?? {})) {
 		const result = createServerFileRoute(filePath, module, options);

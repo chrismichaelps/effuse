@@ -141,6 +141,7 @@ export {
 	type ServerFileContractContext,
 	type ServerFileContext,
 	type ServerFileHandler,
+	type ServerFileHandlerContracts,
 	type ServerFileSource,
 	type ServerFilesInput,
 	type ServerFilesOptions,

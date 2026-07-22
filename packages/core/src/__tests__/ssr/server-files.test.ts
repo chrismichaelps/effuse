@@ -54,6 +54,16 @@ describe('server file routes', () => {
 			}
 		);
 		expect(optional({ params: { slug: '' } } as never)).toBe('index');
+
+		const response = serverSchema.object({ id: serverSchema.string });
+		const responseOnly = defineServerFileHandler(
+			'/api/projects/[id]',
+			{ response },
+			({ params }) => ({ id: params.id })
+		);
+		expect(responseOnly({ params: { id: 'p1' } } as never)).toEqual({
+			id: 'p1',
+		});
 	});
 
 	it('should reject a handler path that drifts from its file route', () => {
@@ -91,7 +101,7 @@ describe('server file routes', () => {
 		});
 		const GET = defineServerFileHandler(
 			'/api/contract-users/[id]',
-			request,
+			{ request, response },
 			({ input, params }) => {
 				expectTypeOf(input).toEqualTypeOf<{
 					readonly params: { id: string };
@@ -101,6 +111,14 @@ describe('server file routes', () => {
 				return { id: input.params.id, limit: input.query.limit };
 			}
 		);
+		if (false) {
+			defineServerFileHandler(
+				'/api/contract-users/[id]',
+				// @ts-expect-error response contracts reject incompatible handler results
+				{ request, response },
+				() => ({ id: 'u1', limit: 'three' })
+			);
+		}
 		const Layer = defineLayer({
 			name: 'file-contracts',
 			server: fromServerFiles({
@@ -121,6 +139,38 @@ describe('server file routes', () => {
 		);
 		expect(result.status).toBe(200);
 		await expect(result.json()).resolves.toEqual({ id: 'u1', limit: 3 });
+	});
+
+	it('should reject response contracts that drift from the handler witness', () => {
+		const request = defineServerRequest({
+			params: serverSchema.object({ id: serverSchema.string }),
+		});
+		const handlerResponse = serverSchema.object({ id: serverSchema.string });
+		const exportedResponse = serverSchema.object({ id: serverSchema.number });
+		const Layer = defineLayer({
+			name: 'file-response-contract-mismatch',
+			server: fromServerFiles({
+				'./src/server/api/response-mismatch/[id]/route.ts': {
+					request,
+					response: exportedResponse,
+					GET: defineServerFileHandler(
+						'/api/response-mismatch/[id]',
+						{ request, response: handlerResponse },
+						({ input }) => input.params
+					),
+				},
+			}),
+		});
+		const manifest = createLayerServerManifest([Layer]);
+
+		expect(manifest.routes).toEqual([]);
+		expect(manifest.diagnostics).toEqual([
+			expect.objectContaining({
+				code: 'server_file_contract_mismatch',
+				filePath: './src/server/api/response-mismatch/[id]/route.ts',
+				key: 'response',
+			}),
+		]);
 	});
 
 	it('should reject request contracts that drift from the handler witness', () => {
