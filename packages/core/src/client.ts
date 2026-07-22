@@ -188,6 +188,8 @@ export {
 	type HookCleanup,
 	type HookScope,
 	type HookFinalizer,
+	type EffectCallback,
+	type HookEffectCallback,
 	type InferHookReturn,
 	type InferHookConfig,
 	type StorageOptions,

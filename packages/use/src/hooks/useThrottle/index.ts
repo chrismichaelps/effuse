@@ -85,6 +85,7 @@ export const useThrottle = defineHook<
 				timeoutId = null;
 			}
 		};
+		ctx.scope.addFinalizer(clearCooldownTimeout);
 
 		const throttledValue = ctx.computed(() =>
 			getCurrentValue(internalState.value)
@@ -160,9 +161,7 @@ export const useThrottle = defineHook<
 				startCooldown();
 			}
 
-			return () => {
-				clearCooldownTimeout();
-			};
+			return undefined;
 		});
 
 		return {

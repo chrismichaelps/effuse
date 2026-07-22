@@ -70,11 +70,15 @@ export const useEventListener = defineHook<
 
 		let isStopped = false;
 
-		const stop = (): void => {
-			isStopped = true;
+		const detach = (): void => {
 			cleanup?.();
 			cleanup = null;
 			internalState.value = LS.Inactive();
+		};
+
+		const stop = (): void => {
+			isStopped = true;
+			detach();
 		};
 
 		ctx.watchEffect(() => {
@@ -101,9 +105,7 @@ export const useEventListener = defineHook<
 				},
 			});
 
-			return () => {
-				stop();
-			};
+			return detach;
 		});
 
 		return {

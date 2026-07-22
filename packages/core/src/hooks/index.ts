@@ -41,6 +41,7 @@ export type {
 	HookScope,
 	HookFinalizer,
 	EffectCallback,
+	HookEffectCallback,
 	InferHookReturn,
 	InferHookConfig,
 } from './types.js';
