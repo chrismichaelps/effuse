@@ -93,6 +93,14 @@ export {
 } from './hooks/useClipboard/index.js';
 
 export {
+	usePreferredColorScheme,
+	PreferredColorSchemeError,
+	type PreferredColorScheme,
+	type UsePreferredColorSchemeConfig,
+	type UsePreferredColorSchemeReturn,
+} from './hooks/usePreferredColorScheme/index.js';
+
+export {
 	useDebounce,
 	DebounceError,
 	type UseDebounceConfig,

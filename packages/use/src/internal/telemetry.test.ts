@@ -67,6 +67,7 @@ describe('internal/telemetry', () => {
 				'useTimeout',
 				'useDocumentVisibility',
 				'useClipboard',
+				'usePreferredColorScheme',
 				'useDebounce',
 			];
 
