@@ -65,6 +65,15 @@ export {
 } from './hooks/useInterval/index.js';
 
 export {
+	useTimeout,
+	TimeoutError,
+	type TimeoutErrorCode,
+	type TimeoutStatus,
+	type UseTimeoutConfig,
+	type UseTimeoutReturn,
+} from './hooks/useTimeout/index.js';
+
+export {
 	useDebounce,
 	DebounceError,
 	type UseDebounceConfig,

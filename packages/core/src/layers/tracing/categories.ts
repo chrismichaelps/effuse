@@ -41,6 +41,7 @@ export interface UseHooksCategories {
 	readonly useMediaQuery: boolean;
 	readonly useOnline: boolean;
 	readonly useInterval: boolean;
+	readonly useTimeout: boolean;
 	readonly useDebounce: boolean;
 	readonly useThrottle: boolean;
 }
@@ -52,6 +53,7 @@ export const defaultUseHooksCategories: UseHooksCategories = {
 	useMediaQuery: true,
 	useOnline: true,
 	useInterval: true,
+	useTimeout: true,
 	useDebounce: true,
 	useThrottle: true,
 };
