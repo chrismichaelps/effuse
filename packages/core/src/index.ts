@@ -414,6 +414,7 @@ export {
 	type FoldedPolicy,
 	type ServerActionFileModule,
 	type ServerApiFileModule,
+	type ServerFileContractContext,
 	type ServerFileContext,
 	type ServerFileHandler,
 	type ServerFileSource,

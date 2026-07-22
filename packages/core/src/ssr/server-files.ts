@@ -43,6 +43,11 @@ import {
 } from './server-routes.js';
 import { parseRoutePattern } from '../routing/route-pattern.js';
 import type { MatchedRouteParams } from '../routing/route-pattern.js';
+import type {
+	AnyServerRequestContract,
+	ServerRequestContractOutput,
+} from './request-contract.js';
+import type { AnyServerValidator } from './validation.js';
 
 const HTTP_METHODS: readonly HttpMethod[] = [
 	'GET',
@@ -67,17 +72,37 @@ export type ServerFileContext<
 	readonly params: ServerRouteParams<Path>;
 };
 
+export type ServerFileContractContext<
+	Path extends string,
+	Contract extends AnyServerRequestContract,
+	Services extends Record<string, unknown> = Record<string, unknown>,
+> = ServerFileContext<Path, Services> & {
+	readonly input: ServerRequestContractOutput<Contract>;
+};
+
 export type ServerFileHandler<
 	Path extends string,
 	Services extends Record<string, unknown> = Record<string, unknown>,
+	Contract extends AnyServerRequestContract | undefined = undefined,
 > = ServerHandler<Services> & {
-	readonly [SERVER_FILE_HANDLER_PATH]: Path;
+	readonly [SERVER_FILE_HANDLER_PATH]: {
+		readonly path: Path;
+		readonly request: Contract;
+	};
 };
 
-const serverFileHandlerPaths = new WeakMap<object, string>();
+interface ServerFileHandlerDescriptor {
+	readonly path: string;
+	readonly request?: AnyServerRequestContract;
+}
+
+const serverFileHandlerDescriptors = new WeakMap<
+	object,
+	ServerFileHandlerDescriptor
+>();
 
 /** Contextually type a file handler while preserving the original function. */
-export const defineServerFileHandler = <
+export function defineServerFileHandler<
 	const Path extends string,
 	Services extends Record<string, unknown> = Record<string, unknown>,
 >(
@@ -85,11 +110,41 @@ export const defineServerFileHandler = <
 	handler: (
 		context: ServerFileContext<Path, Services>
 	) => MaybePromise<ServerResult>
-): ServerFileHandler<Path, Services> => {
+): ServerFileHandler<Path, Services>;
+export function defineServerFileHandler<
+	const Path extends string,
+	const Contract extends AnyServerRequestContract,
+	Services extends Record<string, unknown> = Record<string, unknown>,
+>(
+	path: Path,
+	request: Contract,
+	handler: (
+		context: ServerFileContractContext<Path, Contract, Services>
+	) => MaybePromise<ServerResult>
+): ServerFileHandler<Path, Services, Contract>;
+export function defineServerFileHandler(
+	path: string,
+	requestOrHandler:
+		| AnyServerRequestContract
+		| ((context: ServerFileContext<string>) => MaybePromise<ServerResult>),
+	maybeHandler?: (
+		context: ServerFileContractContext<string, AnyServerRequestContract>
+	) => MaybePromise<ServerResult>
+): ServerFileHandler<string> {
 	const normalizedPath = parseRoutePattern(path).path;
-	serverFileHandlerPaths.set(handler, normalizedPath);
-	return handler as unknown as ServerFileHandler<Path, Services>;
-};
+	const request =
+		typeof requestOrHandler === 'function' ? undefined : requestOrHandler;
+	const handler =
+		typeof requestOrHandler === 'function' ? requestOrHandler : maybeHandler;
+	if (!handler) {
+		throw new TypeError('Effuse file handlers require a handler function.');
+	}
+	serverFileHandlerDescriptors.set(handler, {
+		path: normalizedPath,
+		...(request ? { request } : {}),
+	});
+	return handler as unknown as ServerFileHandler<string>;
+}
 
 export interface ServerApiFileModule {
 	readonly path?: string;
@@ -98,6 +153,8 @@ export interface ServerApiFileModule {
 	readonly metadata?: ServerRouteMetadata;
 	readonly methods?: ServerMethodHandlers;
 	readonly middleware?: readonly ServerMiddleware[];
+	readonly request?: AnyServerRequestContract;
+	readonly response?: AnyServerValidator;
 	readonly GET?: ServerHandler;
 	readonly POST?: ServerHandler;
 	readonly PUT?: ServerHandler;
@@ -248,9 +305,9 @@ const collectMethodExports = (
 	return methods;
 };
 
-const collectDeclaredHandlerPaths = (
+const collectHandlerDescriptors = (
 	module: ServerApiFileModule
-): readonly string[] => {
+): readonly ServerFileHandlerDescriptor[] => {
 	const handlers: ServerHandler[] = [];
 	const source = module as Record<string, unknown>;
 	for (const method of HTTP_METHODS) {
@@ -265,8 +322,11 @@ const collectDeclaredHandlerPaths = (
 	return [
 		...new Set(
 			handlers
-				.map((handler) => serverFileHandlerPaths.get(handler))
-				.filter((path): path is string => path !== undefined)
+				.map((handler) => serverFileHandlerDescriptors.get(handler))
+				.filter(
+					(descriptor): descriptor is ServerFileHandlerDescriptor =>
+						descriptor !== undefined
+				)
 		),
 	];
 };
@@ -344,6 +404,8 @@ const resolveRouteInput = (
 			...methodExports,
 			metadata: module.metadata,
 			middleware: module.middleware,
+			request: module.request,
+			response: module.response,
 		};
 	}
 
@@ -352,6 +414,8 @@ const resolveRouteInput = (
 			methods: module.methods,
 			metadata: module.metadata,
 			middleware: module.middleware,
+			request: module.request,
+			response: module.response,
 		};
 	}
 
@@ -361,6 +425,8 @@ const resolveRouteInput = (
 					handler: module.handler,
 					metadata: module.metadata,
 					middleware: module.middleware,
+					request: module.request,
+					response: module.response,
 				}
 			: module.handler;
 	}
@@ -371,6 +437,8 @@ const resolveRouteInput = (
 					handler: module.default,
 					metadata: module.metadata,
 					middleware: module.middleware,
+					request: module.request,
+					response: module.response,
 				}
 			: module.default;
 	}
@@ -400,22 +468,41 @@ const createServerFileRoute = (
 	const diagnostics = [...collectInvalidMethodDiagnostics(filePath, module)];
 	const path = module.path ?? serverFileToRoutePath(filePath, options);
 	const normalizedPath = parseRoutePattern(path).path;
-	const declaredPaths = collectDeclaredHandlerPaths(module);
-	const mismatchedPaths = declaredPaths.filter(
-		(declaredPath) => declaredPath !== normalizedPath
+	const handlerDescriptors = collectHandlerDescriptors(module);
+	const mismatchedPaths = handlerDescriptors.filter(
+		(descriptor) => descriptor.path !== normalizedPath
 	);
 	if (mismatchedPaths.length > 0) {
 		return {
 			diagnostics: [
 				...diagnostics,
-				...mismatchedPaths.map((declaredPath) =>
+				...mismatchedPaths.map((descriptor) =>
 					createFileDiagnostic(
 						'server_file_path_mismatch',
 						filePath,
 						normalizedPath,
-						declaredPath,
-						`Server file ${filePath} resolves to ${normalizedPath}, but its handler declares ${declaredPath}. Keep the path witness synchronized with the file route.`
+						descriptor.path,
+						`Server file ${filePath} resolves to ${normalizedPath}, but its handler declares ${descriptor.path}. Keep the path witness synchronized with the file route.`
 					)
+				),
+			],
+			filePath,
+		};
+	}
+	const mismatchedContracts = handlerDescriptors.filter(
+		(descriptor) =>
+			descriptor.request !== undefined && descriptor.request !== module.request
+	);
+	if (mismatchedContracts.length > 0) {
+		return {
+			diagnostics: [
+				...diagnostics,
+				createFileDiagnostic(
+					'server_file_contract_mismatch',
+					filePath,
+					normalizedPath,
+					'request',
+					`Server file ${filePath} must export the same request contract passed to defineServerFileHandler.`
 				),
 			],
 			filePath,

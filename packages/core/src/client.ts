@@ -355,6 +355,7 @@ export {
 
 export {
 	defineServerFileHandler,
+	type ServerFileContractContext,
 	type ServerFileContext,
 	type ServerFileHandler,
 	type ServerRouteParams,

@@ -2,6 +2,8 @@ import { describe, it, expect, expectTypeOf, afterEach } from 'vitest';
 import { callLayerAction } from '../../ssr/actions.js';
 import { createHandler } from '../../ssr/handler.js';
 import { createLayerServerManifest } from '../../ssr/manifest.js';
+import { defineServerRequest } from '../../ssr/request-contract.js';
+import { serverSchema } from '../../ssr/server-schema.js';
 import {
 	defineServerFileHandler,
 	fromServerFiles,
@@ -74,6 +76,81 @@ describe('server file routes', () => {
 				filePath: './src/server/api/users/[id]/route.ts',
 				key: '/api/projects/[id]',
 				target: '/api/users/[id]',
+			}),
+		]);
+	});
+
+	it('should infer and execute exported request and response contracts', async () => {
+		const request = defineServerRequest({
+			params: serverSchema.object({ id: serverSchema.string }),
+			query: serverSchema.object({ limit: serverSchema.numberFromString }),
+		});
+		const response = serverSchema.object({
+			id: serverSchema.string,
+			limit: serverSchema.number,
+		});
+		const GET = defineServerFileHandler(
+			'/api/contract-users/[id]',
+			request,
+			({ input, params }) => {
+				expectTypeOf(input).toEqualTypeOf<{
+					readonly params: { id: string };
+					readonly query: { limit: number };
+				}>();
+				expectTypeOf(params).toEqualTypeOf<Readonly<{ id: string }>>();
+				return { id: input.params.id, limit: input.query.limit };
+			}
+		);
+		const Layer = defineLayer({
+			name: 'file-contracts',
+			server: fromServerFiles({
+				'./src/server/api/contract-users/[id]/route.ts': {
+					request,
+					response,
+					GET,
+				},
+			}),
+		});
+		const handler = createHandler({
+			root: createRoot() as any,
+			layers: [Layer],
+		});
+
+		const result = await handler(
+			new Request('http://localhost:3000/api/contract-users/u1?limit=3')
+		);
+		expect(result.status).toBe(200);
+		await expect(result.json()).resolves.toEqual({ id: 'u1', limit: 3 });
+	});
+
+	it('should reject request contracts that drift from the handler witness', () => {
+		const handlerRequest = defineServerRequest({
+			params: serverSchema.object({ id: serverSchema.string }),
+		});
+		const exportedRequest = defineServerRequest({
+			params: serverSchema.object({ id: serverSchema.numberFromString }),
+		});
+		const Layer = defineLayer({
+			name: 'file-contract-mismatch',
+			server: fromServerFiles({
+				'./src/server/api/contract-mismatch/[id]/route.ts': {
+					request: exportedRequest,
+					GET: defineServerFileHandler(
+						'/api/contract-mismatch/[id]',
+						handlerRequest,
+						({ input }) => input.params
+					),
+				},
+			}),
+		});
+		const manifest = createLayerServerManifest([Layer]);
+
+		expect(manifest.routes).toEqual([]);
+		expect(manifest.diagnostics).toEqual([
+			expect.objectContaining({
+				code: 'server_file_contract_mismatch',
+				filePath: './src/server/api/contract-mismatch/[id]/route.ts',
+				key: 'request',
 			}),
 		]);
 	});
