@@ -46,6 +46,8 @@ export interface ServerRequestPipelineOptions {
 	readonly resolve: ServerRequestTerminal;
 	/** Maximum rewrite/rematch passes before the pipeline fails. */
 	readonly maxRewrites?: number;
+	/** Reports deferred cleanup failures; defaults to `console.error`. */
+	readonly onCleanupError?: (error: unknown) => void;
 }
 
 export class ServerRewriteLimitError extends Error {
@@ -124,7 +126,10 @@ export const runServerRequestPipeline = async (
 		const response = await runServerRequestMiddleware(
 			chain,
 			current,
-			terminal
+			terminal,
+			options.onCleanupError
+				? { onCleanupError: options.onCleanupError }
+				: {}
 		);
 
 		if (rewritten === undefined) return response;
