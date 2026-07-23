@@ -9,6 +9,7 @@ import { dirname, resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
 	discoverServerMiddleware,
+	generateServerMiddlewareRegistryModule,
 	ServerRegistryCompilationError,
 } from '../services/server-registry.js';
 
@@ -110,5 +111,53 @@ describe('server middleware registry', () => {
 		const registry = discoverServerMiddleware(root);
 
 		expect(registry.entries.map((entry) => entry.name)).toEqual(['keep']);
+	});
+});
+
+describe('generateServerMiddlewareRegistryModule', () => {
+	let root: string;
+
+	beforeEach(() => {
+		root = mkdtempSync(resolve(tmpdir(), 'effuse-mw-gen-'));
+	});
+
+	afterEach(() => rmSync(root, { recursive: true, force: true }));
+
+	it('generates stable lazy imports and a graph loader', () => {
+		touch(root, 'src/server/middleware/cors.ts');
+		touch(root, 'src/server/middleware/layers/auth/session.mts');
+
+		const first = generateServerMiddlewareRegistryModule(
+			discoverServerMiddleware(root)
+		);
+		const second = generateServerMiddlewareRegistryModule(
+			discoverServerMiddleware(root)
+		);
+
+		expect(first).toBe(second);
+		expect(first).toContain('import("../src/server/middleware/cors.ts")');
+		expect(first).toContain(
+			'import("../src/server/middleware/layers/auth/session.mts")'
+		);
+		expect(first).toContain(
+			'export const serverMiddlewareRegistry = Object.freeze(['
+		);
+		expect(first).toContain('scope: "layer"');
+		expect(first).toContain('owner: "auth"');
+		expect(first).toContain('owner: null');
+		expect(first).toContain('compileServerMiddlewareGraph');
+		expect(first).toContain(
+			'export async function loadServerMiddlewareGraph()'
+		);
+		expect(first).not.toContain('node:fs');
+	});
+
+	it('rejects an output path outside the project root', () => {
+		touch(root, 'src/server/middleware/cors.ts');
+		expect(() =>
+			generateServerMiddlewareRegistryModule(discoverServerMiddleware(root), {
+				outputPath: '../mw.ts',
+			})
+		).toThrow('must stay within the project root');
 	});
 });
