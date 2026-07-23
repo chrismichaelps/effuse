@@ -199,6 +199,13 @@ export {
 } from './middleware-runtime.js';
 
 export {
+	runServerRequestPipeline,
+	ServerRewriteLimitError,
+	DEFAULT_MAX_REWRITES,
+	type ServerRequestPipelineOptions,
+} from './middleware-pipeline.js';
+
+export {
 	callLayerManifestAction,
 	callLayerManifestRoute,
 	createLayerRoutePath,
