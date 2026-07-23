@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-const inkProseStyles = `
+export const inkProseStyles = `
 .prose {
 	max-width: 65ch;
 	line-height: 1.75;
@@ -296,7 +296,22 @@ const inkProseStyles = `
 }
 `;
 
+const noop = (): void => {
+	/* SSR: nothing to clean up */
+};
+
 export function injectInkStyles(): () => void {
+	if (typeof document === 'undefined') {
+		return noop;
+	}
+
+	const existing = document.querySelector('style[data-ink-prose]');
+	if (existing !== null) {
+		return () => {
+			existing.remove();
+		};
+	}
+
 	const style = document.createElement('style');
 	style.setAttribute('data-ink-prose', 'true');
 	style.textContent = inkProseStyles;

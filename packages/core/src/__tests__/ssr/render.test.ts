@@ -53,6 +53,45 @@ describe('SSR render', () => {
 			await runtime.dispose();
 		});
 
+		it('should evaluate zero-arg function attribute values', async () => {
+			const runtime = await createSSRRuntime([]);
+
+			const node = CreateElementNode({
+				[EFFUSE_NODE]: true,
+				tag: 'div',
+				props: {
+					class: (() => 'prose wide') as unknown as string,
+					title: () => 'computed title',
+				},
+				children: [],
+			});
+
+			const result = runtime.run(() => renderToString(node, '/', runtime));
+
+			expect(result.html).toContain('<div class="prose wide" title="computed title">');
+
+			await runtime.dispose();
+		});
+
+		it('should normalize class records and arrays', async () => {
+			const runtime = await createSSRRuntime([]);
+
+			const node = CreateElementNode({
+				[EFFUSE_NODE]: true,
+				tag: 'div',
+				props: {
+					class: ['base', { active: true, hidden: false }],
+				},
+				children: [],
+			});
+
+			const result = runtime.run(() => renderToString(node, '/', runtime));
+
+			expect(result.html).toContain('<div class="base active">');
+
+			await runtime.dispose();
+		});
+
 		it('should render self-closing elements correctly', async () => {
 			const runtime = await createSSRRuntime([]);
 

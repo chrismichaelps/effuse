@@ -34,7 +34,7 @@ export {
 	type InkComponents,
 	type ComponentMap,
 } from './renderer/index.js';
-export { InkLayer, injectInkStyles } from './styles/index.js';
+export { InkLayer, injectInkStyles, inkProseStyles } from './styles/index.js';
 
 export type {
 	MarkdownNode,
