@@ -25,7 +25,7 @@
 import { defineLayer } from '@effuse/core';
 import { injectInkStyles } from './prose.js';
 
-export { injectInkStyles };
+export { injectInkStyles, inkProseStyles } from './prose.js';
 
 export const InkLayer = defineLayer({
 	name: 'ink',

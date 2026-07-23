@@ -273,6 +273,25 @@ const renderBlueprint = (
 	return html ?? '';
 };
 
+const normalizeClassValue = (value: unknown): string => {
+	if (Predicate.isString(value)) {
+		return value;
+	}
+	if (Array.isArray(value)) {
+		return value
+			.map(normalizeClassValue)
+			.filter((part) => part !== '')
+			.join(' ');
+	}
+	if (Predicate.isObject(value)) {
+		return Object.entries(value as Record<string, unknown>)
+			.filter(([, enabled]) => Boolean(enabled))
+			.map(([name]) => name)
+			.join(' ');
+	}
+	return '';
+};
+
 const renderAttributes = (props: Record<string, unknown>): string => {
 	const parts: string[] = [];
 
@@ -285,13 +304,40 @@ const renderAttributes = (props: Record<string, unknown>): string => {
 			continue;
 		}
 
+		if (key === 'ref' || key.startsWith('use:')) {
+			continue;
+		}
+
 		if (value == null) {
 			continue;
 		}
 
-		const actualValue = isSignal(value)
+		let actualValue = isSignal(value)
 			? (value as { value: unknown }).value
 			: value;
+
+		// Zero-arg functions are reactive getters on the client; evaluate them
+		// so SSR output matches the first client render.
+		if (Predicate.isFunction(actualValue) && actualValue.length === 0) {
+			actualValue = (actualValue as () => unknown)();
+			if (isSignal(actualValue)) {
+				actualValue = (actualValue as { value: unknown }).value;
+			}
+		} else if (Predicate.isFunction(actualValue)) {
+			continue;
+		}
+
+		if (actualValue == null) {
+			continue;
+		}
+
+		if (key === 'class' || key === 'className') {
+			const classString = normalizeClassValue(actualValue);
+			if (classString !== '') {
+				parts.push(`class="${escapeAttr(classString)}"`);
+			}
+			continue;
+		}
 
 		if (Predicate.isBoolean(actualValue)) {
 			if (actualValue) {
