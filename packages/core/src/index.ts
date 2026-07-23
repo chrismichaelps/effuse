@@ -454,6 +454,7 @@ export {
 	type CompiledServerMiddlewareGraph,
 	type ServerMiddlewareRequestContext,
 	type ServerRequestTerminal,
+	type ServerRequestMiddlewareOptions,
 	type ServerRequestPipelineOptions,
 	type NormalizedServerMiddlewareMatch,
 	type ServerMiddlewareMatchInput,

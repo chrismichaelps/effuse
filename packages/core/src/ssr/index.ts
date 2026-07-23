@@ -196,6 +196,7 @@ export {
 export {
 	runServerRequestMiddleware,
 	type ServerRequestTerminal,
+	type ServerRequestMiddlewareOptions,
 } from './middleware-runtime.js';
 
 export {

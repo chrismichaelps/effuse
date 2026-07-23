@@ -124,6 +124,106 @@ describe('runServerRequestMiddleware', () => {
 		expect(disposed).toEqual(['read:u-1', 'cleanup']);
 	});
 
+	it('should run each deferred disposer exactly once', async () => {
+		let count = 0;
+		const middleware: ServerRequestMiddleware = async (ctx, next) => {
+			ctx.defer(() => {
+				count += 1;
+			});
+			return next();
+		};
+
+		await runServerRequestMiddleware([middleware], req(), () => ({ ok: true }));
+		expect(count).toBe(1);
+	});
+
+	it('should run disposers even when the terminal throws', async () => {
+		const disposed: string[] = [];
+		const middleware: ServerRequestMiddleware = async (ctx, next) => {
+			ctx.defer(() => {
+				disposed.push('cleanup');
+			});
+			return next();
+		};
+
+		await expect(
+			runServerRequestMiddleware([middleware], req(), () => {
+				throw new Error('handler exploded');
+			})
+		).rejects.toThrow('handler exploded');
+
+		expect(disposed).toEqual(['cleanup']);
+	});
+
+	it('should not let a failing disposer mask the response', async () => {
+		const disposed: string[] = [];
+		const reported: unknown[] = [];
+		const middleware: ServerRequestMiddleware = async (ctx, next) => {
+			ctx.defer(() => {
+				disposed.push('second');
+			});
+			ctx.defer(() => {
+				throw new Error('disposer failed');
+			});
+			return next();
+		};
+
+		const response = await runServerRequestMiddleware(
+			[middleware],
+			req(),
+			() => ({ ok: true }),
+			{ onCleanupError: (error) => reported.push(error) }
+		);
+
+		expect(response.status).toBe(200);
+		// A failing disposer must not stop the remaining LIFO disposers.
+		expect(disposed).toEqual(['second']);
+		expect(reported).toHaveLength(1);
+		expect((reported[0] as Error).message).toBe('disposer failed');
+	});
+
+	it('should stop the chain when the request is already aborted', async () => {
+		const controller = new AbortController();
+		controller.abort();
+		let downstreamRan = false;
+		const middleware: ServerRequestMiddleware = async (_ctx, next) => {
+			downstreamRan = true;
+			return next();
+		};
+
+		await expect(
+			runServerRequestMiddleware(
+				[middleware],
+				req('https://x.test/api/a', { signal: controller.signal }),
+				() => ({ ok: true })
+			)
+		).rejects.toThrow(/abort/i);
+
+		expect(downstreamRan).toBe(false);
+	});
+
+	it('should stop before the terminal when aborted mid-chain', async () => {
+		const controller = new AbortController();
+		let terminalRan = false;
+		const aborter: ServerRequestMiddleware = async (_ctx, next) => {
+			controller.abort();
+			return next();
+		};
+
+		await expect(
+			runServerRequestMiddleware(
+				[aborter],
+				req('https://x.test/api/a', { signal: controller.signal }),
+				() => {
+					terminalRan = true;
+					return { ok: true };
+				}
+			)
+		).rejects.toThrow(/abort/i);
+
+		expect(terminalRan).toBe(false);
+	});
+
 	it('should normalize a thrown response-shaped early return', async () => {
 		const response = await runServerRequestMiddleware(
 			[async (_ctx, next) => next()],

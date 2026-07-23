@@ -56,10 +56,20 @@ export type ServerRequestTerminal = (
  * - Request-scoped `locals` are shared across the chain; `defer` disposers run
  *   after the response settles, in LIFO order.
  */
+export interface ServerRequestMiddlewareOptions {
+	/**
+	 * Invoked when deferred cleanup fails. Cleanup runs after the request has
+	 * already settled, so failures are reported rather than surfaced to the
+	 * client. Defaults to `console.error`.
+	 */
+	readonly onCleanupError?: (error: unknown) => void;
+}
+
 export const runServerRequestMiddleware = async (
 	chain: readonly ServerRequestMiddleware[],
 	request: Request,
-	terminal: ServerRequestTerminal
+	terminal: ServerRequestTerminal,
+	options: ServerRequestMiddlewareOptions = {}
 ): Promise<Response> => {
 	const locals: RequestLocals = {};
 	const disposers: RequestDisposer[] = [];
@@ -79,10 +89,23 @@ export const runServerRequestMiddleware = async (
 		defer,
 	});
 
+	const assertNotAborted = (currentRequest: Request): void => {
+		const signal: AbortSignal | undefined = currentRequest.signal;
+		if (signal?.aborted === true) {
+			throw signal.reason instanceof Error
+				? signal.reason
+				: new Error('[middleware] Request aborted.');
+		}
+	};
+
 	const dispatch = async (
 		index: number,
 		currentRequest: Request
 	): Promise<Response> => {
+		// A client abort stops the onion before any further middleware,
+		// the terminal, or a lazily imported route runs.
+		assertNotAborted(currentRequest);
+
 		if (index >= chain.length) {
 			const context = contextFor(currentRequest);
 			const result = await terminal(currentRequest, context);
@@ -122,11 +145,40 @@ export const runServerRequestMiddleware = async (
 		return normalizeServerResult(result);
 	};
 
+	let disposed = false;
+	const runDisposers = async (): Promise<void> => {
+		// Exactly once, LIFO, and isolated: one failing disposer must not skip
+		// the rest or replace the response the caller is about to receive.
+		if (disposed) return;
+		disposed = true;
+		const failures: unknown[] = [];
+		for (let i = disposers.length - 1; i >= 0; i -= 1) {
+			try {
+				await disposers[i]?.();
+			} catch (error) {
+				failures.push(error);
+			}
+		}
+		if (failures.length === 0) return;
+		const report =
+			options.onCleanupError ??
+			((error: unknown) => {
+				// eslint-disable-next-line no-console
+				console.error(error);
+			});
+		report(
+			failures.length === 1
+				? failures[0]
+				: new AggregateError(
+						failures,
+						'[middleware] Deferred request cleanup failed.'
+					)
+		);
+	};
+
 	try {
 		return await dispatch(0, request);
 	} finally {
-		for (let i = disposers.length - 1; i >= 0; i -= 1) {
-			await disposers[i]?.();
-		}
+		await runDisposers();
 	}
 };
