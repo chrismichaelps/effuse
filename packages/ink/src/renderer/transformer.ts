@@ -28,6 +28,7 @@ import {
 	CreateElementNode,
 	type EffuseChild,
 } from '@effuse/core';
+import { sanitizeUrl } from './sanitize-url.js';
 import type {
 	BlockNode,
 	InlineNode,
@@ -139,7 +140,7 @@ const transformLink = (
 	resolveElement(
 		'a',
 		{
-			href: node.url,
+			href: sanitizeUrl(node.url),
 			title: node.title,
 			class: 'ink-link',
 		},
@@ -154,7 +155,7 @@ const transformImage = (
 	resolveElement(
 		'img',
 		{
-			src: node.url,
+			src: sanitizeUrl(node.url, { allowDataImages: true }),
 			alt: node.alt,
 			title: node.title,
 			class: 'ink-image',
