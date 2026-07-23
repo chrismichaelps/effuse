@@ -194,6 +194,11 @@ export {
 } from './middleware-graph.js';
 
 export {
+	runServerRequestMiddleware,
+	type ServerRequestTerminal,
+} from './middleware-runtime.js';
+
+export {
 	callLayerManifestAction,
 	callLayerManifestRoute,
 	createLayerRoutePath,
