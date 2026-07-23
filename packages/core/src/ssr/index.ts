@@ -204,6 +204,7 @@ export {
 	ServerRewriteLimitError,
 	DEFAULT_MAX_REWRITES,
 	type ServerRequestPipelineOptions,
+	type ServerMiddlewareTrace,
 } from './middleware-pipeline.js';
 
 export {
