@@ -184,6 +184,16 @@ export {
 } from './middleware-definition.js';
 
 export {
+	compileServerMiddlewareGraph,
+	selectServerMiddlewareChain,
+	type ServerMiddlewareScope,
+	type ServerMiddlewareGraphInput,
+	type CompiledServerMiddlewareEntry,
+	type CompiledServerMiddlewareGraph,
+	type ServerMiddlewareRequestContext,
+} from './middleware-graph.js';
+
+export {
 	callLayerManifestAction,
 	callLayerManifestRoute,
 	createLayerRoutePath,
