@@ -208,6 +208,154 @@ describe('useInterval', () => {
 		});
 	});
 
+	describe('status exposure', () => {
+		it('should expose status, isPaused, and isStopped signals', () => {
+			const callback = vi.fn();
+			const { status, isPaused, isStopped } = useInterval({
+				callback,
+				delay: 100,
+			});
+
+			expect(status.value).toBe('running');
+			expect(isPaused.value).toBe(false);
+			expect(isStopped.value).toBe(false);
+		});
+
+		it('should report stopped before start when immediate is false', () => {
+			const callback = vi.fn();
+			const { status, isPaused, isStopped, isRunning } = useInterval({
+				callback,
+				delay: 100,
+				immediate: false,
+			});
+
+			expect(status.value).toBe('stopped');
+			expect(isStopped.value).toBe(true);
+			expect(isPaused.value).toBe(false);
+			expect(isRunning.value).toBe(false);
+		});
+
+		it('should report paused rather than stopped after pause', () => {
+			const callback = vi.fn();
+			const { pause, status, isPaused, isStopped, isRunning } = useInterval({
+				callback,
+				delay: 100,
+			});
+
+			pause();
+
+			expect(status.value).toBe('paused');
+			expect(isPaused.value).toBe(true);
+			expect(isStopped.value).toBe(false);
+			expect(isRunning.value).toBe(false);
+		});
+
+		it('should report stopped after stop', () => {
+			const callback = vi.fn();
+			const { stop, status, isPaused, isStopped } = useInterval({
+				callback,
+				delay: 100,
+			});
+
+			stop();
+
+			expect(status.value).toBe('stopped');
+			expect(isStopped.value).toBe(true);
+			expect(isPaused.value).toBe(false);
+		});
+
+		it('should keep a stopped interval stopped when pause is called', () => {
+			const callback = vi.fn();
+			const { stop, pause, status, isPaused, isStopped } = useInterval({
+				callback,
+				delay: 100,
+			});
+
+			stop();
+			pause();
+
+			expect(status.value).toBe('stopped');
+			expect(isStopped.value).toBe(true);
+			expect(isPaused.value).toBe(false);
+		});
+
+		it('should not enter paused when pause is called before any start', () => {
+			const callback = vi.fn();
+			const { pause, status } = useInterval({
+				callback,
+				delay: 100,
+				immediate: false,
+			});
+
+			pause();
+
+			expect(status.value).toBe('stopped');
+		});
+
+		it('should retain count across pause and resume', () => {
+			const callback = vi.fn();
+			const { start, pause, count, status } = useInterval({
+				callback,
+				delay: 100,
+			});
+
+			vi.advanceTimersByTime(300);
+			expect(count.value).toBe(3);
+
+			pause();
+			expect(status.value).toBe('paused');
+			expect(count.value).toBe(3);
+
+			start();
+			expect(status.value).toBe('running');
+			expect(count.value).toBe(3);
+
+			vi.advanceTimersByTime(100);
+			expect(count.value).toBe(4);
+		});
+
+		it('should reset count when stopped and restart from zero', () => {
+			const callback = vi.fn();
+			const { start, stop, count, status } = useInterval({
+				callback,
+				delay: 100,
+			});
+
+			vi.advanceTimersByTime(200);
+			expect(count.value).toBe(2);
+
+			stop();
+			expect(count.value).toBe(0);
+
+			start();
+			expect(status.value).toBe('running');
+			expect(count.value).toBe(0);
+		});
+
+		it('should keep paused state and count on repeated pause calls', () => {
+			const callback = vi.fn();
+			const { pause, count, status } = useInterval({ callback, delay: 100 });
+
+			vi.advanceTimersByTime(200);
+			pause();
+			pause();
+
+			expect(status.value).toBe('paused');
+			expect(count.value).toBe(2);
+		});
+
+		it('should report stopped during SSR without browser work', () => {
+			vi.stubGlobal('window', undefined);
+			vi.stubGlobal('document', undefined);
+
+			const callback = vi.fn();
+			const { status, isStopped } = useInterval({ callback, delay: 100 });
+
+			expect(status.value).toBe('stopped');
+			expect(isStopped.value).toBe(true);
+		});
+	});
+
 	describe('stop behavior', () => {
 		it('should reset count on stop', () => {
 			const callback = vi.fn();
