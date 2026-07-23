@@ -24,146 +24,175 @@
 
 import type { EffuseChild } from '../../render/node.js';
 
-export interface DOMAttributes {
+/**
+ * Event handler whose event carries the concrete element the handler was
+ * attached to. The renderer binds handlers with addEventListener, so
+ * currentTarget is always the owning element while the handler runs.
+ */
+export type EffuseEvent<
+	Target extends EventTarget,
+	Ev extends Event,
+> = Omit<Ev, 'currentTarget'> & { readonly currentTarget: Target };
+
+/**
+ * Method syntax keeps handler parameters bivariant, so an element-specific
+ * attributes object stays assignable to the custom-element catch-all in the
+ * intrinsic elements map.
+ */
+export type EffuseEventHandler<
+	Target extends EventTarget,
+	Ev extends Event,
+> = {
+	bivarianceHack(event: EffuseEvent<Target, Ev>): void;
+}['bivarianceHack'];
+
+export interface DOMAttributes<Target extends EventTarget = HTMLElement> {
 	children?: EffuseChild;
 
 	// Clipboard Events
-	onCopy?: (e: ClipboardEvent) => void;
-	onCut?: (e: ClipboardEvent) => void;
-	onPaste?: (e: ClipboardEvent) => void;
+	onCopy?: EffuseEventHandler<Target, ClipboardEvent>;
+	onCut?: EffuseEventHandler<Target, ClipboardEvent>;
+	onPaste?: EffuseEventHandler<Target, ClipboardEvent>;
 
 	// Composition Events
-	onCompositionEnd?: (e: CompositionEvent) => void;
-	onCompositionStart?: (e: CompositionEvent) => void;
-	onCompositionUpdate?: (e: CompositionEvent) => void;
+	onCompositionEnd?: EffuseEventHandler<Target, CompositionEvent>;
+	onCompositionStart?: EffuseEventHandler<Target, CompositionEvent>;
+	onCompositionUpdate?: EffuseEventHandler<Target, CompositionEvent>;
 
 	// Focus Events
-	onFocus?: (e: FocusEvent) => void;
-	onBlur?: (e: FocusEvent) => void;
-	onFocusIn?: (e: FocusEvent) => void;
-	onFocusOut?: (e: FocusEvent) => void;
+	onFocus?: EffuseEventHandler<Target, FocusEvent>;
+	onBlur?: EffuseEventHandler<Target, FocusEvent>;
+	onFocusIn?: EffuseEventHandler<Target, FocusEvent>;
+	onFocusOut?: EffuseEventHandler<Target, FocusEvent>;
 
 	// Form Events
-	onChange?: (e: Event) => void;
-	onInput?: (e: Event) => void;
-	onReset?: (e: Event) => void;
-	onSubmit?: (e: SubmitEvent) => void;
-	onInvalid?: (e: Event) => void;
-	onFormData?: (e: FormDataEvent) => void;
+	onChange?: EffuseEventHandler<Target, Event>;
+	onInput?: EffuseEventHandler<Target, InputEvent>;
+	onBeforeInput?: EffuseEventHandler<Target, InputEvent>;
+	onReset?: EffuseEventHandler<Target, Event>;
+	onSubmit?: EffuseEventHandler<Target, SubmitEvent>;
+	onInvalid?: EffuseEventHandler<Target, Event>;
+	onFormData?: EffuseEventHandler<Target, FormDataEvent>;
 
 	// Image Events
-	onLoad?: (e: Event) => void;
-	onError?: (e: Event | string) => void;
+	onLoad?: EffuseEventHandler<Target, Event>;
+	onError?: EffuseEventHandler<Target, Event>;
 
 	// Keyboard Events
-	onKeyDown?: (e: KeyboardEvent) => void;
-	onKeyPress?: (e: KeyboardEvent) => void;
-	onKeyUp?: (e: KeyboardEvent) => void;
+	onKeyDown?: EffuseEventHandler<Target, KeyboardEvent>;
+	onKeyPress?: EffuseEventHandler<Target, KeyboardEvent>;
+	onKeyUp?: EffuseEventHandler<Target, KeyboardEvent>;
 
 	// Mouse Events
-	onClick?: (e: MouseEvent) => void;
-	onContextMenu?: (e: MouseEvent) => void;
-	onDblClick?: (e: MouseEvent) => void;
-	onMouseDown?: (e: MouseEvent) => void;
-	onMouseEnter?: (e: MouseEvent) => void;
-	onMouseLeave?: (e: MouseEvent) => void;
-	onMouseMove?: (e: MouseEvent) => void;
-	onMouseOut?: (e: MouseEvent) => void;
-	onMouseOver?: (e: MouseEvent) => void;
-	onMouseUp?: (e: MouseEvent) => void;
-	onAuxClick?: (e: MouseEvent) => void;
+	onClick?: EffuseEventHandler<Target, MouseEvent>;
+	onContextMenu?: EffuseEventHandler<Target, MouseEvent>;
+	onDblClick?: EffuseEventHandler<Target, MouseEvent>;
+	onMouseDown?: EffuseEventHandler<Target, MouseEvent>;
+	onMouseEnter?: EffuseEventHandler<Target, MouseEvent>;
+	onMouseLeave?: EffuseEventHandler<Target, MouseEvent>;
+	onMouseMove?: EffuseEventHandler<Target, MouseEvent>;
+	onMouseOut?: EffuseEventHandler<Target, MouseEvent>;
+	onMouseOver?: EffuseEventHandler<Target, MouseEvent>;
+	onMouseUp?: EffuseEventHandler<Target, MouseEvent>;
+	onAuxClick?: EffuseEventHandler<Target, MouseEvent>;
 
 	// Pointer Events
-	onPointerDown?: (e: PointerEvent) => void;
-	onPointerMove?: (e: PointerEvent) => void;
-	onPointerUp?: (e: PointerEvent) => void;
-	onPointerCancel?: (e: PointerEvent) => void;
-	onPointerEnter?: (e: PointerEvent) => void;
-	onPointerLeave?: (e: PointerEvent) => void;
-	onPointerOver?: (e: PointerEvent) => void;
-	onPointerOut?: (e: PointerEvent) => void;
-	onGotPointerCapture?: (e: PointerEvent) => void;
-	onLostPointerCapture?: (e: PointerEvent) => void;
+	onPointerDown?: EffuseEventHandler<Target, PointerEvent>;
+	onPointerMove?: EffuseEventHandler<Target, PointerEvent>;
+	onPointerUp?: EffuseEventHandler<Target, PointerEvent>;
+	onPointerCancel?: EffuseEventHandler<Target, PointerEvent>;
+	onPointerEnter?: EffuseEventHandler<Target, PointerEvent>;
+	onPointerLeave?: EffuseEventHandler<Target, PointerEvent>;
+	onPointerOver?: EffuseEventHandler<Target, PointerEvent>;
+	onPointerOut?: EffuseEventHandler<Target, PointerEvent>;
+	onGotPointerCapture?: EffuseEventHandler<Target, PointerEvent>;
+	onLostPointerCapture?: EffuseEventHandler<Target, PointerEvent>;
 
 	// Touch Events
-	onTouchCancel?: (e: TouchEvent) => void;
-	onTouchEnd?: (e: TouchEvent) => void;
-	onTouchMove?: (e: TouchEvent) => void;
-	onTouchStart?: (e: TouchEvent) => void;
+	onTouchCancel?: EffuseEventHandler<Target, TouchEvent>;
+	onTouchEnd?: EffuseEventHandler<Target, TouchEvent>;
+	onTouchMove?: EffuseEventHandler<Target, TouchEvent>;
+	onTouchStart?: EffuseEventHandler<Target, TouchEvent>;
 
 	// Drag Events
-	onDrag?: (e: DragEvent) => void;
-	onDragEnd?: (e: DragEvent) => void;
-	onDragEnter?: (e: DragEvent) => void;
-	onDragExit?: (e: DragEvent) => void;
-	onDragLeave?: (e: DragEvent) => void;
-	onDragOver?: (e: DragEvent) => void;
-	onDragStart?: (e: DragEvent) => void;
-	onDrop?: (e: DragEvent) => void;
+	onDrag?: EffuseEventHandler<Target, DragEvent>;
+	onDragEnd?: EffuseEventHandler<Target, DragEvent>;
+	onDragEnter?: EffuseEventHandler<Target, DragEvent>;
+	onDragExit?: EffuseEventHandler<Target, DragEvent>;
+	onDragLeave?: EffuseEventHandler<Target, DragEvent>;
+	onDragOver?: EffuseEventHandler<Target, DragEvent>;
+	onDragStart?: EffuseEventHandler<Target, DragEvent>;
+	onDrop?: EffuseEventHandler<Target, DragEvent>;
 
 	// Scroll Events
-	onScroll?: (e: Event) => void;
-	onScrollEnd?: (e: Event) => void;
+	onScroll?: EffuseEventHandler<Target, Event>;
+	onScrollEnd?: EffuseEventHandler<Target, Event>;
 
 	// Wheel Events
-	onWheel?: (e: WheelEvent) => void;
+	onWheel?: EffuseEventHandler<Target, WheelEvent>;
 
 	// Animation Events
-	onAnimationStart?: (e: AnimationEvent) => void;
-	onAnimationEnd?: (e: AnimationEvent) => void;
-	onAnimationIteration?: (e: AnimationEvent) => void;
-	onAnimationCancel?: (e: AnimationEvent) => void;
+	onAnimationStart?: EffuseEventHandler<Target, AnimationEvent>;
+	onAnimationEnd?: EffuseEventHandler<Target, AnimationEvent>;
+	onAnimationIteration?: EffuseEventHandler<Target, AnimationEvent>;
+	onAnimationCancel?: EffuseEventHandler<Target, AnimationEvent>;
 
 	// Transition Events
-	onTransitionStart?: (e: TransitionEvent) => void;
-	onTransitionEnd?: (e: TransitionEvent) => void;
-	onTransitionRun?: (e: TransitionEvent) => void;
-	onTransitionCancel?: (e: TransitionEvent) => void;
+	onTransitionStart?: EffuseEventHandler<Target, TransitionEvent>;
+	onTransitionEnd?: EffuseEventHandler<Target, TransitionEvent>;
+	onTransitionRun?: EffuseEventHandler<Target, TransitionEvent>;
+	onTransitionCancel?: EffuseEventHandler<Target, TransitionEvent>;
 
 	// Selection Events
-	onSelect?: (e: Event) => void;
-	onSelectionChange?: (e: Event) => void;
+	onSelect?: EffuseEventHandler<Target, Event>;
+	onSelectionChange?: EffuseEventHandler<Target, Event>;
 
 	// Media Events
-	onAbort?: (e: Event) => void;
-	onCanPlay?: (e: Event) => void;
-	onCanPlayThrough?: (e: Event) => void;
-	onDurationChange?: (e: Event) => void;
-	onEmptied?: (e: Event) => void;
-	onEnded?: (e: Event) => void;
-	onLoadedData?: (e: Event) => void;
-	onLoadedMetadata?: (e: Event) => void;
-	onLoadStart?: (e: Event) => void;
-	onPause?: (e: Event) => void;
-	onPlay?: (e: Event) => void;
-	onPlaying?: (e: Event) => void;
-	onProgress?: (e: ProgressEvent) => void;
-	onRateChange?: (e: Event) => void;
-	onSeeked?: (e: Event) => void;
-	onSeeking?: (e: Event) => void;
-	onStalled?: (e: Event) => void;
-	onSuspend?: (e: Event) => void;
-	onTimeUpdate?: (e: Event) => void;
-	onVolumeChange?: (e: Event) => void;
-	onWaiting?: (e: Event) => void;
+	onAbort?: EffuseEventHandler<Target, Event>;
+	onCanPlay?: EffuseEventHandler<Target, Event>;
+	onCanPlayThrough?: EffuseEventHandler<Target, Event>;
+	onDurationChange?: EffuseEventHandler<Target, Event>;
+	onEmptied?: EffuseEventHandler<Target, Event>;
+	onEnded?: EffuseEventHandler<Target, Event>;
+	onLoadedData?: EffuseEventHandler<Target, Event>;
+	onLoadedMetadata?: EffuseEventHandler<Target, Event>;
+	onLoadStart?: EffuseEventHandler<Target, Event>;
+	onPause?: EffuseEventHandler<Target, Event>;
+	onPlay?: EffuseEventHandler<Target, Event>;
+	onPlaying?: EffuseEventHandler<Target, Event>;
+	onProgress?: EffuseEventHandler<Target, ProgressEvent>;
+	onRateChange?: EffuseEventHandler<Target, Event>;
+	onSeeked?: EffuseEventHandler<Target, Event>;
+	onSeeking?: EffuseEventHandler<Target, Event>;
+	onStalled?: EffuseEventHandler<Target, Event>;
+	onSuspend?: EffuseEventHandler<Target, Event>;
+	onTimeUpdate?: EffuseEventHandler<Target, Event>;
+	onVolumeChange?: EffuseEventHandler<Target, Event>;
+	onWaiting?: EffuseEventHandler<Target, Event>;
+	onCueChange?: EffuseEventHandler<Target, Event>;
 
-	// Toggle Events (for details element)
-	onToggle?: (e: Event) => void;
+	// Toggle Events (details and popover)
+	onToggle?: EffuseEventHandler<Target, ToggleEvent>;
+	onBeforeToggle?: EffuseEventHandler<Target, ToggleEvent>;
+
+	// Dialog Events
+	onClose?: EffuseEventHandler<Target, Event>;
+	onCancel?: EffuseEventHandler<Target, Event>;
 
 	// Fullscreen Events
-	onFullscreenChange?: (e: Event) => void;
-	onFullscreenError?: (e: Event) => void;
+	onFullscreenChange?: EffuseEventHandler<Target, Event>;
+	onFullscreenError?: EffuseEventHandler<Target, Event>;
 
 	// Picture-in-Picture Events
-	onEnterPictureInPicture?: (e: Event) => void;
-	onLeavePictureInPicture?: (e: Event) => void;
+	onEnterPictureInPicture?: EffuseEventHandler<Target, Event>;
+	onLeavePictureInPicture?: EffuseEventHandler<Target, Event>;
 
 	// Resize Events
-	onResize?: (e: UIEvent) => void;
+	onResize?: EffuseEventHandler<Target, UIEvent>;
 
 	// Security Events
-	onSecurityPolicyViolation?: (e: SecurityPolicyViolationEvent) => void;
+	onSecurityPolicyViolation?: EffuseEventHandler<Target, SecurityPolicyViolationEvent>;
 
 	// Slot Events
-	onSlotChange?: (e: Event) => void;
+	onSlotChange?: EffuseEventHandler<Target, Event>;
 }

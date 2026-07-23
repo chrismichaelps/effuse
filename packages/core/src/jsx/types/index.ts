@@ -47,7 +47,11 @@ export type {
 
 export type { AriaAttributes } from './aria.js';
 
-export type { DOMAttributes } from './events.js';
+export type {
+	DOMAttributes,
+	EffuseEvent,
+	EffuseEventHandler,
+} from './events.js';
 export type { HTMLAttributes } from './html.js';
 
 export type {
