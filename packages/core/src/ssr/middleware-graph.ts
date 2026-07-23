@@ -38,6 +38,19 @@ import type {
  */
 export type ServerMiddlewareScope = 'engine' | 'global' | 'layer' | 'route';
 
+/**
+ * Namespace the framework reserves for its own endpoints (server actions and
+ * future internal routes). Application middleware may neither claim a path in
+ * it nor rewrite a request into it, so internal endpoints cannot be
+ * intercepted or reached by escalating an ordinary request.
+ */
+export const RESERVED_SERVER_PATH_PREFIX = '/_effuse';
+
+/** True when a pathname falls inside the framework-internal namespace. */
+export const isReservedServerPath = (pathname: string): boolean =>
+	pathname === RESERVED_SERVER_PATH_PREFIX ||
+	pathname.startsWith(`${RESERVED_SERVER_PATH_PREFIX}/`);
+
 const SCOPE_ORDER: Readonly<Record<ServerMiddlewareScope, number>> = {
 	engine: 0,
 	global: 1,
@@ -101,6 +114,19 @@ export const compileServerMiddlewareGraph = (
 			throw new TypeError(
 				'Layer-scoped server middleware requires an owner.'
 			);
+		}
+		// Only the framework-owned engine scope may claim internal paths.
+		if (input.scope !== 'engine') {
+			for (const path of input.middleware.match.paths) {
+				if (isReservedServerPath(path)) {
+					throw new TypeError(
+						`Server middleware "${middlewareName(
+							input,
+							index
+						)}" cannot claim the reserved path "${path}".`
+					);
+				}
+			}
 		}
 		return { ...input, index };
 	});

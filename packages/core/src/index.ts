@@ -362,6 +362,8 @@ export {
 	defineServerMiddleware,
 	compileServerMiddlewareGraph,
 	selectServerMiddlewareChain,
+	isReservedServerPath,
+	RESERVED_SERVER_PATH_PREFIX,
 	runServerRequestMiddleware,
 	runServerRequestPipeline,
 	ServerRewriteLimitError,

@@ -186,6 +186,8 @@ export {
 export {
 	compileServerMiddlewareGraph,
 	selectServerMiddlewareChain,
+	isReservedServerPath,
+	RESERVED_SERVER_PATH_PREFIX,
 	type ServerMiddlewareScope,
 	type ServerMiddlewareGraphInput,
 	type CompiledServerMiddlewareEntry,
