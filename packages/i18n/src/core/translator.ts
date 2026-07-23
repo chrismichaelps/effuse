@@ -30,6 +30,12 @@ import {
 	PLURAL_SUFFIXES,
 } from '../config/constants.js';
 
+// Keys that would reach the prototype chain. Translations can be loaded from
+// remote JSON, so these are never merged or traversed.
+const UNSAFE_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
+const isUnsafeKey = (key: string): boolean => UNSAFE_KEYS.has(key);
+
 // Retrieves a nested value from a translation object using a dot-notation key.
 export const getNestedValue = (
 	translations: Translations,
@@ -40,6 +46,12 @@ export const getNestedValue = (
 
 	for (const part of parts) {
 		if (current === undefined || typeof current === 'string') {
+			return undefined;
+		}
+		if (
+			isUnsafeKey(part) ||
+			!Object.prototype.hasOwnProperty.call(current, part)
+		) {
 			return undefined;
 		}
 		current = current[part];
@@ -156,6 +168,10 @@ export const mergeTranslations = (
 	const result: Translations = { ...target };
 
 	for (const key of Object.keys(source)) {
+		if (isUnsafeKey(key)) {
+			continue;
+		}
+
 		const sourceValue = source[key];
 		const targetValue = result[key];
 
