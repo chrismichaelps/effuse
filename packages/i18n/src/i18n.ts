@@ -223,10 +223,55 @@ export function createI18n<const T>(
 	return instance as I18n | TypedI18n<T>;
 }
 
-// Retrieves the global i18n instance. Throws if not initialized.
+// Creates an i18n instance without registering it globally. Use for
+// request-scoped instances on the server, bound per render via withI18n.
+// Environment detection and persistence default to off: the locale of a
+// request-scoped instance must come from the request, not from the server
+// process (Node 21+ exposes a global navigator, so detection would silently
+// override defaultLocale on servers).
+export function createI18nInstance<const T>(
+	options: TypedI18nOptions<T>
+): TypedI18n<T>;
+export function createI18nInstance(options?: I18nOptions): I18n;
+export function createI18nInstance<const T>(
+	options: I18nOptions | TypedI18nOptions<T> = {}
+): I18n | TypedI18n<T> {
+	const scopedOptions = {
+		detectLocale: false,
+		persistLocale: false,
+		...(options as I18nOptions),
+	};
+	return new I18nInstance(scopedOptions) as I18n | TypedI18n<T>;
+}
+
+// Stack of instances bound by withI18n. The top of the stack wins over the
+// global instance, so a server render never observes another request's
+// locale. Bindings are synchronous: they cover the duration of the callback.
+const scopeStack: I18nInstance[] = [];
+
+// Runs fn with the given instance bound as the current i18n resolution
+// target for getI18n/t/useTranslation. Restores the previous binding even
+// when fn throws.
+export function withI18n<R>(instance: I18n, fn: () => R): R;
+export function withI18n<T, R>(instance: TypedI18n<T>, fn: () => R): R;
+export function withI18n<R>(instance: unknown, fn: () => R): R {
+	scopeStack.push(instance as I18nInstance);
+	try {
+		return fn();
+	} finally {
+		scopeStack.pop();
+	}
+}
+
+// Retrieves the bound (scoped) instance if inside withI18n, otherwise the
+// global instance. Throws if neither exists.
 export function getI18n(): I18n;
 export function getI18n<T>(): TypedI18n<T>;
 export function getI18n<T>(): I18n | TypedI18n<T> {
+	const scoped = scopeStack[scopeStack.length - 1];
+	if (scoped) {
+		return scoped as I18n | TypedI18n<T>;
+	}
 	if (!globalI18nInstance) {
 		throw new I18nNotInitializedError({});
 	}

@@ -24,13 +24,17 @@
 
 export {
 	createI18n,
+	createI18nInstance,
 	getI18n,
+	withI18n,
 	t,
 	setLocale,
 	getLocale,
 	useTranslation,
 	resetI18n,
 } from './i18n.js';
+
+export { resolveLocale } from './core/resolve-locale.js';
 
 export type {
 	I18n,

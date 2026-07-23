@@ -22,6 +22,8 @@
  * SOFTWARE.
  */
 
+export { resolveLocale } from './resolve-locale.js';
+
 export {
 	translate,
 	interpolate,
