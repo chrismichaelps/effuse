@@ -34,7 +34,9 @@ import type {
 	PopoverTargetAction,
 } from './unions.js';
 
-export interface HTMLAttributes extends AriaAttributes, DOMAttributes {
+export interface HTMLAttributes<Target extends EventTarget = HTMLElement>
+	extends AriaAttributes,
+		DOMAttributes<Target> {
 	key?: string | number | undefined;
 	ref?:
 		| ((el: Element) => void)

@@ -41,7 +41,7 @@ import type {
 	ReferrerPolicy,
 } from './unions.js';
 
-export interface AnchorAttributes extends HTMLAttributes {
+export interface AnchorAttributes extends HTMLAttributes<HTMLAnchorElement> {
 	href?: string;
 	target?: AnchorTarget;
 	rel?: string;
@@ -52,7 +52,7 @@ export interface AnchorAttributes extends HTMLAttributes {
 	type?: string;
 }
 
-export interface ButtonAttributes extends HTMLAttributes {
+export interface ButtonAttributes extends HTMLAttributes<HTMLButtonElement> {
 	type?: ButtonType;
 	disabled?:
 		| boolean
@@ -69,7 +69,7 @@ export interface ButtonAttributes extends HTMLAttributes {
 	formTarget?: AnchorTarget;
 }
 
-export interface InputAttributes extends HTMLAttributes {
+export interface InputAttributes extends HTMLAttributes<HTMLInputElement> {
 	type?: InputType;
 	value?:
 		| string
@@ -114,7 +114,7 @@ export interface InputAttributes extends HTMLAttributes {
 	dirname?: string;
 }
 
-export interface TextareaAttributes extends HTMLAttributes {
+export interface TextareaAttributes extends HTMLAttributes<HTMLTextAreaElement> {
 	value?: string | Signal<string> | ReadonlySignal<string>;
 	defaultValue?: string;
 	placeholder?: string;
@@ -137,7 +137,7 @@ export interface TextareaAttributes extends HTMLAttributes {
 	dirname?: string;
 }
 
-export interface SelectAttributes extends HTMLAttributes {
+export interface SelectAttributes extends HTMLAttributes<HTMLSelectElement> {
 	value?: string | Signal<string> | ReadonlySignal<string>;
 	disabled?:
 		| boolean
@@ -153,19 +153,19 @@ export interface SelectAttributes extends HTMLAttributes {
 	autoFocus?: boolean;
 }
 
-export interface OptionAttributes extends HTMLAttributes {
+export interface OptionAttributes extends HTMLAttributes<HTMLOptionElement> {
 	value?: string;
 	selected?: boolean;
 	disabled?: boolean;
 	label?: string;
 }
 
-export interface OptgroupAttributes extends HTMLAttributes {
+export interface OptgroupAttributes extends HTMLAttributes<HTMLOptGroupElement> {
 	disabled?: boolean;
 	label?: string;
 }
 
-export interface FormAttributes extends HTMLAttributes {
+export interface FormAttributes extends HTMLAttributes<HTMLFormElement> {
 	action?: string;
 	method?: FormMethod;
 	encType?: FormEncType;
@@ -177,29 +177,29 @@ export interface FormAttributes extends HTMLAttributes {
 	acceptCharset?: string;
 }
 
-export interface LabelAttributes extends HTMLAttributes {
+export interface LabelAttributes extends HTMLAttributes<HTMLLabelElement> {
 	for?: string;
 	htmlFor?: string;
 }
 
-export interface FieldsetAttributes extends HTMLAttributes {
+export interface FieldsetAttributes extends HTMLAttributes<HTMLFieldSetElement> {
 	disabled?: boolean;
 	form?: string;
 	name?: string;
 }
 
-export interface OutputAttributes extends HTMLAttributes {
+export interface OutputAttributes extends HTMLAttributes<HTMLOutputElement> {
 	for?: string;
 	form?: string;
 	name?: string;
 }
 
-export interface ProgressAttributes extends HTMLAttributes {
+export interface ProgressAttributes extends HTMLAttributes<HTMLProgressElement> {
 	value?: number;
 	max?: number;
 }
 
-export interface MeterAttributes extends HTMLAttributes {
+export interface MeterAttributes extends HTMLAttributes<HTMLMeterElement> {
 	value?: number;
 	min?: number;
 	max?: number;
@@ -208,7 +208,7 @@ export interface MeterAttributes extends HTMLAttributes {
 	optimum?: number;
 }
 
-export interface ImgAttributes extends HTMLAttributes {
+export interface ImgAttributes extends HTMLAttributes<HTMLImageElement> {
 	src?: string;
 	alt?: string;
 	width?: number | string;
@@ -224,7 +224,7 @@ export interface ImgAttributes extends HTMLAttributes {
 	fetchPriority?: 'high' | 'low' | 'auto';
 }
 
-export interface VideoAttributes extends HTMLAttributes {
+export interface VideoAttributes extends HTMLAttributes<HTMLVideoElement> {
 	src?: string;
 	autoPlay?: boolean;
 	controls?: boolean;
@@ -240,7 +240,7 @@ export interface VideoAttributes extends HTMLAttributes {
 	disableRemotePlayback?: boolean;
 }
 
-export interface AudioAttributes extends HTMLAttributes {
+export interface AudioAttributes extends HTMLAttributes<HTMLAudioElement> {
 	src?: string;
 	autoPlay?: boolean;
 	controls?: boolean;
@@ -251,7 +251,7 @@ export interface AudioAttributes extends HTMLAttributes {
 	disableRemotePlayback?: boolean;
 }
 
-export interface SourceAttributes extends HTMLAttributes {
+export interface SourceAttributes extends HTMLAttributes<HTMLSourceElement> {
 	src?: string;
 	srcSet?: string;
 	media?: string;
@@ -261,7 +261,7 @@ export interface SourceAttributes extends HTMLAttributes {
 	height?: number;
 }
 
-export interface TrackAttributes extends HTMLAttributes {
+export interface TrackAttributes extends HTMLAttributes<HTMLTrackElement> {
 	default?: boolean;
 	kind?: 'subtitles' | 'captions' | 'descriptions' | 'chapters' | 'metadata';
 	label?: string;
@@ -269,12 +269,12 @@ export interface TrackAttributes extends HTMLAttributes {
 	srclang?: string;
 }
 
-export interface CanvasAttributes extends HTMLAttributes {
+export interface CanvasAttributes extends HTMLAttributes<HTMLCanvasElement> {
 	width?: number | string;
 	height?: number | string;
 }
 
-export interface IframeAttributes extends HTMLAttributes {
+export interface IframeAttributes extends HTMLAttributes<HTMLIFrameElement> {
 	src?: string;
 	srcdoc?: string;
 	width?: number | string;
@@ -287,14 +287,14 @@ export interface IframeAttributes extends HTMLAttributes {
 	allowFullscreen?: boolean;
 }
 
-export interface EmbedAttributes extends HTMLAttributes {
+export interface EmbedAttributes extends HTMLAttributes<HTMLEmbedElement> {
 	src?: string;
 	type?: string;
 	width?: number | string;
 	height?: number | string;
 }
 
-export interface ObjectAttributes extends HTMLAttributes {
+export interface ObjectAttributes extends HTMLAttributes<HTMLObjectElement> {
 	data?: string;
 	type?: string;
 	name?: string;
@@ -304,13 +304,13 @@ export interface ObjectAttributes extends HTMLAttributes {
 	height?: number | string;
 }
 
-export interface TableAttributes extends HTMLAttributes {
+export interface TableAttributes extends HTMLAttributes<HTMLTableElement> {
 	cellPadding?: number | string;
 	cellSpacing?: number | string;
 	border?: number | string;
 }
 
-export interface ThAttributes extends HTMLAttributes {
+export interface ThAttributes extends HTMLAttributes<HTMLTableCellElement> {
 	colSpan?: number;
 	rowSpan?: number;
 	scope?: TableScope;
@@ -318,21 +318,21 @@ export interface ThAttributes extends HTMLAttributes {
 	abbr?: string;
 }
 
-export interface TdAttributes extends HTMLAttributes {
+export interface TdAttributes extends HTMLAttributes<HTMLTableCellElement> {
 	colSpan?: number;
 	rowSpan?: number;
 	headers?: string;
 }
 
-export interface ColAttributes extends HTMLAttributes {
+export interface ColAttributes extends HTMLAttributes<HTMLTableColElement> {
 	span?: number;
 }
 
-export interface ColgroupAttributes extends HTMLAttributes {
+export interface ColgroupAttributes extends HTMLAttributes<HTMLTableColElement> {
 	span?: number;
 }
 
-export interface MetaAttributes extends HTMLAttributes {
+export interface MetaAttributes extends HTMLAttributes<HTMLMetaElement> {
 	charSet?: string;
 	content?: string;
 	httpEquiv?:
@@ -345,7 +345,7 @@ export interface MetaAttributes extends HTMLAttributes {
 	media?: string;
 }
 
-export interface LinkAttributes extends HTMLAttributes {
+export interface LinkAttributes extends HTMLAttributes<HTMLLinkElement> {
 	href?: string;
 	rel?: string;
 	type?: string;
@@ -374,12 +374,12 @@ export interface LinkAttributes extends HTMLAttributes {
 	blocking?: 'render';
 }
 
-export interface StyleAttributes extends HTMLAttributes {
+export interface StyleAttributes extends HTMLAttributes<HTMLStyleElement> {
 	media?: string;
 	blocking?: 'render';
 }
 
-export interface ScriptAttributes extends HTMLAttributes {
+export interface ScriptAttributes extends HTMLAttributes<HTMLScriptElement> {
 	src?: string;
 	type?: 'module' | 'importmap' | (string & {});
 	async?: boolean;
@@ -393,16 +393,16 @@ export interface ScriptAttributes extends HTMLAttributes {
 	fetchPriority?: 'high' | 'low' | 'auto';
 }
 
-export interface BaseAttributes extends HTMLAttributes {
+export interface BaseAttributes extends HTMLAttributes<HTMLBaseElement> {
 	href?: string;
 	target?: AnchorTarget;
 }
 
-export interface DetailsAttributes extends HTMLAttributes {
+export interface DetailsAttributes extends HTMLAttributes<HTMLDetailsElement> {
 	open?: boolean;
 }
 
-export interface DialogAttributes extends HTMLAttributes {
+export interface DialogAttributes extends HTMLAttributes<HTMLDialogElement> {
 	open?: boolean;
 }
 
@@ -410,7 +410,8 @@ export type SummaryAttributes = HTMLAttributes;
 
 export type MenuAttributes = HTMLAttributes;
 
-export interface SVGAttributes extends HTMLAttributes {
+export interface SVGAttributes<Target extends EventTarget = SVGSVGElement>
+	extends HTMLAttributes<Target> {
 	viewBox?: string;
 	xmlns?: string;
 	fill?: string;
@@ -423,7 +424,7 @@ export interface SVGAttributes extends HTMLAttributes {
 	y?: number | string;
 }
 
-export interface SVGPathAttributes extends HTMLAttributes {
+export interface SVGPathAttributes extends SVGAttributes<SVGPathElement> {
 	d?: string;
 	fill?: string;
 	stroke?: string;
@@ -439,27 +440,27 @@ export interface SVGPathAttributes extends HTMLAttributes {
 	pathLength?: number;
 }
 
-export interface SVGCircleAttributes extends SVGAttributes {
+export interface SVGCircleAttributes extends SVGAttributes<SVGCircleElement> {
 	cx?: number | string;
 	cy?: number | string;
 	r?: number | string;
 }
 
-export interface SVGEllipseAttributes extends SVGAttributes {
+export interface SVGEllipseAttributes extends SVGAttributes<SVGEllipseElement> {
 	cx?: number | string;
 	cy?: number | string;
 	rx?: number | string;
 	ry?: number | string;
 }
 
-export interface SVGLineAttributes extends SVGAttributes {
+export interface SVGLineAttributes extends SVGAttributes<SVGLineElement> {
 	x1?: number | string;
 	y1?: number | string;
 	x2?: number | string;
 	y2?: number | string;
 }
 
-export interface SVGRectAttributes extends SVGAttributes {
+export interface SVGRectAttributes extends SVGAttributes<SVGRectElement> {
 	x?: number | string;
 	y?: number | string;
 	width?: number | string;
@@ -468,15 +469,15 @@ export interface SVGRectAttributes extends SVGAttributes {
 	ry?: number | string;
 }
 
-export interface SVGPolygonAttributes extends SVGAttributes {
+export interface SVGPolygonAttributes extends SVGAttributes<SVGPolygonElement> {
 	points?: string;
 }
 
-export interface SVGPolylineAttributes extends SVGAttributes {
+export interface SVGPolylineAttributes extends SVGAttributes<SVGPolylineElement> {
 	points?: string;
 }
 
-export interface SVGTextAttributes extends SVGAttributes {
+export interface SVGTextAttributes extends SVGAttributes<SVGTextElement> {
 	x?: number | string;
 	y?: number | string;
 	dx?: number | string;
@@ -485,20 +486,20 @@ export interface SVGTextAttributes extends SVGAttributes {
 	dominantBaseline?: string;
 }
 
-export interface SVGUseAttributes extends SVGAttributes {
+export interface SVGUseAttributes extends SVGAttributes<SVGUseElement> {
 	href?: string;
 	'xlink:href'?: string;
 }
 
-export interface SlotAttributes extends HTMLAttributes {
+export interface SlotAttributes extends HTMLAttributes<HTMLSlotElement> {
 	name?: string;
 }
 
-export interface TemplateAttributes extends HTMLAttributes {
+export interface TemplateAttributes extends HTMLAttributes<HTMLTemplateElement> {
 	shadowrootmode?: 'open' | 'closed';
 }
 
-export interface AreaAttributes extends HTMLAttributes {
+export interface AreaAttributes extends HTMLAttributes<HTMLAreaElement> {
 	alt?: string;
 	coords?: string;
 	download?: string | boolean;
@@ -510,28 +511,28 @@ export interface AreaAttributes extends HTMLAttributes {
 	target?: AnchorTarget;
 }
 
-export interface MapAttributes extends HTMLAttributes {
+export interface MapAttributes extends HTMLAttributes<HTMLMapElement> {
 	name?: string;
 }
 
-export interface QuoteAttributes extends HTMLAttributes {
+export interface QuoteAttributes extends HTMLAttributes<HTMLQuoteElement> {
 	cite?: string;
 }
 
-export interface TimeAttributes extends HTMLAttributes {
+export interface TimeAttributes extends HTMLAttributes<HTMLTimeElement> {
 	dateTime?: string;
 }
 
-export interface DataAttributes extends HTMLAttributes {
+export interface DataAttributes extends HTMLAttributes<HTMLDataElement> {
 	value?: string;
 }
 
-export interface DelAttributes extends HTMLAttributes {
+export interface DelAttributes extends HTMLAttributes<HTMLModElement> {
 	cite?: string;
 	dateTime?: string;
 }
 
-export interface InsAttributes extends HTMLAttributes {
+export interface InsAttributes extends HTMLAttributes<HTMLModElement> {
 	cite?: string;
 	dateTime?: string;
 }
