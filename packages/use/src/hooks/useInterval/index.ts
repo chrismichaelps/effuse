@@ -35,14 +35,23 @@ import {
 } from './telemetry.js';
 import {
 	type IntervalState,
+	type IntervalStatus,
 	IntervalState as IS,
 	isRunning,
 	isPaused,
+	isStopped,
 	getCount,
 	getIsActive,
+	getStatus,
 } from './state.js';
 
-export { IntervalState, isRunning, isPaused, isStopped } from './state.js';
+export {
+	IntervalState,
+	type IntervalStatus,
+	isRunning,
+	isPaused,
+	isStopped,
+} from './state.js';
 export { IntervalError } from './errors.js';
 
 export interface UseIntervalConfig {
@@ -56,7 +65,13 @@ export interface UseIntervalConfig {
 export interface UseIntervalReturn {
 	readonly count: ReadonlySignal<number>;
 
+	readonly status: ReadonlySignal<IntervalStatus>;
+
 	readonly isRunning: ReadonlySignal<boolean>;
+
+	readonly isPaused: ReadonlySignal<boolean>;
+
+	readonly isStopped: ReadonlySignal<boolean>;
 
 	readonly start: () => void;
 
@@ -79,13 +94,16 @@ export const useInterval = defineHook<UseIntervalConfig, UseIntervalReturn>({
 		traceIntervalInit(clampedDelay, immediate);
 
 		const internalState = ctx.signal<IntervalState>(
-			immediate ? IS.Running({ count: 0 }) : IS.Stopped()
+			immediate && isClient() ? IS.Running({ count: 0 }) : IS.Stopped()
 		);
 
 		let intervalId: ReturnType<typeof setInterval> | null = null;
 
 		const count = ctx.computed(() => getCount(internalState.value));
+		const status = ctx.computed(() => getStatus(internalState.value));
 		const running = ctx.computed(() => getIsActive(internalState.value));
+		const paused = ctx.computed(() => isPaused(internalState.value));
+		const stopped = ctx.computed(() => isStopped(internalState.value));
 
 		const clearCurrentInterval = (): void => {
 			if (intervalId !== null) {
@@ -117,6 +135,7 @@ export const useInterval = defineHook<UseIntervalConfig, UseIntervalReturn>({
 		};
 
 		const pause = (): void => {
+			if (!isRunning(internalState.value)) return;
 			traceIntervalPause();
 			clearCurrentInterval();
 			const currentCount = getCount(internalState.value);
@@ -129,24 +148,17 @@ export const useInterval = defineHook<UseIntervalConfig, UseIntervalReturn>({
 			internalState.value = IS.Stopped();
 		};
 
-		let isInitialized = false;
-
-		ctx.watchEffect(() => {
-			if (!isClient()) return undefined;
-
-			if (!isInitialized && immediate) {
-				isInitialized = true;
-				start();
-			}
-
-			return () => {
-				clearCurrentInterval();
-			};
+		ctx.onMount(() => {
+			if (immediate) start();
+			return clearCurrentInterval;
 		});
 
 		return {
 			count,
+			status,
 			isRunning: running,
+			isPaused: paused,
+			isStopped: stopped,
 			start,
 			pause,
 			stop,

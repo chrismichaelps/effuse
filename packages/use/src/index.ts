@@ -60,6 +60,7 @@ export {
 export {
 	useInterval,
 	IntervalError,
+	type IntervalStatus,
 	type UseIntervalConfig,
 	type UseIntervalReturn,
 } from './hooks/useInterval/index.js';

@@ -52,6 +52,15 @@ export const getCount = (state: IntervalState): number =>
 		Paused: ({ count }) => count,
 	});
 
+export type IntervalStatus = 'running' | 'paused' | 'stopped';
+
+export const getStatus = (state: IntervalState): IntervalStatus =>
+	matchIntervalState(state, {
+		Stopped: () => 'stopped' as const,
+		Running: () => 'running' as const,
+		Paused: () => 'paused' as const,
+	});
+
 export const getIsActive = (state: IntervalState): boolean =>
 	matchIntervalState(state, {
 		Stopped: () => false,
