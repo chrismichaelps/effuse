@@ -456,6 +456,7 @@ export {
 	type ServerRequestTerminal,
 	type ServerRequestMiddlewareOptions,
 	type ServerRequestPipelineOptions,
+	type ServerMiddlewareTrace,
 	type NormalizedServerMiddlewareMatch,
 	type ServerMiddlewareMatchInput,
 	type ServerMiddlewareMethod,

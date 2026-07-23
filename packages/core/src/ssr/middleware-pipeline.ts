@@ -30,6 +30,7 @@ import type {
 import {
 	selectServerMiddlewareChain,
 	type CompiledServerMiddlewareGraph,
+	type ServerMiddlewareScope,
 } from './middleware-graph.js';
 import {
 	runServerRequestMiddleware,
@@ -38,6 +39,22 @@ import {
 
 /** Default bound on how many times a request may be rewritten and rematched. */
 export const DEFAULT_MAX_REWRITES = 5;
+
+/**
+ * One middleware execution record. Carries the identity needed to attribute
+ * cost and failure — name, scope, owner, target, and the path being resolved —
+ * and deliberately carries no request headers, body, locals, or error message,
+ * so traces cannot leak secrets.
+ */
+export interface ServerMiddlewareTrace {
+	readonly name: string;
+	readonly scope: ServerMiddlewareScope;
+	readonly owner: string | undefined;
+	readonly target: ServerMiddlewareTarget;
+	readonly pathname: string;
+	readonly durationMs: number;
+	readonly failed: boolean;
+}
 
 export interface ServerRequestPipelineOptions {
 	readonly request: Request;
@@ -48,6 +65,11 @@ export interface ServerRequestPipelineOptions {
 	readonly maxRewrites?: number;
 	/** Reports deferred cleanup failures; defaults to `console.error`. */
 	readonly onCleanupError?: (error: unknown) => void;
+	/**
+	 * Receives one trace per executed middleware. Spans close inner-first as
+	 * the onion unwinds, and `durationMs` is inclusive of downstream work.
+	 */
+	readonly onTrace?: (trace: ServerMiddlewareTrace) => void;
 }
 
 export class ServerRewriteLimitError extends Error {
@@ -101,13 +123,37 @@ export const runServerRequestPipeline = async (
 		const pathname = pathOf(current);
 		seen.add(pathname);
 
-		const chain = selectServerMiddlewareChain(graph, {
+		const selected = selectServerMiddlewareChain(graph, {
 			pathname,
 			method: current.method,
 			target: options.target,
-		}).map(
-			(entry) => entry.middleware.handler as ServerRequestMiddleware
-		);
+		});
+
+		const onTrace = options.onTrace;
+		const chain = selected.map((entry): ServerRequestMiddleware => {
+			const handler = entry.middleware.handler as ServerRequestMiddleware;
+			if (!onTrace) return handler;
+			return async (context, next) => {
+				const startedAt = performance.now();
+				let failed = false;
+				try {
+					return await handler(context, next);
+				} catch (error) {
+					failed = true;
+					throw error;
+				} finally {
+					onTrace({
+						name: entry.name,
+						scope: entry.scope,
+						owner: entry.owner,
+						target: options.target,
+						pathname,
+						durationMs: performance.now() - startedAt,
+						failed,
+					});
+				}
+			};
+		});
 
 		let rewritten: Request | undefined;
 		const terminal: ServerRequestTerminal = (
