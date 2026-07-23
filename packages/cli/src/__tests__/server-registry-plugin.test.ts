@@ -78,6 +78,7 @@ describe('Effuse server registry Vite plugin', () => {
 		expect(watcher.add).toHaveBeenCalledWith([
 			resolve(root, 'src/server/api'),
 			resolve(root, 'src/server/actions'),
+			resolve(root, 'src/server/middleware'),
 		]);
 	});
 
@@ -95,7 +96,8 @@ describe('Effuse server registry Vite plugin', () => {
 		);
 		expect(source).toContain('/api/health');
 		expect(sent).toEqual([{ type: 'full-reload', path: '*' }]);
-		expect(invalidated).toHaveLength(1);
+		// The file registry and the middleware registry are both invalidated.
+		expect(invalidated).toHaveLength(2);
 	});
 
 	it('preserves the previous graph during collisions and recovers', () => {
@@ -150,5 +152,59 @@ describe('Effuse server registry Vite plugin', () => {
 		expect(watcher.add).not.toHaveBeenCalledWith(
 			expect.arrayContaining([resolve(root, '../private-api')])
 		);
+	});
+
+	it('generates an empty middleware registry and watches its directory', () => {
+		callHook(plugin.buildStart, { addWatchFile: vi.fn() });
+		const outputPath = resolve(
+			root,
+			'.effuse/server-middleware-registry.ts'
+		);
+
+		expect(existsSync(outputPath)).toBe(true);
+		expect(readFileSync(outputPath, 'utf-8')).toContain(
+			'export const serverMiddlewareRegistry = Object.freeze([\n\n] as const)'
+		);
+		expect(watcher.add).toHaveBeenCalledWith(
+			expect.arrayContaining([resolve(root, 'src/server/middleware')])
+		);
+	});
+
+	it('regenerates the middleware registry when a middleware file is added', () => {
+		callHook(plugin.buildStart, { addWatchFile: vi.fn() });
+		const mwPath = resolve(root, 'src/server/middleware/logging.ts');
+		mkdirSync(dirname(mwPath), { recursive: true });
+		writeFileSync(
+			mwPath,
+			'export default { phase: "request", handler: () => undefined };\n'
+		);
+		watcher.emit('all', 'add', mwPath);
+		vi.advanceTimersByTime(20);
+
+		const source = readFileSync(
+			resolve(root, '.effuse/server-middleware-registry.ts'),
+			'utf-8'
+		);
+		expect(source).toContain('logging');
+		expect(sent.at(-1)).toEqual({ type: 'full-reload', path: '*' });
+	});
+
+	it('preserves the previous middleware registry during collisions', () => {
+		callHook(plugin.buildStart, { addWatchFile: vi.fn() });
+		const outputPath = resolve(
+			root,
+			'.effuse/server-middleware-registry.ts'
+		);
+		const valid = readFileSync(outputPath, 'utf-8');
+
+		const dir = resolve(root, 'src/server/middleware');
+		mkdirSync(dir, { recursive: true });
+		writeFileSync(resolve(dir, 'auth.ts'), 'export default {};\n');
+		writeFileSync(resolve(dir, 'auth.mts'), 'export default {};\n');
+		watcher.emit('all', 'add', resolve(dir, 'auth.mts'));
+		vi.advanceTimersByTime(20);
+
+		expect(readFileSync(outputPath, 'utf-8')).toBe(valid);
+		expect(errors.at(-1)).toContain('Server middleware collision');
 	});
 });

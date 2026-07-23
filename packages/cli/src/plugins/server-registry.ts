@@ -1,8 +1,12 @@
 import { relative, resolve, sep } from 'node:path';
 import type { Plugin, ViteDevServer } from 'vite';
 import {
+	discoverServerMiddleware,
 	discoverServerRegistry,
+	writeServerMiddlewareRegistryModule,
 	writeServerRegistryModule,
+	type ServerMiddlewareRegistry,
+	type ServerMiddlewareRegistryOptions,
 	type ServerRegistry,
 	type ServerRegistryGenerationOptions,
 	type ServerRegistryOptions,
@@ -10,10 +14,13 @@ import {
 
 const DEFAULT_API_DIR = 'src/server/api';
 const DEFAULT_ACTIONS_DIR = 'src/server/actions';
+const DEFAULT_MIDDLEWARE_DIR = 'src/server/middleware';
+const MIDDLEWARE_OUTPUT = '.effuse/server-middleware-registry.ts';
 const REGISTRY_EVENTS = new Set(['add', 'addDir', 'unlink', 'unlinkDir']);
 
 export interface EffuseServerRegistryPluginOptions
 	extends ServerRegistryOptions,
+		ServerMiddlewareRegistryOptions,
 		ServerRegistryGenerationOptions {
 	readonly debounceMs?: number;
 }
@@ -39,6 +46,7 @@ export const effuseServerRegistryPlugin = (
 		const roots = [
 			resolve(root, options.apiDir ?? DEFAULT_API_DIR),
 			resolve(root, options.actionsDir ?? DEFAULT_ACTIONS_DIR),
+			resolve(root, options.middlewareDir ?? DEFAULT_MIDDLEWARE_DIR),
 		];
 		for (const sourceRoot of roots) {
 			if (!isWithin(root, sourceRoot)) {
@@ -59,6 +67,19 @@ export const effuseServerRegistryPlugin = (
 		};
 	};
 
+	const compileMiddleware = (): Readonly<{
+		registry: ServerMiddlewareRegistry;
+		outputPath: string;
+	}> => {
+		const registry = discoverServerMiddleware(root, options);
+		return {
+			registry,
+			outputPath: writeServerMiddlewareRegistryModule(registry, {
+				outputPath: MIDDLEWARE_OUTPUT,
+			}),
+		};
+	};
+
 	const reportError = (error: unknown): void => {
 		const failure = toError(error);
 		devServer?.config.logger.error(`[effuse] ${failure.message}`);
@@ -71,11 +92,17 @@ export const effuseServerRegistryPlugin = (
 		});
 	};
 
+	const invalidate = (outputPath: string): void => {
+		const module = devServer?.moduleGraph.getModuleById(outputPath);
+		if (module) devServer?.moduleGraph.invalidateModule(module);
+	};
+
 	const commitUpdate = (): void => {
 		try {
 			const { outputPath } = compile();
-			const module = devServer?.moduleGraph.getModuleById(outputPath);
-			if (module) devServer?.moduleGraph.invalidateModule(module);
+			const middleware = compileMiddleware();
+			invalidate(outputPath);
+			invalidate(middleware.outputPath);
 			devServer?.ws.send({ type: 'full-reload', path: '*' });
 		} catch (error) {
 			reportError(error);
@@ -107,7 +134,11 @@ export const effuseServerRegistryPlugin = (
 		},
 		buildStart() {
 			const { registry } = compile();
-			for (const entry of registry.entries) {
+			const middleware = compileMiddleware();
+			for (const entry of [
+				...registry.entries,
+				...middleware.registry.entries,
+			]) {
 				this.addWatchFile(
 					resolve(registry.rootDir, entry.filePath.replace(/^\.\//, ''))
 				);

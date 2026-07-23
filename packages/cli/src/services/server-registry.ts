@@ -402,3 +402,24 @@ export const writeServerRegistryModule = (
 	}
 	return outputPath;
 };
+
+export const writeServerMiddlewareRegistryModule = (
+	registry: ServerMiddlewareRegistry,
+	options: ServerRegistryGenerationOptions = {}
+): string => {
+	const outputPath = resolve(
+		registry.rootDir,
+		options.outputPath ?? '.effuse/server-middleware-registry.ts'
+	);
+	const source = generateServerMiddlewareRegistryModule(registry, options);
+	mkdirSync(dirname(outputPath), { recursive: true });
+	const temporaryPath = `${outputPath}.tmp-${String(process.pid)}-${String(Date.now())}`;
+	try {
+		writeFileSync(temporaryPath, source, 'utf-8');
+		renameSync(temporaryPath, outputPath);
+	} catch (error) {
+		rmSync(temporaryPath, { force: true });
+		throw error;
+	}
+	return outputPath;
+};
