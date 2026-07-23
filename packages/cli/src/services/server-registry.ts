@@ -18,6 +18,7 @@ import {
 
 const DEFAULT_API_DIR = 'src/server/api';
 const DEFAULT_ACTIONS_DIR = 'src/server/actions';
+const DEFAULT_MIDDLEWARE_DIR = 'src/server/middleware';
 const SERVER_MODULE = /\.(?:[cm]?[jt]s)$/i;
 const DECLARATION = /\.d\.[cm]?ts$/i;
 const TEST_MODULE = /(?:^|\.)(?:test|spec)\.[cm]?[jt]s$/i;
@@ -52,10 +53,32 @@ export interface ServerRegistryGenerationOptions {
 }
 
 export interface ServerRegistryDiagnostic {
-	readonly code: 'server_route_collision' | 'server_action_collision';
+	readonly code:
+		| 'server_route_collision'
+		| 'server_action_collision'
+		| 'server_middleware_collision'
+		| 'server_middleware_missing_owner';
 	readonly target: string;
 	readonly files: readonly [string, string];
 	readonly message: string;
+}
+
+export type ServerMiddlewareScope = 'engine' | 'global' | 'layer' | 'route';
+
+export interface ServerMiddlewareRegistryEntry {
+	readonly filePath: string;
+	readonly name: string;
+	readonly scope: ServerMiddlewareScope;
+	readonly owner: string | undefined;
+}
+
+export interface ServerMiddlewareRegistry {
+	readonly rootDir: string;
+	readonly entries: readonly ServerMiddlewareRegistryEntry[];
+}
+
+export interface ServerMiddlewareRegistryOptions {
+	readonly middlewareDir?: string;
 }
 
 export class ServerRegistryCompilationError extends Error {
@@ -180,6 +203,110 @@ export const discoverServerRegistry = (
 		});
 	}
 	if (diagnostics.length > 0) throw new ServerRegistryCompilationError(diagnostics);
+
+	return Object.freeze({
+		rootDir,
+		entries: Object.freeze(entries.map((entry) => Object.freeze(entry))),
+	});
+};
+
+const stripModuleExtension = (value: string): string =>
+	value.replace(SERVER_MODULE, '');
+
+interface MiddlewareScopeResolution {
+	readonly scope: ServerMiddlewareScope;
+	readonly owner: string | undefined;
+	readonly missingOwner: boolean;
+}
+
+// Derives a middleware's onion scope from its directory convention:
+// `layers/<owner>/...` is layer-scoped, `routes/...` is route-scoped, and
+// everything else at the middleware root is application-global. The framework
+// owns the `engine` scope, so filesystem middleware never claims it.
+const resolveMiddlewareScope = (
+	relativePosix: string
+): MiddlewareScopeResolution => {
+	const segments = relativePosix.split('/');
+	if (segments[0] === 'layers') {
+		const owner = segments[1];
+		if (segments.length < 3 || owner === undefined || owner === '') {
+			return { scope: 'layer', owner: undefined, missingOwner: true };
+		}
+		return { scope: 'layer', owner, missingOwner: false };
+	}
+	if (segments[0] === 'routes') {
+		return { scope: 'route', owner: undefined, missingOwner: false };
+	}
+	return { scope: 'global', owner: undefined, missingOwner: false };
+};
+
+export const discoverServerMiddleware = (
+	cwd: string,
+	options: ServerMiddlewareRegistryOptions = {}
+): ServerMiddlewareRegistry => {
+	const rootDir = realpathSync(resolve(cwd));
+	if (!lstatSync(rootDir).isDirectory()) {
+		throw new TypeError(`Project root is not a directory: ${cwd}`);
+	}
+	const middlewareDir = resolveOwnedDirectory(
+		rootDir,
+		options.middlewareDir ?? DEFAULT_MIDDLEWARE_DIR
+	);
+
+	const diagnostics: ServerRegistryDiagnostic[] = [];
+	const entries = collectFiles(middlewareDir)
+		.map((filePath): ServerMiddlewareRegistryEntry => {
+			const relativeToDir = toPosix(relative(middlewareDir, filePath));
+			const name = stripModuleExtension(relativeToDir);
+			const { scope, owner, missingOwner } =
+				resolveMiddlewareScope(relativeToDir);
+			if (missingOwner) {
+				diagnostics.push({
+					code: 'server_middleware_missing_owner',
+					target: name,
+					files: [
+						projectFilePath(rootDir, filePath),
+						projectFilePath(rootDir, filePath),
+					],
+					message: `Layer-scoped middleware "${projectFilePath(
+						rootDir,
+						filePath
+					)}" must live under layers/<owner>/.`,
+				});
+			}
+			return {
+				filePath: projectFilePath(rootDir, filePath),
+				name,
+				scope,
+				owner,
+			};
+		})
+		.sort((left, right) =>
+			left.filePath < right.filePath
+				? -1
+				: left.filePath > right.filePath
+					? 1
+					: 0
+		);
+
+	const owners = new Map<string, ServerMiddlewareRegistryEntry>();
+	for (const entry of entries) {
+		const existing = owners.get(entry.name);
+		if (!existing) {
+			owners.set(entry.name, entry);
+			continue;
+		}
+		diagnostics.push({
+			code: 'server_middleware_collision',
+			target: entry.name,
+			files: [existing.filePath, entry.filePath],
+			message: `Server middleware collision for "${entry.name}" between ${existing.filePath} and ${entry.filePath}.`,
+		});
+	}
+
+	if (diagnostics.length > 0) {
+		throw new ServerRegistryCompilationError(diagnostics);
+	}
 
 	return Object.freeze({
 		rootDir,
