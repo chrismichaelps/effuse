@@ -5,6 +5,8 @@ import {
 	matchRoutePattern,
 	parseRoutePattern,
 	resolveRoutePattern,
+	createRouteTrie,
+	matchRouteTrie,
 } from '../../packages/core/dist/client.js';
 import {
 	compileLayerServerRouter,
@@ -30,6 +32,23 @@ const routeTable = Array.from({ length: 48 }, (_, index) =>
 	compileRoutePattern(`/catalog/category-${index}/[id]`)
 );
 routeTable.push(compileRoutePattern('/catalog/[section]/[id]'));
+// Same table as route.table-scan, indexed as a prefix tree so the two can be
+// compared directly at equal route counts.
+const routeTrie = createRouteTrie(
+	routeTable.map((pattern) => ({ pattern: pattern.pattern, value: pattern }))
+);
+// A larger table exposes the asymptotic difference: the linear scan grows with
+// route count while the trie stays flat in the path's segment depth.
+const largeRoutePaths = Array.from(
+	{ length: 500 },
+	(_, index) => `/catalog/category-${index}/[id]`
+);
+const largeRouteTable = largeRoutePaths.map((path) =>
+	compileRoutePattern(path)
+);
+const largeRouteTrie = createRouteTrie(
+	largeRoutePaths.map((path) => ({ pattern: path, value: path }))
+);
 const serverApi = Object.fromEntries(
 	Array.from({ length: 48 }, (_, index) => [
 		`/api/catalog/category-${index}/[id]`,
@@ -98,6 +117,33 @@ const cases = [
 			}
 			return null;
 		},
+	},
+	{
+		name: 'route.trie-match',
+		iterations: Math.max(100, options.iterations / 10),
+		operation: () =>
+			matchRouteTrie(routeTrie, `/catalog/category-${routeIndex++ % 48}/42`),
+	},
+	{
+		name: 'route.table-scan-large',
+		iterations: Math.max(100, options.iterations / 10),
+		operation: () => {
+			const pathname = `/catalog/category-${routeIndex++ % 500}/42`;
+			for (const route of largeRouteTable) {
+				const match = matchRoutePattern(route, pathname);
+				if (match) return match;
+			}
+			return null;
+		},
+	},
+	{
+		name: 'route.trie-match-large',
+		iterations: Math.max(100, options.iterations / 10),
+		operation: () =>
+			matchRouteTrie(
+				largeRouteTrie,
+				`/catalog/category-${routeIndex++ % 500}/42`
+			),
 	},
 	{
 		name: 'server.router-compile',
