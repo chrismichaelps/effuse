@@ -73,6 +73,12 @@ import {
 	compileRoutePattern,
 	matchRoutePattern,
 } from '../routing/route-pattern.js';
+import {
+	createRouteTrie,
+	isTrieRoutable,
+	matchRouteTrie,
+	type RouteTrie,
+} from '../routing/route-trie.js';
 
 interface MatchedServerHandler {
 	readonly handler: ServerHandler;
@@ -103,6 +109,12 @@ interface CompiledActionEntry {
 interface CompiledLayerServerRouterData {
 	readonly layers: readonly AnyResolvedLayer[];
 	readonly routes: readonly CompiledApiEntry[];
+	/**
+	 * Prefix-tree index over `routes`, present only when every route is
+	 * expressible in it. Lookups then cost O(path depth) instead of one regex
+	 * per route; otherwise the linear scan preserves regex semantics.
+	 */
+	readonly trie: RouteTrie<CompiledApiEntry> | null;
 	readonly qualifiedActions: ReadonlyMap<string, CompiledActionEntry>;
 	readonly unqualifiedActions: ReadonlyMap<string, CompiledActionEntry>;
 }
@@ -188,9 +200,23 @@ export const compileLayerServerRouter = (
 		routeCount: routes.length,
 		actionCount,
 	});
+	// Index the sorted table into a prefix tree when every route is
+	// expressible in it. Routes are already ordered by specificity, and the
+	// trie descends static before param before catch-all, so it selects the
+	// same winner the linear scan would.
+	const trie = routes.every((route) => isTrieRoutable(route.pattern.pattern))
+		? createRouteTrie(
+				routes.map((route) => ({
+					pattern: route.pattern.pattern,
+					value: route,
+				}))
+			)
+		: null;
+
 	compiledRouterData.set(router, {
 		layers,
 		routes,
+		trie,
 		qualifiedActions,
 		unqualifiedActions,
 	});
@@ -239,6 +265,52 @@ const getHandlerForMethod = (
 	return route.methods[method];
 };
 
+/**
+ * Builds the matched handler for a route that already matched by path. Shared
+ * by the trie fast path and the regex fallback so both produce identical
+ * results, including the 405 response and its Allow header.
+ */
+const buildApiMatch = (
+	{ allowedMethods, entry, layer, path }: CompiledApiEntry,
+	params: Record<string, string>,
+	method: HttpMethod
+): MatchedServerHandler => {
+	const route = entry.route;
+	const handler = getHandlerForMethod(route, method);
+
+	if (handler) {
+		return {
+			handler,
+			kind: 'api',
+			layer,
+			metadata: entry.metadata,
+			middleware: route.middleware ?? [],
+			params,
+			target: path,
+			allowedMethods,
+			...(route.request ? { request: route.request } : {}),
+			...(route.response ? { response: route.response } : {}),
+		};
+	}
+
+	return {
+		handler: () =>
+			new Response(null, {
+				status: 405,
+				headers: {
+					Allow: allowedMethods.join(', '),
+				},
+			}),
+		kind: 'api',
+		layer,
+		metadata: entry.metadata,
+		middleware: route.middleware ?? [],
+		params,
+		target: path,
+		allowedMethods,
+	};
+};
+
 const findApiHandler = (
 	request: Request,
 	data: CompiledLayerServerRouterData
@@ -247,6 +319,13 @@ const findApiHandler = (
 	const method = request.method.toUpperCase();
 	if (!isHttpMethod(method)) {
 		return null;
+	}
+
+	// Fast path: one O(depth) trie lookup instead of a regex per route.
+	if (data.trie) {
+		const found = matchRouteTrie(data.trie, url.pathname);
+		if (!found) return null;
+		return buildApiMatch(found.value, found.params, method);
 	}
 
 	for (const { allowedMethods, entry, layer, path, pattern } of data.routes) {
