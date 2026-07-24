@@ -22,6 +22,7 @@
  * SOFTWARE.
  */
 
+import { escapeHtml, escapeAttr } from './escape.js';
 import {
 	Effect,
 	Context,
@@ -270,13 +271,4 @@ export const headToHtml = (head: HeadProps): string => {
 	return parts.join('\n\t');
 };
 
-const escapeHtml = (str: string): string => {
-	return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-};
 
-const escapeAttr = (str: string): string => {
-	return str
-		.replace(/&/g, '&amp;')
-		.replace(/"/g, '&quot;')
-		.replace(/'/g, '&#39;');
-};

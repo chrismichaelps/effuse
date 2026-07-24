@@ -33,6 +33,7 @@ import {
 import { isSuspendToken } from '../suspense/Suspense.js';
 import type { HeadProps, RenderResult, ServerAppOptions } from './types.js';
 import { RenderError } from './errors.js';
+import { escapeHtml, escapeAttr, escapeAttrName } from './escape.js';
 import { headToHtml } from './head-registry.js';
 import { runWithSSRContext } from './use-head.js';
 import { serializeHydrationData, type HydrationData } from './hydration.js';
@@ -404,26 +405,6 @@ const generateFullHtml = (
 	${hydrationScript}
 </body>
 </html>`;
-};
-
-const escapeHtml = (str: string): string => {
-	return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-};
-
-const escapeAttr = (str: string): string => {
-	return str
-		.replace(/&/g, '&amp;')
-		.replace(/</g, '&lt;')
-		.replace(/>/g, '&gt;')
-		.replace(/"/g, '&quot;')
-		.replace(/'/g, '&#39;');
-};
-
-const escapeAttrName = (str: string): string => {
-	return escapeAttr(str)
-		.replace(/\//g, '&#47;')
-		.replace(/\s/g, '&#32;')
-		.replace(/=/g, '&#61;');
 };
 
 const camelToKebab = (str: string): string => {
