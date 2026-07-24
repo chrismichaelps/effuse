@@ -47,7 +47,12 @@ export {
 
 export { createRequestScope, type RequestScope } from './request-scope.js';
 
-export { useHead, isServer, runWithSSRContext } from './use-head.js';
+export {
+	useHead,
+	isServer,
+	runWithSSRContext,
+	runOutsideSSRContext,
+} from './use-head.js';
 
 export { useSeoMeta, useServerSeoMeta, type SeoMetaInput } from './seo-meta.js';
 
@@ -353,3 +358,11 @@ export {
 	type ResponseCacheEvent,
 	type ResponseCacheEventType,
 } from './response-cache.js';
+
+export {
+	createDataCache,
+	type DataCache,
+	type DataCacheOptions,
+	type CacheLife,
+	type CachedOptions,
+} from './data-cache.js';
