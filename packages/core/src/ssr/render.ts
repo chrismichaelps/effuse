@@ -22,9 +22,9 @@
  * SOFTWARE.
  */
 
-import { Predicate, pipe } from 'effect';
+import { Predicate } from 'effect';
 import type { EffuseNode, Component, BlueprintDef } from '../render/node.js';
-import { isEffuseNode, matchEffuseNode } from '../render/node.js';
+import { isEffuseNode } from '../render/node.js';
 import { isSignal } from '../reactivity/index.js';
 import {
 	runWithProvideScope,
@@ -150,7 +150,7 @@ const renderNodeToString = (node: unknown): string => {
 	}
 
 	if (Array.isArray(node)) {
-		return node.map(renderNodeToString).join('');
+		return renderChildren(node as readonly unknown[]);
 	}
 
 	if (isEffuseNode(node)) {
@@ -180,48 +180,58 @@ const renderNodeToString = (node: unknown): string => {
 	return '';
 };
 
+/** Void elements, hoisted so the set is not rebuilt for every element. */
+const SELF_CLOSING_TAGS = new Set([
+	'area',
+	'base',
+	'br',
+	'col',
+	'embed',
+	'hr',
+	'img',
+	'input',
+	'link',
+	'meta',
+	'param',
+	'source',
+	'track',
+	'wbr',
+]);
+
+/** Concatenates children without the intermediate array `map().join('')` builds. */
+const renderChildren = (children: readonly unknown[]): string => {
+	let html = '';
+	for (let index = 0; index < children.length; index += 1) {
+		html += renderNodeToString(children[index]);
+	}
+	return html;
+};
+
 const renderEffuseNode = (node: EffuseNode): string => {
-	return pipe(
-		node,
-		matchEffuseNode({
-			Text: (node) => escapeHtml(node.text),
-			Element: (node) => {
-				const tag = node.tag;
-				const props = node.props ?? {};
-				const children = node.children;
+	// Direct dispatch on the tag. The combinator form allocated a fresh object
+	// of five closures for every node rendered, which dominated large documents.
+	switch (node._tag) {
+		case 'Text':
+			return escapeHtml(node.text);
+		case 'Element': {
+			const tag = node.tag;
+			const attrs = renderAttributes(node.props ?? {});
+			const attrStr = attrs ? ` ${attrs}` : '';
 
-				const attrs = renderAttributes(props);
-				const attrStr = attrs ? ` ${attrs}` : '';
+			if (SELF_CLOSING_TAGS.has(tag)) {
+				return `<${tag}${attrStr}>`;
+			}
 
-				const selfClosing = [
-					'area',
-					'base',
-					'br',
-					'col',
-					'embed',
-					'hr',
-					'img',
-					'input',
-					'link',
-					'meta',
-					'param',
-					'source',
-					'track',
-					'wbr',
-				];
-
-				if (selfClosing.includes(tag)) {
-					return `<${tag}${attrStr}>`;
-				}
-
-				const childHtml = children.map(renderNodeToString).join('');
-				return `<${tag}${attrStr}>${childHtml}</${tag}>`;
-			},
-			Blueprint: (node) => renderBlueprint(node.blueprint, node.props),
-			Fragment: (node) => node.children.map(renderNodeToString).join(''),
-			List: (node) => node.children.map(renderNodeToString).join(''),
-		})
-	);
+			return `<${tag}${attrStr}>${renderChildren(node.children)}</${tag}>`;
+		}
+		case 'Blueprint':
+			return renderBlueprint(node.blueprint, node.props);
+		case 'Fragment':
+		case 'List':
+			return renderChildren(node.children);
+		default:
+			return '';
+	}
 };
 
 const renderBlueprint = (
