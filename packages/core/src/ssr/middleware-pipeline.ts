@@ -28,6 +28,7 @@ import type {
 	ServerMiddlewareTarget,
 } from './middleware-definition.js';
 import {
+	isReservedServerPath,
 	selectServerMiddlewareChain,
 	type CompiledServerMiddlewareGraph,
 	type ServerMiddlewareScope,
@@ -181,6 +182,16 @@ export const runServerRequestPipeline = async (
 		if (rewritten === undefined) return response;
 
 		current = rewritten;
+		// A rewrite must not reach framework-internal endpoints: that would let
+		// an ordinary request escalate into a namespace it could never address
+		// directly through the compiled graph.
+		if (isReservedServerPath(pathOf(current))) {
+			throw new TypeError(
+				`[middleware] A rewrite cannot target the reserved path "${pathOf(
+					current
+				)}".`
+			);
+		}
 		if (seen.has(pathOf(current))) {
 			throw new ServerRewriteLimitError(maxRewrites, pathOf(current), true);
 		}
