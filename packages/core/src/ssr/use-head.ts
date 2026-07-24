@@ -51,6 +51,19 @@ export const runWithSSRContext = <T>(
 };
 
 /**
+ * Runs `fn` with the SSR context detached.
+ *
+ * Cached work must not observe the request that happened to trigger it: a
+ * value computed for one request is served to every later request, so reading
+ * request state inside it would leak one caller's data to another. Detaching
+ * the context makes such a read fail or no-op instead of silently capturing
+ * the wrong request.
+ */
+export const runOutsideSSRContext = <T>(fn: () => T): T => {
+	return ssrStorage.exit(fn);
+};
+
+/**
  * Get the current SSR context, if any.
  * Returns null when called outside of `runWithSSRContext`.
  */
