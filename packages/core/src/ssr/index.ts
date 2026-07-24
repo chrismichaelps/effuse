@@ -344,3 +344,12 @@ export {
 } from './errors.js';
 
 export { renderToString, renderToFragment } from './render.js';
+
+export {
+	createResponseCache,
+	type ResponseCache,
+	type ResponseCacheOptions,
+	type ResponseCachePolicy,
+	type ResponseCacheEvent,
+	type ResponseCacheEventType,
+} from './response-cache.js';
