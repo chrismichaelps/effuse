@@ -68,6 +68,7 @@ import {
 	validateServerValue,
 } from './validation.js';
 import { EFFUSE_ACTION_PREFIX } from './constants.js';
+import type { ResponseCache } from './response-cache.js';
 import {
 	compareRoutePatterns,
 	compileRoutePattern,
@@ -786,10 +787,22 @@ export const matchLayerServerRequest = (
 	return findActionHandler(request, data) ?? findApiHandler(request, data);
 };
 
+/**
+ * Dispatch options. `cache` is deliberately opt-in: a route's `revalidate`
+ * policy declares that its response *may* be cached (and always emits the CDN
+ * headers), while supplying a cache says this process should also cache it.
+ * A CDN-fronted deployment wants only the headers; a self-hosted one wants
+ * both. Caching is never implicit — stale data that nobody asked for is the
+ * failure mode every framework that cached by default had to reverse.
+ */
+export interface ServerDispatchOptions extends ServerObservabilityHooks {
+	readonly cache?: ResponseCache;
+}
+
 export const handleLayerServerRequest = async (
 	request: Request,
 	source: LayerServerRouterSource,
-	observability?: ServerObservabilityHooks
+	observability?: ServerDispatchOptions
 ): Promise<Response | null> => {
 	const data = getCompiledRouterData(source);
 	const layers = data.layers;
@@ -798,6 +811,26 @@ export const handleLayerServerRequest = async (
 		return null;
 	}
 
+	// Matching is a cheap trie lookup, so it happens first; the cache then wraps
+	// everything expensive after it — SSR runtime creation, middleware, and the
+	// handler itself. A hit skips all of that rather than just the response
+	// serialisation.
+	const cache = observability?.cache;
+	if (cache) {
+		return cache.handle(request, match.metadata?.cache, () =>
+			dispatchMatched(request, layers, match, observability)
+		);
+	}
+
+	return dispatchMatched(request, layers, match, observability);
+};
+
+const dispatchMatched = async (
+	request: Request,
+	layers: readonly AnyResolvedLayer[],
+	match: MatchedServerHandler,
+	observability?: ServerObservabilityHooks
+): Promise<Response> => {
 	const runtime = await createSSRRuntime(layers, { runSetup: true });
 	const scope = createRequestScope();
 	const startedAt = performance.now();

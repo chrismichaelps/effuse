@@ -79,6 +79,7 @@ export {
 	matchLayerServerRequest,
 	normalizeServerResult,
 	type CompiledLayerServerRouter,
+	type ServerDispatchOptions,
 	type LayerServerRouterSource,
 } from './server-routing.js';
 
