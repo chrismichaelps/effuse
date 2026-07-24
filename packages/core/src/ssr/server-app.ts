@@ -53,6 +53,21 @@ export interface ServerApp {
 	renderToStream(url: string): Promise<ReadableStream<Uint8Array>>;
 }
 
+/**
+ * Yields a full macrotask so a ReadableStream flushes an already-enqueued chunk
+ * to the consumer before the producer continues with synchronous work. Uses
+ * `setImmediate` on Node and Bun for negligible latency, and `setTimeout` as
+ * the portable fallback for other runtimes.
+ */
+const yieldMacrotask = (): Promise<void> =>
+	new Promise<void>((resolve) => {
+		if (typeof setImmediate === 'function') {
+			setImmediate(resolve);
+		} else {
+			setTimeout(resolve, 0);
+		}
+	});
+
 export const createServerApp = (root: Component): ServerApp => {
 	let layers: LayerInputSource = [];
 	let options: ServerAppOptions = { hydrate: true };
@@ -112,10 +127,53 @@ export const createServerApp = (root: Component): ServerApp => {
 
 				const runtime = ssrRuntime;
 
+				const mergeHeads = (heads: readonly HeadProps[]): HeadProps =>
+					heads.reduce<HeadProps>((acc, head) => ({ ...acc, ...head }), {});
+
+				const withManifestLinks = (headHtml: string): string => {
+					if (!options.manifest) return headHtml;
+					let result = headHtml;
+					for (const chunk of Object.values(options.manifest)) {
+						if (!chunk.isEntry) continue;
+						result += `\n\t<link rel="modulepreload" crossorigin href="/${chunk.file}">`;
+						if (chunk.css) {
+							for (const cssFile of chunk.css) {
+								result += `\n\t<link rel="stylesheet" href="/${cssFile}">`;
+							}
+						}
+					}
+					return result;
+				};
+
 				return new ReadableStream<Uint8Array>({
-					start(controller) {
+					async start(controller) {
 						try {
-							// 1. Render body fragment inside SSR context
+							// Deferred-head streaming: the head known before the render
+							// (layer/static head) is enough to flush the document shell
+							// immediately, so time-to-first-chunk is the shell-flush cost
+							// and does not grow with body size. Head discovered during the
+							// render via useHead() is carried in the hydration payload and
+							// applied by the client head reconciler, the same tradeoff every
+							// streaming renderer makes. renderToString keeps full head in
+							// <head> for full-head SEO.
+							const staticHead = mergeHeads(runtime.headStack);
+							const staticHeadHtml = withManifestLinks(headToHtml(staticHead));
+							const lang = staticHead.lang ?? 'en';
+
+							controller.enqueue(
+								encoder.encode(
+									`<!DOCTYPE html>\n<html lang="${lang}">\n<head>\n\t${staticHeadHtml}\n</head>\n<body>\n\t<div id="app">`
+								)
+							);
+
+							// Yield a full macrotask so the runtime writes the shell to
+							// the consumer before the synchronous body render blocks the
+							// event loop. A microtask is not enough: the render would
+							// resume before any pending read drains. setImmediate keeps the
+							// latency negligible on Node and Bun; setTimeout is the
+							// portable fallback.
+							await yieldMacrotask();
+
 							const bodyHtml = runtime.run(() =>
 								runWithSSRContext(
 									{
@@ -126,33 +184,11 @@ export const createServerApp = (root: Component): ServerApp => {
 									() => renderToFragment(root, runtime)
 								)
 							);
+							controller.enqueue(encoder.encode(bodyHtml));
 
-							// 2. Merge all collected heads
-							const mergedHead = runtime.headStack.reduce<HeadProps>(
-								(acc, head) => ({ ...acc, ...head }),
-								{}
-							);
-
-							let headHtml = headToHtml(mergedHead);
-							const lang = mergedHead.lang ?? 'en';
-
-							// If manifest is provided, inject preload/styles for the main entry point
-							if (options.manifest) {
-								for (const chunk of Object.values(options.manifest)) {
-									if (chunk.isEntry) {
-										// Preload JS Entry
-										headHtml += `\n\t<link rel="modulepreload" crossorigin href="/${chunk.file}">`;
-										// Inject CSS
-										if (chunk.css) {
-											for (const cssFile of chunk.css) {
-												headHtml += `\n\t<link rel="stylesheet" href="/${cssFile}">`;
-											}
-										}
-									}
-								}
-							}
-
-							// 3. Serialize state for hydration
+							// Full head now includes anything useHead() collected during
+							// render; it ships in the hydration payload for the client.
+							const mergedHead = mergeHeads(runtime.headStack);
 							const serializedState: Record<string, unknown> = {};
 							for (const [key, value] of runtime.state) {
 								serializedState[key] = value;
@@ -164,13 +200,16 @@ export const createServerApp = (root: Component): ServerApp => {
 								url,
 								timestamp: Date.now(),
 							};
+							const hydrationScript =
+								options.hydrate !== false
+									? serializeHydrationData(hydrationData)
+									: '';
 
-							const hydrationScript = options.hydrate !== false ? serializeHydrationData(hydrationData) : '';
-
-							// 4. Stream in order: shell → body → hydration → close
-							controller.enqueue(encoder.encode(`<!DOCTYPE html>\n<html lang="${lang}">\n<head>\n\t${headHtml}\n</head>\n<body>\n\t<div id="app">`));
-							controller.enqueue(encoder.encode(bodyHtml));
-							controller.enqueue(encoder.encode(`</div>\n\t${hydrationScript}\n</body>\n</html>`));
+							controller.enqueue(
+								encoder.encode(
+									`</div>\n\t${hydrationScript}\n</body>\n</html>`
+								)
+							);
 							controller.close();
 						} catch (error) {
 							controller.error(error);
