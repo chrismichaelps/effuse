@@ -8,6 +8,7 @@
 	"route.trie-match": { "medianNs": 25000, "p95Ns": 50000 },
 	"route.table-scan-large": { "medianNs": 500000, "p95Ns": 1000000 },
 	"route.trie-match-large": { "medianNs": 25000, "p95Ns": 50000 },
+	"ssr.render-document": { "medianNs": 2500000, "p95Ns": 5000000 },
 	"server.router-compile": { "medianNs": 1000000, "p95Ns": 3000000 },
 	"server.router-match": { "medianNs": 50000, "p95Ns": 100000 },
 	"server.files-compile": { "medianNs": 1000000, "p95Ns": 3000000 },

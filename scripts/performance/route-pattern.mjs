@@ -11,10 +11,17 @@ import {
 import {
 	compileLayerServerRouter,
 	compileServerFileRegistry,
+	createSSRRuntime,
 	defineLayer,
 	matchLayerServerRequest,
 	matchServerFileRequest,
+	renderToFragment,
 } from '../../packages/core/dist/server.js';
+import {
+	CreateElementNode,
+	CreateTextNode,
+	EFFUSE_NODE,
+} from '../../packages/core/dist/client.js';
 import {
 	evaluateBudgets,
 	formatResults,
@@ -49,6 +56,32 @@ const largeRouteTable = largeRoutePaths.map((path) =>
 const largeRouteTrie = createRouteTrie(
 	largeRoutePaths.map((path) => ({ pattern: path, value: path }))
 );
+
+// A representative document render: escaping and string assembly dominate SSR
+// cost, so this guards the whole markup path rather than one helper.
+const ssrText = (value) => CreateTextNode({ [EFFUSE_NODE]: true, text: value });
+const ssrElement = (tag, props, children) =>
+	CreateElementNode({ [EFFUSE_NODE]: true, tag, props, children });
+const ssrRows = Array.from({ length: 200 }, (_, index) =>
+	ssrElement('tr', { class: 'row', 'data-id': String(index) }, [
+		ssrElement('td', { class: 'cell name' }, [
+			ssrText(`Product number ${index}`),
+		]),
+		ssrElement('td', { class: 'cell desc' }, [
+			ssrText('A high quality item for everyday use'),
+		]),
+		ssrElement('td', { class: 'cell price' }, [ssrText(`$${index}.99`)]),
+		ssrElement('td', { class: 'cell' }, [
+			ssrElement('a', { href: `/products/${index}`, title: 'View details' }, [
+				ssrText('View'),
+			]),
+		]),
+	])
+);
+const ssrTree = ssrElement('table', { class: 'catalog' }, [
+	ssrElement('tbody', {}, ssrRows),
+]);
+const ssrRuntime = await createSSRRuntime([]);
 const serverApi = Object.fromEntries(
 	Array.from({ length: 48 }, (_, index) => [
 		`/api/catalog/category-${index}/[id]`,
@@ -144,6 +177,11 @@ const cases = [
 				largeRouteTrie,
 				`/catalog/category-${routeIndex++ % 500}/42`
 			),
+	},
+	{
+		name: 'ssr.render-document',
+		iterations: Math.max(20, options.iterations / 200),
+		operation: () => ssrRuntime.run(() => renderToFragment(ssrTree, ssrRuntime)),
 	},
 	{
 		name: 'server.router-compile',
