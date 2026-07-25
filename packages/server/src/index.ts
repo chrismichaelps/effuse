@@ -67,3 +67,15 @@ export {
 	runStorageConformance,
 	type StorageConformanceHarness,
 } from './storage-conformance.js';
+
+export {
+	createPluginHost,
+	DEFAULT_PLUGIN_STOP_TIMEOUT_MS,
+	type Plugin,
+	type PluginContext,
+	type PluginHost,
+	type PluginHostOptions,
+	type PluginStopOptions,
+	type PluginEvent,
+	type PluginEventType,
+} from './plugins.js';
