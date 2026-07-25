@@ -42,3 +42,9 @@ export {
 	getRegisteredContexts,
 	clearAllContexts,
 } from './registry.js';
+
+export {
+	createTypedContext,
+	type TypedContext,
+	type TypedContextOptions,
+} from './typed-context.js';

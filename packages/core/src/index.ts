@@ -593,6 +593,7 @@ export {
 
 export {
 	createContext,
+	createTypedContext,
 	useContext,
 	hasContextValue,
 	isEffuseContext,
@@ -600,6 +601,8 @@ export {
 	type ContextOptions,
 	type ProviderProps,
 	type EffuseContext,
+	type TypedContext,
+	type TypedContextOptions,
 } from './context/index.js';
 export {
 	createRef,
