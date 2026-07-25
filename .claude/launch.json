@@ -1,0 +1,14 @@
+{
+	"version": "0.0.1",
+	"configurations": [
+		{
+			"name": "effuse-app",
+			"runtimeExecutable": "/bin/sh",
+			"runtimeArgs": [
+				"-c",
+				"PATH=/opt/homebrew/bin:$PATH exec pnpm --dir app dev"
+			],
+			"port": 5173
+		}
+	]
+}
