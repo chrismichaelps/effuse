@@ -254,10 +254,17 @@ const renderBlueprint = (
 	let renderError: unknown;
 	let renderFailed = false;
 	try {
-		const viewResult = provideScope
-			? runWithProvideScope(provideScope, () => def.view(context))
-			: def.view(context);
-		html = renderNodeToString(viewResult);
+		// Children must render inside this component's provide scope, not just
+		// its view function. Rendering a child is what runs the child's script,
+		// and that script resolves `provide`/`inject` and context against the
+		// scope current at the time. Rendering outside the scope gave every
+		// child a null parent, so server output silently fell back to defaults
+		// and only corrected after hydration.
+		html = provideScope
+			? runWithProvideScope(provideScope, () =>
+					renderNodeToString(def.view(context))
+				)
+			: renderNodeToString(def.view(context));
 	} catch (error) {
 		renderFailed = true;
 		renderError = error;
