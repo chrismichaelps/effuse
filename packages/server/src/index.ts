@@ -55,3 +55,15 @@ export {
 	type TaskEventType,
 	type TaskStopOptions,
 } from './tasks.js';
+
+export {
+	createMemoryStorage,
+	type EffuseStorage,
+	type MemoryStorageOptions,
+	type StorageSetOptions,
+} from './storage.js';
+
+export {
+	runStorageConformance,
+	type StorageConformanceHarness,
+} from './storage-conformance.js';
