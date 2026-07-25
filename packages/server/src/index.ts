@@ -43,3 +43,15 @@ export { createBunServer, bunAdapter } from './bun/index.js';
 export { adapterCapabilities, getCapabilities } from './capabilities.js';
 
 export { runConformance, type ConformanceHarness } from './conformance.js';
+
+export {
+	createTaskScheduler,
+	DEFAULT_TASK_STOP_TIMEOUT_MS,
+	type TaskScheduler,
+	type TaskSchedulerOptions,
+	type TaskDefinition,
+	type TaskContext,
+	type TaskEvent,
+	type TaskEventType,
+	type TaskStopOptions,
+} from './tasks.js';
