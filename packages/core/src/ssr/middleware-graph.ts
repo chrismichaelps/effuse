@@ -23,7 +23,11 @@
  */
 
 import type { HttpMethod } from '../layers/types.js';
-import { matchRoutePattern } from '../routing/route-pattern.js';
+import {
+	compileRoutePattern,
+	matchRoutePattern,
+	type CompiledRoutePattern,
+} from '../routing/route-pattern.js';
 import { isHttpMethod } from './server-routes.js';
 import type {
 	DefinedServerMiddleware,
@@ -72,6 +76,12 @@ export interface CompiledServerMiddlewareEntry {
 	readonly scope: ServerMiddlewareScope;
 	readonly owner: string | undefined;
 	readonly middleware: DefinedServerMiddleware;
+	/**
+	 * Match paths compiled to regexes once, at graph compile time. Passing the
+	 * raw pattern string to `matchRoutePattern` would rebuild a regex for every
+	 * middleware on every request, which is the dominant cost of selection.
+	 */
+	readonly patterns: readonly CompiledRoutePattern[];
 }
 
 /** The deterministic, immutable middleware pipeline. */
@@ -153,6 +163,9 @@ export const compileServerMiddlewareGraph = (
 			scope: input.scope,
 			owner: input.owner,
 			middleware: input.middleware,
+			patterns: Object.freeze(
+				input.middleware.match.paths.map((path) => compileRoutePattern(path))
+			),
 		});
 	});
 
@@ -182,9 +195,7 @@ const matchesPath = (
 	entry: CompiledServerMiddlewareEntry,
 	pathname: string
 ): boolean =>
-	entry.middleware.match.paths.some(
-		(path) => matchRoutePattern(path, pathname) !== null
-	);
+	entry.patterns.some((pattern) => matchRoutePattern(pattern, pathname) !== null);
 
 /**
  * Selects the ordered chain of middleware whose match covers the request. The

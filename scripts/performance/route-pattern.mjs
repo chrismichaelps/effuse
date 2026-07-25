@@ -16,6 +16,9 @@ import {
 	matchLayerServerRequest,
 	matchServerFileRequest,
 	renderToFragment,
+	defineServerMiddleware,
+	compileServerMiddlewareGraph,
+	selectServerMiddlewareChain,
 } from '../../packages/core/dist/server.js';
 import {
 	CreateElementNode,
@@ -82,6 +85,27 @@ const ssrTree = ssrElement('table', { class: 'catalog' }, [
 	ssrElement('tbody', {}, ssrRows),
 ]);
 const ssrRuntime = await createSSRRuntime([]);
+
+// Middleware graph: compile cost is paid once at boot, selection cost is paid
+// on every matched request, so both are tracked separately.
+const middlewareInputs = Array.from({ length: 60 }, (_, index) => ({
+	scope: index % 4 === 0 ? 'global' : 'route',
+	middleware: defineServerMiddleware({
+		name: `mw-${index}`,
+		phase: 'request',
+		match: { paths: `/api/section-${index}/[id]` },
+		handler: async (_ctx, next) => next(),
+	}),
+}));
+middlewareInputs.push({
+	scope: 'engine',
+	middleware: defineServerMiddleware({
+		name: 'security',
+		phase: 'request',
+		handler: async (_ctx, next) => next(),
+	}),
+});
+const compiledMiddlewareGraph = compileServerMiddlewareGraph(middlewareInputs);
 const serverApi = Object.fromEntries(
 	Array.from({ length: 48 }, (_, index) => [
 		`/api/catalog/category-${index}/[id]`,
@@ -177,6 +201,21 @@ const cases = [
 				largeRouteTrie,
 				`/catalog/category-${routeIndex++ % 500}/42`
 			),
+	},
+	{
+		name: 'middleware.compile-graph',
+		iterations: Math.max(50, options.iterations / 20),
+		operation: () => compileServerMiddlewareGraph(middlewareInputs),
+	},
+	{
+		name: 'middleware.select-chain',
+		iterations: Math.max(100, options.iterations / 10),
+		operation: () =>
+			selectServerMiddlewareChain(compiledMiddlewareGraph, {
+				pathname: `/api/section-${routeIndex++ % 60}/42`,
+				method: 'GET',
+				target: 'api',
+			}),
 	},
 	{
 		name: 'ssr.render-document',
