@@ -69,6 +69,8 @@ import {
 } from './validation.js';
 import { EFFUSE_ACTION_PREFIX } from './constants.js';
 import type { ResponseCache } from './response-cache.js';
+import type { CompiledServerMiddlewareGraph } from './middleware-graph.js';
+import { runServerRequestPipeline } from './middleware-pipeline.js';
 import {
 	compareRoutePatterns,
 	compileRoutePattern,
@@ -797,6 +799,13 @@ export const matchLayerServerRequest = (
  */
 export interface ServerDispatchOptions extends ServerObservabilityHooks {
 	readonly cache?: ResponseCache;
+	/**
+	 * Compiled filesystem middleware. Runs *outside* the response cache so an
+	 * authorization guard can never be bypassed by a cached response, and
+	 * before contract parsing so handlers only ever see input that passed
+	 * authentication.
+	 */
+	readonly middleware?: CompiledServerMiddlewareGraph;
 }
 
 export const handleLayerServerRequest = async (
@@ -816,23 +825,60 @@ export const handleLayerServerRequest = async (
 	// handler itself. A hit skips all of that rather than just the response
 	// serialisation.
 	const cache = observability?.cache;
-	if (cache) {
-		return cache.handle(request, match.metadata?.cache, () =>
-			dispatchMatched(request, layers, match, observability)
-		);
+	// Re-match inside the terminal because request-phase middleware may rewrite
+	// the URL. The full middleware pipeline bounds rewrites and re-selects the
+	// destination guards before this terminal is reached.
+	const dispatch = (
+		current: Request,
+		requestScope?: Pick<RequestScope, 'locals' | 'defer'>
+	): Promise<Response> => {
+		const currentMatch =
+			findActionHandler(current, data) ?? findApiHandler(current, data);
+		if (!currentMatch) {
+			return Promise.resolve(
+				Response.json({ error: 'No Effuse handler matched.' }, { status: 404 })
+			);
+		}
+		const invoke = () =>
+			dispatchMatched(
+				current,
+				layers,
+				currentMatch,
+				observability,
+				requestScope
+			);
+		// The cache sits inside middleware: a guard must reject before a cached
+		// response can be served, otherwise an unauthenticated request could be
+		// answered with an authenticated one.
+		return cache
+			? cache.handle(current, currentMatch.metadata?.cache, invoke)
+			: invoke();
+	};
+
+	const graph = observability?.middleware;
+	if (graph) {
+		return runServerRequestPipeline(graph, {
+			request,
+			target: match.kind === 'action' ? 'action' : 'api',
+			resolve: (current, context) => dispatch(current, context),
+		});
 	}
 
-	return dispatchMatched(request, layers, match, observability);
+	return dispatch(request);
 };
 
 const dispatchMatched = async (
 	request: Request,
 	layers: readonly AnyResolvedLayer[],
 	match: MatchedServerHandler,
-	observability?: ServerObservabilityHooks
+	observability?: ServerObservabilityHooks,
+	requestScope?: Pick<RequestScope, 'locals' | 'defer'>
 ): Promise<Response> => {
 	const runtime = await createSSRRuntime(layers, { runSetup: true });
-	const scope = createRequestScope();
+	const ownsScope = requestScope === undefined;
+	const scope: RequestScope = requestScope
+		? { ...requestScope, runDisposers: async () => undefined }
+		: createRequestScope();
 	const startedAt = performance.now();
 	const timestamp = Date.now();
 
@@ -900,7 +946,9 @@ const dispatchMatched = async (
 	} finally {
 		// Run request-scoped disposers inside the runtime scope so they can still
 		// reach scoped services, before the runtime itself is torn down.
-		await runtime.run(() => scope.runDisposers());
+		if (ownsScope) {
+			await runtime.run(() => scope.runDisposers());
+		}
 		await runtime.dispose();
 	}
 };
