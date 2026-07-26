@@ -83,11 +83,14 @@ export const jsx = (
 		}
 	}
 
-	const propsWithKey =
-		key !== undefined ? { ...restProps, key } : restProps;
+	const propsWithKey = key !== undefined ? { ...restProps, key } : restProps;
 
 	if (Predicate.isString(type)) {
-		return el(type, propsWithKey as ElementProps, ...normalizeJSXChildren(children));
+		return el(
+			type,
+			propsWithKey as ElementProps,
+			...normalizeJSXChildren(children)
+		);
 	}
 
 	if (isBlueprint(type)) {
@@ -99,9 +102,7 @@ export const jsx = (
 					: null;
 
 		const blueprintProps =
-			children !== undefined
-				? { ...propsWithKey, children }
-				: propsWithKey;
+			children !== undefined ? { ...propsWithKey, children } : propsWithKey;
 
 		return CreateBlueprintNode({
 			[EFFUSE_NODE]: true,
@@ -131,6 +132,9 @@ export const jsxs = jsx;
 
 export const jsxDEV = jsx;
 
+type JSXBlueprint = Readonly<{ _tag: 'Blueprint' }>;
+type JSXComponent = (...args: never[]) => EffuseNode;
+
 const normalizeJSXChildren = (children: unknown): EffuseChild[] => {
 	if (Predicate.isNullable(children) || Predicate.isBoolean(children)) {
 		return [];
@@ -154,8 +158,8 @@ export namespace JSX {
 
 	export type ElementType =
 		| string
-		| BlueprintDef
-		| Component
+		| JSXBlueprint
+		| JSXComponent
 		| FragmentComponent
 		| ((props: Record<string, unknown>) => EffuseNode);
 
