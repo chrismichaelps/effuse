@@ -37,16 +37,20 @@ test('publication waits for every quality boundary', async () => {
 	);
 });
 
-test('publication uses short-lived npm trusted publishing credentials', async () => {
+test('publication binds the scoped npm secret through setup-node', async () => {
 	const workflow = await readWorkflow('release.yml');
 
-	assert.match(workflow, /^  id-token: write$/mu);
 	assert.match(
 		workflow,
 		/^\s+registry-url: https:\/\/registry\.npmjs\.org\/$/mu
 	);
 	assert.match(workflow, /package-manager-cache: false/u);
-	assert.doesNotMatch(workflow, /(?:NPM_TOKEN|NODE_AUTH_TOKEN)/u);
+	assert.match(
+		workflow,
+		/^\s+NODE_AUTH_TOKEN: \$\{\{ secrets\.NPM_TOKEN \}\}$/mu
+	);
+	assert.doesNotMatch(workflow, /^\s+NPM_TOKEN:/mu);
+	assert.doesNotMatch(workflow, /^\s+id-token:/mu);
 });
 
 test('every public package identifies the trusted GitHub repository', async () => {
