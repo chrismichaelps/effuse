@@ -1,3 +1,24 @@
+## @effuse/ink [1.2.0](https://github.com/chrismichaelps/effuse/compare/@effuse/ink@1.1.4...@effuse/ink@1.2.0) (2026-07-26)
+
+### Features
+
+* **ink:** make prose styles SSR-safe refs [#313](https://github.com/chrismichaelps/effuse/issues/313) ([#315](https://github.com/chrismichaelps/effuse/issues/315)) ([e159df6](https://github.com/chrismichaelps/effuse/commit/e159df6d03ba71770aa342aba3a68f665f1065c4))
+
+### Bug Fixes
+
+* **build:** declare lint config dependencies refs [#180](https://github.com/chrismichaelps/effuse/issues/180) ([e0fbf46](https://github.com/chrismichaelps/effuse/commit/e0fbf46866aac2452e0a2799b2efbe38e38977a3))
+* **ink:** sanitize link and image URLs refs [#317](https://github.com/chrismichaelps/effuse/issues/317) ([#318](https://github.com/chrismichaelps/effuse/issues/318)) ([d1e65fa](https://github.com/chrismichaelps/effuse/commit/d1e65fa8a8a4d36f500b3f9654ee6125098e5555)), closes [#58](https://github.com/chrismichaelps/effuse/issues/58)
+* **ink:** unblock lint gate refs [#190](https://github.com/chrismichaelps/effuse/issues/190) ([6484802](https://github.com/chrismichaelps/effuse/commit/648480221fe1ad38f30fbbfd9bbd95b6a7dd757f))
+
+### Tests
+
+* **repo:** stabilize node test gates refs [#180](https://github.com/chrismichaelps/effuse/issues/180) ([bb1bbfb](https://github.com/chrismichaelps/effuse/commit/bb1bbfbd9edf12d535bcc1a6d4a9c73108eebb51))
+
+
+### Dependencies
+
+* **@effuse/core:** upgraded to 2.0.0
+
 ## @effuse/ink [1.1.4](https://github.com/chrismichaelps/effuse/compare/@effuse/ink@1.1.3...@effuse/ink@1.1.4) (2026-03-18)
 
 

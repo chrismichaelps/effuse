@@ -1,3 +1,20 @@
+## @effuse/compiler [1.0.5](https://github.com/chrismichaelps/effuse/compare/@effuse/compiler@1.0.4...@effuse/compiler@1.0.5) (2026-07-26)
+
+### Bug Fixes
+
+* **compiler:** add missing AST node coverage in containsSignalAccess ([#82](https://github.com/chrismichaelps/effuse/issues/82)) ([#92](https://github.com/chrismichaelps/effuse/issues/92)) ([1cc0b64](https://github.com/chrismichaelps/effuse/commit/1cc0b6426eb35696b45ec4ceb8a1ce07ca3cabb8))
+* **compiler:** add tests and fix signal/event/attr bugs ([#81](https://github.com/chrismichaelps/effuse/issues/81), [#86](https://github.com/chrismichaelps/effuse/issues/86), [#87](https://github.com/chrismichaelps/effuse/issues/87), [#88](https://github.com/chrismichaelps/effuse/issues/88)) ([#90](https://github.com/chrismichaelps/effuse/issues/90)) ([d5a064d](https://github.com/chrismichaelps/effuse/commit/d5a064dc149dfb0fed7a8ff8d49d0ee7b0364fab))
+* **compiler:** include config in cache key and bound cache size ([#83](https://github.com/chrismichaelps/effuse/issues/83), [#84](https://github.com/chrismichaelps/effuse/issues/84)) ([#91](https://github.com/chrismichaelps/effuse/issues/91)) ([33c5d0a](https://github.com/chrismichaelps/effuse/commit/33c5d0aa8e352293b9818a58b71a2adf0f7056ff))
+* **framework:** harden async and build boundaries refs [#364](https://github.com/chrismichaelps/effuse/issues/364) ([#370](https://github.com/chrismichaelps/effuse/issues/370)) ([9c51801](https://github.com/chrismichaelps/effuse/commit/9c518010e78ade992062cbd665b3baaf09165f68))
+
+### Code Refactoring
+
+* **compiler:** remove Effect-TS wrappers ([#89](https://github.com/chrismichaelps/effuse/issues/89)) ([#93](https://github.com/chrismichaelps/effuse/issues/93)) ([e110069](https://github.com/chrismichaelps/effuse/commit/e110069c6b30af7e1bb4eb56418908f4ac6dc723))
+
+### Tests
+
+* **repo:** enforce package-wide test execution refs [#363](https://github.com/chrismichaelps/effuse/issues/363) ([#368](https://github.com/chrismichaelps/effuse/issues/368)) ([99feb53](https://github.com/chrismichaelps/effuse/commit/99feb5301b82bcaeec5ff90bc9f01f88b19a7edd))
+
 ## @effuse/compiler [1.0.4](https://github.com/chrismichaelps/effuse/compare/@effuse/compiler@1.0.3...@effuse/compiler@1.0.4) (2026-03-18)
 
 ### Build System
