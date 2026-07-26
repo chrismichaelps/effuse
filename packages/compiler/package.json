@@ -38,7 +38,8 @@
 		"dev": "tsc -w -p tsconfig.json",
 		"clean": "rm -rf dist",
 		"typecheck": "tsc --noEmit",
-		"test": "vitest run || echo 'No tests'",
+		"pretest": "node ../../scripts/check-node-version.mjs",
+		"test": "vitest run",
 		"test:watch": "vitest"
 	},
 	"dependencies": {
