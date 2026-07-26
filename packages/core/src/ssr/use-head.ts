@@ -23,6 +23,7 @@
  */
 
 import type { HeadProps } from './types.js';
+import { updateClientHead } from './client-head.js';
 import { Predicate } from 'effect';
 import { AsyncLocalStorage } from 'node:async_hooks';
 
@@ -43,10 +44,7 @@ const ssrStorage = new AsyncLocalStorage<SSRHeadContext>();
  * This is the only way to establish an SSR context — there is no
  * module-global fallback.
  */
-export const runWithSSRContext = <T>(
-	ctx: SSRHeadContext,
-	fn: () => T
-): T => {
+export const runWithSSRContext = <T>(ctx: SSRHeadContext, fn: () => T): T => {
 	return ssrStorage.run(ctx, fn);
 };
 
@@ -83,80 +81,4 @@ export const useHead = (head: HeadProps): void => {
 	} else if (typeof document !== 'undefined') {
 		updateClientHead(head);
 	}
-};
-
-const updateClientHead = (head: HeadProps): void => {
-	if (head.title) {
-		document.title = head.title;
-	}
-
-	if (head.description) {
-		updateMetaTag('name', 'description', head.description);
-	}
-
-	if (head.canonical) {
-		updateLinkTag('canonical', head.canonical);
-	}
-
-	if (head.themeColor) {
-		updateMetaTag('name', 'theme-color', head.themeColor);
-	}
-
-	if (head.robots) {
-		updateMetaTag('name', 'robots', head.robots);
-	}
-
-	if (head.og) {
-		for (const [key, value] of Object.entries(head.og)) {
-			if (value) {
-				updateMetaTag('property', `og:${key}`, value);
-			}
-		}
-	}
-
-	if (head.twitter) {
-		for (const [key, value] of Object.entries(head.twitter)) {
-			if (value) {
-				updateMetaTag('name', `twitter:${key}`, value);
-			}
-		}
-	}
-
-	if (head.meta) {
-		for (const tag of head.meta) {
-			if (tag.name) {
-				updateMetaTag('name', tag.name, tag.content);
-			} else if (tag.property) {
-				updateMetaTag('property', tag.property, tag.content);
-			}
-		}
-	}
-};
-
-const updateMetaTag = (
-	attr: 'name' | 'property',
-	name: string,
-	content: string
-): void => {
-	let meta = document.querySelector<HTMLMetaElement>(`meta[${attr}="${name}"]`);
-
-	if (!meta) {
-		meta = document.createElement('meta');
-		meta.setAttribute(attr, name);
-		document.head.appendChild(meta);
-	}
-
-	meta.content = content;
-};
-
-const updateLinkTag = (rel: string, href: string): void => {
-	let link = document.querySelector<HTMLLinkElement>(`link[rel="${rel}"]`);
-
-	if (!link) {
-		link = document.createElement('link');
-		link.rel = rel;
-		document.head.appendChild(link);
-	}
-
-	link.href = href;
 };

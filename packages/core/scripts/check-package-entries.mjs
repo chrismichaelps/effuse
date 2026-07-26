@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 const root = resolve(import.meta.dirname, '..');
 const require = createRequire(import.meta.url);
 const cacheExports = ['createResponseCache', 'createDataCache'];
+const clientExports = ['useHead'];
 const loadEsm = (name) =>
 	import(pathToFileURL(resolve(root, `dist/${name}.js`)).href);
 
@@ -50,8 +51,15 @@ for (const name of ['index', 'server']) {
 
 const rootEsm = await loadEsm('index');
 const serverEsm = await loadEsm('server');
+const clientEsm = await loadEsm('client');
 const rootCjs = require(resolve(root, 'dist/index.cjs'));
 const serverCjs = require(resolve(root, 'dist/server.cjs'));
+const clientCjs = require(resolve(root, 'dist/client.cjs'));
+
+for (const name of clientExports) {
+	assert.equal(typeof clientEsm[name], 'function', `client ESM omits ${name}`);
+	assert.equal(typeof clientCjs[name], 'function', `client CJS omits ${name}`);
+}
 
 for (const name of [
 	'define',
@@ -106,7 +114,13 @@ try {
 }
 
 for (const extension of ['js', 'cjs', 'd.ts', 'd.cts']) {
-	const browser = await readFile(resolve(root, `dist/client.${extension}`), 'utf8');
+	const browser = await readFile(
+		resolve(root, `dist/client.${extension}`),
+		'utf8'
+	);
+	for (const name of clientExports) {
+		assert.match(browser, new RegExp(`\\b${name}\\b`));
+	}
 	for (const name of cacheExports) {
 		if (browser.includes(name)) {
 			throw new Error(
