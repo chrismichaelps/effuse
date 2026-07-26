@@ -1,3 +1,10 @@
+## @effuse/core [2.0.1](https://github.com/chrismichaelps/effuse/compare/@effuse/core@2.0.0...@effuse/core@2.0.1) (2026-07-26)
+
+### Bug Fixes
+
+* **core:** restore browser head exports ([#383](https://github.com/chrismichaelps/effuse/issues/383)) ([ba5c1cc](https://github.com/chrismichaelps/effuse/commit/ba5c1cc88b42f2c07fe9c8b5d6451b80262e6b07)), closes [#382](https://github.com/chrismichaelps/effuse/issues/382)
+* **core:** restore downstream JSX contracts ([#380](https://github.com/chrismichaelps/effuse/issues/380)) ([0839a89](https://github.com/chrismichaelps/effuse/commit/0839a893a9c8852743dfdf35fb71b82f32dad956)), closes [#379](https://github.com/chrismichaelps/effuse/issues/379)
+
 ## @effuse/core [2.0.0](https://github.com/chrismichaelps/effuse/compare/@effuse/core@1.2.4...@effuse/core@2.0.0) (2026-07-26)
 
 ### ⚠ BREAKING CHANGES
