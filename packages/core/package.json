@@ -81,7 +81,7 @@
 		"scripts"
 	],
 	"scripts": {
-		"build": "rm -rf dist && tsup && node scripts/check-browser-entry.mjs",
+		"build": "rm -rf dist && tsup && node scripts/check-browser-entry.mjs && node scripts/check-package-entries.mjs",
 		"dev": "tsup --watch",
 		"lint": "eslint src --max-warnings 0",
 		"typecheck": "tsc --noEmit",

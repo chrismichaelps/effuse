@@ -51,6 +51,17 @@ describe('@effuse/core entrypoints', () => {
 		expect(source).not.toContain('renderToString');
 		expect(source).not.toContain('fromServerFiles');
 		expect(source).not.toContain('defineServerMiddleware');
+		expect(source).not.toContain('createResponseCache');
+		expect(source).not.toContain('createDataCache');
+	});
+
+	it('exports portable cache APIs from the package root', () => {
+		const source = readProjectFile('src/index.ts');
+
+		expect(source).toContain('createResponseCache');
+		expect(source).toContain('createDataCache');
+		expect(source).toContain('type ResponseCachePolicy');
+		expect(source).toContain('type DataCacheOptions');
 	});
 
 	it('keeps client-facing context modules free of Node async hooks', () => {
