@@ -54,7 +54,7 @@ export interface UseThrottleReturn<T> {
 	readonly isThrottled: ReadonlySignal<boolean>;
 }
 
-export const useThrottle = defineHook<
+const useThrottleHook = defineHook<
 	UseThrottleConfig<unknown>,
 	UseThrottleReturn<unknown>
 >({
@@ -85,6 +85,7 @@ export const useThrottle = defineHook<
 				timeoutId = null;
 			}
 		};
+		ctx.scope.addFinalizer(clearCooldownTimeout);
 
 		const throttledValue = ctx.computed(() =>
 			getCurrentValue(internalState.value)
@@ -160,9 +161,7 @@ export const useThrottle = defineHook<
 				startCooldown();
 			}
 
-			return () => {
-				clearCooldownTimeout();
-			};
+			return undefined;
 		});
 
 		return {
@@ -171,3 +170,7 @@ export const useThrottle = defineHook<
 		};
 	},
 });
+
+export const useThrottle = useThrottleHook as <T>(
+	config: UseThrottleConfig<T>
+) => UseThrottleReturn<T>;

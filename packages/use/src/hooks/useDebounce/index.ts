@@ -54,7 +54,7 @@ export interface UseDebounceReturn<T> {
 	readonly flush: () => void;
 }
 
-export const useDebounce = defineHook<
+const useDebounceHook = defineHook<
 	UseDebounceConfig<unknown>,
 	UseDebounceReturn<unknown>
 >({
@@ -151,3 +151,7 @@ export const useDebounce = defineHook<
 		};
 	},
 });
+
+export const useDebounce = useDebounceHook as <T>(
+	config: UseDebounceConfig<T>
+) => UseDebounceReturn<T>;

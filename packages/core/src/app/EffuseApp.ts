@@ -22,69 +22,83 @@
  * SOFTWARE.
  */
 
-import type { Component } from '../render/node.js';
-import type { AnyLayer, AnyResolvedLayer } from '../layers/types.js';
+import { createServerApp, type ServerApp } from '../ssr/server-app.js';
+import { createStreamingHandler } from '../ssr/handler.js';
+import type { RenderResult, ServerAppOptions } from '../ssr/types.js';
 import {
-	defineLayer,
-	type CompiledLayer,
-	createLayerRuntime,
-	type LayerRuntime,
-	type LayerRuntimeOptions,
-} from '../layers/index.js';
-import { Predicate } from 'effect';
-import { mount as mountComponent } from '../canvas/canvas.js';
+	BaseEffuseApp,
+	type AppInstance,
+	type MountOptions,
+	type AppLayerInput,
+	type LazyAppLayerInput,
+	type AppLayerSource,
+	type AppOptions,
+} from './BaseEffuseApp.js';
 
-export interface AppInstance {
-	unmount: () => Promise<void>;
-}
+export type {
+	AppInstance,
+	MountOptions,
+	AppLayerInput,
+	LazyAppLayerInput,
+	AppLayerSource,
+	AppOptions,
+};
 
-export type MountOptions = LayerRuntimeOptions;
-
-export class EffuseApp {
-	private layers: Array<AnyLayer | CompiledLayer<any>> = [];
-	private rootComponent: Component;
-	private layerRuntime: LayerRuntime | null = null;
-
-	constructor(root: Component) {
-		this.rootComponent = root;
+export class EffuseApp extends BaseEffuseApp {
+	/**
+	 * Render the app to a full HTML string for SSR.
+	 *
+	 * Uses the same root component and layers configured via `useLayers()`.
+	 * This is the server-side equivalent of `mount()`.
+	 *
+	 * ```ts
+	 * // Server entry
+	 * const app = new EffuseApp(App);
+	 * await app.useLayers([ThemeLayer, RouterLayer]);
+	 * const { html } = await app.renderToString('/about');
+	 * ```
+	 */
+	async renderToString(url: string): Promise<RenderResult> {
+		return this.getServerApp().renderToString(url);
 	}
 
-	async useLayers(
-		layers: (AnyLayer | CompiledLayer<any> | (() => Promise<AnyLayer | CompiledLayer<any>>))[]
-	): Promise<this> {
-		const resolved = await Promise.all(
-			layers.map((l) => (Predicate.isFunction(l) ? l() : Promise.resolve(l)))
-		);
-		this.layers = resolved;
-		return this;
+	/**
+	 * Render the app to HTML string, with error fallback.
+	 * Returns error HTML on failure instead of throwing.
+	 */
+	async renderToHtml(url: string): Promise<string> {
+		return this.getServerApp().renderToHtml(url);
 	}
 
-	async mount(
-		selector: string,
-		options: MountOptions = {}
-	): Promise<AppInstance> {
-		this.layers = this.layers.map((l) =>
-			'effectLayer' in l && 'tags' in l ? l : defineLayer(l as AnyLayer)
-		);
-
-		this.layerRuntime = await createLayerRuntime(
-			this.layers as AnyResolvedLayer[],
-			options
-		);
-
-		mountComponent(this.rootComponent, selector);
-
-		return {
-			unmount: async () => {
-				await this.cleanup();
-			},
-		};
+	/**
+	 * Streaming SSR — returns a `ReadableStream<Uint8Array>` for
+	 * optimal Time-To-First-Byte. Flushes the `<head>` immediately,
+	 * then streams the body, then closes with hydration data.
+	 */
+	async renderToStream(url: string): Promise<ReadableStream<Uint8Array>> {
+		return this.getServerApp().renderToStream(url);
 	}
 
-	private async cleanup(): Promise<void> {
-		if (this.layerRuntime) {
-			await this.layerRuntime.dispose();
-			this.layerRuntime = null;
-		}
+	/**
+	 * Handle a Fetch API request with layer-owned API routes/actions first,
+	 * then stream the app shell as SSR fallback.
+	 */
+	async handleRequest(
+		request: Request,
+		options: ServerAppOptions = {}
+	): Promise<Response> {
+		const handler = createStreamingHandler({
+			root: this.rootComponent,
+			layers: this.layers,
+			options,
+		});
+		return handler(request);
+	}
+
+	/**
+	 * Get the underlying ServerApp for advanced SSR configuration.
+	 */
+	getServerApp(): ServerApp {
+		return createServerApp(this.rootComponent).useLayers(this.layers);
 	}
 }

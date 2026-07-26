@@ -34,12 +34,24 @@ export interface HydrationData {
 	timestamp: number;
 }
 
+/**
+ * Serialize hydration data into a script tag for embedding in SSR output.
+ *
+ * This is now called by `renderToString` with real layer state,
+ * ensuring the client receives the full hydration payload.
+ */
 export const serializeHydrationData = (data: HydrationData): string => {
 	const json = JSON.stringify(data);
-	const escaped = json.replace(/<\/script/gi, '<\\/script');
+	// Escape '<' to \u003c to prevent ANY HTML break-out sequences
+	// (</script, <!--, <!CDATA[, etc.) from being interpreted by the parser.
+	const escaped = json.replace(/</g, '\\u003c');
 	return `<script id="${HYDRATION_SCRIPT_ID}" type="application/json">${escaped}</script>`;
 };
 
+/**
+ * Retrieve hydration data from the DOM on the client side.
+ * Returns null if the hydration script is not found or parsing fails.
+ */
 export const getHydrationData = (): HydrationData | null => {
 	if (typeof document === 'undefined') {
 		return null;
@@ -59,6 +71,10 @@ export const getHydrationData = (): HydrationData | null => {
 	}
 };
 
+/**
+ * Check if client state matches the server-rendered state.
+ * Used during hydration to detect mismatches.
+ */
 export const checkHydrationMatch = (
 	clientState: Record<string, unknown>,
 	serverState: Record<string, unknown>
@@ -66,6 +82,11 @@ export const checkHydrationMatch = (
 	return JSON.stringify(clientState) === JSON.stringify(serverState);
 };
 
+/**
+ * Apply the server-rendered head data to the client DOM.
+ * This reconciles the document title and other head elements
+ * that may have changed during client-side navigation.
+ */
 export const applyHydratedHead = (head: HeadProps): void => {
 	if (typeof document === 'undefined') return;
 
@@ -74,6 +95,10 @@ export const applyHydratedHead = (head: HeadProps): void => {
 	}
 };
 
+/**
+ * Remove the hydration script from the DOM after rehydration.
+ * Called after the client app has fully mounted and reconciled state.
+ */
 export const cleanupHydrationScript = (): void => {
 	if (typeof document === 'undefined') return;
 
@@ -83,6 +108,12 @@ export const cleanupHydrationScript = (): void => {
 	}
 };
 
+/**
+ * Initialize client-side hydration.
+ *
+ * Reads the server-serialized hydration data, applies the head,
+ * and returns the data for the client app to reconcile state.
+ */
 export const initHydration = (): HydrationData | null => {
 	const data = getHydrationData();
 

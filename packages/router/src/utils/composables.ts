@@ -23,7 +23,7 @@
  */
 
 import { Predicate } from 'effect';
-import { markRaw, watchEffect } from '@effuse/core';
+import { markRaw, watchEffect, computed } from '@effuse/core';
 import { getGlobalRouter, type RouterInstance } from '../core/router.js';
 import type { Route, RouteLocation } from '../core/route.js';
 import type { NavigationFailure } from '../navigation/errors.js';
@@ -44,19 +44,74 @@ export const useRoute = (): Route => {
 		throw new RouterNotInstalledError({ operation: 'useRoute' });
 	}
 
-	return new Proxy(routeSignal.value, {
-		get(_target, prop, receiver) {
-			return Reflect.get(
-				routeSignal.value,
-				prop,
-				receiver
-			) as Route[keyof Route];
+	// Create stable reactive proxies so accessing .params only subscribes to param changes
+	const path = computed(() => routeSignal.value.path);
+	const fullPath = computed(() => routeSignal.value.fullPath);
+	const params = computed(() => routeSignal.value.params);
+	const query = computed(() => routeSignal.value.query);
+	const hash = computed(() => routeSignal.value.hash);
+	const matched = computed(() => routeSignal.value.matched);
+	const canonicalRouteGroups = computed(
+		() => routeSignal.value.canonicalRouteGroups
+	);
+	const aliasRouteGroups = computed(() => routeSignal.value.aliasRouteGroups);
+	const routeGroups = computed(() => routeSignal.value.routeGroups);
+	const name = computed(() => routeSignal.value.name);
+	const meta = computed(() => routeSignal.value.meta);
+	const routeKeys = [
+		'path',
+		'fullPath',
+		'params',
+		'query',
+		'hash',
+		'matched',
+		'canonicalRouteGroups',
+		'aliasRouteGroups',
+		'routeGroups',
+		'name',
+		'meta',
+	] as const satisfies readonly (keyof Route)[];
+
+	return new Proxy({} as Route, {
+		get(_target, prop) {
+			switch (prop) {
+				case 'path':
+					return path.value;
+				case 'fullPath':
+					return fullPath.value;
+				case 'params':
+					return params.value;
+				case 'query':
+					return query.value;
+				case 'hash':
+					return hash.value;
+				case 'matched':
+					return matched.value;
+				case 'canonicalRouteGroups':
+					return canonicalRouteGroups.value;
+				case 'aliasRouteGroups':
+					return aliasRouteGroups.value;
+				case 'routeGroups':
+					return routeGroups.value;
+				case 'name':
+					return name.value;
+				case 'meta':
+					return meta.value;
+				default:
+					return undefined;
+			}
 		},
-		ownKeys(_target) {
-			return Reflect.ownKeys(routeSignal.value);
+		ownKeys() {
+			return routeKeys;
 		},
 		getOwnPropertyDescriptor(_target, prop) {
-			return Reflect.getOwnPropertyDescriptor(routeSignal.value, prop);
+			if (routeKeys.includes(prop as (typeof routeKeys)[number])) {
+				return {
+					enumerable: true,
+					configurable: true,
+				};
+			}
+			return undefined;
 		},
 	});
 };
@@ -88,7 +143,7 @@ export const onRouteChange = (
 export const navigateTo = (
 	to: RouteLocation,
 	options?: { replace?: boolean }
-): Route | NavigationFailure => {
+): Promise<Route | NavigationFailure> => {
 	const router = useRouter();
 	const shouldReplace =
 		Predicate.isNotNullable(options) && options.replace === true;

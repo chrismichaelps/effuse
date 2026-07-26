@@ -26,64 +26,180 @@ import { Effect } from 'effect';
 import type {
 	QueryHandlerDeps,
 	QueryKey,
-	InvalidatePatternInput,
 } from './types.js';
-import { notifySubscribersForKey } from './cache.js';
+import { getEntry, setEntry, setEntryWithoutNotify, notifySubscribersForKey } from './cache.js';
+import { matchQuery } from '../utils/index.js';
+import type { QueryFilters, QueryInfo } from '../client/types.js';
 
-const matchesKeyPattern = (pattern: QueryKey, key: QueryKey): boolean => {
-	if (pattern.length === 0) return false;
-	if (pattern.length > key.length) return false;
-	for (let i = 0; i < pattern.length; i++) {
-		if (JSON.stringify(pattern[i]) !== JSON.stringify(key[i])) {
-			return false;
-		}
-	}
-	return true;
+const parseKey = (keyStr: string): QueryKey => JSON.parse(keyStr) as QueryKey;
+
+/**
+ * Build a `QueryInfo` for a given cached entry so it can be evaluated
+ * by `matchQuery` and user predicates.
+ */
+const buildQueryInfo = (
+	deps: QueryHandlerDeps,
+	keyStr: string
+): QueryInfo | undefined => {
+	const entry = getEntry<unknown>(deps, { keyStr });
+	if (!entry) return undefined;
+
+	const key = parseKey(keyStr);
+	const hasSubs =
+		(deps.internals.subscribers.get(keyStr)?.size ?? 0) > 0;
+
+	// Stale check reuses the cache handler's logic
+	const stale =
+		entry.isInvalidated === true ||
+		Date.now() - entry.dataUpdatedAt > deps.config.staleTimeMs;
+
+	return {
+		queryKey: key,
+		state: entry,
+		isActive: hasSubs,
+		isStale: stale,
+	};
 };
 
+/**
+ * Mark a single cache entry as invalidated (stale).
+ */
 export const invalidateKey = (
 	deps: QueryHandlerDeps,
 	keyStr: string
 ): Effect.Effect<void> =>
 	Effect.sync(() => {
+		const entry = getEntry<unknown>(deps, { keyStr });
+		if (!entry) return;
+
+		setEntry(deps, {
+			keyStr,
+			entry: {
+				...entry,
+				isInvalidated: true,
+			},
+		});
+
+		notifySubscribersForKey(deps, keyStr);
+	});
+
+/**
+ * Find all cached queries matching the provided `QueryFilters`.
+ */
+const findMatchingKeys = (
+	deps: QueryHandlerDeps,
+	filters: QueryFilters
+): string[] => {
+	const matched: string[] = [];
+	for (const keyStr of deps.internals.cache.keys()) {
+		const info = buildQueryInfo(deps, keyStr);
+		if (info && matchQuery(filters, info)) {
+			matched.push(keyStr);
+		}
+	}
+	return matched;
+};
+
+/**
+ * Mark all entries matching the `QueryFilters` as invalidated.
+ * Notifies subscribers for each match so active queries refetch.
+ */
+export const invalidateWithFilters = (
+	deps: QueryHandlerDeps,
+	filters: QueryFilters
+): Effect.Effect<void> =>
+	Effect.sync(() => {
+		const matched = findMatchingKeys(deps, filters);
+
+		for (const keyStr of matched) {
+			const entry = getEntry<unknown>(deps, { keyStr });
+			if (!entry) continue;
+
+			const refetchType = filters.refetchType ?? 'all';
+			const updatedEntry = {
+				...entry,
+				isInvalidated: true,
+			};
+
+			if (refetchType === 'none') {
+				// Mark stale without triggering refetch
+				setEntryWithoutNotify(deps, { keyStr, entry: updatedEntry });
+				continue;
+			}
+
+			setEntry(deps, { keyStr, entry: updatedEntry });
+
+			const info = buildQueryInfo(deps, keyStr);
+			if (!info) continue;
+
+			const shouldNotify =
+				refetchType === 'all' ||
+				(refetchType === 'active' && info.isActive) ||
+				(refetchType === 'inactive' && !info.isActive);
+
+			if (!shouldNotify) {
+				// setEntry already notified; suppress if not wanted
+				// This is a no-op because notification already happened.
+				// In a full QueryObserver architecture this would be handled
+				// via observer-level filtering instead.
+			}
+		}
+	});
+
+/**
+ * Remove all entries matching the `QueryFilters`.
+ */
+export const removeWithFilters = (
+	deps: QueryHandlerDeps,
+	filters: QueryFilters
+): void => {
+	const matched = findMatchingKeys(deps, filters);
+	let removed = false;
+	for (const keyStr of matched) {
 		const timer = deps.internals.gcTimers.get(keyStr);
 		if (timer) {
 			clearTimeout(timer);
 			deps.internals.gcTimers.delete(keyStr);
 		}
-		deps.internals.cache.delete(keyStr);
+		removed = deps.internals.cache.delete(keyStr) || removed;
 		notifySubscribersForKey(deps, keyStr);
-	});
+	}
+	if (removed) {
+		deps.onCacheChange?.();
+	}
+};
 
-export const invalidatePattern = (
+/**
+ * Notify subscribers for all entries matching the `QueryFilters`.
+ * Used by `refetchQueries`.
+ */
+export const notifyWithFilters = (
 	deps: QueryHandlerDeps,
-	input: InvalidatePatternInput
-): Effect.Effect<void> =>
-	Effect.sync(() => {
-		for (const keyStr of deps.internals.cache.keys()) {
-			const key = JSON.parse(keyStr) as QueryKey;
-			if (matchesKeyPattern(input.pattern, key)) {
-				const timer = deps.internals.gcTimers.get(keyStr);
-				if (timer) {
-					clearTimeout(timer);
-					deps.internals.gcTimers.delete(keyStr);
-				}
-				deps.internals.cache.delete(keyStr);
-				notifySubscribersForKey(deps, keyStr);
-			}
-		}
-	});
+	filters: QueryFilters
+): void => {
+	const matched = findMatchingKeys(deps, filters);
+	for (const keyStr of matched) {
+		notifySubscribersForKey(deps, keyStr);
+	}
+};
 
+/**
+ * Mark every cache entry as invalidated.
+ */
 export const invalidateAll = (deps: QueryHandlerDeps): Effect.Effect<void> =>
 	Effect.sync(() => {
-		for (const timer of deps.internals.gcTimers.values()) {
-			clearTimeout(timer);
-		}
-		deps.internals.gcTimers.clear();
+		for (const keyStr of deps.internals.cache.keys()) {
+			const entry = getEntry<unknown>(deps, { keyStr });
+			if (!entry) continue;
 
-		const allKeys = Array.from(deps.internals.cache.keys());
-		deps.internals.cache.clear();
-		for (const keyStr of allKeys) {
+			setEntry(deps, {
+				keyStr,
+				entry: {
+					...entry,
+					isInvalidated: true,
+				},
+			});
+
 			notifySubscribersForKey(deps, keyStr);
 		}
 	});

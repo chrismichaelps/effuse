@@ -23,6 +23,7 @@
  */
 
 import { Schema } from 'effect';
+import type { RouteParamInput } from '@effuse/core';
 import type { RouteRecord, Route, RouteLocation } from '../core/route.js';
 
 export interface TypedRouteRecord<
@@ -45,16 +46,11 @@ export interface TypedRoute<
 	readonly meta: Meta;
 }
 
-export type ExtractRouteParams<Path extends string> =
-	Path extends `${string}:${infer Param}/${infer Rest}`
-		? { [K in Param | keyof ExtractRouteParams<`/${Rest}`>]: string }
-		: Path extends `${string}:${infer Param}`
-			? { [K in Param]: string }
-			: Record<string, never>;
+export type ExtractRouteParams<Path extends string> = RouteParamInput<Path>;
 
 export type TypedRouteLocation<
 	Name extends string,
-	Params extends Record<string, string> = Record<string, never>,
+	Params extends Partial<Record<string, string>> = Record<string, never>,
 > = {
 	name: Name;
 	params?: Params extends Record<string, never> ? undefined : Params;

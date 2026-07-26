@@ -28,6 +28,7 @@ import {
 	Either,
 	Exit,
 	Cause,
+	JSONSchema,
 	ParseResult,
 	Array as Arr,
 	Option,
@@ -50,95 +51,189 @@ export class PropsValidationError extends Data.TaggedError(
 	}
 }
 
-export interface PropDefinition<T> {
-	readonly schema: Schema.Schema<T>;
-	readonly required: boolean;
-	readonly defaultValue?: T;
+export class PropsSchemaConflictError extends Data.TaggedError(
+	'PropsSchemaConflictError'
+)<{
+	readonly componentName: string;
+}> {
+	get message(): string {
+		return `[Effuse] Component "${this.componentName}" received different schemas through defineProps(schema) and propsSchema. Keep one schema as the source of truth.`;
+	}
+}
+
+declare const PROP_VALUE_SCHEMA: unique symbol;
+
+/** Opaque Effuse value schema. Its validation engine is an implementation detail. */
+export interface PropValueSchema<Output, Input = Output> {
+	readonly [PROP_VALUE_SCHEMA]: {
+		readonly output: Output;
+		readonly input: Input;
+	};
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- heterogeneous schema combinators preserve member types.
+type AnyPropValueSchema = PropValueSchema<any, any>;
+type PropValueSchemaParts<S> =
+	S extends PropValueSchema<infer O, infer I>
+		? [O, I]
+		: S extends PropSchemaBuilder<infer O, infer I>
+			? [O, I]
+			: never;
+type PropValueOutput<S> = PropValueSchemaParts<S>[0];
+type PropValueInput<S> = PropValueSchemaParts<S>[1];
+
+const wrapValueSchema = <O, I>(
+	schema: Schema.Schema<O, I>
+): PropValueSchema<O, I> => schema as unknown as PropValueSchema<O, I>;
+
+const unwrapValueSchema = <O, I>(
+	schema: PropValueSchema<O, I>
+): Schema.Schema<O, I> => schema as unknown as Schema.Schema<O, I>;
+
+export interface PropDefinition<
+	Output,
+	Input = Output,
+	Required extends boolean = boolean,
+> {
+	readonly schema: PropValueSchema<Output, Input>;
+	readonly required: Required;
+	readonly defaultValue?: Output;
 	readonly _tag: 'PropDefinition';
 }
 
-export interface PropSchemaBuilder<T extends Record<string, unknown>> {
+export interface PropSchemaBuilder<
+	Output extends Record<string, unknown>,
+	Input extends Record<string, unknown> = Output,
+> {
 	readonly _schema: {
-		[K in keyof T]: PropDefinition<T[K]>;
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- definitions retain their concrete types in the builder value.
+		[K in keyof Output]: PropDefinition<any, any, boolean>;
 	};
-	readonly schema: Schema.Schema<T>;
-	readonly validate: (
-		props: unknown,
-		componentName?: string
-	) => Effect.Effect<T, PropsValidationError>;
-	readonly validateSync: (props: unknown, componentName?: string) => T;
+	readonly schema: PropValueSchema<Output, Input>;
+	readonly validateSync: (props: unknown, componentName?: string) => Output;
 }
 
 export interface AnyPropSchemaBuilder {
+	readonly schema: PropValueSchema<unknown, unknown>;
 	readonly validateSync: (props: unknown, componentName?: string) => unknown;
 }
 
-type ExtractPropType<P> = P extends PropDefinition<infer T> ? T : never;
+type AnyPropSchemaMember = AnyPropValueSchema | AnyPropSchemaBuilder;
+
+const isPropSchemaBuilder = (
+	schema: AnyPropSchemaMember
+): schema is AnyPropSchemaBuilder =>
+	Predicate.isObject(schema) &&
+	Predicate.hasProperty(schema, 'validateSync') &&
+	Predicate.hasProperty(schema, 'schema');
+
+const normalizeSchemaMember = <S extends AnyPropSchemaMember>(
+	schema: S
+): PropValueSchema<PropValueOutput<S>, PropValueInput<S>> =>
+	(isPropSchemaBuilder(schema) ? schema.schema : schema) as PropValueSchema<
+		PropValueOutput<S>,
+		PropValueInput<S>
+	>;
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- preserves each definition's invariant schema types during inference.
+type AnyPropDefinition = PropDefinition<any, any, boolean>;
+type PropDefinitionParts<P> =
+	P extends PropDefinition<infer O, infer I, infer R> ? [O, I, R] : never;
+type ExtractPropOutput<P> = PropDefinitionParts<P>[0];
+type ExtractPropInput<P> = PropDefinitionParts<P>[1];
+type RequiredDefinitionKeys<D> = {
+	[K in keyof D]-?: PropDefinitionParts<D[K]>[2] extends true ? K : never;
+}[keyof D];
+type OptionalDefinitionKeys<D> = Exclude<keyof D, RequiredDefinitionKeys<D>>;
+type SchemaOutput<D> = { [K in keyof D]: ExtractPropOutput<D[K]> };
+type SchemaInput<D> = {
+	[K in RequiredDefinitionKeys<D>]: ExtractPropInput<D[K]>;
+} & {
+	[K in OptionalDefinitionKeys<D>]?: ExtractPropInput<D[K]>;
+};
 
 // Build required prop definition
-function required<T>(schema: Schema.Schema<T>): PropDefinition<T>;
-function required<T extends Record<string, unknown>>(
-	builder: PropSchemaBuilder<T>
-): PropDefinition<T>;
-function required<T>(
-	schemaOrBuilder: Schema.Schema<T> | PropSchemaBuilder<Record<string, unknown>>
-): PropDefinition<T> {
-	if (
-		Predicate.isObject(schemaOrBuilder) &&
-		Predicate.hasProperty(schemaOrBuilder, 'validate') &&
-		Predicate.hasProperty(schemaOrBuilder, 'schema')
-	) {
+function required<S extends AnyPropValueSchema>(
+	schema: S
+): PropDefinition<PropValueOutput<S>, PropValueInput<S>, true>;
+function required<
+	O extends Record<string, unknown>,
+	I extends Record<string, unknown>,
+>(builder: PropSchemaBuilder<O, I>): PropDefinition<O, I, true>;
+function required(
+	schemaOrBuilder:
+		| AnyPropValueSchema
+		| PropSchemaBuilder<Record<string, unknown>, Record<string, unknown>>
+): AnyPropDefinition {
+	if (isPropSchemaBuilder(schemaOrBuilder)) {
 		const builder = schemaOrBuilder;
 		return {
-			schema: builder.schema as unknown as Schema.Schema<T>,
+			schema: builder.schema as PropValueSchema<unknown, unknown>,
 			required: true,
 			_tag: 'PropDefinition',
 		};
 	}
 	return {
-		schema: schemaOrBuilder,
+		schema: schemaOrBuilder as PropValueSchema<unknown, unknown>,
 		required: true,
 		_tag: 'PropDefinition',
 	};
 }
 
-function optional<T>(
-	schema: Schema.Schema<T>,
-	defaultValue?: T
-): PropDefinition<T | undefined>;
-function optional<T extends Record<string, unknown>>(
-	builder: PropSchemaBuilder<T>,
-	defaultValue?: T
-): PropDefinition<T | undefined>;
-function optional<T>(
+function optional<S extends AnyPropValueSchema>(
+	schema: S
+): PropDefinition<
+	PropValueOutput<S> | undefined,
+	PropValueInput<S> | undefined,
+	false
+>;
+function optional<S extends AnyPropValueSchema>(
+	schema: S,
+	defaultValue: PropValueOutput<S>
+): PropDefinition<PropValueOutput<S>, PropValueInput<S> | undefined, false>;
+function optional<
+	O extends Record<string, unknown>,
+	I extends Record<string, unknown>,
+>(
+	builder: PropSchemaBuilder<O, I>
+): PropDefinition<O | undefined, I | undefined, false>;
+function optional<
+	O extends Record<string, unknown>,
+	I extends Record<string, unknown>,
+>(
+	builder: PropSchemaBuilder<O, I>,
+	defaultValue: O
+): PropDefinition<O, I | undefined, false>;
+function optional(
 	schemaOrBuilder:
-		| Schema.Schema<T>
-		| PropSchemaBuilder<Record<string, unknown>>,
-	defaultValue?: T
-): PropDefinition<T | undefined> {
-	let baseSchema: Schema.Schema<T>;
+		| AnyPropValueSchema
+		| PropSchemaBuilder<Record<string, unknown>, Record<string, unknown>>,
+	defaultValue?: unknown
+): AnyPropDefinition {
+	let baseSchema: Schema.Schema<unknown, unknown>;
 
-	if (
-		Predicate.isObject(schemaOrBuilder) &&
-		Predicate.hasProperty(schemaOrBuilder, 'validate') &&
-		Predicate.hasProperty(schemaOrBuilder, 'schema')
-	) {
+	if (isPropSchemaBuilder(schemaOrBuilder)) {
 		const builder = schemaOrBuilder;
-		baseSchema = builder.schema as unknown as Schema.Schema<T>;
+		baseSchema = unwrapValueSchema(
+			builder.schema as PropValueSchema<unknown, unknown>
+		);
 	} else {
-		baseSchema = schemaOrBuilder;
+		baseSchema = unwrapValueSchema(
+			schemaOrBuilder as PropValueSchema<unknown, unknown>
+		);
 	}
 
 	const schema = (defaultValue !== undefined
 		? Schema.optional(baseSchema).pipe(
-				Schema.withDecodingDefault(
-					() => defaultValue as unknown as Exclude<T, undefined>
-				)
+				Schema.withDecodingDefault(() => defaultValue)
 			)
-		: Schema.optional(baseSchema)) as unknown as Schema.Schema<T | undefined>;
+		: Schema.optional(baseSchema)) as unknown as Schema.Schema<
+		unknown,
+		unknown
+	>;
 
 	return {
-		schema,
+		schema: wrapValueSchema(schema),
 		required: false,
 		defaultValue,
 		_tag: 'PropDefinition',
@@ -146,15 +241,15 @@ function optional<T>(
 }
 
 // Build property structure definition
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const struct = <const D extends Record<string, PropDefinition<any>>>(
+const struct = <const D extends Record<string, AnyPropDefinition>>(
 	definitions: D
-): PropSchemaBuilder<{ [K in keyof D]: ExtractPropType<D[K]> }> => {
-	type ResultType = { [K in keyof D]: ExtractPropType<D[K]> };
+): PropSchemaBuilder<SchemaOutput<D>, SchemaInput<D>> => {
+	type ResultType = SchemaOutput<D>;
+	type InputType = SchemaInput<D>;
 
 	const schemaFields: Record<string, Schema.Schema<unknown>> = {};
 	for (const [key, def] of Object.entries(definitions)) {
-		schemaFields[key] = def.schema;
+		schemaFields[key] = unwrapValueSchema(def.schema);
 	}
 	const compositeSchema = Schema.Struct(schemaFields);
 
@@ -221,29 +316,138 @@ const struct = <const D extends Record<string, PropDefinition<any>>>(
 
 	return {
 		_schema: definitions as {
-			[K in keyof ResultType]: PropDefinition<ResultType[K]>;
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any -- runtime definitions preserve schema-specific variance.
+			[K in keyof ResultType]: PropDefinition<any, any, boolean>;
 		},
-		schema: compositeSchema as unknown as Schema.Schema<ResultType>,
-		validate,
+		schema: wrapValueSchema(
+			compositeSchema as unknown as Schema.Schema<ResultType, InputType>
+		),
 		validateSync,
 	};
+};
+
+type LiteralValue = string | number | boolean | null | bigint;
+type ValueObjectOutput<D> = { [K in keyof D]: PropValueOutput<D[K]> };
+type ValueObjectInput<D> = { [K in keyof D]: PropValueInput<D[K]> };
+
+const stringSchema = wrapValueSchema(Schema.String);
+const numberSchema = wrapValueSchema(Schema.Number);
+const booleanSchema = wrapValueSchema(Schema.Boolean);
+const unknownSchema = wrapValueSchema(Schema.Unknown);
+// A multipart upload field: validates the value is a `File` and types it as one,
+// so a form-data contract can carry file uploads without hand-checking instances.
+// The jsonSchema annotation lets OpenAPI generation represent it as binary.
+const fileSchema = wrapValueSchema(
+	Schema.instanceOf(File).annotations({
+		jsonSchema: { type: 'string', format: 'binary' },
+	})
+);
+const numberFromStringSchema = wrapValueSchema(Schema.NumberFromString);
+const booleanFromStringSchema = wrapValueSchema(Schema.BooleanFromString);
+const dateFromStringSchema = wrapValueSchema(Schema.DateFromString);
+
+const literal = <const L extends readonly LiteralValue[]>(
+	...values: L
+): PropValueSchema<L[number]> =>
+	wrapValueSchema(Schema.Literal(...values) as Schema.Schema<L[number]>);
+
+const union = <const Members extends readonly AnyPropSchemaMember[]>(
+	...members: Members
+): PropValueSchema<
+	PropValueOutput<Members[number]>,
+	PropValueInput<Members[number]>
+> =>
+	wrapValueSchema(
+		Schema.Union(
+			...members.map((member) =>
+				unwrapValueSchema(normalizeSchemaMember(member))
+			)
+		) as Schema.Schema<
+			PropValueOutput<Members[number]>,
+			PropValueInput<Members[number]>
+		>
+	);
+
+const array = <S extends AnyPropSchemaMember>(
+	item: S
+): PropValueSchema<
+	readonly PropValueOutput<S>[],
+	readonly PropValueInput<S>[]
+> =>
+	wrapValueSchema(
+		Schema.Array(
+			unwrapValueSchema(normalizeSchemaMember(item))
+		) as Schema.Schema<
+			readonly PropValueOutput<S>[],
+			readonly PropValueInput<S>[]
+		>
+	);
+
+const object = <const D extends Record<string, AnyPropSchemaMember>>(
+	fields: D
+): PropValueSchema<ValueObjectOutput<D>, ValueObjectInput<D>> => {
+	const schemas = Object.fromEntries(
+		Object.entries(fields).map(([key, value]) => [
+			key,
+			unwrapValueSchema(normalizeSchemaMember(value)),
+		])
+	);
+	return wrapValueSchema(
+		Schema.Struct(schemas) as unknown as Schema.Schema<
+			ValueObjectOutput<D>,
+			ValueObjectInput<D>
+		>
+	);
 };
 
 export const PropSchema = {
 	required,
 	optional,
 	struct,
+	string: stringSchema,
+	number: numberSchema,
+	boolean: booleanSchema,
+	unknown: unknownSchema,
+	file: fileSchema,
+	numberFromString: numberFromStringSchema,
+	booleanFromString: booleanFromStringSchema,
+	dateFromString: dateFromStringSchema,
+	literal,
+	union,
+	array,
+	object,
 
-	String: Schema.String,
-	Number: Schema.Number,
-	Boolean: Schema.Boolean,
-	Literal: Schema.Literal,
-	Union: Schema.Union,
-	Array: Schema.Array,
-	Struct: Schema.Struct,
-	Unknown: Schema.Unknown,
-	Optional: Schema.optional,
+	// PascalCase aliases preserve the existing Effuse schema vocabulary.
+	String: stringSchema,
+	Number: numberSchema,
+	Boolean: booleanSchema,
+	Unknown: unknownSchema,
+	NumberFromString: numberFromStringSchema,
+	BooleanFromString: booleanFromStringSchema,
+	DateFromString: dateFromStringSchema,
+	Literal: literal,
+	Union: union,
+	Array: array,
+	Struct: object,
 };
 
-export type PropSchemaInfer<S> =
-	S extends PropSchemaBuilder<infer T> ? T : never;
+/**
+ * Produce a JSON Schema (draft-07) for a value schema or object-schema builder.
+ * Used by OpenAPI generation to describe request/response contracts;
+ * transformations (e.g. numberFromString) are described by their encoded/wire
+ * form. A builder (from `object`/`struct`) is unwrapped via its `.schema`.
+ */
+export const toJsonSchema = (
+	schema: PropValueSchema<unknown, unknown> | AnyPropSchemaBuilder
+): Record<string, unknown> => {
+	const valueSchema = normalizeSchemaMember(schema);
+	return JSONSchema.make(
+		unwrapValueSchema(valueSchema) as Schema.Schema<unknown, unknown>
+	) as unknown as Record<string, unknown>;
+};
+
+type PropSchemaParts<S> =
+	S extends PropSchemaBuilder<infer O, infer I> ? [O, I] : never;
+export type PropSchemaInfer<S> = PropSchemaParts<S>[0];
+export type PropSchemaOutput<S> = PropSchemaParts<S>[0];
+export type PropSchemaInput<S> = PropSchemaParts<S>[1];

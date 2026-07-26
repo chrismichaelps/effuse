@@ -27,6 +27,7 @@ export type { QueryCacheInternals, QueryHandlerDeps } from './types.js';
 export {
 	getEntry,
 	setEntry,
+	setEntryWithoutNotify,
 	removeEntry,
 	hasEntry,
 	clearCache,
@@ -37,8 +38,10 @@ export {
 
 export {
 	invalidateKey,
-	invalidatePattern,
 	invalidateAll,
+	invalidateWithFilters,
+	removeWithFilters,
+	notifyWithFilters,
 } from './invalidation.js';
 
 export { addSubscriber } from './subscriptions.js';

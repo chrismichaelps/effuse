@@ -71,7 +71,7 @@ export const validateStateAsync = <T>(
 			})),
 			Effect.timeoutFail({
 				duration: Duration.millis(timeoutMs),
-				onTimeout: () => new TimeoutError({ ms: timeoutMs }),
+				onTimeout: () => new TimeoutError(timeoutMs),
 			}),
 			Effect.catchAll((error) =>
 				Effect.succeed({

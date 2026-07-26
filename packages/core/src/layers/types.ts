@@ -24,11 +24,17 @@
 
 import type { Component } from '../render/node.js';
 import type { HeadProps } from '../ssr/types.js';
+import type { LayerServerErrorOptions } from '../ssr/server-errors.js';
+import type {
+	AnyServerValidator,
+	ServerValidationHelpers,
+} from '../ssr/validation.js';
+import type { AnyServerRequestContract } from '../ssr/request-contract.js';
 import type { Signal } from '../reactivity/signal.js';
 
 export type MaybePromise<T> = T | Promise<T>;
 
-export type CleanupFn = () => void;
+export type CleanupFn = () => MaybePromise<void>;
 
 export type SetupResult = CleanupFn | undefined;
 
@@ -67,7 +73,280 @@ export type LayerRestriction =
 
 export type LayerProps = Record<string, Signal<unknown>>;
 
-export type LayerProvides = Record<string, () => unknown>;
+export type LayerServiceFactory<T = unknown> = (
+	ctx: LayerServiceFactoryContext
+) => T;
+
+export type LayerProvides = Record<string, LayerServiceFactory>;
+
+export type HttpMethod =
+	| 'GET'
+	| 'POST'
+	| 'PUT'
+	| 'PATCH'
+	| 'DELETE'
+	| 'OPTIONS'
+	| 'HEAD';
+
+export type ServerResult =
+	| Response
+	| BodyInit
+	| Record<string, unknown>
+	| readonly unknown[]
+	| number
+	| boolean
+	| null
+	| undefined;
+
+export type ServerRuntimeHint = 'node' | 'edge' | 'bun' | 'workerd';
+
+export interface ServerCacheMetadata {
+	readonly cacheControl?: string;
+	readonly revalidate?: number | false;
+	readonly tags?: readonly string[];
+}
+
+export interface ServerCorsMetadata {
+	readonly credentials?: boolean;
+	readonly headers?: readonly string[];
+	readonly maxAge?: number;
+	readonly methods?: readonly HttpMethod[];
+	readonly origin?: boolean | string | readonly string[];
+}
+
+export type ServerRenderMode = 'ssr' | 'ssg' | 'isr' | 'stream';
+
+export type ServerFallback = 'blocking' | 'static' | false;
+
+export interface ServerRedirectMetadata {
+	readonly to: string;
+	readonly status?: number;
+}
+
+export type ServerPrerenderMetadata =
+	| boolean
+	| { readonly revalidate?: number };
+
+/**
+ * Declarative server policy for a route, action, layer, or the layers it extends
+ * and depends on. Policies compile down the hierarchy
+ * (parents -> dependencies -> layer -> route -> method) into one effective policy
+ * per endpoint; see `compileServerPolicy`. Each field has a fixed merge strategy
+ * declared in `ssr/policy-merge.ts` so overrides stay auditable.
+ */
+export interface ServerPolicy {
+	readonly cache?: ServerCacheMetadata;
+	readonly cors?: ServerCorsMetadata;
+	readonly maxDuration?: number;
+	readonly region?: string | readonly string[];
+	readonly runtime?: ServerRuntimeHint;
+	readonly headers?: Readonly<Record<string, string>>;
+	readonly status?: number;
+	readonly redirect?: ServerRedirectMetadata;
+	readonly renderMode?: ServerRenderMode;
+	readonly prerender?: ServerPrerenderMetadata;
+	readonly fallback?: ServerFallback;
+}
+
+/**
+ * @deprecated Use {@link ServerPolicy}. Retained as an alias for source and type
+ * compatibility while the policy vocabulary expands.
+ */
+export type ServerRouteMetadata = ServerPolicy;
+
+export type ServerLayerDiagnosticCode =
+	| 'metadata_conflict'
+	| 'server_file_ambiguous_route'
+	| 'server_file_contract_mismatch'
+	| 'server_file_duplicate_action'
+	| 'server_file_duplicate_route'
+	| 'server_file_invalid_action'
+	| 'server_file_invalid_method'
+	| 'server_file_invalid_route'
+	| 'server_file_path_mismatch';
+
+export type ServerPolicySourceKind =
+	| 'parent'
+	| 'dependency'
+	| 'layer'
+	| 'route'
+	| 'method';
+
+export interface ServerLayerDiagnostic {
+	readonly code: ServerLayerDiagnosticCode;
+	readonly filePath?: string;
+	readonly key: string;
+	readonly layer?: string;
+	readonly message: string;
+	readonly target: string;
+	/** The source whose value was overridden (loser). */
+	readonly from?: ServerPolicySourceKind;
+	/** The source that won the merge. */
+	readonly to?: ServerPolicySourceKind;
+}
+
+export interface ServerResponseHelpers {
+	json: <T>(data: T, init?: ResponseInit) => Response;
+	text: (body: string, init?: ResponseInit) => Response;
+	redirect: (url: string | URL, status?: number) => Response;
+	error: <Details = unknown>(
+		code: string,
+		message: string,
+		options?: LayerServerErrorOptions<Details>
+	) => Response;
+}
+
+/**
+ * Request-scoped locals bag. A fresh instance is created for every request, so
+ * writes never leak across concurrent requests. Augment it with declaration
+ * merging to type your own per-request values:
+ *
+ * ```ts
+ * declare module '@effuse/core' {
+ *   interface RequestLocals {
+ *     user: AuthenticatedUser;
+ *   }
+ * }
+ * ```
+ */
+export interface RequestLocals {
+	[key: string]: unknown;
+}
+
+/**
+ * A cleanup callback registered for the current request via `ctx.defer`. It runs
+ * once the request settles (success or error), in reverse registration order.
+ */
+export type RequestDisposer = () => void | Promise<void>;
+
+export interface ServerLayerContext<
+	S extends Record<string, unknown> = Record<string, unknown>,
+> {
+	readonly request: Request;
+	readonly url: URL;
+	readonly params: Record<string, string>;
+	readonly query: Record<string, string>;
+	readonly services: S;
+	readonly layerServices: Record<string, Record<string, unknown>>;
+	getService: <T = unknown>(key: string) => T | undefined;
+	json: <T = unknown>() => Promise<T>;
+	text: () => Promise<string>;
+	formData: () => Promise<FormData>;
+	readonly validate: ServerValidationHelpers;
+	readonly response: ServerResponseHelpers;
+	/**
+	 * Request-scoped mutable state, isolated per request. Use it to pass values
+	 * between middleware and the matched handler without ambient globals.
+	 */
+	readonly locals: RequestLocals;
+	/**
+	 * Registers a cleanup callback to run when the request settles, in reverse
+	 * registration order. Disposer errors are isolated and never affect the
+	 * response or other disposers.
+	 */
+	readonly defer: (disposer: RequestDisposer) => void;
+}
+
+export type ServerHandler<
+	S extends Record<string, unknown> = Record<string, unknown>,
+> = (ctx: ServerLayerContext<S>) => MaybePromise<ServerResult>;
+
+export type ServerMiddlewareNext = () => Promise<Response>;
+
+export type ServerMiddleware<
+	S extends Record<string, unknown> = Record<string, unknown>,
+> = (
+	ctx: ServerLayerContext<S>,
+	next: ServerMiddlewareNext
+	// `void` lets a middleware run `next()` purely for its side effects and
+	// return nothing; the downstream response is then propagated automatically.
+) => MaybePromise<ServerResult | void>;
+
+export type ServerMethodHandlers<
+	S extends Record<string, unknown> = Record<string, unknown>,
+> = Partial<Record<HttpMethod, ServerHandler<S>>>;
+
+/**
+ * Handler context for a route that declares a request contract. `input` holds the
+ * contract's validated output, so handlers read decoded values instead of raw
+ * strings and never re-validate by hand.
+ */
+export type ServerContractContext<
+	Input,
+	S extends Record<string, unknown> = Record<string, unknown>,
+> = ServerLayerContext<S> & { readonly input: Input };
+
+export type ServerContractHandler<
+	Input,
+	S extends Record<string, unknown> = Record<string, unknown>,
+> = (ctx: ServerContractContext<Input, S>) => MaybePromise<ServerResult>;
+
+export type ServerContractMethodHandlers<
+	Input,
+	S extends Record<string, unknown> = Record<string, unknown>,
+> = Partial<Record<HttpMethod, ServerContractHandler<Input, S>>>;
+
+export type ServerRouteDefinition<
+	S extends Record<string, unknown> = Record<string, unknown>,
+> = ServerMethodHandlers<S> & {
+	readonly handler?: ServerHandler<S>;
+	readonly metadata?: ServerRouteMetadata;
+	readonly methods?: ServerMethodHandlers<S>;
+	readonly middleware?: readonly ServerMiddleware<S>[];
+	/**
+	 * Request contract parsed after middleware and before the handler. Its output
+	 * is exposed to the handler as `ctx.input`; invalid input short-circuits with
+	 * a stable validation response and never reaches the handler.
+	 */
+	readonly request?: AnyServerRequestContract;
+	/**
+	 * Validates the handler's result before serialization. A mismatch fails closed
+	 * as a server-side contract violation rather than a client error.
+	 */
+	readonly response?: AnyServerValidator;
+};
+
+export interface ServerRoute<
+	S extends Record<string, unknown> = Record<string, unknown>,
+> {
+	readonly diagnostics?: readonly ServerLayerDiagnostic[];
+	readonly metadata?: ServerRouteMetadata;
+	readonly path: string;
+	readonly methods: ServerMethodHandlers<S>;
+	readonly middleware?: readonly ServerMiddleware<S>[];
+	readonly request?: AnyServerRequestContract;
+	readonly response?: AnyServerValidator;
+}
+
+export type ServerRouteInput<
+	S extends Record<string, unknown> = Record<string, unknown>,
+> = ServerHandler<S> | ServerRouteDefinition<S> | ServerRoute<S>;
+
+export interface ServerActionDefinition<
+	S extends Record<string, unknown> = Record<string, unknown>,
+> {
+	readonly diagnostics?: readonly ServerLayerDiagnostic[];
+	readonly handler: ServerHandler<S>;
+	readonly metadata?: ServerRouteMetadata;
+	readonly middleware?: readonly ServerMiddleware<S>[];
+}
+
+export type ServerActionInput<
+	S extends Record<string, unknown> = Record<string, unknown>,
+> = ServerHandler<S> | ServerActionDefinition<S>;
+
+export interface ServerLayerConfig<
+	S extends Record<string, unknown> = Record<string, unknown>,
+> {
+	readonly api?:
+		| Record<string, ServerRouteInput<S>>
+		| readonly ServerRoute<S>[];
+	readonly diagnostics?: readonly ServerLayerDiagnostic[];
+	readonly metadata?: ServerRouteMetadata;
+	readonly middleware?: readonly ServerMiddleware<S>[];
+	readonly routes?: readonly ServerRoute<S>[];
+	readonly actions?: Record<string, ServerActionInput<S>>;
+}
 
 export interface LayerDependency<P extends LayerProps = LayerProps> {
 	readonly name: string;
@@ -89,16 +368,25 @@ export interface SetupContext<
 	readonly store: S;
 	readonly deps: DepsRecord<D>;
 	get: (name: string) => LayerDependency;
-	getService: (key: string) => unknown;
+	getService: <T = unknown>(key: string) => T | undefined;
+	requireService: <T = unknown>(key: string) => T;
 	component: (name: string) => Component | undefined;
 	readonly layers: readonly ResolvedLayer[];
+}
+
+export interface LayerServiceFactoryContext<
+	P extends LayerProps = LayerProps,
+	D extends readonly string[] = readonly string[],
+	S = unknown,
+> extends SetupContext<P, D, S> {
+	readonly layer: string;
+	readonly serviceKey: string;
 }
 
 export type LayerSetupFn<
 	P extends LayerProps = LayerProps,
 	D extends readonly string[] = readonly string[],
 	S = unknown,
-	// eslint-disable-next-line @typescript-eslint/no-invalid-void-type -- void is valid for functions with no return
 > = (ctx: SetupContext<P, D, S>) => SetupResult | Promise<SetupResult> | void;
 
 export type LifecycleHook<
@@ -139,6 +427,8 @@ export interface EffuseLayer<
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any -- components may have various prop types
 	readonly components?: Record<string, Component<any>>;
 	readonly provides?: LayerProvides;
+	readonly services?: LayerProvides;
+	readonly server?: ServerLayerConfig;
 
 	readonly setup?: LayerSetupFn<P, D, S>;
 	readonly onMount?: LifecycleHook<P, D, S>;
@@ -179,20 +469,3 @@ export interface MergedConfig {
 export type AnyLayer = EffuseLayer<any, any, any>;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type AnyResolvedLayer = ResolvedLayer<any, any, any>;
-
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
-export interface EffuseLayerRegistry {}
-
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
-export interface EffuseServiceRegistry {}
-
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
-export interface EffuseComponentRegistry {}
-
-export type LayerPropsOf<K extends keyof EffuseLayerRegistry> =
-	EffuseLayerRegistry[K] extends { props: infer P extends LayerProps }
-		? P
-		: LayerProps;
-
-export type LayerProvidesOf<K extends keyof EffuseLayerRegistry> =
-	EffuseLayerRegistry[K] extends { provides: infer S } ? S : unknown;

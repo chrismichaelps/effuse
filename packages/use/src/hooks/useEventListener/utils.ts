@@ -24,31 +24,31 @@
 
 import { Option } from 'effect';
 
-export type EventTarget = Window | Document | HTMLElement | Element | null;
+export type SupportedEventTarget = globalThis.EventTarget | null;
 
 export const resolveTarget = (
-	target: EventTarget | (() => EventTarget)
-): Option.Option<Window | Document | HTMLElement | Element> => {
+	target: SupportedEventTarget | (() => SupportedEventTarget)
+): Option.Option<globalThis.EventTarget> => {
 	const resolved = typeof target === 'function' ? target() : target;
 	return resolved === null ? Option.none() : Option.some(resolved);
 };
 
 export const isEventTarget = (
 	target: unknown
-): target is Window | Document | HTMLElement | Element =>
+): target is globalThis.EventTarget =>
 	target !== null &&
 	target !== undefined &&
-	typeof (target as EventTarget & { addEventListener?: unknown })
+	typeof (target as { addEventListener?: unknown })
 		.addEventListener === 'function';
 
-export const getTargetName = (
-	target: Window | Document | HTMLElement | Element
-): string => {
-	if (target === window) return 'window';
-	if (target === document) return 'document';
+export const getTargetName = (target: globalThis.EventTarget): string => {
+	if (typeof window !== 'undefined' && target === window) return 'window';
+	if (typeof document !== 'undefined' && target === document) return 'document';
 	if ('tagName' in target && typeof target.tagName === 'string') {
-		const id = 'id' in target && target.id ? `#${target.id}` : '';
+		const id = 'id' in target && typeof target.id === 'string' && target.id
+			? `#${target.id}`
+			: '';
 		return `${target.tagName.toLowerCase()}${id}`;
 	}
-	return 'unknown';
+	return target.constructor.name || 'EventTarget';
 };

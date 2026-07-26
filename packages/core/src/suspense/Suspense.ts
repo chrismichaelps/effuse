@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-import { Predicate, Option } from 'effect';
+import { Predicate } from 'effect';
 import { define } from '../blueprint/index.js';
 import { computed } from '../reactivity/index.js';
 import { watchEffect } from '../effects/index.js';
@@ -57,51 +57,30 @@ export interface SuspenseContext {
 	readonly waitForAll: () => Promise<void>;
 }
 
-export interface SuspenseApi {
-	readonly createBoundary: () => SuspenseContext;
-	readonly getCurrentBoundary: () => Option.Option<SuspenseContext>;
-	readonly pushBoundary: (boundary: SuspenseContext) => void;
-	readonly popBoundary: () => void;
-}
-
 let boundaryIdCounter = 0;
 
 const generateBoundaryId = (prefix: string): string =>
 	`${prefix}${String(++boundaryIdCounter)}`;
 
-const boundaryStack: SuspenseContext[] = [];
+const createBoundary = (): SuspenseContext => {
+	const id = generateBoundaryId(BOUNDARY_ID_PREFIX);
+	const pendingResources = new Map<string, Promise<void>>();
 
-export const suspenseApi: SuspenseApi = {
-	createBoundary: (): SuspenseContext => {
-		const id = generateBoundaryId(BOUNDARY_ID_PREFIX);
-		const pendingResources = new Map<string, Promise<void>>();
-
-		return {
-			id,
-			pendingResources,
-			registerPending: (resourceId: string, promise: Promise<void>) => {
-				pendingResources.set(resourceId, promise);
-			},
-			unregisterPending: (resourceId: string) => {
-				pendingResources.delete(resourceId);
-			},
-			hasPending: () => pendingResources.size > 0,
-			waitForAll: async () => {
-				const promises = Array.from(pendingResources.values());
-				await Promise.all(promises);
-			},
-		};
-	},
-
-	getCurrentBoundary: () => Option.fromNullable(boundaryStack.at(-1)),
-
-	pushBoundary: (boundary: SuspenseContext) => {
-		boundaryStack.push(boundary);
-	},
-
-	popBoundary: () => {
-		boundaryStack.pop();
-	},
+	return {
+		id,
+		pendingResources,
+		registerPending: (resourceId: string, promise: Promise<void>) => {
+			pendingResources.set(resourceId, promise);
+		},
+		unregisterPending: (resourceId: string) => {
+			pendingResources.delete(resourceId);
+		},
+		hasPending: () => pendingResources.size > 0,
+		waitForAll: async () => {
+			const promises = Array.from(pendingResources.values());
+			await Promise.all(promises);
+		},
+	};
 };
 
 export interface SuspenseProps {
@@ -124,7 +103,7 @@ interface SuspenseExposed {
 
 export const Suspense = define<SuspenseProps, SuspenseExposed>({
 	script: ({ props, signal: createSignal }) => {
-		const boundary = suspenseApi.createBoundary();
+		const boundary = createBoundary();
 		const isPending = createSignal(true);
 		const shouldShowFallback = createSignal(true);
 		const resolvedChildren = createSignal<EffuseChild>(null);
@@ -168,7 +147,6 @@ export const Suspense = define<SuspenseProps, SuspenseExposed>({
 			children: EffuseChild | (() => EffuseChild),
 			_fallback: EffuseChild
 		): void => {
-			suspenseApi.pushBoundary(boundary);
 			try {
 				let childToRender = children;
 				if (Array.isArray(children) && children.length === 1) {
@@ -185,8 +163,6 @@ export const Suspense = define<SuspenseProps, SuspenseExposed>({
 				} else {
 					throw error;
 				}
-			} finally {
-				suspenseApi.popBoundary();
 			}
 		};
 

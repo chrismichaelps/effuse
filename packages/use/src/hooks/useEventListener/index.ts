@@ -26,7 +26,7 @@ import { Option } from 'effect';
 import { defineHook } from '@effuse/core';
 import { isClient } from '../../internal/utils.js';
 import { DEFAULT_LISTENER_OPTIONS } from './constants.js';
-import { resolveTarget, type EventTarget, getTargetName } from './utils.js';
+import { resolveTarget, getTargetName } from './utils.js';
 import {
 	traceEventListenerAdd,
 	traceEventListenerRemove,
@@ -36,12 +36,33 @@ import { type ListenerState, ListenerState as LS, isActive } from './state.js';
 export { ListenerState, isActive, isInactive, isError } from './state.js';
 export { EventListenerError } from './errors.js';
 
-export interface UseEventListenerConfig<E extends keyof WindowEventMap> {
-	readonly target?: EventTarget | (() => EventTarget);
+export type EventMapFor<T extends globalThis.EventTarget> =
+	T extends Window
+		? WindowEventMap
+		: T extends Document
+			? DocumentEventMap
+			: T extends HTMLElement
+				? HTMLElementEventMap
+				: T extends SVGElement
+					? SVGElementEventMap
+					: T extends MediaQueryList
+						? MediaQueryListEventMap
+						: Record<string, Event>;
+
+export type EventNameFor<T extends globalThis.EventTarget> = Extract<
+	keyof EventMapFor<T>,
+	string
+>;
+
+export interface UseEventListenerConfig<
+	T extends globalThis.EventTarget = Window,
+	E extends EventNameFor<T> = EventNameFor<T>,
+> {
+	readonly target?: T | null | (() => T | null);
 
 	readonly event: E;
 
-	readonly handler: (event: WindowEventMap[E]) => void;
+	readonly handler: (event: EventMapFor<T>[E]) => void;
 
 	readonly options?: AddEventListenerOptions;
 }
@@ -52,8 +73,18 @@ export interface UseEventListenerReturn {
 	readonly stop: () => void;
 }
 
-export const useEventListener = defineHook<
-	UseEventListenerConfig<keyof WindowEventMap>,
+interface InternalEventListenerConfig {
+	readonly target?:
+		| globalThis.EventTarget
+		| null
+		| (() => globalThis.EventTarget | null);
+	readonly event: string;
+	readonly handler: EventListener;
+	readonly options?: AddEventListenerOptions;
+}
+
+const useEventListenerHook = defineHook<
+	InternalEventListenerConfig,
 	UseEventListenerReturn
 >({
 	name: 'useEventListener',
@@ -70,11 +101,15 @@ export const useEventListener = defineHook<
 
 		let isStopped = false;
 
-		const stop = (): void => {
-			isStopped = true;
+		const detach = (): void => {
 			cleanup?.();
 			cleanup = null;
 			internalState.value = LS.Inactive();
+		};
+
+		const stop = (): void => {
+			isStopped = true;
+			detach();
 		};
 
 		ctx.watchEffect(() => {
@@ -91,19 +126,17 @@ export const useEventListener = defineHook<
 				onSome: (el) => {
 					const targetName = getTargetName(el);
 					traceEventListenerAdd(event, targetName);
-					el.addEventListener(event, handler as EventListener, options);
+					el.addEventListener(event, handler, options);
 					internalState.value = LS.Active({ eventName: event });
 
 					cleanup = () => {
 						traceEventListenerRemove(event, targetName);
-						el.removeEventListener(event, handler as EventListener, options);
+						el.removeEventListener(event, handler, options);
 					};
 				},
 			});
 
-			return () => {
-				stop();
-			};
+			return detach;
 		});
 
 		return {
@@ -114,3 +147,8 @@ export const useEventListener = defineHook<
 		};
 	},
 });
+
+export const useEventListener = useEventListenerHook as <
+	T extends globalThis.EventTarget = Window,
+	E extends EventNameFor<T> = EventNameFor<T>,
+>(config: UseEventListenerConfig<T, E>) => UseEventListenerReturn;

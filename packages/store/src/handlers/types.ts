@@ -41,7 +41,7 @@ export interface StoreInternals {
 		(s: Record<string, unknown>) => unknown,
 		Signal<unknown>
 	>;
-	isBatching: boolean;
+	batchDepth: number;
 	cancellationScope: CancellationScope;
 	pendingActions: Map<string, CancellationToken>;
 }

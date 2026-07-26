@@ -23,7 +23,7 @@
  */
 
 export { useQuery } from './useQuery.js';
-export type { UseQueryResult, FetchStatus, QueryStatus } from './useQuery.js';
+export type { UseQueryResult, QueryStatus } from './useQuery.js';
 
 export { useMutation, useOptimisticMutation } from './useMutation.js';
 export type {
@@ -31,6 +31,8 @@ export type {
 	MutationStatus,
 	MutateOptions,
 	OptimisticMutationOptions,
+	OptimisticMutationHookOptions,
+	OptimisticQueryConfig,
 } from './useMutation.js';
 
 export { useQueries, useCombinedQueries } from './useQueries.js';
@@ -45,7 +47,6 @@ export type {
 	InfiniteQueryOptions,
 	UseInfiniteQueryResult,
 	InfiniteData,
-	InfiniteQueryPage,
 } from './useInfiniteQuery.js';
 
 export {
@@ -56,3 +57,6 @@ export {
 	usePrefetch,
 } from './usePrefetch.js';
 export type { PrefetchOptions } from './usePrefetch.js';
+
+export { useIsFetching } from './useIsFetching.js';
+export { useIsMutating } from './useIsMutating.js';

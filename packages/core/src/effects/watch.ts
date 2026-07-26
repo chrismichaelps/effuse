@@ -119,7 +119,7 @@ export function watch<T>(
 	const once = getOnceOption(options);
 	const getter = createGetter(source, deep);
 
-	const handle = watchEffect(
+	const effectHandle = watchEffect(
 		() => {
 			const newValue = getter();
 
@@ -146,6 +146,14 @@ export function watch<T>(
 		{ ...options, immediate: true }
 	);
 
+	const handle: EffectHandle = {
+		stop: () => {
+			cleanup.run();
+			effectHandle.stop();
+		},
+		pause: effectHandle.pause,
+		resume: effectHandle.resume,
+	};
 	return handle;
 }
 
@@ -218,7 +226,7 @@ export const watchMultiple = <T extends readonly WatchSource<unknown>[]>(
 	let hasRun = false;
 	const cleanup = createCleanupRunner();
 
-	const handle = watchEffect(
+	const effectHandle = watchEffect(
 		() => {
 			const newValues = Arr.map(getters, (getter) => getter());
 
@@ -258,5 +266,13 @@ export const watchMultiple = <T extends readonly WatchSource<unknown>[]>(
 		{ ...options, immediate: true }
 	);
 
+	const handle: EffectHandle = {
+		stop: () => {
+			cleanup.run();
+			effectHandle.stop();
+		},
+		pause: effectHandle.pause,
+		resume: effectHandle.resume,
+	};
 	return handle;
 };

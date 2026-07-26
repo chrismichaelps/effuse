@@ -29,37 +29,68 @@ export const ROUTER_KEY = Symbol.for('effuse.router');
 export const ROUTE_KEY = Symbol.for('effuse.route');
 export const DEPTH_KEY = Symbol.for('effuse.router.depth');
 
-const contextMap = new Map<symbol, unknown>();
+interface RouterContextInstallation {
+	readonly router: object;
+	readonly route: Signal<Route>;
+}
+interface RouterContextRuntimeState {
+	readonly contextMap: Map<symbol, unknown>;
+	globalRouteSignal: Signal<Route> | null;
+	readonly routerRouteSignals: WeakMap<object, Signal<Route>>;
+	readonly installations: RouterContextInstallation[];
+	base: {
+		readonly router: unknown;
+		readonly route: unknown;
+		readonly globalRouteSignal: Signal<Route> | null;
+	} | null;
+}
 
-let globalRouteSignal: Signal<Route> | null = null;
+const ROUTER_CONTEXT_RUNTIME_KEY = Symbol.for(
+	'effuse.router.context-runtime.v1'
+);
+const routerContextRuntime = (() => {
+	const shared = globalThis as Record<PropertyKey, unknown>;
+	const existing = shared[ROUTER_CONTEXT_RUNTIME_KEY] as
+		| RouterContextRuntimeState
+		| undefined;
+	if (existing) return existing;
+	const created: RouterContextRuntimeState = {
+		contextMap: new Map(),
+		globalRouteSignal: null,
+		routerRouteSignals: new WeakMap(),
+		installations: [],
+		base: null,
+	};
+	Object.defineProperty(shared, ROUTER_CONTEXT_RUNTIME_KEY, { value: created });
+	return created;
+})();
 
 // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters
 export const provide = <T>(key: symbol, value: T): void => {
-	contextMap.set(key, value);
+	routerContextRuntime.contextMap.set(key, value);
 };
 
 // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters
 export const inject = <T>(key: symbol): T | undefined => {
-	return contextMap.get(key) as T | undefined;
+	return routerContextRuntime.contextMap.get(key) as T | undefined;
 };
 
 export const injectWithDefault = <T>(key: symbol, defaultValue: T): T => {
-	const value = contextMap.get(key);
+	const value = routerContextRuntime.contextMap.get(key);
 	return (value !== undefined ? value : defaultValue) as T;
 };
 
 export const clearContext = (): void => {
-	contextMap.clear();
-	globalRouteSignal = null;
+	routerContextRuntime.contextMap.clear();
+	routerContextRuntime.globalRouteSignal = null;
+	routerContextRuntime.installations.length = 0;
+	routerContextRuntime.base = null;
 };
 
 export const injectRouter = (): unknown => inject(ROUTER_KEY);
 
 export const injectRoute = (): Signal<Route> | undefined =>
 	inject<Signal<Route>>(ROUTE_KEY);
-
-export const injectDepth = (): number =>
-	injectWithDefault<number>(DEPTH_KEY, 0);
 
 export const provideRouter = (router: unknown): void => {
 	provide(ROUTER_KEY, router);
@@ -69,20 +100,74 @@ export const provideRoute = (route: Signal<Route>): void => {
 	provide(ROUTE_KEY, route);
 };
 
-export const provideDepth = (depth: number): void => {
-	provide(DEPTH_KEY, depth);
+export const createRouteSignal = (
+	router: object,
+	initialRoute: Route
+): Signal<Route> => {
+	const sig = signal<Route>(initialRoute);
+	routerContextRuntime.routerRouteSignals.set(router, sig);
+	provideRoute(sig);
+	routerContextRuntime.globalRouteSignal = sig;
+	return sig;
 };
 
-export const createRouteSignal = (initialRoute: Route): Signal<Route> => {
-	globalRouteSignal = signal<Route>(initialRoute);
-	provideRoute(globalRouteSignal);
-	return globalRouteSignal;
+export const installRouterContext = (
+	router: object,
+	initialRoute: Route
+): (() => void) => {
+	if (routerContextRuntime.installations.length === 0) {
+		routerContextRuntime.base = {
+			router: routerContextRuntime.contextMap.get(ROUTER_KEY),
+			route: routerContextRuntime.contextMap.get(ROUTE_KEY),
+			globalRouteSignal: routerContextRuntime.globalRouteSignal,
+		};
+	}
+	provideRouter(router);
+	const route = createRouteSignal(router, initialRoute);
+	const installation = { router, route };
+	routerContextRuntime.installations.push(installation);
+
+	let removed = false;
+	return () => {
+		if (removed) return;
+		removed = true;
+		const index = routerContextRuntime.installations.indexOf(installation);
+		if (index >= 0) routerContextRuntime.installations.splice(index, 1);
+		routerContextRuntime.routerRouteSignals.delete(router);
+		const active = routerContextRuntime.installations.at(-1);
+		if (active) {
+			routerContextRuntime.routerRouteSignals.set(active.router, active.route);
+			routerContextRuntime.contextMap.set(ROUTER_KEY, active.router);
+			routerContextRuntime.contextMap.set(ROUTE_KEY, active.route);
+			routerContextRuntime.globalRouteSignal = active.route;
+			return;
+		}
+		const base = routerContextRuntime.base;
+		if (base?.router === undefined)
+			routerContextRuntime.contextMap.delete(ROUTER_KEY);
+		else routerContextRuntime.contextMap.set(ROUTER_KEY, base.router);
+		if (base?.route === undefined)
+			routerContextRuntime.contextMap.delete(ROUTE_KEY);
+		else routerContextRuntime.contextMap.set(ROUTE_KEY, base.route);
+		routerContextRuntime.globalRouteSignal = base?.globalRouteSignal ?? null;
+		routerContextRuntime.base = null;
+	};
 };
 
-export const getRouteSignal = (): Signal<Route> | null => globalRouteSignal;
+export const getRouteSignal = (): Signal<Route> | null => {
+	const router = injectRouter();
+	if (router && typeof router === 'object') {
+		const scoped = routerContextRuntime.routerRouteSignals.get(router);
+		if (scoped) return scoped;
+	}
+	return routerContextRuntime.globalRouteSignal;
+};
 
-export const updateRouteSignal = (route: Route): void => {
-	if (globalRouteSignal) {
-		globalRouteSignal.value = route;
+export const updateRouteSignal = (router: object, route: Route): void => {
+	const scoped = routerContextRuntime.routerRouteSignals.get(router);
+	if (scoped) {
+		scoped.value = route;
+	} else if (routerContextRuntime.globalRouteSignal) {
+		routerContextRuntime.globalRouteSignal.value = route;
 	}
 };

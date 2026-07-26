@@ -22,29 +22,18 @@
  * SOFTWARE.
  */
 
-import { Effect, Fiber, Duration, Exit, Predicate, Option, pipe } from 'effect';
-import { signal, type Signal } from '@effuse/core';
+import { Effect } from 'effect';
+import { signal, computed, type Signal, type ReadonlySignal } from '@effuse/core';
 import {
-	getGlobalQueryClient,
+	useQueryClient,
 	type QueryOptions,
-	type CacheEntry,
+	type FetchStatus,
 } from '../client/index.js';
-import {
-	buildRetrySchedule,
-	buildRefetchSchedule,
-	type RetryConfig,
-} from '../execution/index.js';
-import { executeQuery } from '../request/index.js';
-import { DEFAULT_STALE_TIME_MS, DEFAULT_TIMEOUT_MS } from '../config/index.js';
-import { TimeoutError } from '../errors/index.js';
+import { QueryObserver } from '../core/index.js';
+import type { QueryFunction as CoreQueryFunction } from '../core/types.js';
 
-// Network request status
-export type FetchStatus = 'idle' | 'fetching' | 'paused';
-
-// Query result status
 export type QueryStatus = 'pending' | 'success' | 'error';
 
-// Query result data and state
 export interface UseQueryResult<T> {
 	readonly data: Signal<T | undefined>;
 	readonly error: Signal<Error | undefined>;
@@ -52,13 +41,13 @@ export interface UseQueryResult<T> {
 	readonly status: Signal<QueryStatus>;
 	readonly fetchStatus: Signal<FetchStatus>;
 
-	readonly isPending: Signal<boolean>;
-	readonly isLoading: Signal<boolean>;
-	readonly isSuccess: Signal<boolean>;
-	readonly isError: Signal<boolean>;
-	readonly isFetching: Signal<boolean>;
+	readonly isPending: ReadonlySignal<boolean>;
+	readonly isLoading: ReadonlySignal<boolean>;
+	readonly isSuccess: ReadonlySignal<boolean>;
+	readonly isError: ReadonlySignal<boolean>;
+	readonly isFetching: ReadonlySignal<boolean>;
 	readonly isStale: Signal<boolean>;
-	readonly isRefetching: Signal<boolean>;
+	readonly isRefetching: ReadonlySignal<boolean>;
 	readonly isPlaceholderData: Signal<boolean>;
 
 	readonly dataUpdatedAt: Signal<number | undefined>;
@@ -66,34 +55,42 @@ export interface UseQueryResult<T> {
 
 	readonly refetch: () => Promise<void>;
 	readonly cancel: () => void;
+	readonly dispose: () => void;
 
 	readonly failureCount: Signal<number>;
 	readonly failureReason: Signal<Error | undefined>;
 }
 
-const normalizeRetryConfig = (
-	retry: RetryConfig | number | boolean | undefined
-): RetryConfig | undefined => {
-	if (retry === false) return { times: 0 };
-	if (retry === true) return undefined;
-	if (typeof retry === 'number') return { times: retry };
-	return retry;
+const wrapQueryFn = <T>(
+	queryFn: () => Promise<T> | Effect.Effect<T, Error, never>
+): CoreQueryFunction<T> => {
+	return ({ signal }: { signal: AbortSignal }) => {
+		const result = queryFn();
+
+		if (Effect.isEffect(result)) {
+			// For Effect, run it and return the promise
+			return Effect.runPromise(result).catch((error) => {
+				if (signal.aborted) {
+					throw new Error('Query was cancelled');
+				}
+				throw error;
+			});
+		}
+
+		return result;
+	};
 };
 
-const structuralEquals = <T>(a: T, b: T): boolean => {
-	return JSON.stringify(a) === JSON.stringify(b);
-};
-
-// Reactive query hook
 export const useQuery = <TData>(
 	options: QueryOptions<TData>
 ): UseQueryResult<TData> => {
 	const {
 		queryKey,
 		queryFn,
-		staleTime = DEFAULT_STALE_TIME_MS,
+		staleTime,
+		cacheTime,
 		retry,
-		timeout = DEFAULT_TIMEOUT_MS,
+		timeout,
 		enabled = true,
 		refetchOnWindowFocus = true,
 		refetchOnReconnect = true,
@@ -103,266 +100,175 @@ export const useQuery = <TData>(
 		onSettled,
 		select,
 		placeholderData,
+		initialData,
 	} = options;
 
-	const client = getGlobalQueryClient();
+	const client = options.client ?? useQueryClient();
 
+	// Signals mirroring the observer result
 	const dataSignal = signal<TData | undefined>(undefined);
 	const errorSignal = signal<Error | undefined>(undefined);
 	const statusSignal = signal<QueryStatus>('pending');
 	const fetchStatusSignal = signal<FetchStatus>('idle');
-
-	const isPendingSignal = signal<boolean>(true);
-	const isLoadingSignal = signal<boolean>(true);
-	const isSuccessSignal = signal<boolean>(false);
-	const isErrorSignal = signal<boolean>(false);
-	const isFetchingSignal = signal<boolean>(false);
 	const isStaleSignal = signal<boolean>(true);
-	const isRefetchingSignal = signal<boolean>(false);
 	const isPlaceholderDataSignal = signal<boolean>(false);
-
 	const dataUpdatedAtSignal = signal<number | undefined>(undefined);
 	const errorUpdatedAtSignal = signal<number | undefined>(undefined);
-
 	const failureCountSignal = signal<number>(0);
 	const failureReasonSignal = signal<Error | undefined>(undefined);
 
-	let activeFiber: Fiber.RuntimeFiber<unknown, unknown> | null = null;
-	let refetchIntervalFiber: Fiber.RuntimeFiber<unknown, unknown> | null = null;
-	let isInternalUpdate = false;
+	// Derived state
+	const isPendingSignal = computed(() => statusSignal.value === 'pending');
+	const isLoadingSignal = computed(
+		() => statusSignal.value === 'pending' && fetchStatusSignal.value === 'fetching'
+	);
+	const isSuccessSignal = computed(() => statusSignal.value === 'success');
+	const isErrorSignal = computed(() => statusSignal.value === 'error');
+	const isFetchingSignal = computed(() => fetchStatusSignal.value === 'fetching');
+	const isRefetchingSignal = computed(
+		() => dataSignal.value !== undefined && fetchStatusSignal.value === 'fetching'
+	);
 
-	const updateDerivedState = (): void => {
-		const status = statusSignal.value;
-		const fetchStatus = fetchStatusSignal.value;
-		const hasData = dataSignal.value !== undefined;
+	// Get or create the query
+	const query = client.getQuery<TData, Error>({
+		queryKey,
+		queryFn: wrapQueryFn(queryFn),
+		...(staleTime !== undefined && { staleTime }),
+		...(cacheTime !== undefined && { gcTime: cacheTime }),
+		...(retry !== undefined && { retry }),
+		...(timeout !== undefined && { timeout }),
+	});
 
-		isPendingSignal.value = status === 'pending';
-		isLoadingSignal.value = status === 'pending' && fetchStatus === 'fetching';
-		isSuccessSignal.value = status === 'success';
-		isErrorSignal.value = status === 'error';
-		isFetchingSignal.value = fetchStatus === 'fetching';
-		isRefetchingSignal.value = hasData && fetchStatus === 'fetching';
-		isStaleSignal.value = client.isStale(queryKey, staleTime);
-	};
+	// Create the observer
+	const observer = new QueryObserver(query, {
+		queryKey,
+		queryFn: wrapQueryFn(queryFn),
+		...(staleTime !== undefined && { staleTime }),
+		...(cacheTime !== undefined && { gcTime: cacheTime }),
+		...(retry !== undefined && { retry }),
+		...(timeout !== undefined && { timeout }),
+		enabled,
+		...(select !== undefined && { select }),
+		...(placeholderData !== undefined && { placeholderData }),
+		...(initialData !== undefined && { initialData }),
+		refetchOnWindowFocus,
+		refetchOnReconnect,
+		...(refetchInterval !== false && { refetchInterval }),
+	});
 
-	const buildFetchEffect = (): Effect.Effect<TData, Error, never> => {
-		const retryConfig = normalizeRetryConfig(retry);
-		const schedule = buildRetrySchedule(retryConfig);
+	// Sync signals from observer result
+	const syncResult = (result: ReturnType<typeof observer.getCurrentResult>): void => {
+		dataSignal.value = result.data as TData | undefined;
+		errorSignal.value = result.error ?? undefined;
+		statusSignal.value = result.status;
+		fetchStatusSignal.value = result.fetchStatus;
+		isStaleSignal.value = result.isStale;
+		isPlaceholderDataSignal.value = result.isPlaceholderData;
+		dataUpdatedAtSignal.value = result.dataUpdatedAt || undefined;
+		errorUpdatedAtSignal.value = result.errorUpdatedAt || undefined;
 
-		let effect: Effect.Effect<TData, Error, never> = executeQuery(
-			queryKey,
-			queryFn
-		);
+		if (result.isError && result.error) {
+			failureCountSignal.value += 1;
+			failureReasonSignal.value = result.error;
+		} else if (result.isSuccess) {
+			failureCountSignal.value = 0;
+			failureReasonSignal.value = undefined;
+		}
 
-		effect = effect.pipe(
-			Effect.timeoutFail({
-				duration: Duration.millis(timeout),
-				onTimeout: () => new TimeoutError({ durationMs: timeout }),
-			})
-		);
-
-		if (!Predicate.isNotNullable(retryConfig) || retryConfig.times !== 0) {
-			effect = effect.pipe(
-				Effect.retry(schedule),
-				Effect.tapError((error) =>
-					Effect.sync(() => {
-						failureCountSignal.value += 1;
-						failureReasonSignal.value = error;
-					})
-				)
+		if (result.isSuccess && onSuccess) {
+			onSuccess(result.data as TData);
+		}
+		if (result.isError && onError && result.error) {
+			onError(result.error);
+		}
+		if (onSettled) {
+			onSettled(
+				result.isSuccess ? (result.data as TData) : undefined,
+				result.isError ? result.error : undefined
 			);
 		}
-
-		if (select) {
-			effect = effect.pipe(Effect.map(select));
-		}
-
-		return effect;
 	};
 
-	const executeFetch = async (): Promise<void> => {
-		if (activeFiber) {
-			Effect.runFork(Fiber.interrupt(activeFiber));
-			activeFiber = null;
-		}
+	// Initial sync
+	syncResult(observer.getCurrentResult());
 
-		fetchStatusSignal.value = 'fetching';
-		updateDerivedState();
+	// Subscribe to changes
+	const unsubscribe = observer.subscribe((result) => {
+		syncResult(result);
+	});
 
-		const effect = buildFetchEffect();
+	// Refetch if stale and enabled
+	if (enabled && query.isStale) {
+		query.fetch().catch(() => {
+			// Errors are handled by the observer
+		});
+	}
 
-		const fiber = Effect.runFork(
-			effect.pipe(
-				Effect.tap((data) =>
-					Effect.sync(() => {
-						const shouldUpdate =
-							!dataSignal.value ||
-							!structuralEquals(dataSignal.value as TData, data as TData);
+	// Window focus refetch
+	const cleanupFns: Array<() => void> = [unsubscribe];
 
-						if (shouldUpdate) {
-							const entry: CacheEntry<TData> = {
-								data,
-								dataUpdatedAt: Date.now(),
-								status: 'success',
-								fetchCount:
-									pipe(
-										Option.fromNullable(client.get<TData>(queryKey)),
-										Option.flatMap((e) => Option.fromNullable(e.fetchCount)),
-										Option.getOrElse(() => 0)
-									) + 1,
-							};
-							isInternalUpdate = true;
-							client.set(queryKey, entry);
-							isInternalUpdate = false;
-							dataSignal.value = data;
-						}
+	if (refetchOnWindowFocus && typeof window !== 'undefined') {
+		const handleFocus = (): void => {
+			if (enabled && query.isStale) {
+				query.fetch().catch(() => {
+					// Errors handled by observer
+				});
+			}
+		};
+		window.addEventListener('focus', handleFocus);
+		cleanupFns.push(() => window.removeEventListener('focus', handleFocus));
+	}
 
-						errorSignal.value = undefined;
-						statusSignal.value = 'success';
-						fetchStatusSignal.value = 'idle';
-						dataUpdatedAtSignal.value = Date.now();
-						isPlaceholderDataSignal.value = false;
-						failureCountSignal.value = 0;
-						failureReasonSignal.value = undefined;
-						updateDerivedState();
+	// Reconnect refetch
+	if (refetchOnReconnect && typeof window !== 'undefined') {
+		const handleOnline = (): void => {
+			if (enabled && query.isStale) {
+				query.fetch().catch(() => {
+					// Errors handled by observer
+				});
+			}
+		};
+		window.addEventListener('online', handleOnline);
+		cleanupFns.push(() => window.removeEventListener('online', handleOnline));
+	}
 
-						if (Predicate.isNotNullable(onSuccess)) {
-							onSuccess(data);
-						}
-						if (Predicate.isNotNullable(onSettled)) {
-							onSettled(data, undefined);
-						}
-					})
-				),
-				Effect.catchAll((error: Error) =>
-					Effect.sync(() => {
-						const entry: CacheEntry<TData> = {
-							data: dataSignal.value as TData,
-							dataUpdatedAt: Date.now(),
-							status: 'error',
-							error,
-							fetchCount:
-								pipe(
-									Option.fromNullable(client.get<TData>(queryKey)),
-									Option.flatMap((e) => Option.fromNullable(e.fetchCount)),
-									Option.getOrElse(() => 0)
-								) + 1,
-						};
-						isInternalUpdate = true;
-						client.set(queryKey, entry);
-						isInternalUpdate = false;
-
-						errorSignal.value = error;
-						statusSignal.value = 'error';
-						fetchStatusSignal.value = 'idle';
-						errorUpdatedAtSignal.value = Date.now();
-						updateDerivedState();
-
-						if (Predicate.isNotNullable(onError)) {
-							onError(error);
-						}
-						if (Predicate.isNotNullable(onSettled)) {
-							onSettled(undefined, error);
-						}
-					})
-				),
-				Effect.scoped
-			)
-		);
-
-		activeFiber = fiber;
-
-		const exit = await Effect.runPromiseExit(Fiber.join(fiber));
-		if (Exit.isFailure(exit)) {
-			fetchStatusSignal.value = 'idle';
-			updateDerivedState();
-		}
-	};
+	// Refetch interval
+	let intervalId: ReturnType<typeof setInterval> | null = null;
+	if (refetchInterval !== false && refetchInterval > 0) {
+		intervalId = setInterval(() => {
+			if (enabled) {
+				query.fetch().catch(() => {
+					// Errors handled by observer
+				});
+			}
+		}, refetchInterval);
+		cleanupFns.push(() => {
+			if (intervalId) {
+				clearInterval(intervalId);
+				intervalId = null;
+			}
+		});
+	}
 
 	const cancel = (): void => {
-		if (activeFiber) {
-			Effect.runFork(Fiber.interrupt(activeFiber));
-			activeFiber = null;
+		query.cancel();
+	};
+
+	const dispose = (): void => {
+		observer.destroy();
+		for (const fn of cleanupFns) {
+			fn();
 		}
-		if (refetchIntervalFiber) {
-			Effect.runFork(Fiber.interrupt(refetchIntervalFiber));
-			refetchIntervalFiber = null;
+		if (intervalId) {
+			clearInterval(intervalId);
+			intervalId = null;
 		}
-		fetchStatusSignal.value = 'idle';
-		updateDerivedState();
 	};
 
 	const refetch = async (): Promise<void> => {
 		if (!enabled) return;
-		await executeFetch();
+		await query.fetch();
 	};
-
-	const cached = client.get<TData>(queryKey);
-	if (cached) {
-		dataSignal.value = cached.data;
-
-		if (cached.status === 'success') {
-			statusSignal.value = 'success';
-		} else if (cached.status === 'error') {
-			statusSignal.value = 'error';
-		} else {
-			statusSignal.value = 'pending';
-		}
-		dataUpdatedAtSignal.value = cached.dataUpdatedAt;
-		if (cached.error) {
-			errorSignal.value = cached.error as Error;
-		}
-		updateDerivedState();
-	} else if (placeholderData !== undefined) {
-		const placeholder =
-			typeof placeholderData === 'function'
-				? (placeholderData as () => TData)()
-				: placeholderData;
-		dataSignal.value = placeholder;
-		isPlaceholderDataSignal.value = true;
-	}
-
-	client.subscribe(queryKey, () => {
-		if (isInternalUpdate) return;
-		isStaleSignal.value = true;
-		if (enabled) {
-			executeFetch();
-		}
-	});
-
-	if (refetchOnWindowFocus && typeof window !== 'undefined') {
-		const handleFocus = (): void => {
-			if (enabled && client.isStale(queryKey, staleTime)) {
-				executeFetch();
-			}
-		};
-		window.addEventListener('focus', handleFocus);
-	}
-
-	if (refetchOnReconnect && typeof window !== 'undefined') {
-		const handleOnline = (): void => {
-			if (enabled && client.isStale(queryKey, staleTime)) {
-				executeFetch();
-			}
-		};
-		window.addEventListener('online', handleOnline);
-	}
-
-	if (refetchInterval !== false && refetchInterval > 0) {
-		const intervalEffect = Effect.repeat(
-			Effect.sync(() => {
-				if (enabled) {
-					executeFetch();
-				}
-			}),
-			buildRefetchSchedule(refetchInterval)
-		);
-		refetchIntervalFiber = Effect.runFork(intervalEffect);
-	}
-
-	if (enabled && client.isStale(queryKey, staleTime)) {
-		executeFetch();
-	}
 
 	return {
 		data: dataSignal,
@@ -383,5 +289,6 @@ export const useQuery = <TData>(
 		failureReason: failureReasonSignal,
 		refetch,
 		cancel,
+		dispose,
 	};
 };

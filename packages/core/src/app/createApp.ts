@@ -24,7 +24,11 @@
 
 import type { Component } from '../render/node.js';
 import { EffuseApp } from './EffuseApp.js';
+import type { AppOptions } from './BaseEffuseApp.js';
 
-export const createApp = (root: Component): EffuseApp => {
-	return new EffuseApp(root);
+export const createApp = (
+	root: Component,
+	options: AppOptions = {}
+): EffuseApp => {
+	return new EffuseApp(root, options);
 };

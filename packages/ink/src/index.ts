@@ -33,8 +33,10 @@ export {
 	transformDocument,
 	type InkComponents,
 	type ComponentMap,
+	sanitizeUrl,
+	type SanitizeUrlOptions,
 } from './renderer/index.js';
-export { InkLayer, injectInkStyles } from './styles/index.js';
+export { InkLayer, injectInkStyles, inkProseStyles } from './styles/index.js';
 
 export type {
 	MarkdownNode,

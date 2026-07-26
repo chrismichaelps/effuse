@@ -23,23 +23,36 @@
  */
 
 export {
-	setGlobalQueryClient,
-	getGlobalQueryClient,
 	createQueryClient,
-	invalidateQuery,
-	invalidateQueries,
-	invalidateAllQueries,
-	invalidateQueryAsync,
-	invalidateQueriesAsync,
-	invalidateAllAsync,
+	type QueryClientApi,
 } from './client.js';
+
+export {
+	QueryClientSymbol,
+	provideQueryClient,
+	useQueryClient,
+	useQueryClientStrict,
+} from './provider.js';
+
+export { QueryClientProvider } from './QueryClientProvider.js';
+export type { QueryClientProviderProps } from './QueryClientProvider.js';
 
 export {
 	type QueryKey,
 	type QueryStatus,
+	type FetchStatus,
+	type QueryFunction,
 	type CacheEntry,
 	type QueryOptions,
 	type MutationOptions,
-	type QueryState,
-	type MutationState,
+	type QueryFilters,
+	type QueryInfo,
+	type QueryCacheSnapshot,
 } from './types.js';
+
+export {
+	queryOptions,
+	keepPreviousData,
+	type DefinedInitialDataOptions,
+	type UndefinedInitialDataOptions,
+} from './query-options.js';

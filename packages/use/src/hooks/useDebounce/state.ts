@@ -23,17 +23,52 @@
  */
 
 import { Data } from 'effect';
+import type {
+	TaggedHandlers,
+	TaggedUnion,
+	TaggedVariant,
+} from '../../internal/tagged.js';
 
-export type DebounceState<T> = Data.TaggedEnum<{
+type DebounceStateCases<T> = {
 	readonly Idle: { readonly value: T };
 	readonly Pending: { readonly value: T; readonly pendingValue: T };
-}>;
+};
+
+export type DebounceState<T> = TaggedUnion<DebounceStateCases<T>>;
 
 interface DebounceStateDefinition extends Data.TaggedEnum.WithGenerics<1> {
 	readonly taggedEnum: DebounceState<this['A']>;
 }
 
-export const DebounceState = Data.taggedEnum<DebounceStateDefinition>();
+interface DebounceStateConstructors {
+	readonly Idle: <T>(fields: {
+		readonly value: T;
+	}) => TaggedVariant<'Idle', { readonly value: T }>;
+	readonly Pending: <T>(fields: {
+		readonly value: T;
+		readonly pendingValue: T;
+	}) => TaggedVariant<
+		'Pending',
+		{ readonly value: T; readonly pendingValue: T }
+	>;
+	readonly $is: <K extends DebounceState<unknown>['_tag']>(
+		tag: K
+	) => <T>(
+		value: DebounceState<T>
+	) => value is Extract<DebounceState<T>, { readonly _tag: K }>;
+	readonly $match: {
+		<T, R>(
+			cases: TaggedHandlers<DebounceStateCases<T>, R>
+		): (value: DebounceState<T>) => R;
+		<T, R>(
+			value: DebounceState<T>,
+			cases: TaggedHandlers<DebounceStateCases<T>, R>
+		): R;
+	};
+}
+
+export const DebounceState = Data.taggedEnum<DebounceStateDefinition>() as unknown as
+	DebounceStateConstructors;
 
 export const isIdle = DebounceState.$is('Idle');
 export const isPending = DebounceState.$is('Pending');

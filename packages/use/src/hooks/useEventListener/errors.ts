@@ -23,15 +23,27 @@
  */
 
 import { Data } from 'effect';
+import type { TaggedErrorConstructor } from '../../internal/tagged.js';
 
-export class EventListenerError extends Data.TaggedError('EventListenerError')<{
+interface EventListenerErrorFields {
 	readonly eventName: string;
 	readonly reason: string;
-}> {
+}
+
+export interface EventListenerError extends Error, EventListenerErrorFields {
+	readonly _tag: 'EventListenerError';
+}
+
+const EventListenerErrorRuntime = class extends Data.TaggedError(
+	'EventListenerError'
+)<EventListenerErrorFields> {
 	get message(): string {
 		return `[useEventListener] Failed to attach "${this.eventName}": ${this.reason}`;
 	}
-}
+};
+
+export const EventListenerError = EventListenerErrorRuntime as unknown as
+	TaggedErrorConstructor<EventListenerErrorFields, EventListenerError>;
 
 export const listenerTargetNull = (eventName: string): EventListenerError =>
 	new EventListenerError({

@@ -28,3 +28,4 @@ export {
 	type InkComponents,
 	type ComponentMap,
 } from './transformer.js';
+export { sanitizeUrl, type SanitizeUrlOptions } from './sanitize-url.js';

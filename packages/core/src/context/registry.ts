@@ -23,10 +23,11 @@
  */
 
 import { Effect, Ref, Option, pipe, HashMap } from 'effect';
+import { createAsyncContextStorage } from '../utils/async-context.js';
 
 type ContextStack = HashMap.HashMap<string, readonly unknown[]>;
 
-interface ContextRegistryService {
+export interface ContextRegistryService {
 	readonly push: (id: string, value: unknown) => Effect.Effect<void>;
 	readonly pop: (id: string) => Effect.Effect<void>;
 	readonly get: <T>(id: string) => Effect.Effect<Option.Option<T>>;
@@ -109,36 +110,56 @@ const makeContextRegistry = Effect.gen(function* () {
 
 export { makeContextRegistry };
 
+const registryStorage = createAsyncContextStorage<ContextRegistryService>();
+
 let globalRegistry: ContextRegistryService | null = null;
 
-const initializeRegistry = (): ContextRegistryService => {
+const getGlobalRegistry = (): ContextRegistryService => {
 	if (!globalRegistry) {
 		globalRegistry = Effect.runSync(makeContextRegistry);
 	}
 	return globalRegistry;
 };
 
+const getRegistry = (): ContextRegistryService => {
+	return registryStorage.getStore() ?? getGlobalRegistry();
+};
+
+/**
+ * Run a function with an isolated context registry.
+ * Use this in SSR to ensure each request gets its own registry,
+ * preventing data leaks between concurrent requests.
+ */
+export const runWithContextRegistry = <T>(fn: () => T): T => {
+	const registry = Effect.runSync(makeContextRegistry);
+	return registryStorage.run(registry, fn);
+};
+
 export const pushContext = (id: string, value: unknown): void => {
-	Effect.runSync(initializeRegistry().push(id, value));
+	Effect.runSync(getRegistry().push(id, value));
 };
 
 export const popContext = (id: string): void => {
-	Effect.runSync(initializeRegistry().pop(id));
+	Effect.runSync(getRegistry().pop(id));
 };
 
 export const getContext = <T>(id: string): Option.Option<T> => {
-	return Effect.runSync(initializeRegistry().get<T>(id));
+	return Effect.runSync(getRegistry().get<T>(id));
 };
 
 export const hasContext = (id: string): boolean => {
-	return Effect.runSync(initializeRegistry().has(id));
+	return Effect.runSync(getRegistry().has(id));
 };
 
 export const getRegisteredContexts = (): readonly string[] => {
-	return Effect.runSync(initializeRegistry().getAll());
+	return Effect.runSync(getRegistry().getAll());
 };
 
 export const clearAllContexts = (): void => {
-	Effect.runSync(initializeRegistry().clear());
-	globalRegistry = null;
+	Effect.runSync(getRegistry().clear());
+	// Only reset globalRegistry if we're using the global one
+	if (!registryStorage.getStore()) {
+		globalRegistry = null;
+	}
 };
+

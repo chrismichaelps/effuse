@@ -45,8 +45,11 @@ export interface EffuseContext<T> {
 	readonly Provider: ReturnType<typeof define>;
 	readonly defaultValue: T | undefined;
 	readonly hasDefault: boolean;
-	readonly _effectTag: Context.Tag<string, T>;
 	readonly _tag: 'EffuseContext';
+}
+
+interface EffuseContextInternal<T> extends EffuseContext<T> {
+	readonly _effectTag: Context.Tag<string, T>;
 }
 
 const createdContexts = new Map<string, EffuseContext<unknown>>();
@@ -60,7 +63,7 @@ export function createContext<T>(options: ContextOptions<T>): EffuseContext<T> {
 	const { id, defaultValue, displayName = id } = options;
 
 	const existing = createdContexts.get(id);
-	if (existing && typeof window !== 'undefined') {
+	if (existing) {
 		return existing as EffuseContext<T>;
 	}
 
@@ -81,7 +84,7 @@ export function createContext<T>(options: ContextOptions<T>): EffuseContext<T> {
 		template: ({ children }) => children,
 	});
 
-	const context: EffuseContext<T> = {
+	const context: EffuseContextInternal<T> = {
 		id,
 		displayName,
 		Provider: Provider as ReturnType<typeof define>,
@@ -97,7 +100,7 @@ export function createContext<T>(options: ContextOptions<T>): EffuseContext<T> {
 }
 
 const getContextValue = <T>(
-	context: EffuseContext<T>
+	context: EffuseContextInternal<T>
 ): Effect.Effect<T, ContextNotFoundError> =>
 	Effect.gen(function* () {
 		// effect context
@@ -127,7 +130,7 @@ export function useContext<T>(
 ): T {
 	return Effect.runSync(
 		pipe(
-			getContextValue(context),
+			getContextValue(context as EffuseContextInternal<T>),
 			Effect.mapError((error) =>
 				componentName
 					? new ContextNotFoundError({

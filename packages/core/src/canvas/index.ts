@@ -24,8 +24,6 @@
 
 export {
 	canvas,
-	canvasEffect,
 	mount,
-	mountEffect,
 	type Canvas,
 } from './canvas.js';

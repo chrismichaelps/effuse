@@ -39,23 +39,30 @@ export {
 } from './config/constants.js';
 
 export {
-	setGlobalQueryClient,
 	createQueryClient,
-	invalidateQuery,
-	invalidateQueries,
-	invalidateAllQueries,
-	invalidateQueryAsync,
-	invalidateQueriesAsync,
-	invalidateAllAsync,
+	QueryClientSymbol,
+	provideQueryClient,
+	useQueryClient,
+	useQueryClientStrict,
+	QueryClientProvider,
 } from './client/index.js';
 
 export type {
 	QueryKey,
 	QueryStatus as CacheQueryStatus,
+	FetchStatus,
+	QueryFunction,
 	CacheEntry,
 	QueryOptions,
 	MutationOptions,
+	QueryClientProviderProps,
+	QueryFilters,
+	QueryInfo,
+	DefinedInitialDataOptions,
+	UndefinedInitialDataOptions,
 } from './client/index.js';
+
+export { queryOptions, keepPreviousData } from './client/index.js';
 
 export {
 	useQuery,
@@ -69,24 +76,24 @@ export {
 	fetchQuery,
 	ensureQueryData,
 	usePrefetch,
+	useIsFetching,
+	useIsMutating,
 } from './hooks/index.js';
 
 export type {
 	UseQueryResult,
-	FetchStatus,
 	QueryStatus,
 	UseMutationResult,
 	MutationStatus,
 	MutateOptions,
 	OptimisticMutationOptions,
+	OptimisticMutationHookOptions,
 	UseQueriesOptions,
 	UseQueriesResult,
 	CombinedQueryResult,
 	InfiniteQueryOptions,
 	UseInfiniteQueryResult,
 	InfiniteData,
-	InfiniteQueryPage,
-	PrefetchOptions,
 } from './hooks/index.js';
 
 export {
@@ -98,3 +105,21 @@ export {
 } from './errors/index.js';
 
 export type { RetryConfig, BackoffStrategy } from './execution/index.js';
+
+export { createQueryKeys } from './utils/index.js';
+
+export { Query, QueryObserver, QueryCache } from './core/index.js';
+
+export type {
+	QueryKey as CoreQueryKey,
+	QueryStatus as CoreQueryStatus,
+	FetchStatus as CoreFetchStatus,
+	QueryFunction as CoreQueryFunction,
+	QueryState,
+	QueryAction,
+	QueryConfig,
+	QueryObserverOptions,
+	QueryObserverResult,
+	QueryObserverListener,
+	QuerySnapshot,
+} from './core/index.js';

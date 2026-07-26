@@ -21,6 +21,10 @@
 	"types": "./dist/index.d.ts",
 	"exports": {
 		".": {
+			"browser": {
+				"types": "./dist/client.d.ts",
+				"default": "./dist/client.js"
+			},
 			"import": {
 				"types": "./dist/index.d.ts",
 				"default": "./dist/index.js"
@@ -28,6 +32,26 @@
 			"require": {
 				"types": "./dist/index.d.cts",
 				"default": "./dist/index.cjs"
+			}
+		},
+		"./client": {
+			"import": {
+				"types": "./dist/client.d.ts",
+				"default": "./dist/client.js"
+			},
+			"require": {
+				"types": "./dist/client.d.cts",
+				"default": "./dist/client.cjs"
+			}
+		},
+		"./server": {
+			"import": {
+				"types": "./dist/server.d.ts",
+				"default": "./dist/server.js"
+			},
+			"require": {
+				"types": "./dist/server.d.cts",
+				"default": "./dist/server.cjs"
 			}
 		},
 		"./jsx-runtime": {
@@ -57,10 +81,11 @@
 		"scripts"
 	],
 	"scripts": {
-		"build": "tsup",
+		"build": "rm -rf dist && tsup && node scripts/write-server-entry.mjs && node scripts/check-browser-entry.mjs && node scripts/check-package-entries.mjs",
 		"dev": "tsup --watch",
-		"lint": "eslint src",
+		"lint": "eslint src --max-warnings 0",
 		"typecheck": "tsc --noEmit",
+		"pretest": "node ../../scripts/check-node-version.mjs",
 		"test": "vitest run"
 	},
 	"keywords": [
@@ -86,12 +111,14 @@
 	},
 	"devDependencies": {
 		"@effect/eslint-plugin": "^0.3.2",
+		"@eslint/js": "^9.39.4",
 		"@types/node": "^25.5.0",
 		"eslint": "^10.0.3",
 		"jsdom": "^29.0.0",
 		"tsup": "^8.5.1",
 		"typescript": "^5.9.3",
 		"typescript-eslint": "^8.57.1",
+		"vite": "^8.0.0",
 		"vitest": "^4.1.0"
 	}
 }

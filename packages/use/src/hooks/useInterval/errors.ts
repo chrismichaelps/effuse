@@ -23,17 +23,31 @@
  */
 
 import { Data } from 'effect';
+import type { TaggedErrorConstructor } from '../../internal/tagged.js';
 
-export class IntervalError extends Data.TaggedError('IntervalError')<{
+interface IntervalErrorFields {
 	readonly reason: string;
-}> {
+}
+
+export interface IntervalError extends Error, IntervalErrorFields {
+	readonly _tag: 'IntervalError';
+}
+
+const IntervalErrorRuntime = class extends Data.TaggedError('IntervalError')<
+	IntervalErrorFields
+> {
 	get message(): string {
 		return `[useInterval] ${this.reason}`;
 	}
-}
+};
+
+export const IntervalError = IntervalErrorRuntime as unknown as
+	TaggedErrorConstructor<IntervalErrorFields, IntervalError>;
 
 export const intervalUnavailable = (): IntervalError =>
 	new IntervalError({ reason: 'setInterval is not available (SSR context)' });
 
 export const intervalInvalidDelay = (delay: number): IntervalError =>
-	new IntervalError({ reason: `Invalid delay: ${delay}ms. Must be >= 0` });
+	new IntervalError({
+		reason: `Invalid delay: ${String(delay)}ms. Must be >= 0`,
+	});

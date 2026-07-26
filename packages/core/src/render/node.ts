@@ -34,11 +34,17 @@ export interface BlueprintDef<P = Record<string, unknown>> {
 	loading?(): EffuseChild;
 }
 
-export interface Component<
-	P = Record<string, unknown>,
-> extends BlueprintDef<P> {
-	(props?: P): EffuseNode;
-}
+type ComponentArgs<P> = keyof P extends never
+	? [props?: P]
+	: Record<string, never> extends P
+		? [props?: P]
+		: [props: P];
+
+export type Component<
+	ResolvedProps = Record<string, unknown>,
+	InputProps = ResolvedProps,
+> = BlueprintDef<ResolvedProps> &
+	((...args: ComponentArgs<InputProps>) => EffuseNode);
 
 export type EffuseNode = Data.TaggedEnum<{
 	Element: {
@@ -130,6 +136,6 @@ export const isSignalChild = (value: unknown): value is Signal<EffuseChild> => {
 	return (
 		Predicate.isObject(value) &&
 		'value' in value &&
-		Predicate.isObject((value as Record<string, unknown>)._subscribers)
+		('_ref' in value || '_dep' in value)
 	);
 };

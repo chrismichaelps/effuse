@@ -32,6 +32,16 @@ export class LayerNotFoundError extends Data.TaggedError('LayerNotFoundError')<{
 	}
 }
 
+export class LayerNameCollisionError extends Data.TaggedError(
+	'LayerNameCollisionError'
+)<{
+	readonly layerName: string;
+}> {
+	get message(): string {
+		return `[Effuse] Layer "${this.layerName}" is registered more than once. Use unique layer names or an alias record when you need explicit local names.`;
+	}
+}
+
 export class LayerRuntimeNotReadyError extends Data.TaggedError(
 	'LayerRuntimeNotReadyError'
 )<{
@@ -55,12 +65,38 @@ export class LayerRuntimeNotInitializedError extends Data.TaggedError(
 	}
 }
 
+export class LayerBindingNotRegisteredError extends Data.TaggedError(
+	'LayerBindingNotRegisteredError'
+)<{
+	readonly consumerKind: 'component' | 'hook';
+	readonly consumerName: string;
+	readonly alias: string;
+	readonly layerName: string;
+}> {
+	get message(): string {
+		const consumer = `${this.consumerKind} "${this.consumerName}"`;
+		return (
+			`[Effuse] ${consumer} declares layer binding "${this.alias}" for layer "${this.layerName}", ` +
+			'but that layer is not registered in the active app runtime. ' +
+			'Register it once at the composition root with app.useLayers(...) before mount. ' +
+			'define({ layers }) and defineHook({ layers }) create typed local bindings; they do not initialize layers.'
+		);
+	}
+}
+
 export class ServiceNotFoundError extends Data.TaggedError(
 	'ServiceNotFoundError'
 )<{
 	readonly serviceKey: string;
+	readonly layerName?: string;
 }> {
 	get message(): string {
+		if (this.layerName) {
+			return (
+				`[Effuse] Layer "${this.layerName}" does not provide service "${this.serviceKey}". ` +
+				'Ensure the layer is registered with app.useLayers() and exports that service key.'
+			);
+		}
 		return `[Effuse] Service "${this.serviceKey}" not found.`;
 	}
 }
@@ -93,15 +129,28 @@ export class RouterNotConfiguredError extends Data.TaggedError(
 	readonly _tag: 'RouterNotConfiguredError';
 }> {
 	override get message(): string {
-		return '[Effuse] Router not configured. Call setGlobalRouter().';
+		return '[Effuse] Router not configured. Call installRouter() before component setup.';
+	}
+}
+
+export class LayerSetupError extends Data.TaggedError('LayerSetupError')<{
+	readonly layerName: string;
+	readonly phase: 'onMount' | 'setup' | 'onReady' | `service:${string}`;
+	readonly cause: unknown;
+}> {
+	get message(): string {
+		return `[Effuse] Layer "${this.layerName}" failed during ${this.phase}: ${String(this.cause)}`;
 	}
 }
 
 export type LayerError =
 	| LayerNotFoundError
+	| LayerNameCollisionError
 	| LayerRuntimeNotReadyError
 	| LayerRuntimeNotInitializedError
+	| LayerBindingNotRegisteredError
 	| ServiceNotFoundError
 	| DependencyNotFoundError
 	| CircularDependencyError
-	| RouterNotConfiguredError;
+	| RouterNotConfiguredError
+	| LayerSetupError;

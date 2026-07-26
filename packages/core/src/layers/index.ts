@@ -35,6 +35,39 @@ export type {
 	LayerRestriction,
 	MergedConfig,
 	LayerProvides,
+	LayerServiceFactory,
+	LayerServiceFactoryContext,
+	HttpMethod,
+	ServerResult,
+	ServerRuntimeHint,
+	ServerCacheMetadata,
+	ServerCorsMetadata,
+	ServerLayerDiagnostic,
+	ServerLayerDiagnosticCode,
+	ServerPolicy,
+	ServerPolicySourceKind,
+	ServerRenderMode,
+	ServerFallback,
+	ServerRedirectMetadata,
+	ServerPrerenderMetadata,
+	ServerRouteMetadata,
+	ServerResponseHelpers,
+	ServerLayerContext,
+	RequestLocals,
+	RequestDisposer,
+	ServerHandler,
+	ServerMiddleware,
+	ServerMiddlewareNext,
+	ServerMethodHandlers,
+	ServerContractContext,
+	ServerContractHandler,
+	ServerContractMethodHandlers,
+	ServerRoute,
+	ServerRouteDefinition,
+	ServerRouteInput,
+	ServerActionDefinition,
+	ServerActionInput,
+	ServerLayerConfig,
 	LayerSetupFn,
 	LayerProps,
 	LayerDependency,
@@ -44,18 +77,9 @@ export type {
 	DepsRecord,
 	AnyLayer,
 	AnyResolvedLayer,
-	EffuseLayerRegistry,
-	LayerPropsOf,
-	LayerProvidesOf,
 } from './types.js';
 
-export {
-	PropsService,
-	RegistryService,
-	type PropsRegistry,
-	type LayerRegistry,
-	type LayerRuntimeServices,
-} from './services/index.js';
+export type { PropsRegistry, LayerRegistry } from './services/index.js';
 
 export {
 	resolveLayerOrder,
@@ -65,12 +89,32 @@ export {
 
 export {
 	defineLayer,
+	layerService,
 	type EffuseServices,
 	type CompiledLayer,
+	type LayerFactory,
+	type LayerFactoryContext,
+	type LayerInput,
+	type LayerInputSource,
+	layerInputSourceToList,
+	isCompiledLayer,
+	compileLayer,
+	resolveLayerDefinitions,
 	combineLayers,
 	type MergeServices,
 	type LayerServicesFrom,
 	type ExtractServices,
+	resolveLayerEntry,
+	resolveLayersAccessor,
+	assertLayerBindingsRegistered,
+	type LayerBindingConsumer,
+	type LayersAccessor,
+	type LayerEntry,
+	type LayerEntryFrom,
+	type LayerList,
+	type LayerAliases,
+	type LayerSource,
+	layerSourceToList,
 } from './api/index.js';
 
 export {
@@ -84,13 +128,14 @@ export {
 	getLayerService,
 	isLayerRuntimeReady,
 	type LayerContext,
-	type TypedLayerContext,
 } from './context.js';
 
 export {
 	LayerNotFoundError,
+	LayerNameCollisionError,
 	LayerRuntimeNotReadyError,
 	LayerRuntimeNotInitializedError,
+	LayerBindingNotRegisteredError,
 	ServiceNotFoundError,
 	DependencyNotFoundError,
 	CircularDependencyError,
@@ -99,7 +144,6 @@ export {
 } from './errors.js';
 
 export {
-	TracingService,
 	createTracingService,
 	withTracing,
 	getGlobalTracing,

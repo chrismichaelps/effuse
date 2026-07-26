@@ -23,13 +23,20 @@
  */
 
 import { Data } from 'effect';
+import type {
+	TaggedEnumConstructors,
+	TaggedUnion,
+} from '../../internal/tagged.js';
 
-export type WindowSizeState = Data.TaggedEnum<{
-	readonly Unavailable: {};
+type WindowSizeStateCases = {
+	readonly Unavailable: Record<never, never>;
 	readonly Available: { readonly width: number; readonly height: number };
-}>;
+};
 
-export const WindowSizeState = Data.taggedEnum<WindowSizeState>();
+export type WindowSizeState = TaggedUnion<WindowSizeStateCases>;
+
+export const WindowSizeState = Data.taggedEnum<WindowSizeState>() as unknown as
+	TaggedEnumConstructors<WindowSizeStateCases>;
 
 export const isUnavailable = WindowSizeState.$is('Unavailable');
 export const isAvailable = WindowSizeState.$is('Available');

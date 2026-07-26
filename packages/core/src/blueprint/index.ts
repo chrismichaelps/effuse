@@ -32,34 +32,47 @@ export {
 
 export {
 	define,
+	defineProps,
 	type DefineOptions,
-	type DefineOptionsWithLayer,
-	type LayerScriptContext,
-	type LayerPropsFor,
+	type DefineOptionsWithDeclaredProps,
+	type DefineOptionsWithInferredProps,
+	type DefinePropsDeclaration,
 	type InferExposed,
 	type InferProps,
 	type TemplateArgs,
+	type TemplateContext,
+	type TemplateReservedKey,
 } from './define.js';
 export {
 	type ScriptContext,
 	type ExposedValues,
 	type EffuseRegistry,
 	setGlobalStoreGetter,
+	clearGlobalStoreGetter,
 	setGlobalRouter,
+	clearGlobalRouter,
 } from './script-context.js';
 
 export {
 	createComponentLifecycleSync,
+	LifecycleError,
 	type ComponentLifecycle,
+	type LifecycleErrorHandler,
+	type LifecycleFailure,
+	type LifecycleHook,
 } from './lifecycle.js';
 
 export {
 	PropSchema,
 	PropsValidationError,
+	PropsSchemaConflictError,
 	type PropDefinition,
+	type PropValueSchema,
 	type PropSchemaBuilder,
 	type AnyPropSchemaBuilder,
 	type PropSchemaInfer,
+	type PropSchemaInput,
+	type PropSchemaOutput,
 } from './props.js';
 
 export {
@@ -77,4 +90,18 @@ export {
 	PORTAL_PRIORITY,
 } from './portal.js';
 
-export { useCallback, useMemo } from './hooks.js';
+export {
+	useCallback,
+	useMemo,
+	useLayerService,
+	type MemoDependencies,
+} from './hooks.js';
+
+export {
+	provide,
+	inject,
+	createProvideScope,
+	runWithProvideScope,
+	getCurrentProvideScope,
+	type ProvideScope,
+} from './provide-inject.js';

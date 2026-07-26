@@ -22,26 +22,54 @@
  * SOFTWARE.
  */
 
-import { Effect, pipe } from 'effect';
 import type { Component } from '../render/node.js';
-import type { EffuseLayer } from '../layers/types.js';
-import type { HeadProps, RenderResult, ServerAppOptions } from './types.js';
-import { renderToString } from './render.js';
+import type { LayerInputSource } from '../layers/api/defineLayer.js';
+import type { RenderResult, ServerAppOptions, HeadProps } from './types.js';
+import { renderToString, renderToFragment } from './render.js';
 import { RenderError, createErrorHtml } from './errors.js';
-import { mapEffuseErrors } from '../errors.js';
+import { headToHtml } from './head-registry.js';
+import { runWithSSRContext } from './use-head.js';
+import { serializeHydrationData, type HydrationData } from './hydration.js';
+import { createSSRRuntime, type SSRRuntime } from './runtime.js';
 
 export interface ServerApp {
-	useLayers(layers: readonly EffuseLayer[]): ServerApp;
+	useLayers(layers: LayerInputSource): ServerApp;
 
 	configure(options: ServerAppOptions): ServerApp;
 
 	renderToString(url: string): Promise<RenderResult>;
 
 	renderToHtml(url: string): Promise<string>;
+
+	/**
+	 * Streaming SSR — returns a `ReadableStream<string>` that
+	 * flushes the HTML shell (head + opening tags) immediately,
+	 * then streams the rendered body, then closes with hydration data.
+	 *
+	 *
+	 * This optimizes Time-To-First-Byte (TTFB) by sending the
+	 * `<head>` and CSS before the body is fully rendered.
+	 */
+	renderToStream(url: string): Promise<ReadableStream<Uint8Array>>;
 }
 
+/**
+ * Yields a full macrotask so a ReadableStream flushes an already-enqueued chunk
+ * to the consumer before the producer continues with synchronous work. Uses
+ * `setImmediate` on Node and Bun for negligible latency, and `setTimeout` as
+ * the portable fallback for other runtimes.
+ */
+const yieldMacrotask = (): Promise<void> =>
+	new Promise<void>((resolve) => {
+		if (typeof setImmediate === 'function') {
+			setImmediate(resolve);
+		} else {
+			setTimeout(resolve, 0);
+		}
+	});
+
 export const createServerApp = (root: Component): ServerApp => {
-	let layers: readonly EffuseLayer[] = [];
+	let layers: LayerInputSource = [];
 	let options: ServerAppOptions = { hydrate: true };
 
 	const app: ServerApp = {
@@ -56,12 +84,19 @@ export const createServerApp = (root: Component): ServerApp => {
 		},
 
 		async renderToString(url: string): Promise<RenderResult> {
-			const layerHeads = collectLayerHeads(layers);
+			const ssrRuntime = await createSSRRuntime(layers, {
+				runSetup: true,
+			});
 
-			const effect = renderToString(root, url, layerHeads);
-			const result = await Effect.runPromise(pipe(effect, mapEffuseErrors));
+			try {
+				const result = ssrRuntime.run(() =>
+					renderToString(root, url, ssrRuntime, options)
+				);
 
-			return result;
+				return result;
+			} finally {
+				await ssrRuntime.dispose();
+			}
 		},
 
 		async renderToHtml(url: string): Promise<string> {
@@ -80,29 +115,118 @@ export const createServerApp = (root: Component): ServerApp => {
 				return createErrorHtml(renderError);
 			}
 		},
+
+		async renderToStream(url: string): Promise<ReadableStream<Uint8Array>> {
+			let ssrRuntime: SSRRuntime | null = null;
+			const encoder = new TextEncoder();
+
+			try {
+				ssrRuntime = await createSSRRuntime(layers, {
+					runSetup: true,
+				});
+
+				const runtime = ssrRuntime;
+
+				const mergeHeads = (heads: readonly HeadProps[]): HeadProps =>
+					heads.reduce<HeadProps>((acc, head) => ({ ...acc, ...head }), {});
+
+				const withManifestLinks = (headHtml: string): string => {
+					if (!options.manifest) return headHtml;
+					let result = headHtml;
+					for (const chunk of Object.values(options.manifest)) {
+						if (!chunk.isEntry) continue;
+						result += `\n\t<link rel="modulepreload" crossorigin href="/${chunk.file}">`;
+						if (chunk.css) {
+							for (const cssFile of chunk.css) {
+								result += `\n\t<link rel="stylesheet" href="/${cssFile}">`;
+							}
+						}
+					}
+					return result;
+				};
+
+				return new ReadableStream<Uint8Array>({
+					async start(controller) {
+						try {
+							// Deferred-head streaming: the head known before the render
+							// (layer/static head) is enough to flush the document shell
+							// immediately, so time-to-first-chunk is the shell-flush cost
+							// and does not grow with body size. Head discovered during the
+							// render via useHead() is carried in the hydration payload and
+							// applied by the client head reconciler, the same tradeoff every
+							// streaming renderer makes. renderToString keeps full head in
+							// <head> for full-head SEO.
+							const staticHead = mergeHeads(runtime.headStack);
+							const staticHeadHtml = withManifestLinks(headToHtml(staticHead));
+							const lang = staticHead.lang ?? 'en';
+
+							controller.enqueue(
+								encoder.encode(
+									`<!DOCTYPE html>\n<html lang="${lang}">\n<head>\n\t${staticHeadHtml}\n</head>\n<body>\n\t<div id="app">`
+								)
+							);
+
+							// Yield a full macrotask so the runtime writes the shell to
+							// the consumer before the synchronous body render blocks the
+							// event loop. A microtask is not enough: the render would
+							// resume before any pending read drains. setImmediate keeps the
+							// latency negligible on Node and Bun; setTimeout is the
+							// portable fallback.
+							await yieldMacrotask();
+
+							const bodyHtml = runtime.run(() =>
+								runWithSSRContext(
+									{
+										push: (head: HeadProps) => {
+											runtime.headStack.push(head);
+										},
+									},
+									() => renderToFragment(root, runtime)
+								)
+							);
+							controller.enqueue(encoder.encode(bodyHtml));
+
+							// Full head now includes anything useHead() collected during
+							// render; it ships in the hydration payload for the client.
+							const mergedHead = mergeHeads(runtime.headStack);
+							const serializedState: Record<string, unknown> = {};
+							for (const [key, value] of runtime.state) {
+								serializedState[key] = value;
+							}
+
+							const hydrationData: HydrationData = {
+								head: mergedHead,
+								state: serializedState,
+								url,
+								timestamp: Date.now(),
+							};
+							const hydrationScript =
+								options.hydrate !== false
+									? serializeHydrationData(hydrationData)
+									: '';
+
+							controller.enqueue(
+								encoder.encode(
+									`</div>\n\t${hydrationScript}\n</body>\n</html>`
+								)
+							);
+							controller.close();
+						} catch (error) {
+							controller.error(error);
+						} finally {
+							void runtime.dispose();
+						}
+					},
+				});
+			} catch (error) {
+				// If runtime creation fails, still release the lock
+				if (ssrRuntime) {
+					await ssrRuntime.dispose();
+				}
+				throw error;
+			}
+		},
 	};
 
 	return app;
-};
-
-const collectLayerHeads = (
-	layers: readonly EffuseLayer[],
-	visited = new Set<EffuseLayer>()
-): HeadProps[] => {
-	const heads: HeadProps[] = [];
-
-	for (const layer of layers) {
-		if (visited.has(layer)) continue;
-		visited.add(layer);
-
-		if (layer.extends) {
-			heads.push(...collectLayerHeads(layer.extends, visited));
-		}
-
-		if (layer.head) {
-			heads.push(layer.head);
-		}
-	}
-
-	return heads;
 };

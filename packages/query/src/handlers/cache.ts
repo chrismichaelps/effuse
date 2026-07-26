@@ -58,9 +58,12 @@ const scheduleGC = (deps: QueryHandlerDeps, keyStr: string): void => {
 	const timer = setTimeout(() => {
 		const subs = internals.subscribers.get(keyStr);
 		if (!subs || subs.size === 0) {
-			internals.cache.delete(keyStr);
+			const deleted = internals.cache.delete(keyStr);
 			internals.subscribers.delete(keyStr);
 			internals.gcTimers.delete(keyStr);
+			if (deleted) {
+				deps.onCacheChange?.();
+			}
 		}
 	}, config.gcTimeMs);
 	internals.gcTimers.set(keyStr, timer);
@@ -72,7 +75,17 @@ export const setEntry = <T>(
 ): void => {
 	deps.internals.cache.set(input.keyStr, input.entry as CacheEntry<unknown>);
 	scheduleGC(deps, input.keyStr);
+	deps.onCacheChange?.();
 	notifySubscribersForKey(deps, input.keyStr);
+};
+
+export const setEntryWithoutNotify = <T>(
+	deps: QueryHandlerDeps,
+	input: SetEntryInput<T>
+): void => {
+	deps.internals.cache.set(input.keyStr, input.entry as CacheEntry<unknown>);
+	scheduleGC(deps, input.keyStr);
+	deps.onCacheChange?.();
 };
 
 export const removeEntry = (
@@ -86,6 +99,9 @@ export const removeEntry = (
 		internals.gcTimers.delete(input.keyStr);
 	}
 	const result = internals.cache.delete(input.keyStr);
+	if (result) {
+		deps.onCacheChange?.();
+	}
 	notifySubscribersForKey(deps, input.keyStr);
 	return result;
 };
@@ -103,7 +119,11 @@ export const clearCache = (deps: QueryHandlerDeps): void => {
 		clearTimeout(timer);
 	}
 	internals.gcTimers.clear();
+	const hadEntries = internals.cache.size > 0;
 	internals.cache.clear();
+	if (hadEntries) {
+		deps.onCacheChange?.();
+	}
 	for (const subs of internals.subscribers.values()) {
 		for (const callback of subs) {
 			callback();
@@ -122,6 +142,7 @@ export const isStale = (
 ): boolean => {
 	const entry = deps.internals.cache.get(input.keyStr);
 	if (!entry) return true;
+	if (entry.isInvalidated) return true;
 	const threshold = staleTime ?? deps.config.staleTimeMs;
 	return Date.now() - entry.dataUpdatedAt > threshold;
 };

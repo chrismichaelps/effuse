@@ -25,7 +25,7 @@
 import type { EffuseNode, EffuseChild, ListNode } from '../render/node.js';
 import { createListNode } from '../render/node.js';
 import type { Signal } from '../types/index.js';
-import { computed, untrack, signal } from '../reactivity/index.js';
+import { untrack, signal } from '../reactivity/index.js';
 import { DuplicateKeysError } from '../errors.js';
 import { pipe, Match, Predicate } from 'effect';
 
@@ -237,12 +237,10 @@ const createDynamic = <T>(
 	Object.defineProperty(node, 'children', {
 		get() {
 			const items = sig.value;
-			return items.map((item, i) =>
-				render(
-					item,
-					computed(() => i)
-				)
-			);
+			return items.map((item, i) => {
+				const indexSignal = signal(i);
+				return render(item, indexSignal);
+			});
 		},
 	});
 

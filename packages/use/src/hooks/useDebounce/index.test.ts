@@ -22,8 +22,16 @@
  * SOFTWARE.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { signal } from '@effuse/core';
+import {
+	describe,
+	it,
+	expect,
+	expectTypeOf,
+	vi,
+	beforeEach,
+	afterEach,
+} from 'vitest';
+import { readonlySignal, signal, type ReadonlySignal } from '@effuse/core';
 import { useDebounce } from './index.js';
 
 describe('useDebounce', () => {
@@ -66,6 +74,22 @@ describe('useDebounce', () => {
 	});
 
 	describe('return type', () => {
+		it('should preserve the source value type', () => {
+			const source = signal({ id: 42, label: 'answer' });
+			const result = useDebounce({ value: source });
+			const readonlySource = readonlySignal(
+				signal<Readonly<{ id: number }>>({ id: 7 })
+			);
+			const readonlyResult = useDebounce({ value: readonlySource });
+
+			expectTypeOf(result.value).toEqualTypeOf<
+				ReadonlySignal<{ id: number; label: string }>
+			>();
+			expectTypeOf(readonlyResult.value).toEqualTypeOf<
+				ReadonlySignal<Readonly<{ id: number }>>
+			>();
+		});
+
 		it('should return all expected properties', () => {
 			const source = signal('initial');
 			const result = useDebounce({ value: source, delay: 100 });

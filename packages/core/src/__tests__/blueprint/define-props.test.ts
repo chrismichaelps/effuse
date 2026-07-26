@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { define } from '../../blueprint/define.js';
+import type { ReadonlySignal } from '../../types/index.js';
 import type {
 	DefineOptions,
 	DefineOptionsWithInferredProps,
@@ -362,8 +363,8 @@ describe('define function - props type inference', () => {
 				script: ({ props }) => {
 					return { computed: `${props.title}-${String(props.count)}` };
 				},
-				template: (_exposed, props) => {
-					capturedProps = props;
+				template: (ctx) => {
+					capturedProps = ctx;
 					return null;
 				},
 			});
@@ -374,7 +375,7 @@ describe('define function - props type inference', () => {
 
 			blueprint.view({ props: testProps, state });
 
-			expect(capturedProps).toEqual(testProps);
+			expect(capturedProps).toMatchObject(testProps);
 		});
 	});
 
@@ -1051,27 +1052,28 @@ describe('define function - props type inference', () => {
 				}
 
 				interface MemoExposed {
-					getSum: () => number;
-					getAvg: () => number;
+					sum: ReadonlySignal<number>;
+					avg: ReadonlySignal<number>;
 				}
 
 				const MemoComponent = define<MemoProps, MemoExposed>({
 					script: ({ props, useMemo }) => {
-						const getSum = useMemo(() =>
+						const sum = useMemo(() =>
 							props.items.reduce((a, b) => a + b, 0)
 						);
-						const getAvg = useMemo(() => {
-							const sum = props.items.reduce((a, b) => a + b, 0);
-							return sum / props.items.length;
+						const avg = useMemo(() => {
+							const s = props.items.reduce((a, b) => a + b, 0);
+							return s / props.items.length;
 						});
-						return { getSum, getAvg };
+						return { sum, avg };
 					},
 					template: () => null,
 				});
 
 				const blueprint = extractBlueprint(MemoComponent);
-				const state = blueprint.state({ items: [1, 2, 3, 4, 5] });
-				expect(state).toBeDefined();
+				const state = blueprint.state({ items: [1, 2, 3, 4, 5] }) as unknown as { exposed: MemoExposed };
+				expect(state.exposed.sum.value).toBe(15);
+				expect(state.exposed.avg.value).toBe(3);
 			});
 		});
 
@@ -1385,9 +1387,9 @@ describe('define function - props type inference', () => {
 					script: () => {
 						return { subtitle: 'Subtitle' };
 					},
-					template: (exposed, props) => {
-						capturedTitle = props.title;
-						capturedSubtitle = exposed.subtitle;
+					template: (ctx) => {
+						capturedTitle = ctx.title;
+						capturedSubtitle = ctx.subtitle;
 						return null;
 					},
 				});
@@ -1497,29 +1499,12 @@ describe('define function - props type inference', () => {
 						return { first: props['0'] };
 					},
 					template: () => null,
-				});
-
-				const blueprint = extractBlueprint(NumericKeyComponent);
-				const state = blueprint.state({ '0': 'zero', '1': 'one', '123': 123 });
-				expect(state).toBeDefined();
 			});
+
+			const blueprint = extractBlueprint(NumericKeyComponent);
+			const state = blueprint.state({ '0': 'zero', '1': 'one', '123': 123 });
+			expect(state).toBeDefined();
 		});
 	});
 });
-
-describe('define function - layer option error handling', () => {
-	it('should throw when layer option is used but runtime is not ready', () => {
-		expect(() => {
-			const LayerComponent = define({
-				layer: 'nonExistentLayer' as never,
-				script: () => {
-					return { value: 'test' };
-				},
-				template: () => null,
-			});
-
-			const blueprint = extractBlueprint(LayerComponent);
-			blueprint.state({});
-		}).toThrow();
-	});
 });

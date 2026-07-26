@@ -49,7 +49,7 @@ export const createAccessorSet = (
 export const createPrefixSet = (prefixes: readonly string[]): Set<string> => {
 	const set = new Set<string>();
 	for (let i = 0; i < prefixes.length; i++) {
-		set.add(prefixes[i].toLowerCase());
+		set.add(prefixes[i]);
 	}
 	return set;
 };

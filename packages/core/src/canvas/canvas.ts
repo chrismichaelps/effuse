@@ -37,13 +37,6 @@ export interface Canvas {
 	render: (node: EffuseChild) => void;
 
 	dispose: () => void;
-
-	paintEffect: <P extends Record<string, unknown>>(
-		blueprint: BlueprintDef<P>,
-		props?: P
-	) => Effect.Effect<void, RenderError | MountError>;
-
-	renderEffect: (node: EffuseChild) => Effect.Effect<void, RenderError>;
 }
 
 export const canvas = (target: Element | string): Canvas => {
@@ -120,23 +113,8 @@ export const canvas = (target: Element | string): Canvas => {
 			}
 			container.innerHTML = '';
 		},
-
-		paintEffect: canvasPaintEffect,
-		renderEffect: canvasRenderEffect,
 	};
 };
-
-export const canvasEffect = (
-	target: Element | string
-): Effect.Effect<Canvas, MountError> =>
-	Effect.try({
-		try: () => canvas(target),
-		catch: (error) =>
-			new MountError({
-				message: String(error),
-				target,
-			}),
-	});
 
 export const mount = <P = Record<string, unknown>>(
 	blueprint: BlueprintDef<P>,
@@ -147,14 +125,3 @@ export const mount = <P = Record<string, unknown>>(
 	c.paint(blueprint as BlueprintDef, props as Record<string, unknown>);
 	return c;
 };
-
-export const mountEffect = <P extends Record<string, unknown>>(
-	blueprint: BlueprintDef<P>,
-	target: Element | string,
-	props?: P
-): Effect.Effect<Canvas, MountError | RenderError> =>
-	Effect.gen(function* () {
-		const c = yield* canvasEffect(target);
-		yield* c.paintEffect(blueprint, props);
-		return c;
-	});

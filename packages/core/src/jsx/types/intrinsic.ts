@@ -81,16 +81,16 @@ import type {
 
 export interface BaseIntrinsicElements {
 	// Document Metadata
-	html: HTMLAttributes;
-	head: HTMLAttributes;
-	title: HTMLAttributes;
+	html: HTMLAttributes<HTMLHtmlElement>;
+	head: HTMLAttributes<HTMLHeadElement>;
+	title: HTMLAttributes<HTMLTitleElement>;
 	base: BaseAttributes;
 	link: LinkAttributes;
 	meta: MetaAttributes;
 	style: StyleAttributes;
 
 	// Sectioning Root
-	body: HTMLAttributes;
+	body: HTMLAttributes<HTMLBodyElement>;
 
 	// Content Sectioning
 	article: HTMLAttributes;
@@ -105,28 +105,28 @@ export interface BaseIntrinsicElements {
 	search: HTMLAttributes;
 
 	// Heading Content
-	h1: HTMLAttributes;
-	h2: HTMLAttributes;
-	h3: HTMLAttributes;
-	h4: HTMLAttributes;
-	h5: HTMLAttributes;
-	h6: HTMLAttributes;
+	h1: HTMLAttributes<HTMLHeadingElement>;
+	h2: HTMLAttributes<HTMLHeadingElement>;
+	h3: HTMLAttributes<HTMLHeadingElement>;
+	h4: HTMLAttributes<HTMLHeadingElement>;
+	h5: HTMLAttributes<HTMLHeadingElement>;
+	h6: HTMLAttributes<HTMLHeadingElement>;
 
 	// Text Content
-	div: HTMLAttributes;
-	p: HTMLAttributes;
+	div: HTMLAttributes<HTMLDivElement>;
+	p: HTMLAttributes<HTMLParagraphElement>;
 	blockquote: QuoteAttributes;
-	ol: HTMLAttributes;
-	ul: HTMLAttributes;
-	li: HTMLAttributes;
-	dl: HTMLAttributes;
+	ol: HTMLAttributes<HTMLOListElement>;
+	ul: HTMLAttributes<HTMLUListElement>;
+	li: HTMLAttributes<HTMLLIElement>;
+	dl: HTMLAttributes<HTMLDListElement>;
 	dt: HTMLAttributes;
 	dd: HTMLAttributes;
 	figure: HTMLAttributes;
 	figcaption: HTMLAttributes;
-	hr: HTMLAttributes;
-	pre: HTMLAttributes;
-	menu: HTMLAttributes;
+	hr: HTMLAttributes<HTMLHRElement>;
+	pre: HTMLAttributes<HTMLPreElement>;
+	menu: HTMLAttributes<HTMLMenuElement>;
 
 	// Inline Text Semantics
 	a: AnchorAttributes;
@@ -134,7 +134,7 @@ export interface BaseIntrinsicElements {
 	b: HTMLAttributes;
 	bdi: HTMLAttributes;
 	bdo: HTMLAttributes;
-	br: HTMLAttributes;
+	br: HTMLAttributes<HTMLBRElement>;
 	cite: HTMLAttributes;
 	code: HTMLAttributes;
 	data: DataAttributes;
@@ -150,7 +150,7 @@ export interface BaseIntrinsicElements {
 	s: HTMLAttributes;
 	samp: HTMLAttributes;
 	small: HTMLAttributes;
-	span: HTMLAttributes;
+	span: HTMLAttributes<HTMLSpanElement>;
 	strong: HTMLAttributes;
 	sub: HTMLAttributes;
 	sup: HTMLAttributes;
@@ -165,7 +165,7 @@ export interface BaseIntrinsicElements {
 	video: VideoAttributes;
 	source: SourceAttributes;
 	track: TrackAttributes;
-	picture: HTMLAttributes;
+	picture: HTMLAttributes<HTMLPictureElement>;
 	map: MapAttributes;
 	area: AreaAttributes;
 
@@ -188,78 +188,78 @@ export interface BaseIntrinsicElements {
 	polygon: SVGPolygonAttributes;
 	polyline: SVGPolylineAttributes;
 	rect: SVGRectAttributes;
-	g: SVGAttributes;
-	defs: SVGAttributes;
-	symbol: SVGAttributes;
+	g: SVGAttributes<SVGGElement>;
+	defs: SVGAttributes<SVGDefsElement>;
+	symbol: SVGAttributes<SVGSymbolElement>;
 	use: SVGUseAttributes;
 	text: SVGTextAttributes;
 	tspan: SVGTextAttributes;
-	image: SVGAttributes;
-	clipPath: SVGAttributes;
-	mask: SVGAttributes;
-	pattern: SVGAttributes;
-	linearGradient: SVGAttributes;
-	radialGradient: SVGAttributes;
-	stop: SVGAttributes;
-	filter: SVGAttributes;
-	feBlend: SVGAttributes;
-	feColorMatrix: SVGAttributes;
-	feComponentTransfer: SVGAttributes;
-	feComposite: SVGAttributes;
-	feConvolveMatrix: SVGAttributes;
-	feDiffuseLighting: SVGAttributes;
-	feDisplacementMap: SVGAttributes;
-	feDropShadow: SVGAttributes;
-	feFlood: SVGAttributes;
-	feFuncA: SVGAttributes;
-	feFuncB: SVGAttributes;
-	feFuncG: SVGAttributes;
-	feFuncR: SVGAttributes;
-	feGaussianBlur: SVGAttributes;
-	feImage: SVGAttributes;
-	feMerge: SVGAttributes;
-	feMergeNode: SVGAttributes;
-	feMorphology: SVGAttributes;
-	feOffset: SVGAttributes;
-	fePointLight: SVGAttributes;
-	feSpecularLighting: SVGAttributes;
-	feSpotLight: SVGAttributes;
-	feTile: SVGAttributes;
-	feTurbulence: SVGAttributes;
-	foreignObject: SVGAttributes;
-	marker: SVGAttributes;
-	metadata: SVGAttributes;
-	view: SVGAttributes;
-	desc: SVGAttributes;
-	switch: SVGAttributes;
-	animate: SVGAttributes;
-	animateMotion: SVGAttributes;
-	animateTransform: SVGAttributes;
-	set: SVGAttributes;
-	mpath: SVGAttributes;
+	image: SVGAttributes<SVGImageElement>;
+	clipPath: SVGAttributes<SVGClipPathElement>;
+	mask: SVGAttributes<SVGMaskElement>;
+	pattern: SVGAttributes<SVGPatternElement>;
+	linearGradient: SVGAttributes<SVGLinearGradientElement>;
+	radialGradient: SVGAttributes<SVGRadialGradientElement>;
+	stop: SVGAttributes<SVGStopElement>;
+	filter: SVGAttributes<SVGFilterElement>;
+	feBlend: SVGAttributes<SVGFEBlendElement>;
+	feColorMatrix: SVGAttributes<SVGFEColorMatrixElement>;
+	feComponentTransfer: SVGAttributes<SVGFEComponentTransferElement>;
+	feComposite: SVGAttributes<SVGFECompositeElement>;
+	feConvolveMatrix: SVGAttributes<SVGFEConvolveMatrixElement>;
+	feDiffuseLighting: SVGAttributes<SVGFEDiffuseLightingElement>;
+	feDisplacementMap: SVGAttributes<SVGFEDisplacementMapElement>;
+	feDropShadow: SVGAttributes<SVGFEDropShadowElement>;
+	feFlood: SVGAttributes<SVGFEFloodElement>;
+	feFuncA: SVGAttributes<SVGFEFuncAElement>;
+	feFuncB: SVGAttributes<SVGFEFuncBElement>;
+	feFuncG: SVGAttributes<SVGFEFuncGElement>;
+	feFuncR: SVGAttributes<SVGFEFuncRElement>;
+	feGaussianBlur: SVGAttributes<SVGFEGaussianBlurElement>;
+	feImage: SVGAttributes<SVGFEImageElement>;
+	feMerge: SVGAttributes<SVGFEMergeElement>;
+	feMergeNode: SVGAttributes<SVGFEMergeNodeElement>;
+	feMorphology: SVGAttributes<SVGFEMorphologyElement>;
+	feOffset: SVGAttributes<SVGFEOffsetElement>;
+	fePointLight: SVGAttributes<SVGFEPointLightElement>;
+	feSpecularLighting: SVGAttributes<SVGFESpecularLightingElement>;
+	feSpotLight: SVGAttributes<SVGFESpotLightElement>;
+	feTile: SVGAttributes<SVGFETileElement>;
+	feTurbulence: SVGAttributes<SVGFETurbulenceElement>;
+	foreignObject: SVGAttributes<SVGForeignObjectElement>;
+	marker: SVGAttributes<SVGMarkerElement>;
+	metadata: SVGAttributes<SVGMetadataElement>;
+	view: SVGAttributes<SVGViewElement>;
+	desc: SVGAttributes<SVGDescElement>;
+	switch: SVGAttributes<SVGSwitchElement>;
+	animate: SVGAttributes<SVGAnimateElement>;
+	animateMotion: SVGAttributes<SVGAnimateMotionElement>;
+	animateTransform: SVGAttributes<SVGAnimateTransformElement>;
+	set: SVGAttributes<SVGSetElement>;
+	mpath: SVGAttributes<SVGMPathElement>;
 
 	// MathML (basic support)
-	math: HTMLAttributes;
-	mi: HTMLAttributes;
-	mo: HTMLAttributes;
-	mn: HTMLAttributes;
-	ms: HTMLAttributes;
-	mtext: HTMLAttributes;
-	mspace: HTMLAttributes;
-	mfrac: HTMLAttributes;
-	mrow: HTMLAttributes;
-	msqrt: HTMLAttributes;
-	mroot: HTMLAttributes;
-	msub: HTMLAttributes;
-	msup: HTMLAttributes;
-	msubsup: HTMLAttributes;
-	mover: HTMLAttributes;
-	munder: HTMLAttributes;
-	munderover: HTMLAttributes;
-	mmultiscripts: HTMLAttributes;
-	mtable: HTMLAttributes;
-	mtr: HTMLAttributes;
-	mtd: HTMLAttributes;
+	math: HTMLAttributes<MathMLElement>;
+	mi: HTMLAttributes<MathMLElement>;
+	mo: HTMLAttributes<MathMLElement>;
+	mn: HTMLAttributes<MathMLElement>;
+	ms: HTMLAttributes<MathMLElement>;
+	mtext: HTMLAttributes<MathMLElement>;
+	mspace: HTMLAttributes<MathMLElement>;
+	mfrac: HTMLAttributes<MathMLElement>;
+	mrow: HTMLAttributes<MathMLElement>;
+	msqrt: HTMLAttributes<MathMLElement>;
+	mroot: HTMLAttributes<MathMLElement>;
+	msub: HTMLAttributes<MathMLElement>;
+	msup: HTMLAttributes<MathMLElement>;
+	msubsup: HTMLAttributes<MathMLElement>;
+	mover: HTMLAttributes<MathMLElement>;
+	munder: HTMLAttributes<MathMLElement>;
+	munderover: HTMLAttributes<MathMLElement>;
+	mmultiscripts: HTMLAttributes<MathMLElement>;
+	mtable: HTMLAttributes<MathMLElement>;
+	mtr: HTMLAttributes<MathMLElement>;
+	mtd: HTMLAttributes<MathMLElement>;
 
 	// Scripting
 	script: ScriptAttributes;
@@ -304,5 +304,5 @@ export interface BaseIntrinsicElements {
 
 	slot: SlotAttributes;
 	template: TemplateAttributes;
-	[key: string]: HTMLAttributes;
+	[key: string]: HTMLAttributes<Element>;
 }

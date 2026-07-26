@@ -23,14 +23,26 @@
  */
 
 import { Data } from 'effect';
+import type { TaggedErrorConstructor } from '../../internal/tagged.js';
 
-export class WindowSizeError extends Data.TaggedError('WindowSizeError')<{
+interface WindowSizeErrorFields {
 	readonly reason: string;
-}> {
+}
+
+export interface WindowSizeError extends Error, WindowSizeErrorFields {
+	readonly _tag: 'WindowSizeError';
+}
+
+const WindowSizeErrorRuntime = class extends Data.TaggedError('WindowSizeError')<
+	WindowSizeErrorFields
+> {
 	get message(): string {
 		return `[useWindowSize] ${this.reason}`;
 	}
-}
+};
+
+export const WindowSizeError = WindowSizeErrorRuntime as unknown as
+	TaggedErrorConstructor<WindowSizeErrorFields, WindowSizeError>;
 
 export const windowSizeUnavailable = (): WindowSizeError =>
 	new WindowSizeError({ reason: 'Window is not available (SSR context)' });

@@ -22,14 +22,13 @@
  * SOFTWARE.
  */
 
-import { Option, pipe, Predicate } from 'effect';
+import { Predicate } from 'effect';
+import { createAsyncContextStorage } from '../utils/async-context.js';
 import type { Component } from '../render/node.js';
 import type {
 	LayerProps,
 	AnyResolvedLayer,
-	EffuseLayerRegistry,
-	EffuseComponentRegistry,
-	LayerPropsOf,
+	LayerProvides,
 } from './types.js';
 import type { PropsRegistry } from './services/PropsService.js';
 import type { LayerRegistry } from './services/RegistryService.js';
@@ -37,29 +36,45 @@ import {
 	LayerNotFoundError,
 	LayerRuntimeNotInitializedError,
 } from './errors.js';
+import { devWarn } from '../utils/dev-warnings.js';
+import { getLayerDependencyNames } from './utils/dependencies.js';
 
 export interface LayerContext<P extends LayerProps = LayerProps> {
 	readonly name: string;
 	readonly props: P;
-	readonly provides?: Record<string, () => unknown>;
+	readonly provides?: LayerProvides;
 	readonly deps: Record<string, LayerContext>;
 	getService: (key: string) => unknown;
 	getComponent: (name: string) => unknown;
 }
 
-export type TypedLayerContext<K extends keyof EffuseLayerRegistry> =
-	LayerContext<LayerPropsOf<K>>;
-
-interface GlobalLayerState {
+export interface LayerContextStore {
 	propsRegistry: PropsRegistry | null;
 	layerRegistry: LayerRegistry | null;
 	layers: readonly AnyResolvedLayer[];
 }
 
-const globalState: GlobalLayerState = {
-	propsRegistry: null,
-	layerRegistry: null,
-	layers: [],
+const layerContextStorage = createAsyncContextStorage<LayerContextStore>();
+let globalLayerContextStore: LayerContextStore | undefined;
+
+export const getLayerContextStore = (): LayerContextStore | undefined => {
+	return layerContextStorage.getStore() ?? globalLayerContextStore;
+};
+
+export const getGlobalLayerContextStore = (): LayerContextStore | undefined =>
+	globalLayerContextStore;
+
+export const runWithLayerContext = <T>(
+	store: LayerContextStore,
+	fn: () => T
+): T => {
+	return layerContextStorage.run(store, fn);
+};
+
+export const restoreGlobalLayerContext = (
+	store: LayerContextStore | undefined
+): void => {
+	globalLayerContextStore = store;
 };
 
 export const initGlobalLayerContext = (
@@ -67,88 +82,98 @@ export const initGlobalLayerContext = (
 	layerRegistry: LayerRegistry,
 	layers: readonly AnyResolvedLayer[]
 ): void => {
-	globalState.propsRegistry = propsRegistry;
-	globalState.layerRegistry = layerRegistry;
-	globalState.layers = layers;
+	const store = layerContextStorage.getStore();
+	if (store) {
+		store.propsRegistry = propsRegistry;
+		store.layerRegistry = layerRegistry;
+		store.layers = layers;
+		globalLayerContextStore = store;
+		return;
+	}
+
+	globalLayerContextStore = {
+		propsRegistry,
+		layerRegistry,
+		layers,
+	};
 };
 
 export const clearGlobalLayerContext = (): void => {
-	globalState.propsRegistry = null;
-	globalState.layerRegistry = null;
-	globalState.layers = [];
+	const store = layerContextStorage.getStore();
+	if (store) {
+		store.propsRegistry = null;
+		store.layerRegistry = null;
+		store.layers = [];
+	}
+
+	globalLayerContextStore = undefined;
+};
+
+interface NonNullLayerContextStore {
+	propsRegistry: PropsRegistry;
+	layerRegistry: LayerRegistry;
+	layers: readonly AnyResolvedLayer[];
+}
+
+const getStoreOrThrow = (): NonNullLayerContextStore => {
+	const store = getLayerContextStore();
+	if (!store || !store.propsRegistry || !store.layerRegistry) {
+		devWarn(
+			'Layer runtime not initialized. ' +
+				'Did you forget to call app.useLayers() or createSSRRuntime()?' +
+				' If testing, wrap your code in runWithLayerContext(store, fn).'
+		);
+		throw new LayerRuntimeNotInitializedError({ resource: 'layer context' });
+	}
+	return store as NonNullLayerContextStore;
 };
 
 export const isLayerRuntimeReady = (): boolean => {
+	const store = getLayerContextStore();
 	return (
-		Predicate.isNotNullable(globalState.propsRegistry) &&
-		Predicate.isNotNullable(globalState.layerRegistry)
+		Predicate.isNotNullable(store) &&
+		Predicate.isNotNullable(store.propsRegistry) &&
+		Predicate.isNotNullable(store.layerRegistry)
 	);
 };
 
-export function getLayerContext<K extends keyof EffuseLayerRegistry>(
-	name: K
-): TypedLayerContext<K>;
-export function getLayerContext(name: string): LayerContext;
 export function getLayerContext(name: string): LayerContext {
-	if (!globalState.layerRegistry || !globalState.propsRegistry) {
-		throw new LayerRuntimeNotInitializedError({ resource: `layer "${name}"` });
-	}
+	const store = getStoreOrThrow();
 
-	const layer = globalState.layerRegistry.getLayer(name);
+	const layer = store.layerRegistry.getLayer(name);
 	if (!layer) {
 		throw new LayerNotFoundError({ layerName: name });
 	}
 
-	const props = globalState.propsRegistry.get(name) ?? ({} as LayerProps);
+	const props = store.propsRegistry.get(name) ?? ({} as LayerProps);
 
 	const deps: Record<string, LayerContext> = {};
-	if (layer.dependencies) {
-		for (const depName of layer.dependencies as readonly string[]) {
-			Object.defineProperty(deps, depName, {
-				get: () => getLayerContext(depName),
-				enumerable: true,
-			});
-		}
+	for (const depName of getLayerDependencyNames(layer)) {
+		Object.defineProperty(deps, depName, {
+			get: () => getLayerContext(depName),
+			enumerable: true,
+		});
 	}
 
 	return {
 		name,
 		props,
 		...(layer.provides && {
-			provides: layer.provides as Record<string, () => unknown>,
+			provides: layer.provides as LayerProvides,
 		}),
 		deps,
-		getService: (key: string) =>
-			pipe(
-				Option.fromNullable(globalState.layerRegistry),
-				Option.map((registry) => registry.getService(key)),
-				Option.getOrUndefined
-			),
+		getService: (key: string) => store.layerRegistry.getService(key),
 		getComponent: (componentName: string) =>
-			pipe(
-				Option.fromNullable(globalState.layerRegistry),
-				Option.flatMap((registry) =>
-					Option.fromNullable(registry.getComponent(componentName))
-				),
-				Option.getOrUndefined
-			),
+			store.layerRegistry.getComponent(componentName),
 	};
 }
 
 export const getLayerService = (key: string): unknown => {
-	if (!globalState.layerRegistry) {
-		throw new LayerRuntimeNotInitializedError({ resource: `service "${key}"` });
-	}
-	return globalState.layerRegistry.getService(key);
+	const store = getStoreOrThrow();
+	return store.layerRegistry.getService(key);
 };
 
-export function getLayerComponent<K extends keyof EffuseComponentRegistry>(
-	name: K
-): EffuseComponentRegistry[K];
-export function getLayerComponent(name: string): Component | undefined;
 export function getLayerComponent(name: string): Component | undefined {
-	if (!globalState.layerRegistry) {
-		return undefined;
-	}
-	return globalState.layerRegistry.getComponent(name);
+	const store = getStoreOrThrow();
+	return store.layerRegistry.getComponent(name);
 }

@@ -23,14 +23,83 @@
  */
 
 import { Array as Arr, Option, pipe } from 'effect';
-import type { Effect } from 'effect';
-import type { Component } from '@effuse/core';
+import {
+	compareRoutePatterns,
+	compileRoutePattern,
+	matchRoutePattern,
+	parseRoutePattern,
+	resolveRoutePattern,
+	type BlueprintDef,
+	type EffuseChild,
+	type RoutePattern,
+} from '@effuse/core';
 import { RouteNotFoundError } from '../errors.js';
+import type { NavigationGuard } from '../navigation/guards.js';
 
 export type RouteComponent =
-	| ((props?: Record<string, unknown>) => unknown)
-	| Component<any>;
-export type LazyRouteComponent = () => Promise<{ default: RouteComponent }>;
+	| ((props?: Record<string, unknown>) => EffuseChild)
+	| BlueprintDef;
+
+export const EFFUSE_LAZY_ROUTE: unique symbol = Symbol.for(
+	'effuse.router.lazy-route'
+) as never;
+
+export interface LazyRouteComponent {
+	(): Promise<{ default: RouteComponent }>;
+	readonly [EFFUSE_LAZY_ROUTE]?: true;
+}
+
+export interface LazyRouteComponentOptions {
+	readonly export?: string;
+}
+
+const isBlueprintComponent = (value: unknown): value is BlueprintDef =>
+	typeof value === 'object' &&
+	value !== null &&
+	'_tag' in value &&
+	(value as { readonly _tag?: unknown })._tag === 'Blueprint';
+
+const isRouteComponent = (value: unknown): value is RouteComponent =>
+	typeof value === 'function' || isBlueprintComponent(value);
+
+export const isLazyRouteComponent = (
+	value: unknown
+): value is LazyRouteComponent =>
+	typeof value === 'function' &&
+	(value as { readonly [EFFUSE_LAZY_ROUTE]?: unknown })[EFFUSE_LAZY_ROUTE] ===
+		true;
+
+export const lazyRouteComponent = (
+	loader: () => Promise<Readonly<Record<string, unknown>>>,
+	options: LazyRouteComponentOptions = {}
+): LazyRouteComponent => {
+	let cachedModule: Promise<{ default: RouteComponent }> | undefined;
+	const exportName = options.export ?? 'default';
+
+	const lazyComponent = (() => {
+		cachedModule ??= loader().then((module) => {
+			const component = module[exportName];
+			if (!isRouteComponent(component)) {
+				throw new TypeError(
+					`Effuse lazy route expected "${exportName}" to export a route component.`
+				);
+			}
+			return { default: component };
+		});
+
+		return cachedModule;
+	}) as LazyRouteComponent;
+
+	Object.defineProperty(lazyComponent, EFFUSE_LAZY_ROUTE, {
+		value: true,
+		enumerable: false,
+		configurable: false,
+	});
+
+	return lazyComponent;
+};
+
+export const lazyRoute = lazyRouteComponent;
 
 export interface RouteRecord {
 	readonly path: string;
@@ -41,6 +110,17 @@ export interface RouteRecord {
 	readonly meta?: Record<string, unknown>;
 	readonly redirect?: string | RouteLocation;
 	readonly alias?: string | readonly string[];
+	/**
+	 * Controls the props injected into the matched component. This option is the
+	 * single source of truth for prop injection — route params are never merged
+	 * on top of it:
+	 *
+	 * - absent or `true` — the route params are injected as props (default).
+	 * - `false` — nothing is injected; params remain available via `useRoute()`.
+	 * - object — exactly that object is injected; params are not auto-merged.
+	 * - function — exactly its return value is injected; it receives the current
+	 *   `route`, so it can spread `route.params` explicitly when desired.
+	 */
 	readonly props?:
 		| boolean
 		| Record<string, unknown>
@@ -48,12 +128,25 @@ export interface RouteRecord {
 	readonly beforeEnter?: NavigationGuard;
 }
 
-export interface NormalizedRouteRecord extends RouteRecord {
+export interface RouteGroupMetadata {
+	/** Route groups declared by the canonical record and its canonical ancestors. */
+	readonly canonicalRouteGroups: readonly string[];
+	/** Additional route groups introduced by the alias path that matched the URL. */
+	readonly aliasRouteGroups: readonly string[];
+	/** Ordered, duplicate-free union of canonical and alias route groups. */
+	readonly routeGroups: readonly string[];
+}
+
+export interface NormalizedRouteRecord
+	extends RouteRecord,
+		RouteGroupMetadata {
 	readonly path: string;
 	readonly regex: RegExp;
 	readonly paramNames: readonly string[];
+	readonly pattern: RoutePattern;
 	readonly fullPath: string;
 	readonly parent: NormalizedRouteRecord | undefined;
+	readonly aliasOf?: NormalizedRouteRecord;
 }
 
 export type RouteLocation =
@@ -66,11 +159,11 @@ export type RouteLocation =
 			hash?: string;
 	  };
 
-export interface ResolvedRoute {
+export interface ResolvedRoute extends RouteGroupMetadata {
 	readonly path: string;
 	readonly fullPath: string;
 	readonly params: Record<string, string>;
-	readonly query: Record<string, string>;
+	readonly query: Record<string, string | string[]>;
 	readonly hash: string;
 	readonly matched: readonly NormalizedRouteRecord[];
 	readonly name: string | undefined;
@@ -78,53 +171,63 @@ export interface ResolvedRoute {
 	readonly redirectedFrom?: ResolvedRoute;
 }
 
-export interface Route {
+export interface Route extends RouteGroupMetadata {
 	readonly path: string;
 	readonly fullPath: string;
 	readonly params: Record<string, string>;
-	readonly query: Record<string, string>;
+	readonly query: Record<string, string | string[]>;
 	readonly hash: string;
 	readonly matched: readonly NormalizedRouteRecord[];
 	readonly name: string | undefined;
 	readonly meta: Record<string, unknown>;
 }
 
-export type NavigationGuardReturn =
-	| boolean
-	| string
-	| RouteLocation
-	| Error
-	| undefined;
-
-export type NavigationGuard = (
-	to: ResolvedRoute,
-	from: ResolvedRoute
-) =>
-	| NavigationGuardReturn
-	| Promise<NavigationGuardReturn>
-	| Effect.Effect<NavigationGuardReturn>;
-
 export type NavigationHookCleanup = () => void;
 
-export const parseQuery = (search: string): Record<string, string> => {
-	const query: Record<string, string> = {};
+export const parseQuery = (
+	search: string
+): Record<string, string | string[]> => {
+	const query: Record<string, string | string[]> = {};
 	if (!search || search === '?') return query;
 	const searchString = search.startsWith('?') ? search.slice(1) : search;
-	new URLSearchParams(searchString).forEach((value, key) => {
-		query[key] = value;
-	});
+	const params = new URLSearchParams(searchString);
+	for (const [key, value] of params) {
+		const existing = query[key];
+		if (existing === undefined) {
+			query[key] = value;
+		} else if (Array.isArray(existing)) {
+			existing.push(value);
+		} else {
+			query[key] = [existing, value];
+		}
+	}
 	return query;
 };
 
-export const stringifyQuery = (query: Record<string, string>): string => {
-	const params = new URLSearchParams(query);
+export const stringifyQuery = (
+	query: Record<string, string | string[]>
+): string => {
+	const params = new URLSearchParams();
+	for (const [key, value] of Object.entries(query)) {
+		if (Array.isArray(value)) {
+			for (const v of value) {
+				params.append(key, v);
+			}
+		} else {
+			params.set(key, value);
+		}
+	}
 	const str = params.toString();
 	return str ? `?${str}` : '';
 };
 
 export const parseUrl = (
 	url: string
-): { pathname: string; query: Record<string, string>; hash: string } => {
+): {
+	pathname: string;
+	query: Record<string, string | string[]>;
+	hash: string;
+} => {
 	const hashIndex = url.indexOf('#');
 	const hash = hashIndex >= 0 ? url.slice(hashIndex) : '';
 	const urlWithoutHash = hashIndex >= 0 ? url.slice(0, hashIndex) : url;
@@ -134,84 +237,190 @@ export const parseUrl = (
 		queryIndex >= 0 ? urlWithoutHash.slice(0, queryIndex) : urlWithoutHash;
 	const queryString = queryIndex >= 0 ? urlWithoutHash.slice(queryIndex) : '';
 
-	const normalizedPathname =
-		(pathname || '/').replace(/\/+/g, '/').replace(/\/$/, '') || '/';
+	const normalizedPathname = (pathname || '/').replace(/\/+/g, '/');
 
 	return { pathname: normalizedPathname, query: parseQuery(queryString), hash };
 };
 
-const pathToRegex = (path: string): { regex: RegExp; paramNames: string[] } => {
-	const paramNames: string[] = [];
-	const regexPattern = path
-		.replace(/\*/g, '.*')
-		.replace(/:([^/]+)\?/g, (_: string, paramName: string) => {
-			paramNames.push(paramName);
-			return '([^/]*)';
-		})
-		.replace(/:([^/]+)/g, (_: string, paramName: string) => {
-			paramNames.push(paramName);
-			return '([^/]+)';
-		})
-		.replace(/\//g, '\\/');
-	return { regex: new RegExp(`^${regexPattern}$`), paramNames };
+const isAncestorRoute = (
+	ancestor: NormalizedRouteRecord,
+	route: NormalizedRouteRecord
+): boolean => {
+	let current = route.parent;
+	while (current) {
+		if (current === ancestor) return true;
+		current = current.parent;
+	}
+	return false;
+};
+
+const assertNoRouteCollisions = (
+	routes: readonly NormalizedRouteRecord[]
+): void => {
+	const signatures = new Map<string, NormalizedRouteRecord>();
+	for (const route of routes) {
+		const existing = signatures.get(route.pattern.signature);
+		if (
+			existing &&
+			!isAncestorRoute(existing, route) &&
+			!isAncestorRoute(route, existing)
+		) {
+			const existingDescription = existing.aliasOf
+				? `alias "${existing.fullPath}" for route "${existing.aliasOf.fullPath}"`
+				: `route "${existing.fullPath}"`;
+			const routeDescription = route.aliasOf
+				? `alias "${route.fullPath}" for route "${route.aliasOf.fullPath}"`
+				: `route "${route.fullPath}"`;
+			throw new TypeError(
+				`The ${existingDescription} and ${routeDescription} resolve to the same URL pattern "${route.fullPath}".`
+			);
+		}
+		signatures.set(route.pattern.signature, route);
+	}
 };
 
 const normalizeRouteRecord = (
 	route: RouteRecord,
-	parent?: NormalizedRouteRecord
+	parent?: NormalizedRouteRecord,
+	aliasOf?: NormalizedRouteRecord
 ): NormalizedRouteRecord => {
-	const fullPath = parent
+	const rawFullPath = parent
 		? `${parent.fullPath.replace(/\/$/, '')}/${route.path.replace(/^\//, '')}`
 		: route.path;
-	const { regex, paramNames } = pathToRegex(fullPath);
+	const parsed = parseRoutePattern(rawFullPath);
+	const fullPath = parsed.path;
+	const { regex, paramNames } = compileRoutePattern(parsed);
+	const canonicalRouteGroups = aliasOf
+		? [...aliasOf.canonicalRouteGroups]
+		: [...new Set([...(parent?.canonicalRouteGroups ?? []), ...parsed.groups])];
+	const aliasRouteGroups = aliasOf
+		? [
+				...new Set([
+					...(parent?.aliasRouteGroups ?? []),
+					...parsed.groups.filter(
+						(group) => !canonicalRouteGroups.includes(group)
+					),
+				]),
+			]
+		: [];
+	const routeGroups = [
+		...new Set([...canonicalRouteGroups, ...aliasRouteGroups]),
+	];
 
 	return {
 		...route,
 		fullPath,
 		regex,
 		paramNames,
+		pattern: parsed,
+		canonicalRouteGroups,
+		aliasRouteGroups,
+		routeGroups,
 		parent,
+		...(aliasOf ? { aliasOf } : {}),
 	};
+};
+
+const normalizeRouteTree = (
+	route: RouteRecord,
+	canonicalParent: NormalizedRouteRecord | undefined,
+	aliasParents: readonly NormalizedRouteRecord[]
+): NormalizedRouteRecord[] => {
+	const canonical = normalizeRouteRecord(route, canonicalParent);
+	const variants: NormalizedRouteRecord[] = [canonical];
+	const aliases: readonly string[] = route.alias
+		? typeof route.alias === 'string'
+			? [route.alias]
+			: route.alias
+		: [];
+	const { alias: _ignored, ...routeWithoutAlias } = route;
+	void _ignored;
+
+	for (const alias of aliases) {
+		variants.push(
+			normalizeRouteRecord(
+				{ ...routeWithoutAlias, path: alias },
+				canonicalParent,
+				canonical
+			)
+		);
+	}
+
+	for (const aliasParent of aliasParents) {
+		variants.push(
+			normalizeRouteRecord(routeWithoutAlias, aliasParent, canonical)
+		);
+		for (const alias of aliases) {
+			variants.push(
+				normalizeRouteRecord(
+					{ ...routeWithoutAlias, path: alias },
+					aliasParent,
+					canonical
+				)
+			);
+		}
+	}
+
+	const result = [...variants];
+	for (const child of route.children ?? []) {
+		result.push(...normalizeRouteTree(child, canonical, variants.slice(1)));
+	}
+	return result;
+};
+
+export const finalizeNormalizedRoutes = (
+	routes: readonly NormalizedRouteRecord[]
+): NormalizedRouteRecord[] => {
+	const result = [...routes];
+	assertNoRouteCollisions(result);
+	result.sort((left, right) => compareRoutePatterns(left.pattern, right.pattern));
+	return result;
 };
 
 export const normalizeRoutes = (
 	routes: readonly RouteRecord[],
-	parent?: NormalizedRouteRecord
+	parent?: NormalizedRouteRecord,
+	aliasParents: readonly NormalizedRouteRecord[] = []
 ): NormalizedRouteRecord[] => {
 	const result: NormalizedRouteRecord[] = [];
 
 	for (const route of routes) {
-		const normalized = normalizeRouteRecord(route, parent);
-		result.push(normalized);
-
-		if (route.children) {
-			result.push(...normalizeRoutes(route.children, normalized));
-		}
+		result.push(...normalizeRouteTree(route, parent, aliasParents));
 	}
 
-	return result;
+	return finalizeNormalizedRoutes(result);
 };
 
 export const matchRoute = (
 	pathname: string,
 	normalizedRoutes: readonly NormalizedRouteRecord[]
 ): { matched: NormalizedRouteRecord[]; params: Record<string, string> } => {
-	for (const route of normalizedRoutes) {
-		const match = pathname.match(route.regex);
-		if (match) {
-			const params: Record<string, string> = {};
-			route.paramNames.forEach((name, index) => {
-				params[name] = match[index + 1] ?? '';
-			});
+	// Try pathname as-is, and also without trailing slash (for matching /about/ against /about)
+	const pathVariants = [pathname];
+	if (pathname !== '/' && pathname.endsWith('/')) {
+		pathVariants.push(pathname.slice(0, -1));
+	}
 
-			const matched: NormalizedRouteRecord[] = [];
-			let current: NormalizedRouteRecord | undefined = route;
-			while (current) {
-				matched.unshift(current);
-				current = current.parent;
+	for (const path of pathVariants) {
+		for (const route of normalizedRoutes) {
+			const params = matchRoutePattern(
+				{
+					pattern: route.pattern,
+					regex: route.regex,
+					paramNames: route.paramNames,
+				},
+				path
+			);
+			if (params) {
+				const matched: NormalizedRouteRecord[] = [];
+				let current: NormalizedRouteRecord | undefined = route;
+				while (current) {
+					matched.unshift(current);
+					current = current.parent;
+				}
+
+				return { matched, params };
 			}
-
-			return { matched, params };
 		}
 	}
 	return { matched: [], params: {} };
@@ -223,7 +432,7 @@ export const resolveRoute = (
 	_currentRoute?: Route
 ): ResolvedRoute => {
 	let pathname: string;
-	let query: Record<string, string> = {};
+	let query: Record<string, string | string[]> = {};
 	let hash = '';
 	let params: Record<string, string> = {};
 
@@ -237,19 +446,16 @@ export const resolveRoute = (
 		query = location.query ?? {};
 		hash = location.hash ?? '';
 	} else {
-		const namedRoute = normalizedRoutes.find((r) => r.name === location.name);
+		const namedRoute = normalizedRoutes.find(
+			(r) => r.name === location.name && r.aliasOf === undefined
+		);
 		if (!namedRoute) {
 			throw new RouteNotFoundError({ name: location.name });
 		}
 		params = location.params ?? {};
 		query = location.query ?? {};
 		hash = location.hash ?? '';
-		pathname = namedRoute.fullPath.replace(
-			/:([^/]+)\??/g,
-			(_: string, paramName: string) => {
-				return params[paramName] ?? '';
-			}
-		);
+		pathname = resolveRoutePattern(namedRoute.pattern, params);
 	}
 
 	const { matched, params: matchedParams } = matchRoute(
@@ -264,6 +470,7 @@ export const resolveRoute = (
 	}
 
 	const fullPath = pathname + stringifyQuery(query) + hash;
+	const matchedRecord = matched.at(-1);
 
 	return {
 		path: pathname,
@@ -272,6 +479,9 @@ export const resolveRoute = (
 		query,
 		hash,
 		matched,
+		canonicalRouteGroups: matchedRecord?.canonicalRouteGroups ?? [],
+		aliasRouteGroups: matchedRecord?.aliasRouteGroups ?? [],
+		routeGroups: matchedRecord?.routeGroups ?? [],
 		name: pipe(
 			Arr.last(matched),
 			Option.flatMap((m) => Option.fromNullable(m.name)),
@@ -288,6 +498,9 @@ export const createRoute = (resolved: ResolvedRoute): Route => ({
 	query: resolved.query,
 	hash: resolved.hash,
 	matched: resolved.matched,
+	canonicalRouteGroups: resolved.canonicalRouteGroups,
+	aliasRouteGroups: resolved.aliasRouteGroups,
+	routeGroups: resolved.routeGroups,
 	name: resolved.name,
 	meta: resolved.meta,
 });

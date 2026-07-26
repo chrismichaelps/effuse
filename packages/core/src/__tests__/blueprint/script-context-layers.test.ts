@@ -1,10 +1,12 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
-import { Effect } from 'effect';
+import { describe, it, expect, expectTypeOf, vi, afterEach } from 'vitest';
 import { createScriptContext } from '../../blueprint/script-context.js';
+import { runWithLayerContext } from '../../layers/context.js';
 import {
-	initGlobalLayerContext,
-	clearGlobalLayerContext,
-} from '../../layers/context.js';
+	LayerRuntimeNotInitializedError,
+	ServiceNotFoundError,
+} from '../../layers/errors.js';
+import { defineLayer } from '../../layers/api/defineLayer.js';
+import type { LayerServicesFrom } from '../../layers/api/defineLayer.js';
 import type { PropsRegistry } from '../../layers/services/PropsService.js';
 import type { LayerRegistry } from '../../layers/services/RegistryService.js';
 import type { AnyResolvedLayer, LayerProps } from '../../layers/types.js';
@@ -58,203 +60,428 @@ const createResolvedLayer = (
 		...overrides,
 	}) as AnyResolvedLayer;
 
-describe('ScriptContext - Layer Hooks', () => {
-	afterEach(() => {
-		clearGlobalLayerContext();
-	});
-
-	describe('useLayerProvider', () => {
-		it('should return undefined when runtime is not ready', () => {
-			const { context } = createScriptContext({});
-			const result = (context.useLayerProvider as (name: string) => unknown)(
-				'testLayer'
-			);
-			expect(result).toBeUndefined();
+describe('ScriptContext - layers accessor', () => {
+	describe('layers property', () => {
+		it('should expose an empty accessor when no layers are passed', () => {
+			const { context } = createScriptContext({}, undefined, []);
+			expect(context.layers).toBeDefined();
+			expect(typeof context.layers).toBe('object');
 		});
 
-		it('should return undefined when layer has no provides', () => {
-			const layer = createResolvedLayer({ name: 'testLayer' });
-			const propsRegistry = createMockPropsRegistry({
-				testLayer: {},
+		it('should expose props for a registered layer via accessor', () => {
+			const modeSignal = signal('dark');
+			const themeLayer = defineLayer({
+				name: 'theme',
+				provides: {},
 			});
-			const layerRegistry = createMockLayerRegistry({ testLayer: layer }, {});
+			const resolvedLayer = createResolvedLayer({ name: 'theme' });
+			const propsRegistry = createMockPropsRegistry({
+				theme: { mode: modeSignal },
+			});
+			const layerRegistry = createMockLayerRegistry({ theme: resolvedLayer });
+			const store = { propsRegistry, layerRegistry, layers: [resolvedLayer] };
 
-			initGlobalLayerContext(propsRegistry, layerRegistry, [layer]);
-
-			const { context } = createScriptContext({});
-			const result = (context.useLayerProvider as (name: string) => unknown)(
-				'testLayer'
+			const { context } = createScriptContext({}, undefined, [themeLayer]);
+			const themeProps = runWithLayerContext(
+				store,
+				() => context.layers.theme.props
 			);
-			expect(result).toBeUndefined();
+
+			expect(themeProps).toBeDefined();
+			expect(themeProps.mode).toBe(modeSignal);
 		});
 
-		it('should return cached singletons from registry, not re-invoke factories', () => {
+		it('should expose services for a layer via accessor', () => {
+			const authService = { token: 'abc' };
+			const authLayer = defineLayer({
+				name: 'auth',
+				provides: {
+					authService: () => authService,
+				},
+			});
+			const resolvedLayer = createResolvedLayer({
+				name: 'auth',
+				provides: { authService: () => authService },
+			});
+			const propsRegistry = createMockPropsRegistry({ auth: {} });
+			const layerRegistry = createMockLayerRegistry(
+				{ auth: resolvedLayer },
+				{ authService: authService }
+			);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedLayer] };
+
+			const { context } = createScriptContext({}, undefined, [authLayer]);
+			const services = runWithLayerContext(
+				store,
+				() => context.layers.auth.services
+			);
+
+			expect(services.authService).toBe(authService);
+		});
+
+		it('should expose aliased layers through the script context', () => {
+			const authService = { token: 'abc', currentUser: 'chris' };
+			const modeSignal = signal('strict');
+			const identityLayer = defineLayer({
+				name: 'platformIdentity',
+				services: {
+					authService: () => authService,
+				},
+			});
+			const resolvedLayer = createResolvedLayer({
+				name: 'platformIdentity',
+				provides: { authService: () => authService },
+			});
+			const propsRegistry = createMockPropsRegistry({
+				platformIdentity: { mode: modeSignal },
+			});
+			const layerRegistry = createMockLayerRegistry(
+				{ platformIdentity: resolvedLayer },
+				{ authService }
+			);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedLayer] };
+
+			const { context } = createScriptContext({}, undefined, {
+				auth: identityLayer,
+			} as const);
+			const snapshot = runWithLayerContext(store, () => ({
+				keys: Object.keys(context.layers),
+				service: context.layers.auth.services.authService,
+				mode: context.layers.auth.props.mode,
+			}));
+
+			expect(snapshot.keys).toEqual(['auth']);
+			expect(snapshot.service).toBe(authService);
+			expect(snapshot.mode).toBe(modeSignal);
+		});
+
+		it('should expose typed layer entries directly from the layer object', () => {
+			const authService = { token: 'abc', currentUser: 'chris' };
+			const modeSignal = signal('strict');
+			const authLayer = defineLayer({
+				name: 'auth-direct',
+				props: { mode: modeSignal },
+				services: {
+					authService: () => authService,
+				},
+			});
+			const resolvedLayer = createResolvedLayer({
+				name: 'auth-direct',
+				provides: { authService: () => authService },
+			});
+			const propsRegistry = createMockPropsRegistry({
+				'auth-direct': { mode: modeSignal },
+			});
+			const layerRegistry = createMockLayerRegistry(
+				{ 'auth-direct': resolvedLayer },
+				{ authService }
+			);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedLayer] };
+
+			const { context } = createScriptContext({});
+
+			expectTypeOf<
+				LayerServicesFrom<typeof authLayer>['authService']
+			>().toEqualTypeOf<{
+				token: string;
+				currentUser: string;
+			}>();
+			const snapshot = runWithLayerContext(store, () => {
+				const entry = context.useLayer(authLayer);
+				const sameEntry = context.useLayer(authLayer);
+				const service = entry.service('authService');
+				const mode = entry.prop('mode');
+				expectTypeOf(service).toEqualTypeOf<{
+					token: string;
+					currentUser: string;
+				}>();
+				expectTypeOf(mode).toEqualTypeOf<typeof modeSignal>();
+				return {
+					sameEntry: entry === sameEntry,
+					sameServices: entry.services === sameEntry.services,
+					service,
+					mode,
+					legacyService: entry.services.authService,
+					legacyMode: entry.props.mode,
+				};
+			});
+
+			expect(snapshot.sameEntry).toBe(true);
+			expect(snapshot.sameServices).toBe(true);
+			expect(snapshot.service).toBe(authService);
+			expect(snapshot.legacyService).toBe(authService);
+			expect(snapshot.mode).toBe(modeSignal);
+			expect(snapshot.legacyMode).toBe(modeSignal);
+		});
+
+		it('should read a typed service directly from a layer object', () => {
+			const authService = { token: 'abc' };
+			const authLayer = defineLayer({
+				name: 'auth-service-direct',
+				services: {
+					authService: () => authService,
+				},
+			});
+			const resolvedLayer = createResolvedLayer({
+				name: 'auth-service-direct',
+				provides: { authService: () => authService },
+			});
+			const propsRegistry = createMockPropsRegistry({
+				'auth-service-direct': {},
+			});
+			const layerRegistry = createMockLayerRegistry(
+				{ 'auth-service-direct': resolvedLayer },
+				{ authService }
+			);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedLayer] };
+
+			const { context } = createScriptContext({});
+			const service = runWithLayerContext(store, () =>
+				context.useService(authLayer, 'authService')
+			);
+
+			expectTypeOf(service).toEqualTypeOf<{ token: string }>();
+			expect(service).toBe(authService);
+		});
+
+		it('should read typed services and props through layer entry helpers', () => {
+			const themeService = { label: 'dark' };
+			const modeSignal = signal('dark');
+			const themeLayer = defineLayer({
+				name: 'theme-entry-helper',
+				props: { mode: modeSignal },
+				services: {
+					themeService: () => themeService,
+				},
+			});
+			const resolvedLayer = createResolvedLayer({
+				name: 'theme-entry-helper',
+				provides: { themeService: () => themeService },
+			});
+			const propsRegistry = createMockPropsRegistry({
+				'theme-entry-helper': { mode: modeSignal },
+			});
+			const layerRegistry = createMockLayerRegistry(
+				{ 'theme-entry-helper': resolvedLayer },
+				{ themeService }
+			);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedLayer] };
+
+			const { context } = createScriptContext({}, undefined, {
+				theme: themeLayer,
+			} as const);
+			const snapshot = runWithLayerContext(store, () => {
+				const service = context.layers.theme.service('themeService');
+				const mode = context.layers.theme.prop('mode');
+				expectTypeOf(service).toEqualTypeOf<{ label: string }>();
+				expectTypeOf(mode).toEqualTypeOf<typeof modeSignal>();
+				return {
+					service,
+					mode,
+					legacyService: context.layers.theme.services.themeService,
+					legacyMode: context.layers.theme.props.mode,
+				};
+			});
+
+			expect(snapshot.service).toBe(themeService);
+			expect(snapshot.mode).toBe(modeSignal);
+			expect(snapshot.legacyService).toBe(themeService);
+			expect(snapshot.legacyMode).toBe(modeSignal);
+		});
+
+		it('should reject service keys that are not provided by the given layer', () => {
+			const authLayer = defineLayer({
+				name: 'auth-service-boundary',
+				services: {
+					authService: () => ({ token: 'abc' }),
+				},
+			});
+			const resolvedLayer = createResolvedLayer({
+				name: 'auth-service-boundary',
+				provides: { authService: () => ({ token: 'abc' }) },
+			});
+			const propsRegistry = createMockPropsRegistry({
+				'auth-service-boundary': {},
+			});
+			const layerRegistry = createMockLayerRegistry(
+				{ 'auth-service-boundary': resolvedLayer },
+				{ authService: { token: 'abc' }, billingService: { total: 10 } }
+			);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedLayer] };
+
+			const { context } = createScriptContext({});
+			const unsafeUseService = context.useService as unknown as (
+				layer: typeof authLayer,
+				key: string
+			) => unknown;
+
+			expect(() =>
+				runWithLayerContext(store, () =>
+					unsafeUseService(authLayer, 'billingService')
+				)
+			).toThrow(ServiceNotFoundError);
+			expect(() =>
+				runWithLayerContext(store, () =>
+					unsafeUseService(authLayer, 'billingService')
+				)
+			).toThrow('registered with app.useLayers()');
+		});
+
+		it('should reject invalid service keys through layer entry helpers', () => {
+			const authLayer = defineLayer({
+				name: 'auth-helper-boundary',
+				services: {
+					authService: () => ({ token: 'abc' }),
+				},
+			});
+			const resolvedLayer = createResolvedLayer({
+				name: 'auth-helper-boundary',
+				provides: { authService: () => ({ token: 'abc' }) },
+			});
+			const propsRegistry = createMockPropsRegistry({
+				'auth-helper-boundary': {},
+			});
+			const layerRegistry = createMockLayerRegistry(
+				{ 'auth-helper-boundary': resolvedLayer },
+				{ authService: { token: 'abc' }, billingService: { total: 10 } }
+			);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedLayer] };
+
+			const { context } = createScriptContext({}, undefined, {
+				auth: authLayer,
+			} as const);
+			const unsafeService = context.layers.auth.service as unknown as (
+				key: string
+			) => unknown;
+
+			expect(() =>
+				runWithLayerContext(store, () => unsafeService('billingService'))
+			).toThrow(ServiceNotFoundError);
+			expect(() =>
+				runWithLayerContext(store, () => unsafeService('billingService'))
+			).toThrow('registered with app.useLayers()');
+		});
+
+		it('should reject declared layer services missing from the active runtime', () => {
+			const authLayer = defineLayer({
+				name: 'auth-service-missing',
+				services: {
+					authService: () => ({ token: 'abc' }),
+				},
+			});
+			const resolvedLayer = createResolvedLayer({
+				name: 'auth-service-missing',
+				provides: { authService: () => ({ token: 'abc' }) },
+			});
+			const propsRegistry = createMockPropsRegistry({
+				'auth-service-missing': {},
+			});
+			const layerRegistry = createMockLayerRegistry({
+				'auth-service-missing': resolvedLayer,
+			});
+			const store = { propsRegistry, layerRegistry, layers: [resolvedLayer] };
+
+			const { context } = createScriptContext({});
+
+			expect(() =>
+				runWithLayerContext(store, () =>
+					context.useService(authLayer, 'authService')
+				)
+			).toThrow(ServiceNotFoundError);
+		});
+
+		it('should return cached service instances (not re-invoke factory)', () => {
 			const factorySpy = vi.fn(() => ({ value: 'fresh' }));
 			const cachedInstance = { value: 'cached' };
 
-			const layer = createResolvedLayer({
-				name: 'testLayer',
-				provides: {
-					myService: factorySpy,
-				},
+			const myLayer = defineLayer({
+				name: 'myLayer',
+				provides: { myService: factorySpy },
 			});
-
-			const propsRegistry = createMockPropsRegistry({
-				testLayer: {},
+			const resolvedLayer = createResolvedLayer({
+				name: 'myLayer',
+				provides: { myService: factorySpy },
 			});
+			const propsRegistry = createMockPropsRegistry({ myLayer: {} });
 			const layerRegistry = createMockLayerRegistry(
-				{ testLayer: layer },
+				{ myLayer: resolvedLayer },
 				{ myService: cachedInstance }
 			);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedLayer] };
 
-			initGlobalLayerContext(propsRegistry, layerRegistry, [layer]);
+			const { context } = createScriptContext({}, undefined, [myLayer]);
 
-			const { context } = createScriptContext({});
-			const result = (context.useLayerProvider as (name: string) => unknown)(
-				'testLayer'
-			) as Record<string, unknown>;
-
+			expect(
+				runWithLayerContext(
+					store,
+					() => context.layers.myLayer.services.myService
+				)
+			).toBe(cachedInstance);
+			expect(
+				runWithLayerContext(
+					store,
+					() => context.layers.myLayer.services.myService
+				)
+			).toBe(cachedInstance);
 			expect(factorySpy).not.toHaveBeenCalled();
-			expect(result).toBeDefined();
-			expect(result.myService).toBe(cachedInstance);
 		});
 
-		it('should return the same references on multiple calls', () => {
-			const cachedService = { id: 1 };
-
-			const layer = createResolvedLayer({
-				name: 'testLayer',
-				provides: {
-					svc: () => ({ id: 999 }),
-				},
-			});
-
-			const propsRegistry = createMockPropsRegistry({
-				testLayer: {},
-			});
-			const layerRegistry = createMockLayerRegistry(
-				{ testLayer: layer },
-				{ svc: cachedService }
-			);
-
-			initGlobalLayerContext(propsRegistry, layerRegistry, [layer]);
-
-			const { context } = createScriptContext({});
-			const getter = context.useLayerProvider as (
-				name: string
-			) => Record<string, unknown> | undefined;
-
-			const first = getter('testLayer');
-			const second = getter('testLayer');
-
-			expect(first?.svc).toBe(cachedService);
-			expect(second?.svc).toBe(cachedService);
-			expect(first?.svc).toBe(second?.svc);
-		});
-
-		it('should return all provided services for a layer', () => {
+		it('should support multiple layers in the accessor', () => {
 			const authService = { token: 'abc' };
-			const loggerService = { log: vi.fn() };
+			const logService = { log: vi.fn() };
 
-			const layer = createResolvedLayer({
-				name: 'multiLayer',
-				provides: {
-					auth: () => authService,
-					logger: () => loggerService,
-				},
+			const authLayer = defineLayer({
+				name: 'auth',
+				provides: { authService: () => authService },
+			});
+			const logLayer = defineLayer({
+				name: 'log',
+				provides: { logService: () => logService },
 			});
 
-			const propsRegistry = createMockPropsRegistry({
-				multiLayer: {},
+			const resolvedAuth = createResolvedLayer({
+				name: 'auth',
+				provides: { authService: () => authService },
 			});
+			const resolvedLog = createResolvedLayer({
+				name: 'log',
+				provides: { logService: () => logService },
+			});
+
+			const propsRegistry = createMockPropsRegistry({ auth: {}, log: {} });
 			const layerRegistry = createMockLayerRegistry(
-				{ multiLayer: layer },
-				{ auth: authService, logger: loggerService }
+				{ auth: resolvedAuth, log: resolvedLog },
+				{ authService: authService, logService: logService }
 			);
+			const store = {
+				propsRegistry,
+				layerRegistry,
+				layers: [resolvedAuth, resolvedLog],
+			};
 
-			initGlobalLayerContext(propsRegistry, layerRegistry, [layer]);
+			const { context } = createScriptContext({}, undefined, [
+				authLayer,
+				logLayer,
+			]);
 
-			const { context } = createScriptContext({});
-			const result = (context.useLayerProvider as (name: string) => unknown)(
-				'multiLayer'
-			) as Record<string, unknown>;
-
-			expect(result.auth).toBe(authService);
-			expect(result.logger).toBe(loggerService);
-		});
-	});
-
-	describe('useLayer', () => {
-		it('should throw when runtime is not ready', () => {
-			const { context } = createScriptContext({});
-			expect(() =>
-				(context.useLayer as (name: string) => unknown)('missing')
-			).toThrow();
-		});
-
-		it('should return layer context when runtime is ready', () => {
-			const layer = createResolvedLayer({
-				name: 'uiLayer',
-				provides: {
-					theme: () => 'dark',
-				},
-			});
-
-			const propsRegistry = createMockPropsRegistry({
-				uiLayer: { mode: signal('dark') },
-			});
-			const layerRegistry = createMockLayerRegistry(
-				{ uiLayer: layer },
-				{ theme: 'dark' }
-			);
-
-			initGlobalLayerContext(propsRegistry, layerRegistry, [layer]);
-
-			const { context } = createScriptContext({});
-			const layerCtx = (context.useLayer as (name: string) => unknown)(
-				'uiLayer'
-			) as { name: string; provides: Record<string, unknown> };
-
-			expect(layerCtx.name).toBe('uiLayer');
-			expect(layerCtx.provides).toBeDefined();
-		});
-	});
-
-	describe('useLayerProps', () => {
-		it('should return undefined when runtime is not ready', () => {
-			const { context } = createScriptContext({});
-			const result = (context.useLayerProps as (name: string) => unknown)(
-				'testLayer'
-			);
-			expect(result).toBeUndefined();
-		});
-
-		it('should return layer props when runtime is ready', () => {
-			const modeSignal = signal('dark');
-			const layer = createResolvedLayer({ name: 'themeLayer' });
-
-			const propsRegistry = createMockPropsRegistry({
-				themeLayer: { mode: modeSignal },
-			});
-			const layerRegistry = createMockLayerRegistry({ themeLayer: layer });
-
-			initGlobalLayerContext(propsRegistry, layerRegistry, [layer]);
-
-			const { context } = createScriptContext({});
-			const props = (context.useLayerProps as (name: string) => unknown)(
-				'themeLayer'
-			) as Record<string, unknown>;
-
-			expect(props).toBeDefined();
-			expect(props.mode).toBe(modeSignal);
+			expect(
+				runWithLayerContext(
+					store,
+					() => context.layers.auth.services.authService
+				)
+			).toBe(authService);
+			expect(
+				runWithLayerContext(store, () => context.layers.log.services.logService)
+			).toBe(logService);
 		});
 	});
 
 	describe('useService', () => {
-		it('should return undefined when runtime is not ready and no storeGetter', () => {
+		it('should fail explicitly when the layer runtime is not ready', () => {
 			const { context } = createScriptContext({});
-			const result = context.useService('anything');
-			expect(result).toBeUndefined();
+			expect(() => context.useService('anything')).toThrow(
+				LayerRuntimeNotInitializedError
+			);
 		});
 
 		it('should return cached service from registry', () => {
@@ -267,10 +494,12 @@ describe('ScriptContext - Layer Hooks', () => {
 				{ myCmd: cachedService }
 			);
 
-			initGlobalLayerContext(propsRegistry, layerRegistry, [layer]);
+			const store = { propsRegistry, layerRegistry, layers: [layer] };
 
 			const { context } = createScriptContext({});
-			const result = context.useService('myCmd');
+			const result = runWithLayerContext(store, () =>
+				context.useService('myCmd')
+			);
 
 			expect(result).toBe(cachedService);
 		});
@@ -298,10 +527,12 @@ describe('ScriptContext - Layer Hooks', () => {
 				{ counter: cachedStore }
 			);
 
-			initGlobalLayerContext(propsRegistry, layerRegistry, [layer]);
+			const store = { propsRegistry, layerRegistry, layers: [layer] };
 
 			const { context } = createScriptContext({});
-			const result = context.useStore('counter');
+			const result = runWithLayerContext(store, () =>
+				context.useStore('counter')
+			);
 
 			expect(result).toBe(cachedStore);
 		});
@@ -474,7 +705,7 @@ describe('ScriptContext - Layer Hooks', () => {
 			await new Promise((r) => setTimeout(r, 10));
 			expect(calls).toContain(0);
 
-			Effect.runSync(state.lifecycle.runCleanup());
+			state.lifecycle.runCleanup();
 			const callsAfterUnmount = calls.length;
 
 			count.value = 99;
@@ -552,7 +783,7 @@ describe('ScriptContext - Layer Hooks', () => {
 			await new Promise((r) => setTimeout(r, 10));
 			expect(calls.length).toBeGreaterThanOrEqual(1);
 
-			Effect.runSync(state.lifecycle.runCleanup());
+			state.lifecycle.runCleanup();
 			const callsAfterUnmount = calls.length;
 
 			a.value = 99;
@@ -585,10 +816,12 @@ describe('ScriptContext - Layer Hooks', () => {
 				{ Header: mockComponent }
 			);
 
-			initGlobalLayerContext(propsRegistry, layerRegistry, [layer]);
+			const store = { propsRegistry, layerRegistry, layers: [layer] };
 
 			const { context } = createScriptContext({});
-			const result = context.useComponent('Header');
+			const result = runWithLayerContext(store, () =>
+				context.useComponent('Header')
+			);
 
 			expect(result).toBe(mockComponent);
 		});
@@ -607,10 +840,12 @@ describe('ScriptContext - Layer Hooks', () => {
 				{ Header: (() => null) as unknown as Component }
 			);
 
-			initGlobalLayerContext(propsRegistry, layerRegistry, [layer]);
+			const store = { propsRegistry, layerRegistry, layers: [layer] };
 
 			const { context } = createScriptContext({});
-			const result = context.useComponent('NonExistent');
+			const result = runWithLayerContext(store, () =>
+				context.useComponent('NonExistent')
+			);
 
 			expect(result).toBeUndefined();
 		});
@@ -632,15 +867,27 @@ describe('ScriptContext - Layer Hooks', () => {
 				{ MyHeader: HeaderComponent, MyFooter: FooterComponent }
 			);
 
-			initGlobalLayerContext(propsRegistry, layerRegistry, [layer]);
+			const store = { propsRegistry, layerRegistry, layers: [layer] };
 
 			const { context } = createScriptContext({});
 
-			expect(context.useComponent('MyHeader')).toBe(HeaderComponent);
-			expect(context.useComponent('MyFooter')).toBe(FooterComponent);
+			expect(
+				runWithLayerContext(store, () => context.useComponent('MyHeader'))
+			).toBe(HeaderComponent);
+			expect(
+				runWithLayerContext(store, () => context.useComponent('MyFooter'))
+			).toBe(FooterComponent);
 
-			expect(context.useComponent('HeaderComponent')).toBeUndefined();
-			expect(context.useComponent('FooterComponent')).toBeUndefined();
+			expect(
+				runWithLayerContext(store, () =>
+					context.useComponent('HeaderComponent')
+				)
+			).toBeUndefined();
+			expect(
+				runWithLayerContext(store, () =>
+					context.useComponent('FooterComponent')
+				)
+			).toBeUndefined();
 		});
 	});
 
@@ -661,13 +908,46 @@ describe('ScriptContext - Layer Hooks', () => {
 			await new Promise((r) => setTimeout(r, 10));
 			expect(calls).toContain(0);
 
-			Effect.runSync(state.lifecycle.runCleanup());
+			state.lifecycle.runCleanup();
 			const callsAfterUnmount = calls.length;
 
 			count.value = 42;
 			await new Promise((r) => setTimeout(r, 10));
 
 			expect(calls.length).toBe(callsAfterUnmount);
+		});
+	});
+
+	describe('define() with layers option', () => {
+		it('should pass layers to script context and expose layers accessor', () => {
+			const authService = { token: 'abc' };
+			const authLayer = defineLayer({
+				name: 'auth',
+				provides: { authService: () => authService },
+			});
+			const resolvedLayer = createResolvedLayer({
+				name: 'auth',
+				provides: { authService: () => authService },
+			});
+			const propsRegistry = createMockPropsRegistry({ auth: {} });
+			const layerRegistry = createMockLayerRegistry(
+				{ auth: resolvedLayer },
+				{ authService: authService }
+			);
+			const store = { propsRegistry, layerRegistry, layers: [resolvedLayer] };
+
+			let capturedLayers: unknown;
+
+			const { context } = createScriptContext({}, undefined, [authLayer]);
+			capturedLayers = runWithLayerContext(store, () => context.layers);
+
+			expect(capturedLayers).toBeDefined();
+			const typedLayers = capturedLayers as {
+				auth: { services: Record<string, unknown> };
+			};
+			expect(
+				runWithLayerContext(store, () => typedLayers.auth.services.authService)
+			).toBe(authService);
 		});
 	});
 });

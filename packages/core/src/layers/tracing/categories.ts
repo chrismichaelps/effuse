@@ -41,6 +41,11 @@ export interface UseHooksCategories {
 	readonly useMediaQuery: boolean;
 	readonly useOnline: boolean;
 	readonly useInterval: boolean;
+	readonly useTimeout: boolean;
+	readonly useDocumentVisibility: boolean;
+	readonly useClipboard: boolean;
+	readonly usePreferredColorScheme: boolean;
+	readonly useAsyncTask: boolean;
 	readonly useDebounce: boolean;
 	readonly useThrottle: boolean;
 }
@@ -52,6 +57,11 @@ export const defaultUseHooksCategories: UseHooksCategories = {
 	useMediaQuery: true,
 	useOnline: true,
 	useInterval: true,
+	useTimeout: true,
+	useDocumentVisibility: true,
+	useClipboard: true,
+	usePreferredColorScheme: true,
+	useAsyncTask: true,
 	useDebounce: true,
 	useThrottle: true,
 };

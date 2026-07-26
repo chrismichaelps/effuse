@@ -23,14 +23,21 @@
  */
 
 import { Data } from 'effect';
+import type {
+	TaggedEnumConstructors,
+	TaggedUnion,
+} from '../../internal/tagged.js';
 
-export type IntervalState = Data.TaggedEnum<{
-	readonly Stopped: {};
+type IntervalStateCases = {
+	readonly Stopped: Record<never, never>;
 	readonly Running: { readonly count: number };
 	readonly Paused: { readonly count: number };
-}>;
+};
 
-export const IntervalState = Data.taggedEnum<IntervalState>();
+export type IntervalState = TaggedUnion<IntervalStateCases>;
+
+export const IntervalState = Data.taggedEnum<IntervalState>() as unknown as
+	TaggedEnumConstructors<IntervalStateCases>;
 
 export const isStopped = IntervalState.$is('Stopped');
 export const isRunning = IntervalState.$is('Running');
@@ -43,6 +50,15 @@ export const getCount = (state: IntervalState): number =>
 		Stopped: () => 0,
 		Running: ({ count }) => count,
 		Paused: ({ count }) => count,
+	});
+
+export type IntervalStatus = 'running' | 'paused' | 'stopped';
+
+export const getStatus = (state: IntervalState): IntervalStatus =>
+	matchIntervalState(state, {
+		Stopped: () => 'stopped' as const,
+		Running: () => 'running' as const,
+		Paused: () => 'paused' as const,
 	});
 
 export const getIsActive = (state: IntervalState): boolean =>

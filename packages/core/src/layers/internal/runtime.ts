@@ -27,32 +27,46 @@ import type { AnyResolvedLayer, CleanupFn } from '../types.js';
 import { PropsService } from '../services/PropsService.js';
 import { RegistryService } from '../services/RegistryService.js';
 import { buildAllLayersEffect } from './builder.js';
-import { initGlobalLayerContext, clearGlobalLayerContext } from '../context.js';
+import {
+	getGlobalLayerContextStore,
+	initGlobalLayerContext,
+	restoreGlobalLayerContext,
+	type LayerContextStore,
+} from '../context.js';
 import {
 	TracingService,
 	TracingServiceLive,
 	logDependencyGraph,
 	setGlobalTracing,
+	getGlobalTracing,
 	clearGlobalTracing,
 	type TracingConfig,
 } from '../tracing/index.js';
 
-export type LayerRuntimeServices =
-	| PropsService
-	| RegistryService
-	| TracingService;
-
+/** Internal — not exported to users. */
 export const CoreServicesLive = Layer.mergeAll(
 	PropsService.Default,
 	RegistryService.Default
 );
+
+const disposedLayerContextStores = new WeakSet<LayerContextStore>();
+const disposedTracingServices = new WeakSet<object>();
+
+const isActiveLayerContextStore = (
+	store: LayerContextStore | undefined
+): store is LayerContextStore =>
+	store !== undefined && !disposedLayerContextStores.has(store);
+
+const isActiveTracingService = <T extends object | null>(
+	service: T
+): service is Exclude<T, null> =>
+	service !== null && !disposedTracingServices.has(service);
 
 export interface LayerRuntimeOptions {
 	tracing?: Partial<TracingConfig>;
 }
 
 export interface LayerRuntime {
-	readonly runtime: ManagedRuntime.ManagedRuntime<LayerRuntimeServices, never>;
 	readonly cleanups: readonly CleanupFn[];
 	dispose: () => Promise<void>;
 }
@@ -61,6 +75,10 @@ export const createLayerRuntime = async (
 	layers: readonly AnyResolvedLayer[],
 	options: LayerRuntimeOptions = {}
 ): Promise<LayerRuntime> => {
+	const previousLayerContextStore = getGlobalLayerContextStore();
+	const previousTracingService = getGlobalTracing();
+	let layerContextStore: LayerContextStore | undefined;
+	let runtimeTracingService: ReturnType<typeof getGlobalTracing> = null;
 	const tracingLayer = TracingServiceLive(options.tracing ?? {});
 	const servicesLayer = Layer.mergeAll(CoreServicesLive, tracingLayer);
 	const runtime = ManagedRuntime.make(servicesLayer);
@@ -71,6 +89,7 @@ export const createLayerRuntime = async (
 
 		layerRegistry.registerService('tracing', tracingService);
 		setGlobalTracing(tracingService);
+		runtimeTracingService = tracingService;
 
 		yield* logDependencyGraph(layers);
 		return yield* buildAllLayersEffect(layers);
@@ -82,6 +101,7 @@ export const createLayerRuntime = async (
 		const propsRegistry = yield* PropsService;
 		const layerRegistry = yield* RegistryService;
 		initGlobalLayerContext(propsRegistry, layerRegistry, layers);
+		layerContextStore = getGlobalLayerContextStore();
 	});
 
 	await runtime.runPromise(initContextEffect);
@@ -89,18 +109,57 @@ export const createLayerRuntime = async (
 	const cleanups = buildResult.results
 		.map((r) => r.cleanup)
 		.filter((c): c is CleanupFn => c !== undefined);
+	let disposePromise: Promise<void> | undefined;
 
 	return {
 		runtime,
 		cleanups,
-		dispose: async () => {
-			clearGlobalLayerContext();
-			clearGlobalTracing();
+		dispose: () => {
+			disposePromise ??= (async () => {
+				const failures: unknown[] = [];
+				if (layerContextStore) {
+					disposedLayerContextStores.add(layerContextStore);
+				}
+				if (runtimeTracingService) {
+					disposedTracingServices.add(runtimeTracingService);
+				}
 
-			if (buildResult.cleanup) {
-				buildResult.cleanup();
-			}
-			await runtime.dispose();
+				if (getGlobalLayerContextStore() === layerContextStore) {
+					restoreGlobalLayerContext(
+						isActiveLayerContextStore(previousLayerContextStore)
+							? previousLayerContextStore
+							: undefined
+					);
+				}
+				if (getGlobalTracing() === runtimeTracingService) {
+					if (isActiveTracingService(previousTracingService)) {
+						setGlobalTracing(previousTracingService);
+					} else {
+						clearGlobalTracing();
+					}
+				}
+
+				if (buildResult.cleanup) {
+					try {
+						await buildResult.cleanup();
+					} catch (error) {
+						failures.push(error);
+					}
+				}
+				try {
+					await runtime.dispose();
+				} catch (error) {
+					failures.push(error);
+				}
+				if (failures.length === 1) throw failures[0];
+				if (failures.length > 1) {
+					throw new AggregateError(
+						failures,
+						`[Effuse] Layer runtime cleanup failed in ${failures.length} resources.`
+					);
+				}
+			})();
+			return disposePromise;
 		},
-	};
+	} as LayerRuntime;
 };

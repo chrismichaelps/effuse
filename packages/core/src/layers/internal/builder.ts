@@ -22,7 +22,6 @@
  * SOFTWARE.
  */
 
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument */
 import { Effect, Fiber, Predicate } from 'effect';
 import type {
 	AnyResolvedLayer,
@@ -30,6 +29,7 @@ import type {
 	LayerDependency,
 	CleanupFn,
 	LayerProps,
+	LayerServiceFactoryContext,
 } from '../types.js';
 import { PropsService, type PropsRegistry } from '../services/PropsService.js';
 import {
@@ -37,13 +37,23 @@ import {
 	type LayerRegistry,
 } from '../services/RegistryService.js';
 import type { Component } from '../../render/node.js';
-import { DependencyNotFoundError } from '../errors.js';
+import {
+	DependencyNotFoundError,
+	LayerSetupError,
+	ServiceNotFoundError,
+} from '../errors.js';
 import {
 	withLayerSpan,
 	type TracingService,
 	traceFiberBuildPhase,
 } from '../tracing/index.js';
 import { buildTopologyLevels, getMaxParallelism } from './topology.js';
+import { getLayerDependencyNames } from '../utils/dependencies.js';
+
+const resolveLayerProps = (layer: AnyResolvedLayer): LayerProps =>
+	layer.deriveProps
+		? layer.deriveProps(layer.store)
+		: (layer.props ?? ({} as LayerProps));
 
 export const createSetupContext = (
 	layer: AnyResolvedLayer,
@@ -51,13 +61,7 @@ export const createSetupContext = (
 	registry: LayerRegistry,
 	allLayers: readonly AnyResolvedLayer[]
 ): SetupContext => {
-	let layerProps: LayerProps;
-
-	if (layer.deriveProps && layer.store) {
-		layerProps = layer.deriveProps(layer.store);
-	} else {
-		layerProps = layer.props ?? ({} as LayerProps);
-	}
+	const layerProps = propsRegistry.get(layer.name) ?? resolveLayerProps(layer);
 
 	const getLayerDependency = (name: string): LayerDependency => {
 		const depLayer = registry.getLayer(name);
@@ -80,22 +84,45 @@ export const createSetupContext = (
 	};
 
 	const deps: Record<string, LayerDependency> = {};
-	if (layer.dependencies) {
-		for (const depName of layer.dependencies) {
-			deps[depName] = getLayerDependency(depName);
-		}
+	for (const depName of getLayerDependencyNames(layer)) {
+		deps[depName] = getLayerDependency(depName);
 	}
+
+	const requireService = <T = unknown>(key: string): T => {
+		const service = registry.getService(key);
+		if (service === undefined) {
+			throw new ServiceNotFoundError({
+				layerName: layer.name,
+				serviceKey: key,
+			});
+		}
+		return service as T;
+	};
 
 	return {
 		props: layerProps,
 		store: layer.store,
 		deps,
 		get: getLayerDependency,
-		getService: (key: string) => registry.getService(key),
+		getService: <T = unknown>(key: string) =>
+			registry.getService(key) as T | undefined,
+		requireService,
 		component: (name: string) => registry.getComponent(name),
 		layers: allLayers,
 	};
 };
+
+const createServiceFactoryContext = (
+	layer: AnyResolvedLayer,
+	serviceKey: string,
+	propsRegistry: PropsRegistry,
+	registry: LayerRegistry,
+	allLayers: readonly AnyResolvedLayer[]
+): LayerServiceFactoryContext => ({
+	...createSetupContext(layer, propsRegistry, registry, allLayers),
+	layer: layer.name,
+	serviceKey,
+});
 
 export const buildLayerEffect = (
 	layer: AnyResolvedLayer,
@@ -109,15 +136,7 @@ export const buildLayerEffect = (
 
 			registry.registerLayer(layer);
 
-			let derivedProps: LayerProps;
-
-			if (layer.deriveProps && layer.store) {
-				derivedProps = layer.deriveProps(layer.store);
-			} else {
-				derivedProps = layer.props ?? ({} as LayerProps);
-			}
-
-			propsRegistry.set(layer.name, derivedProps);
+			propsRegistry.set(layer.name, resolveLayerProps(layer));
 
 			if (layer.components) {
 				for (const [name, component] of Object.entries(layer.components)) {
@@ -127,7 +146,23 @@ export const buildLayerEffect = (
 
 			if (layer.provides) {
 				for (const [key, factory] of Object.entries(layer.provides)) {
-					registry.registerService(key, factory());
+					const serviceContext = createServiceFactoryContext(
+						layer,
+						key,
+						propsRegistry,
+						registry,
+						allLayers
+					);
+					const service = yield* Effect.try({
+						try: () => factory(serviceContext),
+						catch: (error: unknown) =>
+							new LayerSetupError({
+								layerName: layer.name,
+								phase: `service:${key}`,
+								cause: error,
+							}),
+					});
+					registry.registerService(key, service);
 				}
 			}
 
@@ -150,7 +185,11 @@ export const buildLayerEffect = (
 					try: () => Promise.resolve(onMountFn(ctx)),
 					catch: (error: unknown) => {
 						handleError(error);
-						return error;
+						return new LayerSetupError({
+							layerName: layer.name,
+							phase: 'onMount',
+							cause: error,
+						});
 					},
 				});
 			}
@@ -162,7 +201,11 @@ export const buildLayerEffect = (
 					try: () => Promise.resolve(setupFn(ctx)),
 					catch: (error: unknown) => {
 						handleError(error);
-						return error;
+						return new LayerSetupError({
+							layerName: layer.name,
+							phase: 'setup',
+							cause: error,
+						});
 					},
 				});
 
@@ -173,28 +216,37 @@ export const buildLayerEffect = (
 
 			if (layer.onUnmount) {
 				const onUnmountFn = layer.onUnmount;
-				cleanups.push(() => {
-					try {
-						const maybePromise = onUnmountFn(ctx);
-						if (maybePromise instanceof Promise) {
-							void maybePromise.catch(() => {});
-						}
-					} catch (error: unknown) {
-						handleError(error);
-					}
-				});
+				cleanups.push(() => onUnmountFn(ctx));
 			}
 
 			const cleanup: CleanupFn | undefined =
 				cleanups.length > 0
-					? () => {
+					? async () => {
+							const failures: unknown[] = [];
 							const reversed = cleanups.slice().reverse();
 							for (const cleanupFn of reversed) {
 								try {
-									cleanupFn();
+									await cleanupFn();
 								} catch (error: unknown) {
-									handleError(error);
+									try {
+										handleError(error);
+										failures.push(error);
+									} catch (handlerError) {
+										failures.push(
+											new AggregateError(
+												[error, handlerError],
+												`[Effuse] Layer "${layer.name}" error handler failed during cleanup.`
+											)
+										);
+									}
 								}
+							}
+							if (failures.length === 1) throw failures[0];
+							if (failures.length > 1) {
+								throw new AggregateError(
+									failures,
+									`[Effuse] Layer "${layer.name}" cleanup failed in ${failures.length} callbacks.`
+								);
 							}
 						}
 					: undefined;
@@ -271,10 +323,15 @@ export const buildAllLayersEffect = (
 
 		if (onReadyCallbacks.length > 0) {
 			yield* Effect.all(
-				onReadyCallbacks.map((cb) =>
+				onReadyCallbacks.map((cb, index) =>
 					Effect.tryPromise({
 						try: () => Promise.resolve(cb()),
-						catch: () => undefined,
+						catch: (error: unknown) =>
+							new LayerSetupError({
+								layerName: results[index]?.layer.name ?? 'unknown',
+								phase: 'onReady',
+								cause: error,
+							}),
 					})
 				),
 				{ concurrency: 'unbounded' }
@@ -283,15 +340,23 @@ export const buildAllLayersEffect = (
 
 		const aggregatedCleanup: CleanupFn | undefined =
 			results.length > 0
-				? () => {
+				? async () => {
+						const failures: unknown[] = [];
 						for (const { cleanup } of results.slice().reverse()) {
 							if (cleanup) {
 								try {
-									cleanup();
-								} catch {
-									void 0;
+									await cleanup();
+								} catch (error) {
+									failures.push(error);
 								}
 							}
+						}
+						if (failures.length === 1) throw failures[0];
+						if (failures.length > 1) {
+							throw new AggregateError(
+								failures,
+								`[Effuse] Layer cleanup failed in ${failures.length} layers.`
+							);
 						}
 					}
 				: undefined;

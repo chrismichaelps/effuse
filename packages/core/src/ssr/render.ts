@@ -22,66 +22,112 @@
  * SOFTWARE.
  */
 
-import { Effect, Predicate, Scope, Exit, pipe } from 'effect';
+import { Predicate } from 'effect';
 import type { EffuseNode, Component, BlueprintDef } from '../render/node.js';
-import { isEffuseNode, matchEffuseNode } from '../render/node.js';
+import { isEffuseNode } from '../render/node.js';
 import { isSignal } from '../reactivity/index.js';
-import type { HeadProps, RenderResult } from './types.js';
+import {
+	runWithProvideScope,
+	type ProvideScope,
+} from '../blueprint/provide-inject.js';
+import { isSuspendToken } from '../suspense/Suspense.js';
+import type { HeadProps, RenderResult, ServerAppOptions } from './types.js';
 import { RenderError } from './errors.js';
-import { headToHtml, mergeLayerHeads } from './head-registry.js';
-import { setSSRContext } from './use-head.js';
+import { escapeHtml, escapeAttr, escapeAttrName } from './escape.js';
+import { headToHtml } from './head-registry.js';
+import { runWithSSRContext } from './use-head.js';
+import { serializeHydrationData, type HydrationData } from './hydration.js';
+import type { SSRRuntime } from './runtime.js';
+import type { ComponentLifecycle } from '../blueprint/lifecycle.js';
 
+/**
+ * Render a component tree to a full HTML string using the SSRRuntime.
+ *
+ * The runtime must have been initialized via `createSSRRuntime` so that
+ * layer services and props are available during rendering.
+ *
+ * Uses `runWithSSRContext` (AsyncLocalStorage) to scope `useHead()` calls
+ * to this render pass — no module globals, safe for concurrent requests.
+ */
 export const renderToString = (
 	root: Component | EffuseNode,
 	url: string,
-	layerHeads: HeadProps[] = []
-): Effect.Effect<RenderResult, RenderError> =>
-	Effect.gen(function* () {
-		const startTime = Date.now();
+	ssrRuntime: SSRRuntime,
+	options: ServerAppOptions = {}
+): RenderResult => {
+	const startTime = Date.now();
 
-		const scope = yield* Scope.make();
-
-		const baseHead = mergeLayerHeads(layerHeads);
-
-		const headStack: HeadProps[] = [baseHead];
-
-		setSSRContext({
+	// Run the entire render inside the AsyncLocalStorage SSR context
+	return runWithSSRContext(
+		{
 			push: (head: HeadProps) => {
-				headStack.push(head);
+				ssrRuntime.headStack.push(head);
 			},
-		});
+		},
+		() => {
+			try {
+				const html = renderNodeToString(root);
 
-		try {
-			const html = yield* Effect.try({
-				try: () => renderNodeToString(root),
-				catch: (error) =>
-					new RenderError({
-						message: `Render failed: ${String(error)}`,
-						url,
-						cause: error,
-					}),
-			});
+				// Merge all collected heads (layer heads + useHead() calls)
+				const mergedHead = ssrRuntime.headStack.reduce<HeadProps>(
+					(acc, head) => ({ ...acc, ...head }),
+					{}
+				);
 
-			const mergedHead = headStack.reduce<HeadProps>(
-				(acc, head) => ({ ...acc, ...head }),
-				{}
-			);
+				// Serialize state for hydration
+				const serializedState: Record<string, unknown> = {};
+				for (const [key, value] of ssrRuntime.state) {
+					serializedState[key] = value;
+				}
 
-			const fullHtml = generateFullHtml(html, mergedHead, {});
+				const hydrationData: HydrationData = {
+					head: mergedHead,
+					state: serializedState,
+					url,
+					timestamp: Date.now(),
+				};
 
-			const timing = Date.now() - startTime;
+				const fullHtml = generateFullHtml(html, mergedHead, hydrationData, options);
 
-			return {
-				html: fullHtml,
-				head: mergedHead,
-				state: {},
-				timing,
-			};
-		} finally {
-			setSSRContext(null);
-			yield* Scope.close(scope, Exit.succeed(undefined));
+				const timing = Date.now() - startTime;
+
+				return {
+					html: fullHtml,
+					head: mergedHead,
+					state: serializedState,
+					timing,
+				};
+			} catch (error) {
+				if (error instanceof RenderError) {
+					throw error;
+				}
+				throw new RenderError({
+					message: `Render failed: ${String(error)}`,
+					url,
+					cause: error,
+				});
+			}
 		}
-	});
+	);
+};
+
+/**
+ * Render a component tree to an HTML body fragment (no full document).
+ * Useful when you want to control the outer shell yourself.
+ */
+export const renderToFragment = (
+	root: Component | EffuseNode,
+	ssrRuntime: SSRRuntime
+): string => {
+	return runWithSSRContext(
+		{
+			push: (head: HeadProps) => {
+				ssrRuntime.headStack.push(head);
+			},
+		},
+		() => renderNodeToString(root)
+	);
+};
 
 const renderNodeToString = (node: unknown): string => {
 	if (node == null) {
@@ -104,7 +150,7 @@ const renderNodeToString = (node: unknown): string => {
 	}
 
 	if (Array.isArray(node)) {
-		return node.map(renderNodeToString).join('');
+		return renderChildren(node as readonly unknown[]);
 	}
 
 	if (isEffuseNode(node)) {
@@ -115,8 +161,11 @@ const renderNodeToString = (node: unknown): string => {
 		try {
 			const result = (node as () => unknown)();
 			return renderNodeToString(result);
-		} catch {
-			return '';
+		} catch (err) {
+			if (isSuspendToken(err)) {
+				return '';
+			}
+			throw err;
 		}
 	}
 
@@ -131,48 +180,58 @@ const renderNodeToString = (node: unknown): string => {
 	return '';
 };
 
+/** Void elements, hoisted so the set is not rebuilt for every element. */
+const SELF_CLOSING_TAGS = new Set([
+	'area',
+	'base',
+	'br',
+	'col',
+	'embed',
+	'hr',
+	'img',
+	'input',
+	'link',
+	'meta',
+	'param',
+	'source',
+	'track',
+	'wbr',
+]);
+
+/** Concatenates children without the intermediate array `map().join('')` builds. */
+const renderChildren = (children: readonly unknown[]): string => {
+	let html = '';
+	for (let index = 0; index < children.length; index += 1) {
+		html += renderNodeToString(children[index]);
+	}
+	return html;
+};
+
 const renderEffuseNode = (node: EffuseNode): string => {
-	return pipe(
-		node,
-		matchEffuseNode({
-			Text: (node) => escapeHtml(node.text),
-			Element: (node) => {
-				const tag = node.tag;
-				const props = node.props ?? {};
-				const children = node.children;
+	// Direct dispatch on the tag. The combinator form allocated a fresh object
+	// of five closures for every node rendered, which dominated large documents.
+	switch (node._tag) {
+		case 'Text':
+			return escapeHtml(node.text);
+		case 'Element': {
+			const tag = node.tag;
+			const attrs = renderAttributes(node.props ?? {});
+			const attrStr = attrs ? ` ${attrs}` : '';
 
-				const attrs = renderAttributes(props);
-				const attrStr = attrs ? ` ${attrs}` : '';
+			if (SELF_CLOSING_TAGS.has(tag)) {
+				return `<${tag}${attrStr}>`;
+			}
 
-				const selfClosing = [
-					'area',
-					'base',
-					'br',
-					'col',
-					'embed',
-					'hr',
-					'img',
-					'input',
-					'link',
-					'meta',
-					'param',
-					'source',
-					'track',
-					'wbr',
-				];
-
-				if (selfClosing.includes(tag)) {
-					return `<${tag}${attrStr}>`;
-				}
-
-				const childHtml = children.map(renderNodeToString).join('');
-				return `<${tag}${attrStr}>${childHtml}</${tag}>`;
-			},
-			Blueprint: (node) => renderBlueprint(node.blueprint, node.props),
-			Fragment: (node) => node.children.map(renderNodeToString).join(''),
-			List: (node) => node.children.map(renderNodeToString).join(''),
-		})
-	);
+			return `<${tag}${attrStr}>${renderChildren(node.children)}</${tag}>`;
+		}
+		case 'Blueprint':
+			return renderBlueprint(node.blueprint, node.props);
+		case 'Fragment':
+		case 'List':
+			return renderChildren(node.children);
+		default:
+			return '';
+	}
 };
 
 const renderBlueprint = (
@@ -187,8 +246,68 @@ const renderBlueprint = (
 		portals: {},
 	};
 
-	const viewResult = def.view(context);
-	return renderNodeToString(viewResult);
+	const provideScope = (state as Record<string, unknown>)._provideScope as
+		| ProvideScope
+		| undefined;
+
+	let html: string | undefined;
+	let renderError: unknown;
+	let renderFailed = false;
+	try {
+		// Children must render inside this component's provide scope, not just
+		// its view function. Rendering a child is what runs the child's script,
+		// and that script resolves `provide`/`inject` and context against the
+		// scope current at the time. Rendering outside the scope gave every
+		// child a null parent, so server output silently fell back to defaults
+		// and only corrected after hydration.
+		html = provideScope
+			? runWithProvideScope(provideScope, () =>
+					renderNodeToString(def.view(context))
+				)
+			: renderNodeToString(def.view(context));
+	} catch (error) {
+		renderFailed = true;
+		renderError = error;
+	}
+
+	let cleanupError: unknown;
+	let cleanupFailed = false;
+	const lifecycle = (state as { lifecycle?: ComponentLifecycle }).lifecycle;
+	try {
+		lifecycle?.runCleanup();
+	} catch (error) {
+		cleanupFailed = true;
+		cleanupError = error;
+	}
+
+	if (renderFailed && cleanupFailed) {
+		throw new AggregateError(
+			[renderError, cleanupError],
+			'[Effuse] SSR component render and lifecycle cleanup both failed.'
+		);
+	}
+	if (renderFailed) throw renderError;
+	if (cleanupFailed) throw cleanupError;
+	return html ?? '';
+};
+
+const normalizeClassValue = (value: unknown): string => {
+	if (Predicate.isString(value)) {
+		return value;
+	}
+	if (Array.isArray(value)) {
+		return value
+			.map(normalizeClassValue)
+			.filter((part) => part !== '')
+			.join(' ');
+	}
+	if (Predicate.isObject(value)) {
+		return Object.entries(value as Record<string, unknown>)
+			.filter(([, enabled]) => Boolean(enabled))
+			.map(([name]) => name)
+			.join(' ');
+	}
+	return '';
 };
 
 const renderAttributes = (props: Record<string, unknown>): string => {
@@ -203,13 +322,40 @@ const renderAttributes = (props: Record<string, unknown>): string => {
 			continue;
 		}
 
+		if (key === 'ref' || key.startsWith('use:')) {
+			continue;
+		}
+
 		if (value == null) {
 			continue;
 		}
 
-		const actualValue = isSignal(value)
+		let actualValue = isSignal(value)
 			? (value as { value: unknown }).value
 			: value;
+
+		// Zero-arg functions are reactive getters on the client; evaluate them
+		// so SSR output matches the first client render.
+		if (Predicate.isFunction(actualValue) && actualValue.length === 0) {
+			actualValue = (actualValue as () => unknown)();
+			if (isSignal(actualValue)) {
+				actualValue = (actualValue as { value: unknown }).value;
+			}
+		} else if (Predicate.isFunction(actualValue)) {
+			continue;
+		}
+
+		if (actualValue == null) {
+			continue;
+		}
+
+		if (key === 'class' || key === 'className') {
+			const classString = normalizeClassValue(actualValue);
+			if (classString !== '') {
+				parts.push(`class="${escapeAttr(classString)}"`);
+			}
+			continue;
+		}
 
 		if (Predicate.isBoolean(actualValue)) {
 			if (actualValue) {
@@ -243,14 +389,28 @@ const renderAttributes = (props: Record<string, unknown>): string => {
 const generateFullHtml = (
 	bodyHtml: string,
 	head: HeadProps,
-	state: Record<string, unknown>
+	hydrationData: HydrationData,
+	options: ServerAppOptions = {}
 ): string => {
-	const headHtml = headToHtml(head);
+	let headHtml = headToHtml(head);
 	const lang = head.lang ?? 'en';
-	const stateScript =
-		Object.keys(state).length > 0
-			? `<script id="__EFFUSE_DATA__" type="application/json">${JSON.stringify(state)}</script>`
-			: '';
+	
+	if (options.manifest) {
+		for (const chunk of Object.values(options.manifest)) {
+			if (chunk.isEntry) {
+				headHtml += `\n\t<link rel="modulepreload" crossorigin href="/${chunk.file}">`;
+				if (chunk.css) {
+					for (const cssFile of chunk.css) {
+						headHtml += `\n\t<link rel="stylesheet" href="/${cssFile}">`;
+					}
+				}
+			}
+		}
+	}
+
+	const hydrationScript = options.hydrate !== false 
+		? serializeHydrationData(hydrationData) 
+		: '';
 
 	return `<!DOCTYPE html>
 <html lang="${lang}">
@@ -259,29 +419,9 @@ const generateFullHtml = (
 </head>
 <body>
 	<div id="app">${bodyHtml}</div>
-	${stateScript}
+	${hydrationScript}
 </body>
 </html>`;
-};
-
-const escapeHtml = (str: string): string => {
-	return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-};
-
-const escapeAttr = (str: string): string => {
-	return str
-		.replace(/&/g, '&amp;')
-		.replace(/</g, '&lt;')
-		.replace(/>/g, '&gt;')
-		.replace(/"/g, '&quot;')
-		.replace(/'/g, '&#39;');
-};
-
-const escapeAttrName = (str: string): string => {
-	return escapeAttr(str)
-		.replace(/\//g, '&#47;')
-		.replace(/\s/g, '&#32;')
-		.replace(/=/g, '&#61;');
 };
 
 const camelToKebab = (str: string): string => {

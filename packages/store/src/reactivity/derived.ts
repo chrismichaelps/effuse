@@ -92,7 +92,7 @@ export const deriveFromAsync = <S extends Store<unknown>[], R>(
 		const myToken = currentToken;
 		pendingSignal.value = true;
 
-		asyncSelector(getSnapshots(), myToken)
+		Promise.resolve(asyncSelector(getSnapshots(), myToken))
 			.then((newValue) => {
 				if (!myToken.isCancelled && derivedSignal.value !== newValue) {
 					derivedSignal.value = newValue;

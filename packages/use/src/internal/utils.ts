@@ -101,7 +101,7 @@ export const safeJsonParse = <T>(value: string, fallback: T): T =>
 		}
 	);
 
-export const safeJsonStringify = <T>(value: T): string | null =>
+export const safeJsonStringify = (value: unknown): string | null =>
 	Either.match(
 		Either.try(() => JSON.stringify(value)),
 		{

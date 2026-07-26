@@ -27,3 +27,5 @@ export {
 	prefixRoutes,
 	mergeLayerConfigs,
 } from './resolve.js';
+
+export { getLayerDependencyNames } from './dependencies.js';

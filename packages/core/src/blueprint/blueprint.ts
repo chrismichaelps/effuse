@@ -54,24 +54,23 @@ export const blueprint = <
 >(
 	options: BlueprintOptions<P>
 ): BlueprintDef<P> => {
-	const def: BlueprintDef<P> = {
+	const def: Record<string, unknown> & BlueprintDef<P> = {
 		_tag: 'Blueprint',
 		name: options.name,
 		view: options.view,
 	};
 
-	const mutableDef = def as unknown as Record<string, unknown>;
 	if (options.state) {
-		mutableDef.state = options.state;
+		def.state = options.state;
 	}
 	if (options.error) {
-		mutableDef.error = options.error;
+		def.error = options.error;
 	}
 	if (options.loading) {
-		mutableDef.loading = options.loading;
+		def.loading = options.loading;
 	}
 	if (options.propsSchema) {
-		mutableDef.propsSchema = options.propsSchema;
+		def.propsSchema = options.propsSchema;
 	}
 
 	return def;
@@ -94,11 +93,11 @@ export const instantiateBlueprint = <P extends Record<string, unknown>>(
 ): BlueprintContext<P> => {
 	let validatedProps = props;
 
-	const defWithSchema = def as unknown as {
-		propsSchema?: PropSchemaBuilder<P>;
-	};
-	if (defWithSchema.propsSchema) {
-		validatedProps = defWithSchema.propsSchema.validateSync(props, def.name);
+	const propsSchema = (def as unknown as Record<string, unknown>).propsSchema as
+		| PropSchemaBuilder<P>
+		| undefined;
+	if (propsSchema) {
+		validatedProps = propsSchema.validateSync(props, def.name);
 	}
 
 	const state = def.state ? def.state(validatedProps) : {};

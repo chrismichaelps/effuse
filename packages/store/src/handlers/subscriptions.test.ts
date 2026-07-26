@@ -10,7 +10,7 @@ const createMockInternals = (): StoreInternals => ({
 	subscribers: new Set(),
 	keySubscribers: new Map(),
 	computedSelectors: new Map(),
-	isBatching: false,
+	batchDepth: 0,
 	cancellationScope: createCancellationScope(),
 	pendingActions: new Map(),
 });

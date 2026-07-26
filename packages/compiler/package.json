@@ -38,15 +38,15 @@
 		"dev": "tsc -w -p tsconfig.json",
 		"clean": "rm -rf dist",
 		"typecheck": "tsc --noEmit",
-		"test": "vitest run || echo 'No tests'",
+		"pretest": "node ../../scripts/check-node-version.mjs",
+		"test": "vitest run",
 		"test:watch": "vitest"
 	},
 	"dependencies": {
 		"@babel/parser": "^7.29.2",
 		"@babel/traverse": "^7.29.0",
 		"@babel/generator": "^7.29.1",
-		"@babel/types": "^7.29.0",
-		"effect": "^3.20.0"
+		"@babel/types": "^7.29.0"
 	},
 	"devDependencies": {
 		"@types/babel__generator": "^7.27.0",
@@ -56,7 +56,7 @@
 		"vitest": "^4.1.0"
 	},
 	"peerDependencies": {
-		"vite": "^5.0.0 || ^6.0.0"
+		"vite": "^5.0.0 || ^6.0.0 || ^7.0.0 || ^8.0.0"
 	},
 	"peerDependenciesMeta": {
 		"vite": {

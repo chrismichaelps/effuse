@@ -24,10 +24,33 @@
 
 export {
 	defineLayer,
+	layerService,
 	type EffuseServices,
 	type CompiledLayer,
+	type LayerFactory,
+	type LayerFactoryContext,
+	type LayerInput,
+	type LayerInputSource,
+	layerInputSourceToList,
+	isCompiledLayer,
+	compileLayer,
+	resolveLayerDefinitions,
 	combineLayers,
 	type MergeServices,
 	type LayerServicesFrom,
 	type ExtractServices,
 } from './defineLayer.js';
+
+export {
+	resolveLayersAccessor,
+	resolveLayerEntry,
+	assertLayerBindingsRegistered,
+	type LayerBindingConsumer,
+	type LayersAccessor,
+	type LayerEntry,
+	type LayerEntryFrom,
+	type LayerList,
+	type LayerAliases,
+	type LayerSource,
+	layerSourceToList,
+} from './layersAccessor.js';

@@ -25,38 +25,99 @@
 import { Effect } from 'effect';
 import { hashQueryKey } from './schema.js';
 import { QueryError, NetworkError } from '../errors/index.js';
-import type { QueryKey } from '../client/types.js';
+import type { QueryFunction, QueryKey } from '../client/types.js';
 
-const inFlightRequests = new Map<string, Promise<unknown>>();
+const IN_FLIGHT_TTL_MS = 30000;
+const IN_FLIGHT_MAX_SIZE = 100;
+
+interface InFlightEntry {
+	readonly promise: Promise<unknown>;
+	readonly timestamp: number;
+}
+
+const inFlightRequests = new Map<string, InFlightEntry>();
+
+const cleanupStaleEntries = (): void => {
+	const now = Date.now();
+	for (const [key, entry] of inFlightRequests) {
+		if (now - entry.timestamp > IN_FLIGHT_TTL_MS) {
+			inFlightRequests.delete(key);
+		}
+	}
+};
+
+const setInFlight = (keyHash: string, promise: Promise<unknown>): void => {
+	cleanupStaleEntries();
+
+	if (inFlightRequests.size >= IN_FLIGHT_MAX_SIZE) {
+		// Remove oldest entry when at capacity
+		const oldest = inFlightRequests.entries().next().value;
+		if (oldest) {
+			inFlightRequests.delete(oldest[0]);
+		}
+	}
+
+	inFlightRequests.set(keyHash, { promise, timestamp: Date.now() });
+};
 
 export const executeQuery = <T>(
 	queryKey: QueryKey,
-	queryFn: () => Promise<T>
+	queryFn: QueryFunction<T>
 ): Effect.Effect<T, Error, never> => {
 	const keyHash = hashQueryKey(queryKey);
 
-	return Effect.tryPromise({
-		try: async () => {
-			const existing = inFlightRequests.get(keyHash);
-			if (existing) {
-				return existing as Promise<T>;
-			}
-
-			const promise = queryFn().finally(() => {
-				inFlightRequests.delete(keyHash);
+	return Effect.gen(function* () {
+		cleanupStaleEntries();
+		const existing = inFlightRequests.get(keyHash);
+		if (existing) {
+			return yield* Effect.tryPromise({
+				try: () => existing.promise as Promise<T>,
+				catch: (error) =>
+					error instanceof TypeError
+						? new NetworkError({ message: String(error) })
+						: new QueryError({
+								message: error instanceof Error ? error.message : String(error),
+								queryKey,
+								cause: error,
+							}),
 			});
+		}
 
-			inFlightRequests.set(keyHash, promise);
-			return promise;
-		},
-		catch: (error) =>
-			error instanceof TypeError
-				? new NetworkError({ message: String(error) })
-				: new QueryError({
-						message: error instanceof Error ? error.message : String(error),
-						queryKey,
-						cause: error,
-					}),
+		const raw = queryFn();
+
+		if (Effect.isEffect(raw)) {
+			return yield* raw.pipe(
+				Effect.catchAll((error) =>
+					Effect.fail(
+						error instanceof TypeError
+							? new NetworkError({ message: String(error) })
+							: new QueryError({
+									message: error instanceof Error ? error.message : String(error),
+									queryKey,
+									cause: error,
+								})
+					)
+				)
+			);
+		}
+
+		const promise = raw.finally(() => {
+			inFlightRequests.delete(keyHash);
+		});
+
+		setInFlight(keyHash, promise);
+
+		return yield* Effect.tryPromise({
+			try: () => promise,
+			catch: (error) =>
+				error instanceof TypeError
+					? new NetworkError({ message: String(error) })
+					: new QueryError({
+							message: error instanceof Error ? error.message : String(error),
+							queryKey,
+							cause: error,
+						}),
+		});
 	});
 };
 

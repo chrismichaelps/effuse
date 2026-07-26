@@ -48,15 +48,12 @@ export function el(
 export function el<P>(
 	blueprint: BlueprintDef<P>,
 	props?: P | null,
-
-	// eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
 	portals?: Portals | PortalFn | null
 ): BlueprintNode<P>;
 
 export function el(
 	tagOrBlueprint: string | BlueprintDef,
 	propsOrNull?: ElementProps | Record<string, never> | null,
-	// eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
 	...rest: (EffuseChild | Portals | PortalFn | null)[]
 ): EffuseNode {
 	if (Predicate.isString(tagOrBlueprint)) {
@@ -135,6 +132,11 @@ export const toNode = (child: EffuseChild): EffuseNode | null => {
 
 	if (Predicate.isNumber(child)) {
 		return createTextNode(String(child));
+	}
+
+	if (Array.isArray(child)) {
+		const nodes = child.map(toNode).filter((n): n is EffuseNode => n !== null);
+		return nodes.length === 1 ? nodes[0] : createFragmentNode(nodes);
 	}
 
 	if (Predicate.isObject(child) && EFFUSE_NODE in child) {

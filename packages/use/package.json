@@ -28,7 +28,7 @@
 		"src"
 	],
 	"scripts": {
-		"build": "tsup",
+		"build": "tsup && node scripts/check-public-types.mjs",
 		"dev": "tsup --watch",
 		"lint": "eslint src",
 		"test": "vitest run",
@@ -53,6 +53,7 @@
 	},
 	"devDependencies": {
 		"@effect/eslint-plugin": "^0.3.2",
+		"@eslint/js": "^9.39.4",
 		"@types/node": "^25.5.0",
 		"@effuse/core": "1.2.4",
 		"eslint": "^10.0.3",

@@ -60,9 +60,54 @@ export {
 export {
 	useInterval,
 	IntervalError,
+	type IntervalStatus,
 	type UseIntervalConfig,
 	type UseIntervalReturn,
 } from './hooks/useInterval/index.js';
+
+export {
+	useTimeout,
+	TimeoutError,
+	type TimeoutErrorCode,
+	type TimeoutStatus,
+	type UseTimeoutConfig,
+	type UseTimeoutReturn,
+} from './hooks/useTimeout/index.js';
+
+export {
+	useDocumentVisibility,
+	DocumentVisibilityError,
+	type VisibilityState,
+	type UseDocumentVisibilityConfig,
+	type UseDocumentVisibilityReturn,
+} from './hooks/useDocumentVisibility/index.js';
+
+export {
+	useClipboard,
+	ClipboardError,
+	type ClipboardErrorCode,
+	type ClipboardOperation,
+	type ClipboardPermissionState,
+	type ClipboardPermissions,
+	type UseClipboardConfig,
+	type UseClipboardReturn,
+} from './hooks/useClipboard/index.js';
+
+export {
+	usePreferredColorScheme,
+	PreferredColorSchemeError,
+	type PreferredColorScheme,
+	type UsePreferredColorSchemeConfig,
+	type UsePreferredColorSchemeReturn,
+} from './hooks/usePreferredColorScheme/index.js';
+
+export {
+	useAsyncTask,
+	type AsyncTask,
+	type AsyncTaskStatus,
+	type UseAsyncTaskConfig,
+	type UseAsyncTaskReturn,
+} from './hooks/useAsyncTask/index.js';
 
 export {
 	useDebounce,

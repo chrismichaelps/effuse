@@ -48,13 +48,25 @@ interface LinkProps {
 }
 
 interface LinkState {
-	to: () => string;
+	href: () => string;
 	isActive: Signal<boolean>;
 	isExactActive: Signal<boolean>;
-	activeClass: string;
-	exactActiveClass: string;
+	resolvedActiveClass: string;
+	resolvedExactActiveClass: string;
 	handleClick: (event: MouseEvent) => void;
 }
+
+const LINK_CONTROL_PROPS = new Set([
+	'to',
+	'activeClass',
+	'exactActiveClass',
+	'class',
+	'className',
+	'children',
+	'onClick',
+	'href',
+	'aria-current',
+]);
 
 export const Link = define<LinkProps, LinkState>({
 	script: ({ props, signal, onMount, onUnmount }): LinkState => {
@@ -103,50 +115,60 @@ export const Link = define<LinkProps, LinkState>({
 		});
 
 		const handleClick = (event: MouseEvent): void => {
+			if (typeof props.onClick === 'function') {
+				(props.onClick as (event: MouseEvent) => void)(event);
+			}
+			if (event.defaultPrevented) return;
+
 			if (event.metaKey || event.altKey || event.ctrlKey || event.shiftKey)
 				return;
 
 			if (event.button !== 0) return;
 
-			event.preventDefault();
+			const target = typeof props.target === 'string' ? props.target : '';
+			if (target && target.toLowerCase() !== '_self') return;
+			if (props.download !== undefined && props.download !== false) return;
+			if (!router) return;
 
-			if (router) {
-				router.push(resolveTo());
-			}
+			event.preventDefault();
+			void router.push(resolveTo());
 		};
 
 		return {
-			to: resolveTo,
+			href: resolveTo,
 			isActive,
 			isExactActive,
-			activeClass,
-			exactActiveClass,
+			resolvedActiveClass: activeClass,
+			resolvedExactActiveClass: exactActiveClass,
 			handleClick,
 		};
 	},
 
-	template: (exposed, props): ElementNode => {
+	template: (ctx): ElementNode => {
+		const anchorProps = Object.fromEntries(
+			Object.entries(ctx.props).filter(([key]) => !LINK_CONTROL_PROPS.has(key))
+		);
 		const userClass =
-			(typeof props.class === 'string' && props.class) ||
-			(typeof props.className === 'string' && props.className) ||
+			(typeof ctx.props.class === 'string' && ctx.props.class) ||
+			(typeof ctx.props.className === 'string' && ctx.props.className) ||
 			'';
 
 		const classSig = computed<string | null>(() => {
 			const classes: string[] = [];
 			if (userClass) classes.push(userClass);
-			if (exposed.isExactActive.value) {
-				classes.push(exposed.exactActiveClass);
-			} else if (exposed.isActive.value) {
-				classes.push(exposed.activeClass);
+			if (ctx.isExactActive.value) {
+				classes.push(ctx.resolvedExactActiveClass);
+			} else if (ctx.isActive.value) {
+				classes.push(ctx.resolvedActiveClass);
 			}
 			return classes.length > 0 ? classes.join(' ') : null;
 		});
 
 		const ariaCurrentSig = computed<string | null>(() =>
-			exposed.isExactActive.value ? 'page' : null
+			ctx.isExactActive.value ? 'page' : null
 		);
 
-		const childrenProp = (props as { children?: unknown }).children;
+		const childrenProp = ctx.children;
 		const childrenArr =
 			childrenProp == null
 				? []
@@ -158,9 +180,10 @@ export const Link = define<LinkProps, LinkState>({
 			[EFFUSE_NODE]: true,
 			tag: 'a',
 			props: {
-				href: exposed.to,
+				...anchorProps,
+				href: ctx.href,
 				className: classSig,
-				onClick: exposed.handleClick,
+				onClick: ctx.handleClick,
 				'aria-current': ariaCurrentSig,
 			},
 			children: childrenArr,

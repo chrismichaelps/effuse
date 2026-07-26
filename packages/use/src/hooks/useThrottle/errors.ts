@@ -23,7 +23,19 @@
  */
 
 import { Data } from 'effect';
+import type { TaggedErrorConstructor } from '../../internal/tagged.js';
 
-export class ThrottleError extends Data.TaggedError('ThrottleError')<{
+interface ThrottleErrorFields {
 	readonly reason: string;
-}> {}
+}
+
+export interface ThrottleError extends Error, ThrottleErrorFields {
+	readonly _tag: 'ThrottleError';
+}
+
+const ThrottleErrorRuntime = Data.TaggedError('ThrottleError')<
+	ThrottleErrorFields
+>;
+
+export const ThrottleError = ThrottleErrorRuntime as unknown as
+	TaggedErrorConstructor<ThrottleErrorFields, ThrottleError>;

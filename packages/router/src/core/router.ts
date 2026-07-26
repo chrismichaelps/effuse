@@ -33,6 +33,7 @@ import {
 	type ResolvedRoute,
 	type NormalizedRouteRecord,
 	normalizeRoutes,
+	finalizeNormalizedRoutes,
 	resolveRoute,
 	createRoute,
 	parseUrl,
@@ -47,12 +48,7 @@ import {
 } from '../navigation/guards.js';
 import { NavigationFailure } from '../navigation/errors.js';
 import { loadRouterConfig } from './RouterConfig.js';
-import {
-	updateRouteSignal,
-	provideRouter,
-	createRouteSignal,
-	provideDepth,
-} from './context.js';
+import { updateRouteSignal, installRouterContext } from './context.js';
 
 let cachedConfig: {
 	base: string;
@@ -104,8 +100,8 @@ export interface RouterInstance {
 	readonly routes: readonly NormalizedRouteRecord[];
 	readonly options: RouterOptions;
 
-	readonly push: (to: RouteLocation) => Route | NavigationFailure;
-	readonly replace: (to: RouteLocation) => Route | NavigationFailure;
+	readonly push: (to: RouteLocation) => Promise<Route | NavigationFailure>;
+	readonly replace: (to: RouteLocation) => Promise<Route | NavigationFailure>;
 	readonly back: () => void;
 	readonly forward: () => void;
 	readonly go: (delta: number) => void;
@@ -149,10 +145,10 @@ export const createRouter = (options: RouterOptions): RouterInstance => {
 
 	const routeRef = Effect.runSync(SubscriptionRef.make(initialRoute));
 	let navigationId = 0;
-
 	const navigate = (
 		to: RouteLocation,
-		opts: NavigateOptions = {}
+		opts: NavigateOptions = {},
+		redirectPaths: readonly string[] = []
 	): Effect.Effect<Route | NavigationFailure> =>
 		Effect.gen(function* () {
 			const currentNavId = ++navigationId;
@@ -170,12 +166,24 @@ export const createRouter = (options: RouterOptions): RouterInstance => {
 						query: {},
 						hash: '',
 						matched: [],
+						canonicalRouteGroups: [],
+						aliasRouteGroups: [],
+						routeGroups: [],
 						name: undefined,
 						meta: {},
 					},
 					from as ResolvedRoute
 				);
 			}
+
+			if (redirectPaths.includes(resolved.fullPath)) {
+				return NavigationFailure.redirectLoop(
+					resolved,
+					from as ResolvedRoute,
+					[...redirectPaths, resolved.fullPath]
+				);
+			}
+			const nextRedirectPaths = [...redirectPaths, resolved.fullPath];
 
 			if (resolved.fullPath === from.fullPath) {
 				return NavigationFailure.duplicated(resolved, from as ResolvedRoute);
@@ -186,7 +194,7 @@ export const createRouter = (options: RouterOptions): RouterInstance => {
 				Predicate.isNotNullable(lastMatched) &&
 				Predicate.isNotNullable(lastMatched.redirect)
 			) {
-				return yield* navigate(lastMatched.redirect, opts);
+				return yield* navigate(lastMatched.redirect, opts, nextRedirectPaths);
 			}
 
 			const beforeEachResult = yield* runGuards(
@@ -196,14 +204,54 @@ export const createRouter = (options: RouterOptions): RouterInstance => {
 			);
 			if (!NavigationResult.isAllowed(beforeEachResult)) {
 				if (beforeEachResult._tag === 'NavigationRedirected') {
-					return yield* navigate(beforeEachResult.to, opts);
+					return yield* navigate(
+						beforeEachResult.to,
+						opts,
+						nextRedirectPaths
+					);
+				}
+				if (beforeEachResult._tag === 'NavigationFailed') {
+					return NavigationFailure.guardFailed(
+						resolved,
+						from as ResolvedRoute,
+						beforeEachResult.error
+					);
 				}
 				return NavigationFailure.guardCancelled(
 					resolved,
 					from as ResolvedRoute,
-					beforeEachResult._tag === 'NavigationCancelled'
-						? beforeEachResult.reason
-						: undefined
+					beforeEachResult.reason
+				);
+			}
+
+			// Run per-route beforeEnter guards
+			const beforeEnterGuards = resolved.matched
+				.map((r) => (r as unknown as { beforeEnter?: NavigationGuard }).beforeEnter)
+				.filter((g): g is NavigationGuard => g !== undefined);
+			const beforeEnterResult = yield* runGuards(
+				beforeEnterGuards,
+				resolved,
+				from
+			);
+			if (!NavigationResult.isAllowed(beforeEnterResult)) {
+				if (beforeEnterResult._tag === 'NavigationRedirected') {
+					return yield* navigate(
+						beforeEnterResult.to,
+						opts,
+						nextRedirectPaths
+					);
+				}
+				if (beforeEnterResult._tag === 'NavigationFailed') {
+					return NavigationFailure.guardFailed(
+						resolved,
+						from as ResolvedRoute,
+						beforeEnterResult.error
+					);
+				}
+				return NavigationFailure.guardCancelled(
+					resolved,
+					from as ResolvedRoute,
+					beforeEnterResult.reason
 				);
 			}
 
@@ -214,11 +262,23 @@ export const createRouter = (options: RouterOptions): RouterInstance => {
 			);
 			if (!NavigationResult.isAllowed(beforeResolveResult)) {
 				if (beforeResolveResult._tag === 'NavigationRedirected') {
-					return yield* navigate(beforeResolveResult.to, opts);
+					return yield* navigate(
+						beforeResolveResult.to,
+						opts,
+						nextRedirectPaths
+					);
+				}
+				if (beforeResolveResult._tag === 'NavigationFailed') {
+					return NavigationFailure.guardFailed(
+						resolved,
+						from as ResolvedRoute,
+						beforeResolveResult.error
+					);
 				}
 				return NavigationFailure.guardCancelled(
 					resolved,
-					from as ResolvedRoute
+					from as ResolvedRoute,
+					beforeResolveResult.reason
 				);
 			}
 
@@ -240,15 +300,17 @@ export const createRouter = (options: RouterOptions): RouterInstance => {
 
 			yield* SubscriptionRef.set(routeRef, newRoute);
 
-			updateRouteSignal(newRoute);
+			updateCurrentRouteSignal(newRoute);
 
-			window.dispatchEvent(
-				new CustomEvent('effuse:route-change', { detail: newRoute })
-			);
+			if (typeof window !== 'undefined') {
+				window.dispatchEvent(
+					new CustomEvent('effuse:route-change', { detail: newRoute })
+				);
+			}
 
-			Effect.runFork(runAfterHooks(guards.afterEach, newRoute, from));
+			Effect.runSync(runAfterHooks(guards.afterEach, newRoute, from));
 
-			if (config.scrollToTop && !opts.replace) {
+			if (config.scrollToTop && !opts.replace && typeof window !== 'undefined') {
 				window.scrollTo(0, 0);
 			}
 
@@ -263,13 +325,19 @@ export const createRouter = (options: RouterOptions): RouterInstance => {
 		};
 	};
 
+	const updateCurrentRouteSignal = (route: Route): void => {
+		updateRouteSignal(router, route);
+	};
+
 	const router: RouterInstance = {
 		currentRoute: routeRef,
-		routes: normalizedRoutes,
+		get routes() {
+			return normalizedRoutes;
+		},
 		options,
 
-		push: (to) => Effect.runSync(navigate(to, { replace: false })),
-		replace: (to) => Effect.runSync(navigate(to, { replace: true })),
+		push: (to) => Effect.runPromise(navigate(to, { replace: false })),
+		replace: (to) => Effect.runPromise(navigate(to, { replace: true })),
 		back: () => {
 			history.back();
 		},
@@ -289,18 +357,50 @@ export const createRouter = (options: RouterOptions): RouterInstance => {
 			return resolveRoute(to, normalizedRoutes, from);
 		},
 
-		hasRoute: (name) => normalizedRoutes.some((r) => r.name === name),
+		hasRoute: (name) =>
+			normalizedRoutes.some(
+				(r) => r.name === name && r.aliasOf === undefined
+			),
 
 		addRoute: (route, parentName) => {
 			const parent = parentName
-				? normalizedRoutes.find((r) => r.name === parentName)
+				? normalizedRoutes.find(
+						(r) => r.name === parentName && r.aliasOf === undefined
+					)
 				: undefined;
-			const newRoutes = normalizeRoutes([route], parent);
-			normalizedRoutes = [...normalizedRoutes, ...newRoutes];
+			const parentAliases = parent
+				? normalizedRoutes.filter((candidate) => candidate.aliasOf === parent)
+				: [];
+			const newRoutes = normalizeRoutes([route], parent, parentAliases);
+			normalizedRoutes = finalizeNormalizedRoutes([
+				...normalizedRoutes,
+				...newRoutes,
+			]);
 		},
 
 		removeRoute: (name) => {
-			normalizedRoutes = normalizedRoutes.filter((r) => r.name !== name);
+			const target = normalizedRoutes.find(
+				(r) => r.name === name && r.aliasOf === undefined
+			);
+			if (!target) return;
+
+			const removedCanonicalRoutes = new Set<NormalizedRouteRecord>([target]);
+			for (const route of normalizedRoutes) {
+				if (route.aliasOf) continue;
+				let current = route.parent;
+				while (current) {
+					if (current === target) {
+						removedCanonicalRoutes.add(route);
+						break;
+					}
+					current = current.parent;
+				}
+			}
+
+			normalizedRoutes = normalizedRoutes.filter(
+				(route) =>
+					!removedCanonicalRoutes.has(route.aliasOf ?? route)
+			);
 		},
 
 		getRoutes: () => normalizedRoutes,
@@ -309,7 +409,7 @@ export const createRouter = (options: RouterOptions): RouterInstance => {
 			if (isStarted) return () => {};
 			isStarted = true;
 
-			const cleanup = history.listen(() => {
+			const syncRoute = () => {
 				const path = history.getCurrentPath();
 				const { pathname, query, hash } = parseUrl(path);
 				const resolved = resolveRoute(pathname, normalizedRoutes);
@@ -320,11 +420,19 @@ export const createRouter = (options: RouterOptions): RouterInstance => {
 					fullPath: path,
 				});
 				Effect.runSync(SubscriptionRef.set(routeRef, newRoute));
+				updateCurrentRouteSignal(newRoute);
+			};
 
-				updateRouteSignal(newRoute);
-			});
+			const cleanupHistory = history.listen(syncRoute);
+			syncRoute();
 
-			return cleanup;
+			let stopped = false;
+			return () => {
+				if (stopped) return;
+				stopped = true;
+				cleanupHistory();
+				isStarted = false;
+			};
 		},
 
 		get isReady() {
@@ -335,24 +443,67 @@ export const createRouter = (options: RouterOptions): RouterInstance => {
 	return router;
 };
 
-let globalRouter: RouterInstance | null = null;
+interface RouterRuntimeState {
+	current: RouterInstance | null;
+	readonly installations: Array<{ readonly router: RouterInstance }>;
+}
 
-export const setGlobalRouter = (router: RouterInstance): void => {
-	globalRouter = router;
+const ROUTER_RUNTIME_KEY = Symbol.for('effuse.router.runtime.v1');
+const routerRuntime = (() => {
+	const shared = globalThis as Record<PropertyKey, unknown>;
+	const existing = shared[ROUTER_RUNTIME_KEY] as RouterRuntimeState | undefined;
+	if (existing) return existing;
+	const created: RouterRuntimeState = { current: null, installations: [] };
+	Object.defineProperty(shared, ROUTER_RUNTIME_KEY, { value: created });
+	return created;
+})();
+
+export const setGlobalRouter = (router: RouterInstance): (() => void) => {
+	const installation = { router };
+	routerRuntime.installations.push(installation);
+	routerRuntime.current = router;
+	let removed = false;
+	return () => {
+		if (removed) return;
+		removed = true;
+		const index = routerRuntime.installations.indexOf(installation);
+		if (index >= 0) routerRuntime.installations.splice(index, 1);
+		routerRuntime.current = routerRuntime.installations.at(-1)?.router ?? null;
+	};
 };
 
-export const getGlobalRouter = (): RouterInstance | null => globalRouter;
+export const getGlobalRouter = (): RouterInstance | null =>
+	routerRuntime.current;
 
-export const installRouter = (router: RouterInstance): RouterInstance => {
-	setGlobalRouter(router);
-	setCoreGlobalRouter(router);
-	provideRouter(router);
-
-	const initialRoute = Effect.runSync(SubscriptionRef.get(router.currentRoute));
-	createRouteSignal(initialRoute);
-
-	provideDepth(0);
-
-	router.start();
-	return router;
+export const installRouter = (
+	router: RouterInstance
+): RouterInstance & { cleanup: () => void } => {
+	let restoreGlobalRouter: (() => void) | undefined;
+	let restoreCoreRouter: (() => void) | undefined;
+	let restoreContext: (() => void) | undefined;
+	let stopRouter: (() => void) | undefined;
+	try {
+		restoreGlobalRouter = setGlobalRouter(router);
+		restoreCoreRouter = setCoreGlobalRouter(router);
+		const initialRoute = Effect.runSync(
+			SubscriptionRef.get(router.currentRoute)
+		);
+		restoreContext = installRouterContext(router, initialRoute);
+		stopRouter = router.start();
+	} catch (error) {
+		restoreContext?.();
+		restoreCoreRouter?.();
+		restoreGlobalRouter?.();
+		throw error;
+	}
+	let cleanedUp = false;
+	const cleanup = (): void => {
+		if (cleanedUp) return;
+		cleanedUp = true;
+		stopRouter();
+		restoreContext();
+		restoreCoreRouter();
+		restoreGlobalRouter();
+	};
+	return Object.assign(router, { cleanup });
 };

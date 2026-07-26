@@ -83,6 +83,11 @@ export const render = (child: EffuseChild, container: Element): CleanupFn => {
 	};
 };
 
+// Expose render helper globally for HMR re-rendering
+if (typeof globalThis !== 'undefined') {
+	(globalThis as Record<string, unknown>).__effuse_render__ = render;
+}
+
 // Finalize and remove application from container
 export const unmount = (container: Element): void => {
 	container.innerHTML = '';

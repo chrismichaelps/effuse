@@ -25,14 +25,21 @@
 import type { Signal } from '../../reactivity/signal.js';
 import type { ReadonlySignal } from '../../types/index.js';
 
+type ReactiveAttribute<T> =
+	| T
+	| Signal<T>
+	| ReadonlySignal<T>
+	| (() => T);
+
 // Reactive boolean type for ARIA attributes that can be bound to signals/functions
-type ReactiveBoolean =
+type ReactiveBoolean = ReactiveAttribute<boolean | 'true' | 'false'>;
+
+type AriaInvalid =
 	| boolean
 	| 'true'
 	| 'false'
-	| Signal<boolean>
-	| ReadonlySignal<boolean>
-	| (() => boolean);
+	| 'grammar'
+	| 'spelling';
 
 export interface AriaAttributes {
 	// Widget Attributes
@@ -51,7 +58,7 @@ export interface AriaAttributes {
 		| 'grid'
 		| 'dialog';
 	'aria-hidden'?: ReactiveBoolean;
-	'aria-invalid'?: boolean | 'true' | 'false' | 'grammar' | 'spelling';
+	'aria-invalid'?: ReactiveAttribute<AriaInvalid>;
 	'aria-label'?: string;
 	'aria-level'?: number;
 	'aria-modal'?: ReactiveBoolean;

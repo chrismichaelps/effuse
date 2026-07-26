@@ -23,14 +23,21 @@
  */
 
 import { Data } from 'effect';
+import type {
+	TaggedEnumConstructors,
+	TaggedUnion,
+} from '../../internal/tagged.js';
 
-export type MediaQueryState = Data.TaggedEnum<{
-	readonly Unavailable: {};
-	readonly Matched: {};
-	readonly Unmatched: {};
-}>;
+type MediaQueryStateCases = {
+	readonly Unavailable: Record<never, never>;
+	readonly Matched: Record<never, never>;
+	readonly Unmatched: Record<never, never>;
+};
 
-export const MediaQueryState = Data.taggedEnum<MediaQueryState>();
+export type MediaQueryState = TaggedUnion<MediaQueryStateCases>;
+
+export const MediaQueryState = Data.taggedEnum<MediaQueryState>() as unknown as
+	TaggedEnumConstructors<MediaQueryStateCases>;
 
 export const isUnavailable = MediaQueryState.$is('Unavailable');
 export const isMatched = MediaQueryState.$is('Matched');

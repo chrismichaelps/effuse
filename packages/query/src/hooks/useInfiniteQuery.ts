@@ -22,77 +22,90 @@
  * SOFTWARE.
  */
 
-import { Effect, Fiber, Duration, Predicate } from 'effect';
-import { signal, type Signal } from '@effuse/core';
-import { getGlobalQueryClient, type QueryKey } from '../client/index.js';
-import { buildRetrySchedule, type RetryConfig } from '../execution/index.js';
+import { signal, computed, type Signal, type ReadonlySignal } from '@effuse/core';
+import {
+	useQueryClient,
+	type QueryKey,
+	type CacheEntry,
+	type QueryClientApi,
+} from '../client/index.js';
 import { DEFAULT_STALE_TIME_MS, DEFAULT_TIMEOUT_MS } from '../config/index.js';
-import { InfiniteQueryError, TimeoutError } from '../errors/index.js';
+import { InfiniteQueryError } from '../errors/index.js';
 
-// Paginated query page data
-export interface InfiniteQueryPage<TData> {
-	readonly data: TData;
-}
-
-// Infinite query configuration
 export interface InfiniteQueryOptions<TData, TPageParam = number> {
 	readonly queryKey: QueryKey;
-	readonly queryFn: (context: { pageParam: TPageParam }) => Promise<TData>;
+	readonly queryFn: (context: { pageParam: TPageParam; signal: AbortSignal }) => Promise<TData>;
 	readonly initialPageParam: TPageParam;
 	readonly getNextPageParam: (
 		lastPage: TData,
-		allPages: TData[]
+		allPages: readonly TData[]
 	) => TPageParam | undefined;
 	readonly getPreviousPageParam?: (
 		firstPage: TData,
-		allPages: TData[]
+		allPages: readonly TData[]
 	) => TPageParam | undefined;
 	readonly staleTime?: number;
 	readonly timeout?: number;
-	readonly retry?: RetryConfig | number | boolean;
+	readonly retry?: number | boolean;
+	readonly retryDelay?: number;
 	readonly enabled?: boolean;
 	readonly maxPages?: number;
+	readonly select?: (data: InfiniteData<TData>) => InfiniteData<TData>;
+	readonly initialData?: InfiniteData<TData>;
+	readonly placeholderData?: InfiniteData<TData>;
+	readonly refetchOnWindowFocus?: boolean;
+	readonly refetchOnReconnect?: boolean;
+	readonly client?: QueryClientApi;
 }
 
-// Infinite query result state
 export interface UseInfiniteQueryResult<TData> {
 	readonly data: Signal<InfiniteData<TData> | undefined>;
 	readonly error: Signal<Error | undefined>;
-
 	readonly status: Signal<'pending' | 'success' | 'error'>;
-	readonly isFetching: Signal<boolean>;
-	readonly isFetchingNextPage: Signal<boolean>;
-	readonly isFetchingPreviousPage: Signal<boolean>;
-	readonly hasNextPage: Signal<boolean>;
-	readonly hasPreviousPage: Signal<boolean>;
+	readonly fetchStatus: Signal<'idle' | 'fetching'>;
 
-	readonly isPending: Signal<boolean>;
-	readonly isSuccess: Signal<boolean>;
-	readonly isError: Signal<boolean>;
+	readonly isPending: ReadonlySignal<boolean>;
+	readonly isLoading: ReadonlySignal<boolean>;
+	readonly isSuccess: ReadonlySignal<boolean>;
+	readonly isError: ReadonlySignal<boolean>;
+	readonly isFetching: ReadonlySignal<boolean>;
+	readonly isRefetching: ReadonlySignal<boolean>;
+	readonly isPlaceholderData: ReadonlySignal<boolean>;
+
+	readonly isFetchingNextPage: ReadonlySignal<boolean>;
+	readonly isFetchingPreviousPage: ReadonlySignal<boolean>;
+	readonly hasNextPage: ReadonlySignal<boolean>;
+	readonly hasPreviousPage: ReadonlySignal<boolean>;
+
+	readonly dataUpdatedAt: Signal<number | undefined>;
+	readonly errorUpdatedAt: Signal<number | undefined>;
+	readonly failureCount: Signal<number>;
+	readonly failureReason: Signal<Error | undefined>;
 
 	readonly fetchNextPage: () => Promise<void>;
 	readonly fetchPreviousPage: () => Promise<void>;
 	readonly refetch: () => Promise<void>;
-
-	readonly allPagesData: Signal<TData[] | undefined>;
+	readonly cancel: () => void;
+	readonly dispose: () => void;
 }
 
-// Infinite query page collection
 export interface InfiniteData<TData> {
 	readonly pages: TData[];
 	readonly pageParams: unknown[];
 }
 
+const sleep = (ms: number): Promise<void> =>
+	new Promise((resolve) => setTimeout(resolve, ms));
+
 const normalizeRetryConfig = (
-	retry: RetryConfig | number | boolean | undefined
-): RetryConfig | undefined => {
-	if (retry === false) return { times: 0 };
-	if (retry === true) return undefined;
-	if (typeof retry === 'number') return { times: retry };
-	return retry;
+	retry: number | boolean | undefined
+): number => {
+	if (retry === false) return 0;
+	if (retry === true) return 3;
+	if (typeof retry === 'number') return retry;
+	return 0;
 };
 
-// Reactive infinite query hook
 export const useInfiniteQuery = <TData, TPageParam = number>(
 	options: InfiniteQueryOptions<TData, TPageParam>
 ): UseInfiniteQueryResult<TData> => {
@@ -105,76 +118,110 @@ export const useInfiniteQuery = <TData, TPageParam = number>(
 		staleTime = DEFAULT_STALE_TIME_MS,
 		timeout = DEFAULT_TIMEOUT_MS,
 		retry,
+		retryDelay = 1000,
 		enabled = true,
 		maxPages,
+		select,
+		initialData,
+		placeholderData,
+		refetchOnWindowFocus = true,
+		refetchOnReconnect = true,
 	} = options;
 
-	const client = getGlobalQueryClient();
+	const client = options.client ?? useQueryClient();
 
-	const dataSignal = signal<InfiniteData<TData> | undefined>(undefined);
+	const cacheKey = [...queryKey, 'infinite'];
+
+	const dataSignal = signal<InfiniteData<TData> | undefined>(initialData ?? placeholderData ?? undefined);
 	const errorSignal = signal<Error | undefined>(undefined);
-	const statusSignal = signal<'pending' | 'success' | 'error'>('pending');
-	const isFetchingSignal = signal<boolean>(false);
+	const statusSignal = signal<'pending' | 'success' | 'error'>(initialData ? 'success' : 'pending');
+	const fetchStatusSignal = signal<'idle' | 'fetching'>('idle');
 	const isFetchingNextPageSignal = signal<boolean>(false);
 	const isFetchingPreviousPageSignal = signal<boolean>(false);
 	const hasNextPageSignal = signal<boolean>(false);
 	const hasPreviousPageSignal = signal<boolean>(false);
+	const dataUpdatedAtSignal = signal<number | undefined>(initialData ? Date.now() : undefined);
+	const errorUpdatedAtSignal = signal<number | undefined>(undefined);
+	const failureCountSignal = signal<number>(0);
+	const failureReasonSignal = signal<Error | undefined>(undefined);
+	const isPlaceholderDataSignal = signal<boolean>(!!placeholderData && !initialData);
 
-	const isPendingSignal = signal<boolean>(true);
-	const isSuccessSignal = signal<boolean>(false);
-	const isErrorSignal = signal<boolean>(false);
+	const isPendingSignal = computed(() => statusSignal.value === 'pending');
+	const isLoadingSignal = computed(() => statusSignal.value === 'pending' && fetchStatusSignal.value === 'fetching');
+	const isSuccessSignal = computed(() => statusSignal.value === 'success');
+	const isErrorSignal = computed(() => statusSignal.value === 'error');
+	const isFetchingSignal = computed(() => fetchStatusSignal.value === 'fetching');
+	const isRefetchingSignal = computed(() => dataSignal.value !== undefined && fetchStatusSignal.value === 'fetching');
 
-	const allPagesDataSignal = signal<TData[] | undefined>(undefined);
+	let currentAbortController: AbortController | null = null;
+	let currentPageParams: TPageParam[] = initialData ? [...initialData.pageParams] as TPageParam[] : [];
 
-	let currentPageParams: TPageParam[] = [];
-
-	let activeFiber: Fiber.RuntimeFiber<unknown, unknown> | null = null;
-
-	let isInternalUpdate = false;
-
-	const updateDerivedState = (): void => {
-		const status = statusSignal.value;
-		isPendingSignal.value = status === 'pending';
-		isSuccessSignal.value = status === 'success';
-		isErrorSignal.value = status === 'error';
-
-		const currentData = dataSignal.value;
-		allPagesDataSignal.value = Predicate.isNotNullable(currentData)
-			? currentData.pages
-			: undefined;
+	const writeCache = (data: InfiniteData<TData>): void => {
+		const existing = client.get<InfiniteData<TData>>(cacheKey);
+		const entry: CacheEntry<InfiniteData<TData>> = {
+			data,
+			dataUpdatedAt: Date.now(),
+			status: 'success',
+			fetchCount: (existing?.fetchCount ?? 0) + 1,
+		};
+		client.set(cacheKey, entry);
 	};
 
-	const fetchPage = (
-		pageParam: TPageParam
-	): Effect.Effect<TData, Error, never> => {
-		const retryConfig = normalizeRetryConfig(retry);
-		const schedule = buildRetrySchedule(retryConfig);
+	const runWithRetry = async (
+		pageParam: TPageParam,
+		maxRetries: number
+	): Promise<TData> => {
+		let lastError: Error | undefined;
+		currentAbortController = new AbortController();
+		const signal = currentAbortController.signal;
 
-		let effect: Effect.Effect<TData, Error, never> = Effect.tryPromise({
-			try: () => queryFn({ pageParam }),
-			catch: (error) =>
-				new InfiniteQueryError({
-					message: error instanceof Error ? error.message : String(error),
-					cause: error,
-				}),
-		});
+		for (let attempt = 0; attempt <= maxRetries; attempt++) {
+			if (signal.aborted) {
+				throw new Error('Query was cancelled');
+			}
 
-		effect = effect.pipe(
-			Effect.timeoutFail({
-				duration: Duration.millis(timeout),
-				onTimeout: () => new TimeoutError({ durationMs: timeout }),
-			})
-		);
+			try {
+				const promise = queryFn({ pageParam, signal });
 
-		if (!Predicate.isNotNullable(retryConfig) || retryConfig.times !== 0) {
-			effect = effect.pipe(Effect.retry(schedule));
+				if (timeout > 0) {
+					const timeoutPromise = new Promise<never>((_, reject) => {
+						const timer = setTimeout(() => {
+							reject(new Error(`Query timed out after ${timeout}ms`));
+						}, timeout);
+						signal.addEventListener('abort', () => {
+							clearTimeout(timer);
+							reject(new Error('Query was cancelled'));
+						});
+					});
+
+					return await Promise.race([promise, timeoutPromise]);
+				}
+
+				return await promise;
+			} catch (error) {
+				if (signal.aborted) {
+					throw new Error('Query was cancelled');
+				}
+
+				lastError = error instanceof Error ? error : new Error(String(error));
+
+				if (attempt < maxRetries) {
+					const delay = retryDelay * Math.pow(2, attempt);
+					await sleep(delay);
+				}
+			}
 		}
 
-		return effect;
+		throw lastError;
+	};
+
+	const fetchPage = async (pageParam: TPageParam): Promise<TData> => {
+		const maxRetries = normalizeRetryConfig(retry);
+		return runWithRetry(pageParam, maxRetries);
 	};
 
 	const fetchNextPage = async (): Promise<void> => {
-		if (!enabled || isFetchingSignal.value) return;
+		if (!enabled || fetchStatusSignal.value === 'fetching') return;
 
 		const currentData = dataSignal.value;
 		if (!currentData || currentData.pages.length === 0) {
@@ -196,42 +243,46 @@ export const useInfiniteQuery = <TData, TPageParam = number>(
 			return;
 		}
 
-		isFetchingSignal.value = true;
+		fetchStatusSignal.value = 'fetching';
 		isFetchingNextPageSignal.value = true;
 
 		try {
-			const newPage = await Effect.runPromise(fetchPage(nextPageParam));
+			const newPage = await fetchPage(nextPageParam);
 
-			isInternalUpdate = true;
 			const newData: InfiniteData<TData> = {
 				pages: [...currentData.pages, newPage],
 				pageParams: [...currentData.pageParams, nextPageParam],
 			};
 
-			dataSignal.value = newData;
+			const selectedData = select ? select(newData) : newData;
+			dataSignal.value = selectedData;
 			currentPageParams = [...currentPageParams, nextPageParam];
 
 			const nextNext = getNextPageParam(newPage, newData.pages);
 			hasNextPageSignal.value = nextNext !== undefined;
 
 			statusSignal.value = 'success';
-			updateDerivedState();
-			isInternalUpdate = false;
+			isPlaceholderDataSignal.value = false;
+			dataUpdatedAtSignal.value = Date.now();
+			errorSignal.value = undefined;
+			failureCountSignal.value = 0;
+			failureReasonSignal.value = undefined;
+			writeCache(newData);
 		} catch (error) {
-			errorSignal.value =
-				error instanceof Error
-					? error
-					: new InfiniteQueryError({ message: String(error), cause: error });
+			const err = error instanceof Error ? error : new InfiniteQueryError({ message: String(error), cause: error });
+			errorSignal.value = err;
 			statusSignal.value = 'error';
-			updateDerivedState();
+			errorUpdatedAtSignal.value = Date.now();
+			failureCountSignal.value += 1;
+			failureReasonSignal.value = err;
 		} finally {
-			isFetchingSignal.value = false;
+			fetchStatusSignal.value = 'idle';
 			isFetchingNextPageSignal.value = false;
 		}
 	};
 
 	const fetchPreviousPage = async (): Promise<void> => {
-		if (!enabled || isFetchingSignal.value || !getPreviousPageParam) return;
+		if (!enabled || fetchStatusSignal.value === 'fetching' || !getPreviousPageParam) return;
 
 		const currentData = dataSignal.value;
 		if (!currentData || currentData.pages.length === 0) {
@@ -248,36 +299,40 @@ export const useInfiniteQuery = <TData, TPageParam = number>(
 			return;
 		}
 
-		isFetchingSignal.value = true;
+		fetchStatusSignal.value = 'fetching';
 		isFetchingPreviousPageSignal.value = true;
 
 		try {
-			const newPage = await Effect.runPromise(fetchPage(prevPageParam));
+			const newPage = await fetchPage(prevPageParam);
 
-			isInternalUpdate = true;
 			const newData: InfiniteData<TData> = {
 				pages: [newPage, ...currentData.pages],
 				pageParams: [prevPageParam, ...currentData.pageParams],
 			};
 
-			dataSignal.value = newData;
+			const selectedData = select ? select(newData) : newData;
+			dataSignal.value = selectedData;
 			currentPageParams = [prevPageParam, ...currentPageParams];
 
 			const prevPrev = getPreviousPageParam(newPage, newData.pages);
 			hasPreviousPageSignal.value = prevPrev !== undefined;
 
 			statusSignal.value = 'success';
-			updateDerivedState();
-			isInternalUpdate = false;
+			isPlaceholderDataSignal.value = false;
+			dataUpdatedAtSignal.value = Date.now();
+			errorSignal.value = undefined;
+			failureCountSignal.value = 0;
+			failureReasonSignal.value = undefined;
+			writeCache(newData);
 		} catch (error) {
-			errorSignal.value =
-				error instanceof Error
-					? error
-					: new InfiniteQueryError({ message: String(error), cause: error });
+			const err = error instanceof Error ? error : new InfiniteQueryError({ message: String(error), cause: error });
+			errorSignal.value = err;
 			statusSignal.value = 'error';
-			updateDerivedState();
+			errorUpdatedAtSignal.value = Date.now();
+			failureCountSignal.value += 1;
+			failureReasonSignal.value = err;
 		} finally {
-			isFetchingSignal.value = false;
+			fetchStatusSignal.value = 'idle';
 			isFetchingPreviousPageSignal.value = false;
 		}
 	};
@@ -285,23 +340,19 @@ export const useInfiniteQuery = <TData, TPageParam = number>(
 	const refetch = async (): Promise<void> => {
 		if (!enabled) return;
 
-		if (activeFiber) {
-			Effect.runFork(Fiber.interrupt(activeFiber));
-			activeFiber = null;
-		}
-
-		isFetchingSignal.value = true;
+		cancel();
+		fetchStatusSignal.value = 'fetching';
 
 		try {
-			const initialPage = await Effect.runPromise(fetchPage(initialPageParam));
+			const initialPage = await fetchPage(initialPageParam);
 
-			isInternalUpdate = true;
 			const newData: InfiniteData<TData> = {
 				pages: [initialPage],
 				pageParams: [initialPageParam],
 			};
 
-			dataSignal.value = newData;
+			const selectedData = select ? select(newData) : newData;
+			dataSignal.value = selectedData;
 			currentPageParams = [initialPageParam];
 
 			const nextParam = getNextPageParam(initialPage, [initialPage]);
@@ -313,61 +364,120 @@ export const useInfiniteQuery = <TData, TPageParam = number>(
 			}
 
 			statusSignal.value = 'success';
+			isPlaceholderDataSignal.value = false;
+			dataUpdatedAtSignal.value = Date.now();
 			errorSignal.value = undefined;
-			updateDerivedState();
-			isInternalUpdate = false;
+			failureCountSignal.value = 0;
+			failureReasonSignal.value = undefined;
+			writeCache(newData);
 		} catch (error) {
-			errorSignal.value =
-				error instanceof Error
-					? error
-					: new InfiniteQueryError({ message: String(error), cause: error });
+			const err = error instanceof Error ? error : new InfiniteQueryError({ message: String(error), cause: error });
+			errorSignal.value = err;
 			statusSignal.value = 'error';
-			updateDerivedState();
+			errorUpdatedAtSignal.value = Date.now();
+			failureCountSignal.value += 1;
+			failureReasonSignal.value = err;
 		} finally {
-			isFetchingSignal.value = false;
+			fetchStatusSignal.value = 'idle';
 		}
 	};
 
-	const cacheKey = [...queryKey, 'infinite'];
-	const cached = client.get<InfiniteData<TData>>(cacheKey);
-	if (cached) {
-		dataSignal.value = cached.data;
+	const cancel = (): void => {
+		if (currentAbortController) {
+			currentAbortController.abort();
+			currentAbortController = null;
+		}
+	};
 
+	// Initialize from cache
+	const cached = client.get<InfiniteData<TData>>(cacheKey);
+	if (cached && cached.data) {
+		dataSignal.value = cached.data;
 		if (cached.status === 'success') {
 			statusSignal.value = 'success';
+			dataUpdatedAtSignal.value = cached.dataUpdatedAt;
 		} else if (cached.status === 'error') {
 			statusSignal.value = 'error';
-		} else {
-			statusSignal.value = 'pending';
 		}
-		updateDerivedState();
+
+		const pages = cached.data.pages;
+		if (pages.length > 0) {
+			const lastPage = pages[pages.length - 1]!;
+			const nextParam = getNextPageParam(lastPage, pages);
+			hasNextPageSignal.value = nextParam !== undefined;
+
+			if (getPreviousPageParam) {
+				const firstPage = pages[0]!;
+				const prevParam = getPreviousPageParam(firstPage, pages);
+				hasPreviousPageSignal.value = prevParam !== undefined;
+			}
+		}
 	}
 
-	client.subscribe(cacheKey, () => {
-		if (enabled && !isInternalUpdate) {
-			refetch();
-		}
-	});
-
-	if (enabled && (!cached || client.isStale(cacheKey, staleTime))) {
+	// Initial fetch
+	if (enabled && !initialData && (!cached || client.isStale(cacheKey, staleTime))) {
 		refetch();
 	}
+
+	// Window focus refetch
+	const cleanupFns: Array<() => void> = [];
+
+	if (refetchOnWindowFocus && typeof window !== 'undefined') {
+		const handleFocus = (): void => {
+			if (enabled && (!cached || client.isStale(cacheKey, staleTime))) {
+				refetch().catch(() => {
+					// Errors handled internally
+				});
+			}
+		};
+		window.addEventListener('focus', handleFocus);
+		cleanupFns.push(() => window.removeEventListener('focus', handleFocus));
+	}
+
+	// Reconnect refetch
+	if (refetchOnReconnect && typeof window !== 'undefined') {
+		const handleOnline = (): void => {
+			if (enabled && (!cached || client.isStale(cacheKey, staleTime))) {
+				refetch().catch(() => {
+					// Errors handled internally
+				});
+			}
+		};
+		window.addEventListener('online', handleOnline);
+		cleanupFns.push(() => window.removeEventListener('online', handleOnline));
+	}
+
+	const dispose = (): void => {
+		cancel();
+		for (const fn of cleanupFns) {
+			fn();
+		}
+	};
 
 	return {
 		data: dataSignal,
 		error: errorSignal,
 		status: statusSignal,
+		fetchStatus: fetchStatusSignal,
+		isPending: isPendingSignal,
+		isLoading: isLoadingSignal,
+		isSuccess: isSuccessSignal,
+		isError: isErrorSignal,
 		isFetching: isFetchingSignal,
+		isRefetching: isRefetchingSignal,
+		isPlaceholderData: isPlaceholderDataSignal,
 		isFetchingNextPage: isFetchingNextPageSignal,
 		isFetchingPreviousPage: isFetchingPreviousPageSignal,
 		hasNextPage: hasNextPageSignal,
 		hasPreviousPage: hasPreviousPageSignal,
-		isPending: isPendingSignal,
-		isSuccess: isSuccessSignal,
-		isError: isErrorSignal,
+		dataUpdatedAt: dataUpdatedAtSignal,
+		errorUpdatedAt: errorUpdatedAtSignal,
+		failureCount: failureCountSignal,
+		failureReason: failureReasonSignal,
 		fetchNextPage,
 		fetchPreviousPage,
 		refetch,
-		allPagesData: allPagesDataSignal,
+		cancel,
+		dispose,
 	};
 };

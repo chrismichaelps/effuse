@@ -58,8 +58,7 @@ export const isUseHookEnabled = (category: UseHooksCategory): boolean => {
 
 	const useHooksConfig = globalTracing.config.categories?.useHooks;
 	if (!useHooksConfig) return defaultUseHooksCategories[category];
-	const categoryEnabled =
-		useHooksConfig[category as keyof typeof useHooksConfig];
+	const categoryEnabled = useHooksConfig[category];
 	return categoryEnabled ?? defaultUseHooksCategories[category];
 };
 
@@ -71,9 +70,9 @@ export const startSpan = (
 	if (!isUseHookEnabled(hookName)) return null;
 
 	const tracer = getTracer();
-	const span = tracer.startSpan(`${String(hookName)}.${operationName}`, {
+	const span = tracer.startSpan(`${hookName}.${operationName}`, {
 		attributes: {
-			'hook.name': String(hookName),
+			'hook.name': hookName,
 			'hook.operation': operationName,
 			...attributes,
 		},
@@ -124,9 +123,9 @@ export const recordEvent = (
 	if (!isUseHookEnabled(hookName)) return;
 
 	const tracer = getTracer();
-	const span = tracer.startSpan(`${String(hookName)}.${eventName}`, {
+	const span = tracer.startSpan(`${hookName}.${eventName}`, {
 		attributes: {
-			'hook.name': String(hookName),
+			'hook.name': hookName,
 			'hook.event': eventName,
 			...attributes,
 		},

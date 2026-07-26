@@ -64,6 +64,11 @@ describe('internal/telemetry', () => {
 				'useMediaQuery',
 				'useOnline',
 				'useInterval',
+				'useTimeout',
+				'useDocumentVisibility',
+				'useClipboard',
+				'useAsyncTask',
+				'usePreferredColorScheme',
 				'useDebounce',
 			];
 

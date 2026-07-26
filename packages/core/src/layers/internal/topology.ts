@@ -25,6 +25,7 @@
 import { Effect, Option, Predicate } from 'effect';
 import type { AnyResolvedLayer } from '../types.js';
 import { CircularDependencyError } from '../errors.js';
+import { getLayerDependencyNames } from '../utils/dependencies.js';
 
 export interface TopologyLevel {
 	readonly level: number;
@@ -50,7 +51,7 @@ const detectCycle = (
 
 	const layer = layerMap.get(node);
 	const deps: string[] = Predicate.isNotNullable(layer)
-		? ((layer.dependencies as string[] | undefined) ?? [])
+		? [...getLayerDependencyNames(layer)]
 		: [];
 
 	for (const dep of deps) {
@@ -124,7 +125,7 @@ const buildLevelsFromLayers = (
 			const layer = layerMap.get(name);
 			if (!layer) continue;
 
-			const deps = (layer.dependencies as string[] | undefined) ?? [];
+			const deps = getLayerDependencyNames(layer);
 			const allDepsBuilt = deps.every((dep) => built.has(dep));
 
 			if (allDepsBuilt) {

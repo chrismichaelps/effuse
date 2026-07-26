@@ -18,9 +18,9 @@ useEventListener({
 
 | Option    | Type                               | Default             | Description      |
 | :-------- | :--------------------------------- | :------------------ | :--------------- |
-| `target`  | `EventTarget \| () => EventTarget` | `window`            | Target element   |
-| `event`   | `keyof WindowEventMap`             | _required_          | Event name       |
-| `handler` | `(event) => void`                  | _required_          | Event handler    |
+| `target`  | `EventTarget \| null \| () => EventTarget \| null` | `window`            | Target object    |
+| `event`   | Event name for the selected target                    | _required_          | Event name       |
+| `handler` | Target-aware event handler                            | _required_          | Event handler    |
 | `options` | `AddEventListenerOptions`          | `{ passive: true }` | Listener options |
 
 ## Returns
@@ -52,6 +52,12 @@ useEventListener({
 	handler: () => console.log('Button clicked'),
 });
 ```
+
+The target controls both the valid event names and the handler payload. A
+`Document` target exposes document events, an `HTMLElement` target exposes DOM
+element events, and a `MediaQueryList` target exposes `MediaQueryListEvent` for
+its `change` event. Custom `EventTarget` implementations accept string event
+names and receive `Event`.
 
 ### Keyboard Events
 

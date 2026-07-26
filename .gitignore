@@ -118,8 +118,12 @@ dist
 # CHANGELOG
 CHANGELOG/
 
-# app
-app
+# Local Effuse development/e2e sandbox app
+/app/
+
+# Legacy/generated CLI fixture apps
+/packages/cli/__tests__/fixtures/app/
+/packages/cli/src/__tests__/fixtures/app/
 
 # Ignore the master seed file
 FMCF-MASTER-SEED.md

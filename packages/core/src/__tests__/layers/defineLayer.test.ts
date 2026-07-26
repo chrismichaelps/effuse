@@ -1,7 +1,17 @@
 import { describe, it, expect, expectTypeOf } from 'vitest';
-import { defineLayer, combineLayers } from '../../layers/api/defineLayer.js';
+import {
+	defineLayer,
+	layerService,
+	combineLayers,
+	resolveLayerDefinitions,
+	type LayerServicesFrom,
+} from '../../layers/api/defineLayer.js';
+import { LayerNameCollisionError } from '../../layers/errors.js';
 import type { CompiledLayer } from '../../layers/api/index.js';
-import type { LayerProvides } from '../../layers/types.js';
+import type {
+	LayerProvides,
+	LayerServiceFactoryContext,
+} from '../../layers/types.js';
 
 describe('defineLayer', () => {
 	describe('layer structure', () => {
@@ -76,6 +86,161 @@ describe('defineLayer', () => {
 				provides: manyProvides,
 			});
 			expect(Object.keys(layer.tags)).toHaveLength(10);
+		});
+
+		it('should accept services as the DX alias for provides', () => {
+			const layer = defineLayer({
+				name: 'service-alias',
+				services: {
+					auth: () => ({ userId: 'u1' }),
+				},
+			});
+
+			expect(layer.provides).toHaveProperty('auth');
+			expect(layer.tags).toHaveProperty('auth');
+			expect(layer.serviceKeys).toEqual(['auth']);
+		});
+
+		it('should infer services from dependency-aware factories', () => {
+			const layer = defineLayer({
+				name: 'composed-service',
+				services: {
+					commerce: ({ requireService }: LayerServiceFactoryContext) => {
+						const auth = requireService<{ readonly userId: string }>('auth');
+						return {
+							currentUser: () => auth.userId,
+						};
+					},
+				},
+			});
+
+			expectTypeOf<LayerServicesFrom<typeof layer>['commerce']>().toEqualTypeOf<{
+				currentUser: () => string;
+			}>();
+		});
+
+		it('should contextually type dependency-aware factories through the service helper', () => {
+			const layer = defineLayer('helper-composed-service', ({ service }) => ({
+				services: {
+					commerce: service(({ requireService }) => {
+						const auth = requireService<{ readonly userId: string }>('auth');
+						return {
+							currentUser: () => auth.userId,
+						};
+					}),
+				},
+			}));
+
+			expectTypeOf<LayerServicesFrom<typeof layer>['commerce']>().toEqualTypeOf<{
+				currentUser: () => string;
+			}>();
+		});
+
+		it('should contextually type object-form factories through layerService', () => {
+			const layer = defineLayer({
+				name: 'object-helper-composed-service',
+				services: {
+					commerce: layerService(({ requireService }) => {
+						const auth = requireService<{ readonly userId: string }>('auth');
+						return {
+							currentUser: () => auth.userId,
+						};
+					}),
+				},
+			});
+
+			expectTypeOf<LayerServicesFrom<typeof layer>['commerce']>().toEqualTypeOf<{
+				currentUser: () => string;
+			}>();
+		});
+
+		it('should let provides override services when both define the same key', () => {
+			const layer = defineLayer({
+				name: 'service-override',
+				services: {
+					config: () => ({ source: 'services' }),
+				},
+				provides: {
+					config: () => ({ source: 'provides' }),
+				},
+			});
+
+			expect((layer.provides!.config as () => { source: string })()).toEqual({
+				source: 'provides',
+			});
+		});
+	});
+
+	describe('factory form', () => {
+		it('should create a layer from name plus definition', () => {
+			const layer = defineLayer('named', {
+				services: {
+					settings: () => ({ theme: 'dark' }),
+				},
+			});
+
+			expect(layer.name).toBe('named');
+			expect(layer.tags.settings.key).toContain('named/settings');
+		});
+
+		it('should create a layer from a factory helper context', () => {
+			const layer = defineLayer('factory', ({ service, route, action }) => ({
+				services: {
+					auth: service(() => ({ token: 'abc' })),
+				},
+				server: {
+					api: {
+						'/api/session': route('/api/session', {
+							GET: ({ services }) => ({ token: services.auth }),
+						}),
+					},
+					actions: {
+						login: action(() => ({ ok: true })),
+					},
+				},
+			}));
+
+			expect(layer.name).toBe('factory');
+			expect((layer.provides!.auth as () => { token: string })()).toEqual({
+				token: 'abc',
+			});
+			expect(layer.server?.api).toHaveProperty('/api/session');
+			expect(layer.server?.actions?.login).toBeTypeOf('function');
+		});
+
+		it('should type server handlers from the layer services contract', () => {
+			defineLayer({
+				name: 'typed-server',
+				services: {
+					auth: () => ({
+						currentUser: () => ({ id: 'u1', name: 'Chris' }),
+					}),
+				},
+				server: {
+					api: {
+						'/api/me': ({ services }) => {
+							expectTypeOf(
+								services.auth.currentUser()
+							).toEqualTypeOf<{
+								id: string;
+								name: string;
+							}>();
+							return services.auth.currentUser();
+						},
+					},
+					actions: {
+						refreshSession: ({ services }) => {
+							expectTypeOf(
+								services.auth.currentUser()
+							).toEqualTypeOf<{
+								id: string;
+								name: string;
+							}>();
+							return services.auth.currentUser();
+						},
+					},
+				},
+			});
 		});
 	});
 
@@ -180,6 +345,61 @@ describe('combineLayers', () => {
 			);
 		}
 		expect(() => combineLayers(...layers)).not.toThrow();
+	});
+});
+
+describe('resolveLayerDefinitions', () => {
+	it('should compile raw layers and preserve dependency order', () => {
+		const base = { name: 'base', services: { base: () => ({}) } };
+		const feature = defineLayer({
+			name: 'feature',
+			extends: [base],
+			dependencies: ['base'] as const,
+		});
+
+		const resolved = resolveLayerDefinitions([feature]);
+
+		expect(resolved.map((layer) => layer.name)).toEqual(['base', 'feature']);
+		expect(resolved[0]?._order).toBe(0);
+		expect(resolved[1]?._order).toBe(1);
+	});
+
+	it('should allow shared extended layers without treating reuse as a cycle', () => {
+		const shared = defineLayer({ name: 'shared' });
+		const a = defineLayer({ name: 'a', extends: [shared] });
+		const b = defineLayer({ name: 'b', extends: [shared] });
+
+		const resolved = resolveLayerDefinitions([a, b]);
+
+		expect(resolved.map((layer) => layer.name)).toEqual(['shared', 'a', 'b']);
+	});
+
+	it('should reject top-level duplicate layer names', () => {
+		const first = defineLayer({
+			name: 'auth',
+			services: { first: () => ({ token: 'first' }) },
+		});
+		const second = defineLayer({
+			name: 'auth',
+			services: { second: () => ({ token: 'second' }) },
+		});
+
+		expect(() => resolveLayerDefinitions([first, second])).toThrow(
+			LayerNameCollisionError
+		);
+	});
+
+	it('should reject duplicate layer names introduced by extends', () => {
+		const shared = defineLayer({ name: 'shared' });
+		const duplicateShared = defineLayer({ name: 'shared' });
+		const feature = defineLayer({
+			name: 'feature',
+			extends: [duplicateShared],
+		});
+
+		expect(() => resolveLayerDefinitions([shared, feature])).toThrow(
+			LayerNameCollisionError
+		);
 	});
 });
 
