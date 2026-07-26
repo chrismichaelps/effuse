@@ -36,3 +36,12 @@ test('publication waits for every quality boundary', async () => {
 		[...positions].sort((left, right) => left - right)
 	);
 });
+
+test('publication uses short-lived npm trusted publishing credentials', async () => {
+	const workflow = await readWorkflow('release.yml');
+
+	assert.match(workflow, /^  id-token: write$/mu);
+	assert.match(workflow, /registry-url: https:\/\/registry\.npmjs\.org/u);
+	assert.match(workflow, /package-manager-cache: false/u);
+	assert.doesNotMatch(workflow, /(?:NPM_TOKEN|NODE_AUTH_TOKEN)/u);
+});
