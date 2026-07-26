@@ -1,3 +1,36 @@
+## @effuse/i18n [1.1.1](https://github.com/chrismichaelps/effuse/compare/@effuse/i18n@1.1.0...@effuse/i18n@1.1.1) (2026-07-26)
+
+### Bug Fixes
+
+* **core:** restore downstream JSX contracts ([#380](https://github.com/chrismichaelps/effuse/issues/380)) ([0839a89](https://github.com/chrismichaelps/effuse/commit/0839a893a9c8852743dfdf35fb71b82f32dad956)), closes [#379](https://github.com/chrismichaelps/effuse/issues/379)
+
+
+### Dependencies
+
+* **@effuse/core:** upgraded to 2.0.1
+
+## @effuse/i18n [1.1.0](https://github.com/chrismichaelps/effuse/compare/@effuse/i18n@1.0.9...@effuse/i18n@1.1.0) (2026-07-26)
+
+### Features
+
+* **i18n:** add request-scoped instances refs [#314](https://github.com/chrismichaelps/effuse/issues/314) ([#316](https://github.com/chrismichaelps/effuse/issues/316)) ([12ecc87](https://github.com/chrismichaelps/effuse/commit/12ecc87c34e2c4e0904937b381f15eb1e6e8af60))
+
+### Bug Fixes
+
+* **build:** declare lint config dependencies refs [#180](https://github.com/chrismichaelps/effuse/issues/180) ([e0fbf46](https://github.com/chrismichaelps/effuse/commit/e0fbf46866aac2452e0a2799b2efbe38e38977a3))
+* **i18n:** reject __proto__ keys in merge and lookup refs [#319](https://github.com/chrismichaelps/effuse/issues/319) ([#320](https://github.com/chrismichaelps/effuse/issues/320)) ([7385078](https://github.com/chrismichaelps/effuse/commit/738507816c65ea7e0358d1f2003758d3e4bc7f74))
+* **i18n:** remove redundant translation cast refs [#187](https://github.com/chrismichaelps/effuse/issues/187) ([cdaf694](https://github.com/chrismichaelps/effuse/commit/cdaf694e78e7583291bbdfdbab46557cb322e77e))
+* **i18n:** robust localStorage check for Node 22+ test environment ([#96](https://github.com/chrismichaelps/effuse/issues/96)) ([#98](https://github.com/chrismichaelps/effuse/issues/98)) ([ff2b146](https://github.com/chrismichaelps/effuse/commit/ff2b1461b3e893a7ae8cef90302078a61ea6ec80))
+
+### Tests
+
+* **repo:** enforce package-wide test execution refs [#363](https://github.com/chrismichaelps/effuse/issues/363) ([#368](https://github.com/chrismichaelps/effuse/issues/368)) ([99feb53](https://github.com/chrismichaelps/effuse/commit/99feb5301b82bcaeec5ff90bc9f01f88b19a7edd))
+
+
+### Dependencies
+
+* **@effuse/core:** upgraded to 2.0.0
+
 ## @effuse/i18n [1.0.9](https://github.com/chrismichaelps/effuse/compare/@effuse/i18n@1.0.8...@effuse/i18n@1.0.9) (2026-03-18)
 
 

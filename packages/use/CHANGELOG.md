@@ -1,3 +1,37 @@
+## @effuse/use [1.2.1](https://github.com/chrismichaelps/effuse/compare/@effuse/use@1.2.0...@effuse/use@1.2.1) (2026-07-26)
+
+### Bug Fixes
+
+* **core:** restore downstream JSX contracts ([#380](https://github.com/chrismichaelps/effuse/issues/380)) ([0839a89](https://github.com/chrismichaelps/effuse/commit/0839a893a9c8852743dfdf35fb71b82f32dad956)), closes [#379](https://github.com/chrismichaelps/effuse/issues/379)
+
+
+### Dependencies
+
+* **@effuse/core:** upgraded to 2.0.1
+
+## @effuse/use [1.2.0](https://github.com/chrismichaelps/effuse/compare/@effuse/use@1.1.4...@effuse/use@1.2.0) (2026-07-26)
+
+### Features
+
+* **use:** add document visibility hook refs [#284](https://github.com/chrismichaelps/effuse/issues/284) ([#290](https://github.com/chrismichaelps/effuse/issues/290)) ([35bc897](https://github.com/chrismichaelps/effuse/commit/35bc897c6f13c685d7f6c2653f8fea7fa3ac1b6f))
+* **use:** add lifecycle-owned timeout hook refs [#284](https://github.com/chrismichaelps/effuse/issues/284) ([#289](https://github.com/chrismichaelps/effuse/issues/289)) ([b94c56d](https://github.com/chrismichaelps/effuse/commit/b94c56dfd1ea54b6d04da41a89729cbc2f64d5cb))
+* **use:** add lifecycle-safe async task hook refs [#307](https://github.com/chrismichaelps/effuse/issues/307) ([#309](https://github.com/chrismichaelps/effuse/issues/309)) ([6275a6c](https://github.com/chrismichaelps/effuse/commit/6275a6c35db115cfade38886aed1aea7b66419c3))
+* **use:** add permission-aware clipboard hook refs [#284](https://github.com/chrismichaelps/effuse/issues/284) ([#291](https://github.com/chrismichaelps/effuse/issues/291)) ([463fa7f](https://github.com/chrismichaelps/effuse/commit/463fa7fc67eb2b45d345e79494868934e598aaea))
+* **use:** add preferred color scheme hook refs [#284](https://github.com/chrismichaelps/effuse/issues/284) ([#292](https://github.com/chrismichaelps/effuse/issues/292)) ([c0c16c1](https://github.com/chrismichaelps/effuse/commit/c0c16c11709fe7e9703e1820d1c1cd3274449bec))
+* **use:** expose interval paused state refs [#308](https://github.com/chrismichaelps/effuse/issues/308) ([#310](https://github.com/chrismichaelps/effuse/issues/310)) ([48f8f82](https://github.com/chrismichaelps/effuse/commit/48f8f82fb7e2efad869e17096f04a566387ef702))
+
+### Bug Fixes
+
+* **build:** declare lint config dependencies refs [#180](https://github.com/chrismichaelps/effuse/issues/180) ([e0fbf46](https://github.com/chrismichaelps/effuse/commit/e0fbf46866aac2452e0a2799b2efbe38e38977a3))
+* **hooks:** own hook resources through lifecycle refs [#283](https://github.com/chrismichaelps/effuse/issues/283) ([#286](https://github.com/chrismichaelps/effuse/issues/286)) ([8f66384](https://github.com/chrismichaelps/effuse/commit/8f6638462b5528b2d7375859c0dc8960c0de2008))
+* **use:** add package lint gate refs [#191](https://github.com/chrismichaelps/effuse/issues/191) ([4ff4e7b](https://github.com/chrismichaelps/effuse/commit/4ff4e7beefff6937ea21b4849f925f0d575d294f))
+* **use:** preserve public hook inference refs [#285](https://github.com/chrismichaelps/effuse/issues/285) ([#287](https://github.com/chrismichaelps/effuse/issues/287)) ([636b305](https://github.com/chrismichaelps/effuse/commit/636b305526162966784be72467c449613acbed5b))
+
+
+### Dependencies
+
+* **@effuse/core:** upgraded to 2.0.0
+
 ## @effuse/use [1.1.4](https://github.com/chrismichaelps/effuse/compare/@effuse/use@1.1.3...@effuse/use@1.1.4) (2026-03-18)
 
 
