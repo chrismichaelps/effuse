@@ -291,6 +291,16 @@ export {
 
 export { EFFUSE_ACTION_PREFIX } from './ssr/constants.js';
 
+export { updateClientHead as useHead } from './ssr/client-head.js';
+export {
+	type HeadProps,
+	type LinkTag,
+	type MetaTag,
+	type OpenGraphProps,
+	type ScriptTag,
+	type TwitterCardProps,
+} from './ssr/types.js';
+
 export {
 	getLayerServerActionEntries,
 	getLayerServerDiagnostics,
