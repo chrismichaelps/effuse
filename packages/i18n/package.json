@@ -1,6 +1,6 @@
 {
 	"name": "@effuse/i18n",
-	"version": "1.0.9",
+	"version": "1.1.0",
 	"description": "The official internationalization library for Effuse.",
 	"author": "Chris M. Pérez",
 	"license": "MIT",
@@ -59,7 +59,7 @@
 		"node": ">=22.14.0"
 	},
 	"peerDependencies": {
-		"@effuse/core": "1.2.4"
+		"@effuse/core": "2.0.0"
 	},
 	"dependencies": {
 		"effect": "^3.20.0"
@@ -68,7 +68,7 @@
 		"@effect/eslint-plugin": "^0.3.2",
 		"@eslint/js": "^9.39.4",
 		"@types/node": "^25.5.0",
-		"@effuse/core": "1.2.4",
+		"@effuse/core": "2.0.0",
 		"eslint": "^10.0.3",
 		"tsup": "^8.5.1",
 		"typescript": "^5.9.3",
