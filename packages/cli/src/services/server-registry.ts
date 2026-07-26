@@ -22,7 +22,12 @@ const DEFAULT_MIDDLEWARE_DIR = 'src/server/middleware';
 const SERVER_MODULE = /\.(?:[cm]?[jt]s)$/i;
 const DECLARATION = /\.d\.[cm]?ts$/i;
 const TEST_MODULE = /(?:^|\.)(?:test|spec)\.[cm]?[jt]s$/i;
-const EXCLUDED_DIRECTORIES = new Set(['__fixtures__', '__tests__', 'fixtures']);
+const EXCLUDED_DIRECTORIES = new Set([
+	'__fixtures__',
+	'__tests__',
+	'fixtures',
+	'node_modules',
+]);
 
 export type ServerRegistryEntry =
 	| Readonly<{
@@ -101,7 +106,9 @@ const isWithin = (root: string, target: string): boolean => {
 const resolveOwnedDirectory = (root: string, input: string): string => {
 	const target = resolve(root, input);
 	if (!isWithin(root, target)) {
-		throw new TypeError(`Server directory must stay within the project root: ${input}`);
+		throw new TypeError(
+			`Server directory must stay within the project root: ${input}`
+		);
 	}
 	return target;
 };
@@ -138,7 +145,10 @@ const collectFiles = (directory: string): readonly string[] => {
 const projectFilePath = (root: string, filePath: string): string =>
 	`./${toPosix(relative(root, filePath))}`;
 
-const compareEntries = (left: ServerRegistryEntry, right: ServerRegistryEntry) =>
+const compareEntries = (
+	left: ServerRegistryEntry,
+	right: ServerRegistryEntry
+) =>
 	left.filePath < right.filePath ? -1 : left.filePath > right.filePath ? 1 : 0;
 
 export const discoverServerRegistry = (
@@ -149,7 +159,10 @@ export const discoverServerRegistry = (
 	if (!lstatSync(rootDir).isDirectory()) {
 		throw new TypeError(`Project root is not a directory: ${cwd}`);
 	}
-	const apiDir = resolveOwnedDirectory(rootDir, options.apiDir ?? DEFAULT_API_DIR);
+	const apiDir = resolveOwnedDirectory(
+		rootDir,
+		options.apiDir ?? DEFAULT_API_DIR
+	);
 	const actionsDir = resolveOwnedDirectory(
 		rootDir,
 		options.actionsDir ?? DEFAULT_ACTIONS_DIR
@@ -159,9 +172,7 @@ export const discoverServerRegistry = (
 			const source = projectFilePath(rootDir, filePath);
 			const path = serverFileToRoutePath(source, {
 				apiDir: toPosix(relative(rootDir, apiDir)),
-				...(options.apiBasePath
-					? { apiBasePath: options.apiBasePath }
-					: {}),
+				...(options.apiBasePath ? { apiBasePath: options.apiBasePath } : {}),
 			});
 			return {
 				kind: 'api',
@@ -202,7 +213,8 @@ export const discoverServerRegistry = (
 			message: `Server ${entry.kind} collision for "${target}" between ${owner.filePath} and ${entry.filePath}.`,
 		});
 	}
-	if (diagnostics.length > 0) throw new ServerRegistryCompilationError(diagnostics);
+	if (diagnostics.length > 0)
+		throw new ServerRegistryCompilationError(diagnostics);
 
 	return Object.freeze({
 		rootDir,
@@ -365,7 +377,9 @@ export const generateServerRegistryModule = (
 		options.outputPath ?? '.effuse/server-registry.ts'
 	);
 	if (!isWithin(registry.rootDir, outputPath)) {
-		throw new TypeError('Generated server registry must stay within the project root.');
+		throw new TypeError(
+			'Generated server registry must stay within the project root.'
+		);
 	}
 	const entries = registry.entries.map((entry) => ({
 		...entry,
@@ -374,8 +388,9 @@ export const generateServerRegistryModule = (
 		)})`,
 	}));
 	const renderedEntries = entries
-		.map(({ load, ...metadata }) =>
-			`\tObject.freeze({ ...${JSON.stringify(metadata)}, load: ${load} }),`
+		.map(
+			({ load, ...metadata }) =>
+				`\tObject.freeze({ ...${JSON.stringify(metadata)}, load: ${load} }),`
 		)
 		.join('\n');
 

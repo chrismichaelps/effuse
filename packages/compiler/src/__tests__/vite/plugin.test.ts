@@ -4,8 +4,10 @@
  * Copyright (c) 2025 Chris M. Perez
  */
 
-import { describe, it, expect } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 import { effuse } from '../../vite/index.js';
+
+afterEach(() => vi.restoreAllMocks());
 
 describe('Vite plugin', () => {
 	describe('shouldProcess', () => {
@@ -38,10 +40,7 @@ describe('Vite plugin', () => {
 
 		it('should skip dist folder', () => {
 			const code = 'const Comp = () => <div>{count.value}</div>;';
-			const result = (plugin as any).transform(
-				code,
-				'/project/dist/App.tsx'
-			);
+			const result = (plugin as any).transform(code, '/project/dist/App.tsx');
 			expect(result).toBeNull();
 		});
 	});
@@ -79,6 +78,42 @@ describe('Vite plugin', () => {
 			const code = 'const Comp = () => <div>Hello</div>;';
 			const result = (plugin as any).transform(code, 'App.tsx');
 			expect(result).toBeNull();
+		});
+
+		it('transforms Vite module ids with query parameters', () => {
+			const plugin = effuse();
+			const code = 'const Comp = () => <div>{count.value}</div>;';
+			const result = (plugin as any).transform(code, '/src/App.tsx?v=42');
+
+			expect(result?.code).toContain('() => count.value');
+		});
+
+		it('reports malformed matching modules without emitting partial output', () => {
+			const plugin = effuse();
+			const error = vi
+				.spyOn(console, 'error')
+				.mockImplementation(() => undefined);
+
+			const result = (plugin as any).transform(
+				'const Comp = () => <div>{count.value</div>;',
+				'/src/App.tsx'
+			);
+
+			expect(result).toBeNull();
+			expect(error).toHaveBeenCalledWith(
+				expect.stringContaining('[effuse] Transform error:')
+			);
+		});
+
+		it('does not apply source exclusions to Vite query text', () => {
+			const plugin = effuse();
+			const code = 'const Comp = () => <div>{count.value}</div>;';
+			const result = (plugin as any).transform(
+				code,
+				'/src/App.tsx?source=/dist/App.tsx'
+			);
+
+			expect(result?.code).toContain('() => count.value');
 		});
 	});
 });
