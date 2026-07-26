@@ -6,6 +6,10 @@ import { test } from 'node:test';
 const repoRoot = fileURLToPath(new URL('../../', import.meta.url));
 const readWorkflow = (name) =>
 	readFile(new URL(`.github/workflows/${name}`, `file://${repoRoot}/`), 'utf8');
+const readReleaseConfig = async () =>
+	JSON.parse(
+		await readFile(new URL('.releaserc.json', `file://${repoRoot}/`), 'utf8')
+	);
 
 test('quality CI protects dev and main promotions', async () => {
 	const workflow = await readWorkflow('ci.yml');
@@ -51,6 +55,17 @@ test('publication binds the scoped npm secret through setup-node', async () => {
 	);
 	assert.doesNotMatch(workflow, /^\s+NPM_TOKEN:/mu);
 	assert.doesNotMatch(workflow, /^\s+id-token:/mu);
+});
+
+test('publication does not replay release activity across historical issues', async () => {
+	const config = await readReleaseConfig();
+	const githubPlugin = config.plugins.find(
+		(plugin) => Array.isArray(plugin) && plugin[0] === '@semantic-release/github'
+	);
+
+	assert.ok(githubPlugin, 'GitHub release plugin must be configured explicitly');
+	assert.equal(githubPlugin[1]?.successComment, false);
+	assert.equal(githubPlugin[1]?.releasedLabels, false);
 });
 
 test('every public package identifies the trusted GitHub repository', async () => {
