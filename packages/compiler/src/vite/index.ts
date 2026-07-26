@@ -19,10 +19,15 @@ import { VitePluginConfig } from '../constants/index.js';
 export type EffusePluginOptions = Partial<CompilerConfig>;
 
 const shouldProcess = (id: string, config: CompilerConfig): boolean => {
-	const hasValidExtension = config.extensions.some((ext) => id.endsWith(ext));
+	const moduleId = id.replace(/[?#].*$/, '');
+	const hasValidExtension = config.extensions.some((ext) =>
+		moduleId.endsWith(ext)
+	);
 	if (!hasValidExtension) return false;
 
-	const isExcluded = config.exclude.some((pattern) => id.includes(pattern));
+	const isExcluded = config.exclude.some((pattern) =>
+		moduleId.includes(pattern)
+	);
 	if (isExcluded) return false;
 
 	return true;

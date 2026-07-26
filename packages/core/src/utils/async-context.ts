@@ -37,12 +37,6 @@ interface NativeAsyncContextModule {
 	AsyncLocalStorage?: NativeAsyncContextStorageConstructor;
 }
 
-const isPromiseLike = <T>(value: T): value is T & PromiseLike<unknown> =>
-	typeof value === 'object' &&
-	value !== null &&
-	'then' in value &&
-	typeof value.then === 'function';
-
 const createNativeAsyncContextStorage = <T>():
 	| AsyncContextStorage<T>
 	| undefined => {
@@ -53,9 +47,9 @@ const createNativeAsyncContextStorage = <T>():
 		return undefined;
 	}
 
-	const asyncContextModule = getBuiltinModule(
-		['async', 'hooks'].join('_')
-	) as NativeAsyncContextModule | undefined;
+	const asyncContextModule = getBuiltinModule(['async', 'hooks'].join('_')) as
+		| NativeAsyncContextModule
+		| undefined;
 	const NativeAsyncContextStorage = asyncContextModule?.AsyncLocalStorage;
 
 	return typeof NativeAsyncContextStorage === 'function'
@@ -82,16 +76,12 @@ const createStackAsyncContextStorage = <T>(): AsyncContextStorage<T> => {
 	return {
 		getStore: () => stack[stack.length - 1],
 		run: <R>(store: T, callback: () => R): R => {
+			// Without a native async-context primitive, ownership must end when the
+			// callback returns so a pending promise cannot expose its scope globally.
 			stack.push(store);
 
 			try {
 				const result = callback();
-				if (isPromiseLike(result)) {
-					return Promise.resolve(result).finally(() => {
-						removeStore(store);
-					}) as R;
-				}
-
 				removeStore(store);
 				return result;
 			} catch (error) {

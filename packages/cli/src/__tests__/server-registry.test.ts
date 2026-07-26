@@ -76,11 +76,43 @@ describe('server registry compiler', () => {
 		touch(root, 'src/server/api/.hidden.ts');
 		touch(root, 'src/server/api/__tests__/unit.ts');
 		touch(root, 'src/server/api/fixtures/example.ts');
-		symlinkSync(resolve(root, 'outside.ts'), resolve(root, 'src/server/api/link.ts'));
+		symlinkSync(
+			resolve(root, 'outside.ts'),
+			resolve(root, 'src/server/api/link.ts')
+		);
 
-		expect(discoverServerRegistry(root).entries.map(({ filePath }) => filePath)).toEqual([
-			'./src/server/api/health.ts',
+		expect(
+			discoverServerRegistry(root).entries.map(({ filePath }) => filePath)
+		).toEqual(['./src/server/api/health.ts']);
+	});
+
+	it('discovers supported module extensions case-insensitively', () => {
+		touch(root, 'src/server/api/Health.MTS');
+
+		expect(discoverServerRegistry(root).entries).toEqual([
+			expect.objectContaining({
+				kind: 'api',
+				filePath: './src/server/api/Health.MTS',
+				path: '/api/Health',
+			}),
 		]);
+	});
+
+	it('rejects a server source root that is a file', () => {
+		touch(root, 'src/server/api');
+
+		expect(() => discoverServerRegistry(root)).toThrow(
+			'Server source root is not a directory'
+		);
+	});
+
+	it('does not discover modules inside nested dependency directories', () => {
+		touch(root, 'src/server/api/health.ts');
+		touch(root, 'src/server/api/node_modules/vendor/route.ts');
+
+		expect(
+			discoverServerRegistry(root).entries.map(({ filePath }) => filePath)
+		).toEqual(['./src/server/api/health.ts']);
 	});
 
 	it('rejects canonical route collisions with both owners', () => {
@@ -139,7 +171,9 @@ describe('server registry compiler', () => {
 
 		expect(first).toBe(second);
 		expect(first).toContain('import("../src/server/api/users/[id]/route.mts")');
-		expect(first).toContain('import("../src/server/actions/users/refresh.mjs")');
+		expect(first).toContain(
+			'import("../src/server/actions/users/refresh.mjs")'
+		);
 		expect(first).toContain('export const serverRegistry = Object.freeze([');
 		expect(first).toContain('Object.freeze({ ...{"kind":"api"');
 		expect(first).toContain('export async function loadServerFiles()');
