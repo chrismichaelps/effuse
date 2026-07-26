@@ -2,10 +2,13 @@ import { createRequire } from 'node:module';
 import { readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
+import assert from 'node:assert/strict';
 
 const root = resolve(import.meta.dirname, '..');
 const require = createRequire(import.meta.url);
 const cacheExports = ['createResponseCache', 'createDataCache'];
+const loadEsm = (name) =>
+	import(pathToFileURL(resolve(root, `dist/${name}.js`)).href);
 
 const assertRuntimeExports = (entry, label) => {
 	for (const name of cacheExports) {
@@ -16,7 +19,7 @@ const assertRuntimeExports = (entry, label) => {
 };
 
 for (const name of ['index', 'server']) {
-	const esm = await import(pathToFileURL(resolve(root, `dist/${name}.js`)).href);
+	const esm = await loadEsm(name);
 	const cjs = require(resolve(root, `dist/${name}.cjs`));
 	assertRuntimeExports(esm, `${name} ESM`);
 	assertRuntimeExports(cjs, `${name} CJS`);
@@ -26,6 +29,15 @@ for (const name of ['index', 'server']) {
 			resolve(root, `dist/${name}.${extension}`),
 			'utf8'
 		);
+		if (name === 'server') {
+			const target = extension === 'd.ts' ? './index.js' : './index.cjs';
+			assert.equal(
+				declaration,
+				`export * from '${target}';\n`,
+				`server.${extension} must delegate to ${target}`
+			);
+			continue;
+		}
 		for (const exportName of cacheExports) {
 			if (!declaration.includes(exportName)) {
 				throw new Error(
@@ -34,6 +46,63 @@ for (const name of ['index', 'server']) {
 			}
 		}
 	}
+}
+
+const rootEsm = await loadEsm('index');
+const serverEsm = await loadEsm('server');
+const rootCjs = require(resolve(root, 'dist/index.cjs'));
+const serverCjs = require(resolve(root, 'dist/server.cjs'));
+
+for (const name of [
+	'define',
+	'provide',
+	'inject',
+	'createSSRRuntime',
+	'renderToString',
+	'useHead',
+]) {
+	assert.equal(
+		serverEsm[name],
+		rootEsm[name],
+		`server ESM duplicates the ${name} runtime export`
+	);
+	assert.equal(
+		serverCjs[name],
+		rootCjs[name],
+		`server CJS duplicates the ${name} runtime export`
+	);
+}
+
+const contextKey = Symbol('mixed-entry-context');
+const Child = rootEsm.define({
+	script: ({ inject }) => ({ value: inject(contextKey, 'missing') }),
+	template: ({ value }) => value,
+});
+const Parent = rootEsm.define({
+	script: ({ provide }) => {
+		provide(contextKey, 'shared');
+		return {};
+	},
+	template: () =>
+		rootEsm.CreateBlueprintNode({
+			[rootEsm.EFFUSE_NODE]: true,
+			blueprint: Child,
+			props: {},
+			portals: null,
+		}),
+});
+const runtime = await serverEsm.createSSRRuntime([]);
+try {
+	const result = runtime.run(() =>
+		serverEsm.renderToString(Parent, '/', runtime)
+	);
+	assert.match(
+		result.html,
+		/shared/,
+		'mixed root/server rendering lost the provide scope'
+	);
+} finally {
+	await runtime.dispose();
 }
 
 for (const extension of ['js', 'cjs', 'd.ts', 'd.cts']) {
@@ -47,4 +116,6 @@ for (const extension of ['js', 'cjs', 'd.ts', 'd.cts']) {
 	}
 }
 
-console.log('[package-entry] cache exports match root/server/browser contracts');
+console.log(
+	'[package-entry] root/server identity, context, cache, and browser contracts match'
+);
