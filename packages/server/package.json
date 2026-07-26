@@ -1,6 +1,6 @@
 {
 	"name": "@effuse/server",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"description": "Portable Web Request/Response server runtime for Effuse, with reference Node and Bun adapters and a shared conformance suite.",
 	"author": "Chris M. Pérez",
 	"license": "MIT",
@@ -81,14 +81,14 @@
 		"node": ">=22.14.0"
 	},
 	"peerDependencies": {
-		"@effuse/core": "2.0.0"
+		"@effuse/core": "2.0.1"
 	},
 	"dependencies": {
 		"effect": "^3.21.5"
 	},
 	"devDependencies": {
 		"@eslint/js": "^9.39.4",
-		"@effuse/core": "2.0.0",
+		"@effuse/core": "2.0.1",
 		"@types/node": "^25.5.0",
 		"eslint": "^10.0.3",
 		"tsup": "^8.5.1",
