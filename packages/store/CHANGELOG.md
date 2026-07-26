@@ -1,3 +1,18 @@
+## @effuse/store [1.1.0](https://github.com/chrismichaelps/effuse/compare/@effuse/store@1.0.8...@effuse/store@1.1.0) (2026-07-26)
+
+### Features
+
+* **store:** full audit — remove Effect from public API, fix leaks, fix batching, fix SSR, add regression tests ([#168](https://github.com/chrismichaelps/effuse/issues/168)) ([ed59018](https://github.com/chrismichaelps/effuse/commit/ed590182c54d6d656fe289b4419fd98f62d5d516))
+
+### Tests
+
+* **repo:** stabilize node test gates refs [#180](https://github.com/chrismichaelps/effuse/issues/180) ([bb1bbfb](https://github.com/chrismichaelps/effuse/commit/bb1bbfbd9edf12d535bcc1a6d4a9c73108eebb51))
+
+
+### Dependencies
+
+* **@effuse/core:** upgraded to 2.0.0
+
 ## @effuse/store [1.0.8](https://github.com/chrismichaelps/effuse/compare/@effuse/store@1.0.7...@effuse/store@1.0.8) (2026-03-18)
 
 
