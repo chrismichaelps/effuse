@@ -39,6 +39,8 @@
 		"build": "tsup",
 		"dev": "tsup --watch",
 		"lint": "eslint src",
+		"pretest": "node ../../scripts/check-node-version.mjs",
+		"test": "vitest run",
 		"typecheck": "tsc --noEmit"
 	},
 	"keywords": [
