@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 
@@ -41,7 +41,34 @@ test('publication uses short-lived npm trusted publishing credentials', async ()
 	const workflow = await readWorkflow('release.yml');
 
 	assert.match(workflow, /^  id-token: write$/mu);
-	assert.match(workflow, /registry-url: https:\/\/registry\.npmjs\.org/u);
+	assert.match(
+		workflow,
+		/^\s+registry-url: https:\/\/registry\.npmjs\.org\/$/mu
+	);
 	assert.match(workflow, /package-manager-cache: false/u);
 	assert.doesNotMatch(workflow, /(?:NPM_TOKEN|NODE_AUTH_TOKEN)/u);
+});
+
+test('every public package identifies the trusted GitHub repository', async () => {
+	const packagesRoot = new URL('packages/', `file://${repoRoot}/`);
+	const packageDirectories = (
+		await readdir(packagesRoot, { withFileTypes: true })
+	).filter((entry) => entry.isDirectory());
+
+	for (const directory of packageDirectories) {
+		const manifest = JSON.parse(
+			await readFile(
+				new URL(`${directory.name}/package.json`, packagesRoot),
+				'utf8'
+			)
+		);
+
+		if (manifest.private !== true) {
+			assert.equal(
+				manifest.repository?.url,
+				'https://github.com/chrismichaelps/effuse.git',
+				`${manifest.name} must identify the trusted publisher repository`
+			);
+		}
+	}
 });
