@@ -106,39 +106,44 @@ const useDebounceHook = defineHook<
 			}
 		};
 
-		ctx.watchEffect(() => {
-			const newValue = sourceSignal.value;
+		ctx.onMount(() => {
+			const effect = ctx.watchEffect(() => {
+				const newValue = sourceSignal.value;
 
-			if (isCancelled) {
-				if (newValue !== lastSourceValue) {
-					isCancelled = false;
-				} else {
+				if (isCancelled) {
+					if (newValue !== lastSourceValue) {
+						isCancelled = false;
+					} else {
+						return undefined;
+					}
+				}
+
+				if (newValue === lastSourceValue) {
 					return undefined;
 				}
-			}
 
-			if (newValue === lastSourceValue) {
-				return undefined;
-			}
+				clearPendingTimeout();
 
-			clearPendingTimeout();
+				traceDebounceSchedule();
+				internalState.value = DS.Pending({
+					value: getCurrentValue(internalState.value),
+					pendingValue: newValue,
+				});
 
-			traceDebounceSchedule();
-			internalState.value = DS.Pending({
-				value: getCurrentValue(internalState.value),
-				pendingValue: newValue,
+				timeoutId = setTimeout(() => {
+					const state = internalState.value;
+					if (isPending(state)) {
+						lastSourceValue = state.pendingValue;
+						internalState.value = DS.Idle({ value: state.pendingValue });
+					}
+					timeoutId = null;
+				}, clampedDelay);
+
+				return clearPendingTimeout;
 			});
 
-			timeoutId = setTimeout(() => {
-				const state = internalState.value;
-				if (isPending(state)) {
-					lastSourceValue = state.pendingValue;
-					internalState.value = DS.Idle({ value: state.pendingValue });
-				}
-				timeoutId = null;
-			}, clampedDelay);
-
 			return () => {
+				effect.stop();
 				clearPendingTimeout();
 			};
 		});

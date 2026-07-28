@@ -126,42 +126,49 @@ const useThrottleHook = defineHook<
 			}, clampedInterval);
 		};
 
-		ctx.watchEffect(() => {
-			const newValue = sourceSignal.value;
+		ctx.onMount(() => {
+			const effect = ctx.watchEffect(() => {
+				const newValue = sourceSignal.value;
 
-			if (
-				newValue === lastProcessedValue &&
-				!isThrottled(internalState.value)
-			) {
-				return undefined;
-			}
+				if (
+					newValue === lastProcessedValue &&
+					!isThrottled(internalState.value)
+				) {
+					return undefined;
+				}
 
-			const currentlyThrottled = isThrottled(internalState.value);
+				const currentlyThrottled = isThrottled(internalState.value);
 
-			if (currentlyThrottled) {
-				traceThrottleSkip();
-				if (trailing) {
+				if (currentlyThrottled) {
+					traceThrottleSkip();
+					if (trailing) {
+						trailingValue = newValue;
+						hasTrailingValue = true;
+					}
+					return undefined;
+				}
+
+				if (leading) {
+					applyValue(newValue);
+					startCooldown();
+				} else {
 					trailingValue = newValue;
 					hasTrailingValue = true;
+					lastProcessedValue = newValue;
+					internalState.value = TS.Throttled({
+						value: getCurrentValue(internalState.value),
+						lastValue: getCurrentValue(internalState.value),
+					});
+					startCooldown();
 				}
+
 				return undefined;
-			}
+			});
 
-			if (leading) {
-				applyValue(newValue);
-				startCooldown();
-			} else {
-				trailingValue = newValue;
-				hasTrailingValue = true;
-				lastProcessedValue = newValue;
-				internalState.value = TS.Throttled({
-					value: getCurrentValue(internalState.value),
-					lastValue: getCurrentValue(internalState.value),
-				});
-				startCooldown();
-			}
-
-			return undefined;
+			return () => {
+				effect.stop();
+				clearCooldownTimeout();
+			};
 		});
 
 		return {
