@@ -1,3 +1,11 @@
+## @effuse/cli [1.0.2](https://github.com/chrismichaelps/effuse/compare/@effuse/cli@1.0.1...@effuse/cli@1.0.2) (2026-07-28)
+
+
+### Dependencies
+
+* **@effuse/server:** upgraded to 1.0.2
+* **@effuse/core:** upgraded to 2.0.2
+
 ## @effuse/cli [1.0.1](https://github.com/chrismichaelps/effuse/compare/@effuse/cli@1.0.0...@effuse/cli@1.0.1) (2026-07-26)
 
 ### Bug Fixes
