@@ -27,6 +27,7 @@ import { createListNode } from '../render/node.js';
 import type { Signal } from '../types/index.js';
 import { signal } from '../reactivity/index.js';
 import { Data, Option, Predicate } from 'effect';
+import { isServerRendering } from '../render/render-context.js';
 
 export class DeferredError extends Data.TaggedError('DeferredError')<{
 	readonly timeout: number;
@@ -84,6 +85,10 @@ export const Deferred = (props: DeferredProps): EffuseNode => {
 		enumerable: true,
 		configurable: true,
 		get() {
+			if (isServerRendering()) {
+				return [props.children];
+			}
+
 			if (!listNode._mounted) {
 				listNode._mounted = true;
 				cache.child = Option.some(props.children);
