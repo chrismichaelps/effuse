@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { define, isSignal, type ComponentLifecycle } from '@effuse/core';
+import {
+	createSSRRuntime,
+	define,
+	isSignal,
+	renderToFragment,
+	type ComponentLifecycle,
+} from '@effuse/core';
 import { createQueryClient } from '../client/client.js';
 import { useInfiniteQuery } from './useInfiniteQuery.js';
 import { useIsFetching } from './useIsFetching.js';
@@ -50,6 +56,86 @@ describe('query hook lifecycle ownership', () => {
 
 		expect(setIntervalSpy).not.toHaveBeenCalled();
 		lifecycle.runCleanup();
+	});
+
+	it('does not start finite or infinite queries during an SSR render', async () => {
+		const queryFn = vi.fn(async () => 'data');
+		const infiniteQueryFn = vi.fn(async () => ({ next: undefined }));
+		const client = createQueryClient();
+		const App = define({
+			script: () => {
+				useQuery({ queryKey: ['ssr'], queryFn, client });
+				useInfiniteQuery({
+					queryKey: ['ssr-feed'],
+					queryFn: infiniteQueryFn,
+					initialPageParam: 0,
+					getNextPageParam: (page) => page.next,
+					client,
+				});
+				return {};
+			},
+			template: () => 'server output',
+		});
+		const runtime = await createSSRRuntime([]);
+
+		try {
+			const html = runtime.run(() =>
+				renderToFragment(App as never, runtime)
+			);
+
+			expect(html).toContain('server output');
+			expect(queryFn).not.toHaveBeenCalled();
+			expect(infiniteQueryFn).not.toHaveBeenCalled();
+		} finally {
+			await runtime.dispose();
+		}
+	});
+
+	it('starts component-owned initial queries exactly once on mount', () => {
+		const queryFn = vi.fn(async () => 'data');
+		const infiniteQueryFn = vi.fn(async () => ({ next: undefined }));
+		const client = createQueryClient();
+		const { lifecycle } = setupComponentHook(() => {
+			useQuery({ queryKey: ['mounted'], queryFn, client });
+			useInfiniteQuery({
+				queryKey: ['mounted-feed'],
+				queryFn: infiniteQueryFn,
+				initialPageParam: 0,
+				getNextPageParam: (page) => page.next,
+				client,
+			});
+			return {};
+		});
+
+		expect(queryFn).not.toHaveBeenCalled();
+		expect(infiniteQueryFn).not.toHaveBeenCalled();
+		lifecycle.runMount();
+		expect(queryFn).toHaveBeenCalledOnce();
+		expect(infiniteQueryFn).toHaveBeenCalledOnce();
+		lifecycle.runMount();
+		expect(queryFn).toHaveBeenCalledOnce();
+		expect(infiniteQueryFn).toHaveBeenCalledOnce();
+		lifecycle.runCleanup();
+	});
+
+	it('keeps standalone initial queries immediate and disposable', () => {
+		const queryFn = vi.fn(async () => 'data');
+		const infiniteQueryFn = vi.fn(async () => ({ next: undefined }));
+		const client = createQueryClient();
+
+		const query = useQuery({ queryKey: ['standalone'], queryFn, client });
+		const infiniteQuery = useInfiniteQuery({
+			queryKey: ['standalone-feed'],
+			queryFn: infiniteQueryFn,
+			initialPageParam: 0,
+			getNextPageParam: (page) => page.next,
+			client,
+		});
+
+		expect(queryFn).toHaveBeenCalledOnce();
+		expect(infiniteQueryFn).toHaveBeenCalledOnce();
+		query.dispose();
+		infiniteQuery.dispose();
 	});
 
 	it('mounts and automatically cleans query browser resources', () => {

@@ -427,11 +427,6 @@ export const useInfiniteQuery = <TData, TPageParam = number>(
 		}
 	}
 
-	// Initial fetch
-	if (enabled && !initialData && (!cached || client.isStale(cacheKey, staleTime))) {
-		refetch();
-	}
-
 	let mountedCleanup: (() => void) | null = null;
 	let disposed = false;
 	const dispose = (): void => {
@@ -443,7 +438,11 @@ export const useInfiniteQuery = <TData, TPageParam = number>(
 	};
 
 	ctx.onMount(() => {
-		if (disposed || typeof window === 'undefined') return undefined;
+		if (disposed) return undefined;
+		if (enabled && !initialData && (!cached || client.isStale(cacheKey, staleTime))) {
+			void refetch();
+		}
+		if (typeof window === 'undefined') return undefined;
 		const cleanups: Array<() => void> = [];
 		if (refetchOnWindowFocus) {
 			const handleFocus = (): void => {

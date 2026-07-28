@@ -207,13 +207,6 @@ const useQueryHook = defineHook<
 		syncResult(result);
 	});
 
-	// Refetch if stale and enabled
-	if (enabled && query.isStale) {
-		query.fetch().catch(() => {
-			// Errors are handled by the observer
-		});
-	}
-
 	const cleanupFns: Array<() => void> = [unsubscribe];
 	let intervalId: ReturnType<typeof setInterval> | null = null;
 	let mountedCleanup: (() => void) | null = null;
@@ -241,6 +234,11 @@ const useQueryHook = defineHook<
 	ctx.onMount(() => {
 		if (disposed) return undefined;
 		const mountedCleanups: Array<() => void> = [];
+		if (enabled && query.isStale) {
+			query.fetch().catch(() => {
+				// Errors are handled by the observer.
+			});
+		}
 		if (refetchOnWindowFocus && typeof window !== 'undefined') {
 			const handleFocus = (): void => {
 				if (enabled && query.isStale) {
