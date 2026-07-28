@@ -25,10 +25,23 @@
 import type { Store } from '../core/types.js';
 import { getStoreConfig } from '../config/index.js';
 import { StoreNotFoundError } from '../errors.js';
+import {
+	clearScopedStores,
+	getCurrentScope,
+	getRootScope,
+	getScopedStore,
+	getScopedStoreNames,
+	registerScopedStore,
+	removeScopedStore,
+} from '../context/scope.js';
 
 const stores = new Map<string, Store<unknown>>();
 
 export const registerStore = <T>(name: string, store: Store<T>): void => {
+	if (getCurrentScope() !== getRootScope()) {
+		registerScopedStore(name, store);
+		return;
+	}
 	if (stores.has(name) && getStoreConfig().debug) {
 		// eslint-disable-next-line no-console
 		console.warn(`[store] Overwriting existing store: ${name}`);
@@ -37,6 +50,8 @@ export const registerStore = <T>(name: string, store: Store<T>): void => {
 };
 
 export const getStore = <T>(name: string): Store<T> => {
+	const scopedStore = getScopedStore<T>(name);
+	if (scopedStore) return scopedStore;
 	const store = stores.get(name);
 	if (!store) {
 		throw new StoreNotFoundError(name);
@@ -44,12 +59,17 @@ export const getStore = <T>(name: string): Store<T> => {
 	return store as Store<T>;
 };
 
-export const hasStore = (name: string): boolean => stores.has(name);
+export const hasStore = (name: string): boolean =>
+	getScopedStore(name) !== null || stores.has(name);
 
-export const removeStore = (name: string): boolean => stores.delete(name);
+export const removeStore = (name: string): boolean =>
+	removeScopedStore(name) || stores.delete(name);
 
 export const clearStores = (): void => {
+	clearScopedStores();
+	if (getCurrentScope() !== getRootScope()) return;
 	stores.clear();
 };
 
-export const getStoreNames = (): string[] => Array.from(stores.keys());
+export const getStoreNames = (): string[] =>
+	Array.from(new Set([...getScopedStoreNames(), ...stores.keys()]));
