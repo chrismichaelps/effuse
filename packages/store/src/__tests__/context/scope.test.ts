@@ -144,7 +144,8 @@ describe('context / scope', () => {
 			await Promise.resolve();
 			expect(getCurrentScope()).toBe(scope);
 			expect(getScopedStore('transient')).toBe(store);
-			expect(scope.stores.size).toBe(1);
+			expect(getScopedStore('transientAsyncStore')).toBe(store);
+			expect(scope.stores.size).toBe(2);
 			return store.getSnapshot().value;
 		});
 

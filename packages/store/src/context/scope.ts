@@ -117,6 +117,36 @@ export const hasScopedStore = (
 	return getScopedStore(name, scope) !== null;
 };
 
+export const removeScopedStore = (
+	name: string,
+	scope: ScopeNode = getCurrentScope()
+): boolean => {
+	let current: ScopeNode | null = scope;
+	while (current) {
+		if (current.stores.delete(name)) return true;
+		current = current.parent;
+	}
+	return false;
+};
+
+export const clearScopedStores = (
+	scope: ScopeNode = getCurrentScope()
+): void => {
+	scope.stores.clear();
+};
+
+export const getScopedStoreNames = (
+	scope: ScopeNode = getCurrentScope()
+): string[] => {
+	const names = new Set<string>();
+	let current: ScopeNode | null = scope;
+	while (current) {
+		for (const name of current.stores.keys()) names.add(name);
+		current = current.parent;
+	}
+	return Array.from(names);
+};
+
 // Execute in scope
 export const runInScope = <R>(scope: ScopeNode, fn: () => R): R => {
 	return scopeRuntimeContext.run(scope, fn);
