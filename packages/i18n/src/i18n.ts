@@ -64,8 +64,13 @@ class I18nInstance implements I18n {
 	private readonly _locale: Signal<string>;
 	private readonly _version: Signal<number>;
 	private readonly _translations: Map<string, Translations>;
+	private readonly _pendingLoads = new Map<
+		string,
+		Promise<Translations>
+	>();
 	private readonly _fallbackLocale: string;
 	private readonly _options: I18nOptions | TypedI18nOptions<Translations>;
+	private _localeTransition = 0;
 
 	constructor(options: I18nOptions | TypedI18nOptions<Translations>) {
 		this._options = options;
@@ -148,8 +153,14 @@ class I18nInstance implements I18n {
 	};
 
 	setLocale = async (locale: string): Promise<void> => {
+		const transition = ++this._localeTransition;
+
 		if (!this._translations.has(locale)) {
 			await this._loadTranslationsForLocale(locale);
+		}
+
+		if (transition !== this._localeTransition) {
+			return;
 		}
 
 		this._locale.value = locale;
@@ -192,7 +203,17 @@ class I18nInstance implements I18n {
 		bumpTranslationsVersion(this._version);
 	};
 
-	private async _loadTranslationsForLocale(locale: string): Promise<void> {
+	private _loadTranslationsForLocale(locale: string): Promise<Translations> {
+		const loaded = this._translations.get(locale);
+		if (loaded) {
+			return Promise.resolve(loaded);
+		}
+
+		const pending = this._pendingLoads.get(locale);
+		if (pending) {
+			return pending;
+		}
+
 		const layer = makeI18nServiceLayer(this._options);
 
 		const loadEffect = Effect.gen(function* () {
@@ -202,13 +223,24 @@ class I18nInstance implements I18n {
 		});
 
 		const program = Effect.provide(loadEffect, layer);
+		const loadPromise = Effect.runPromise(Effect.either(program))
+			.then((result) => {
+				if (result._tag === 'Left') {
+					throw result.left;
+				}
 
-		try {
-			const loaded = await Effect.runPromise(program);
-			this._translations.set(locale, loaded);
-		} catch {
-			/* */
-		}
+				const translations = result.right;
+				this._translations.set(locale, translations);
+				return translations;
+			})
+			.finally(() => {
+				if (this._pendingLoads.get(locale) === loadPromise) {
+					this._pendingLoads.delete(locale);
+				}
+			});
+
+		this._pendingLoads.set(locale, loadPromise);
+		return loadPromise;
 	}
 }
 
