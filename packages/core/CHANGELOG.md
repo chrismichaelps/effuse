@@ -1,3 +1,16 @@
+## @effuse/core [2.0.2](https://github.com/chrismichaelps/effuse/compare/@effuse/core@2.0.1...@effuse/core@2.0.2) (2026-07-28)
+
+### Bug Fixes
+
+* **core:** defer browser hooks to mount refs [#409](https://github.com/chrismichaelps/effuse/issues/409) ([8682fd9](https://github.com/chrismichaelps/effuse/commit/8682fd911f2e8cc29fb85647178d49d96106335b))
+* **core:** isolate SSR tracing per request refs [#398](https://github.com/chrismichaelps/effuse/issues/398) ([2449fe1](https://github.com/chrismichaelps/effuse/commit/2449fe18c8872237627991b66c6af45072cc6d56))
+* **core:** make Deferred deterministic during SSR refs [#424](https://github.com/chrismichaelps/effuse/issues/424) ([#425](https://github.com/chrismichaelps/effuse/issues/425)) ([452044d](https://github.com/chrismichaelps/effuse/commit/452044d94684ef1ba327eb9e859b6b6db2d7b37b))
+* **core:** prevent stale SSR context restoration refs [#400](https://github.com/chrismichaelps/effuse/issues/400) ([5d521a2](https://github.com/chrismichaelps/effuse/commit/5d521a26cabe10d219b1a319cc97a1930f272f03))
+* **core:** scope generated IDs per SSR render refs [#390](https://github.com/chrismichaelps/effuse/issues/390) ([a568491](https://github.com/chrismichaelps/effuse/commit/a5684912410e3c2ba69721bca5dbbec1fab47ef6))
+* **i18n:** preserve locale context across await refs [#391](https://github.com/chrismichaelps/effuse/issues/391) ([9faa718](https://github.com/chrismichaelps/effuse/commit/9faa7181c378dcfaaee836a9e44f83c2f410ea0f))
+* **router:** isolate SSR router context refs [#405](https://github.com/chrismichaelps/effuse/issues/405) ([4a25ecf](https://github.com/chrismichaelps/effuse/commit/4a25ecff97f0a4e8b82c98923d45b1f98d5764cb))
+* **ssr:** report serializable render failures refs [#388](https://github.com/chrismichaelps/effuse/issues/388) ([2623c51](https://github.com/chrismichaelps/effuse/commit/2623c51630499d53a468071a0c3eaa438631536c))
+
 ## @effuse/core [2.0.1](https://github.com/chrismichaelps/effuse/compare/@effuse/core@2.0.0...@effuse/core@2.0.1) (2026-07-26)
 
 ### Bug Fixes
