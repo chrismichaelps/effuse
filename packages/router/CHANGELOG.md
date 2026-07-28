@@ -1,3 +1,15 @@
+## @effuse/router [1.2.2](https://github.com/chrismichaelps/effuse/compare/@effuse/router@1.2.1...@effuse/router@1.2.2) (2026-07-28)
+
+### Bug Fixes
+
+* **router:** expose SSR-safe histories refs [#387](https://github.com/chrismichaelps/effuse/issues/387) ([6a16bdd](https://github.com/chrismichaelps/effuse/commit/6a16bdd0c7463e1ffd99bba6c9de8c666b253787))
+* **router:** isolate SSR router context refs [#405](https://github.com/chrismichaelps/effuse/issues/405) ([4a25ecf](https://github.com/chrismichaelps/effuse/commit/4a25ecff97f0a4e8b82c98923d45b1f98d5764cb))
+
+
+### Dependencies
+
+* **@effuse/core:** upgraded to 2.0.2
+
 ## @effuse/router [1.2.1](https://github.com/chrismichaelps/effuse/compare/@effuse/router@1.2.0...@effuse/router@1.2.1) (2026-07-26)
 
 ### Bug Fixes
