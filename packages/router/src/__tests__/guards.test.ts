@@ -13,6 +13,7 @@ import {
 	combineGuards,
 	guardWhen,
 	createAuthGuard,
+	createUnsavedChangesGuard,
 } from '../navigation/guards.js';
 import type { NavigationGuard } from '../navigation/guards.js';
 import {
@@ -407,5 +408,25 @@ describe('guard utilities', () => {
 			{} as any
 		);
 		expect(NavigationResult.isAllowed(result)).toBe(true);
+	});
+
+	it('createUnsavedChangesGuard should remain SSR-safe', async () => {
+		const guard = createUnsavedChangesGuard(() => true);
+		const result = await guard({} as any, {} as any);
+
+		expect(NavigationResult.isAllowed(result)).toBe(true);
+	});
+
+	it('createUnsavedChangesGuard should support an injected confirmation', async () => {
+		const confirmLeave = vi.fn(() => false);
+		const guard = createUnsavedChangesGuard(
+			() => true,
+			'Leave this form?',
+			confirmLeave
+		);
+		const result = await guard({} as any, {} as any);
+
+		expect(confirmLeave).toHaveBeenCalledWith('Leave this form?');
+		expect(NavigationResult.isCancelled(result)).toBe(true);
 	});
 });

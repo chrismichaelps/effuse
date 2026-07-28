@@ -42,7 +42,7 @@ export interface DeferredProps {
 type DeferredCache = {
 	ready: Signal<boolean>;
 	child: Option.Option<EffuseChild>;
-	timerId: number | null;
+	timerId: ReturnType<typeof setTimeout> | null;
 };
 
 const createCache = (): DeferredCache => ({
@@ -93,7 +93,7 @@ export const Deferred = (props: DeferredProps): EffuseNode => {
 						cache.ready.value = true;
 					});
 				} else {
-					cache.timerId = window.setTimeout(() => {
+					cache.timerId = setTimeout(() => {
 						cache.ready.value = true;
 						cache.timerId = null;
 					}, timeout);
@@ -126,7 +126,7 @@ export const useDeferredState = (
 			ready: nodeCache.ready,
 			cancel: () => {
 				if (Predicate.isNotNullable(nodeCache.timerId)) {
-					window.clearTimeout(nodeCache.timerId);
+					clearTimeout(nodeCache.timerId);
 					nodeCache.timerId = null;
 				}
 			},
