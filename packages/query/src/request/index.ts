@@ -31,4 +31,10 @@ export {
 	isEqualQueryRequest,
 } from './schema.js';
 
-export { executeQuery, executeMutation, executeQueries } from './resolver.js';
+export {
+	createQueryExecutionScope,
+	executeQuery,
+	executeMutation,
+	executeQueries,
+	type QueryExecutionScope,
+} from './resolver.js';

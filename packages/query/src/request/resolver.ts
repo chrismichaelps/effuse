@@ -35,40 +35,69 @@ interface InFlightEntry {
 	readonly timestamp: number;
 }
 
-const inFlightRequests = new Map<string, InFlightEntry>();
+export interface QueryExecutionScope {
+	readonly _tag: 'QueryExecutionScope';
+}
 
-const cleanupStaleEntries = (): void => {
+const scopeEntries = new WeakMap<
+	QueryExecutionScope,
+	Map<string, InFlightEntry>
+>();
+
+export const createQueryExecutionScope = (): QueryExecutionScope => {
+	const scope = Object.freeze({ _tag: 'QueryExecutionScope' as const });
+	scopeEntries.set(scope, new Map());
+	return scope;
+};
+
+const getScopeEntries = (
+	scope: QueryExecutionScope
+): Map<string, InFlightEntry> => {
+	const entries = scopeEntries.get(scope);
+	if (!entries) {
+		throw new Error('Query execution scope was not created by Effuse Query.');
+	}
+	return entries;
+};
+
+const cleanupStaleEntries = (entries: Map<string, InFlightEntry>): void => {
 	const now = Date.now();
-	for (const [key, entry] of inFlightRequests) {
+	for (const [key, entry] of entries) {
 		if (now - entry.timestamp > IN_FLIGHT_TTL_MS) {
-			inFlightRequests.delete(key);
+			entries.delete(key);
 		}
 	}
 };
 
-const setInFlight = (keyHash: string, promise: Promise<unknown>): void => {
-	cleanupStaleEntries();
+const setInFlight = (
+	entries: Map<string, InFlightEntry>,
+	keyHash: string,
+	promise: Promise<unknown>
+): void => {
+	cleanupStaleEntries(entries);
 
-	if (inFlightRequests.size >= IN_FLIGHT_MAX_SIZE) {
+	if (entries.size >= IN_FLIGHT_MAX_SIZE) {
 		// Remove oldest entry when at capacity
-		const oldest = inFlightRequests.entries().next().value;
+		const oldest = entries.entries().next().value;
 		if (oldest) {
-			inFlightRequests.delete(oldest[0]);
+			entries.delete(oldest[0]);
 		}
 	}
 
-	inFlightRequests.set(keyHash, { promise, timestamp: Date.now() });
+	entries.set(keyHash, { promise, timestamp: Date.now() });
 };
 
 export const executeQuery = <T>(
 	queryKey: QueryKey,
-	queryFn: QueryFunction<T>
+	queryFn: QueryFunction<T>,
+	scope?: QueryExecutionScope
 ): Effect.Effect<T, Error, never> => {
 	const keyHash = hashQueryKey(queryKey);
 
 	return Effect.gen(function* () {
-		cleanupStaleEntries();
-		const existing = inFlightRequests.get(keyHash);
+		const entries = scope ? getScopeEntries(scope) : undefined;
+		if (entries) cleanupStaleEntries(entries);
+		const existing = entries?.get(keyHash);
 		if (existing) {
 			return yield* Effect.tryPromise({
 				try: () => existing.promise as Promise<T>,
@@ -92,7 +121,8 @@ export const executeQuery = <T>(
 						error instanceof TypeError
 							? new NetworkError({ message: String(error) })
 							: new QueryError({
-									message: error instanceof Error ? error.message : String(error),
+									message:
+										error instanceof Error ? error.message : String(error),
 									queryKey,
 									cause: error,
 								})
@@ -102,10 +132,12 @@ export const executeQuery = <T>(
 		}
 
 		const promise = raw.finally(() => {
-			inFlightRequests.delete(keyHash);
+			if (entries?.get(keyHash)?.promise === promise) {
+				entries.delete(keyHash);
+			}
 		});
 
-		setInFlight(keyHash, promise);
+		if (entries) setInFlight(entries, keyHash, promise);
 
 		return yield* Effect.tryPromise({
 			try: () => promise,
@@ -143,8 +175,9 @@ export const executeQueries = <T>(
 		queryFn: () => Promise<T>;
 	}>
 ): Effect.Effect<T[], Error, never> => {
+	const scope = createQueryExecutionScope();
 	return Effect.all(
-		queries.map((q) => executeQuery(q.queryKey, q.queryFn)),
+		queries.map((q) => executeQuery(q.queryKey, q.queryFn, scope)),
 		{ concurrency: 'unbounded' }
 	);
 };
