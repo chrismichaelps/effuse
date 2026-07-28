@@ -80,6 +80,7 @@ export {
 	type ActionResult,
 	type AsyncAction,
 	type CancellableAction,
+	type CancellableActionOptions,
 	type RetryConfig,
 	type CancellationToken,
 	type CancellationScope,
