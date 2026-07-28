@@ -35,6 +35,7 @@ export {
 export {
 	createWebHistory,
 	createHashHistory,
+	createMemoryHistory,
 	type RouterHistory,
 } from './core/history.js';
 
