@@ -27,6 +27,7 @@ import type { LayerInputSource } from '../layers/api/defineLayer.js';
 import type { RequestContext, ServerAppOptions } from './types.js';
 import type { ServerTraceEvent } from './observability.js';
 import { createServerApp } from './server-app.js';
+import { RenderError, createErrorHtml } from './errors.js';
 import { createHash } from 'node:crypto';
 import {
 	compileLayerServerRouter,
@@ -82,7 +83,21 @@ export const createHandler = (config: HandlerConfig) => {
 				return new Response(null, { status: 404 });
 			}
 
-			const html = await serverApp.renderToHtml(pathname);
+			let html: string;
+			try {
+				html = (await serverApp.renderToString(pathname)).html;
+			} catch (error) {
+				if (!(error instanceof RenderError)) throw error;
+				reportError(config, error, req, 'Render');
+				return new Response(createErrorHtml(error), {
+					status: 500,
+					headers: {
+						'Content-Type': 'text/html; charset=utf-8',
+						'Cache-Control': 'no-store',
+						'X-Content-Type-Options': 'nosniff',
+					},
+				});
+			}
 
 			// Compute ETag from content hash
 			const hash = createHash('md5').update(html).digest('hex');
@@ -116,12 +131,7 @@ export const createHandler = (config: HandlerConfig) => {
 				},
 			});
 		} catch (error) {
-			if (config.onError) {
-				config.onError(error, req);
-			} else {
-				// eslint-disable-next-line no-console
-				console.error('[effuse-ssr] Render error:', error);
-			}
+			reportError(config, error, req, 'Render');
 			return new Response(
 				`<!DOCTYPE html><html><head><title>Error</title></head><body><h1>Server Error</h1></body></html>`,
 				{
@@ -183,12 +193,7 @@ export const createStreamingHandler = (config: HandlerConfig) => {
 				},
 			});
 		} catch (error) {
-			if (config.onError) {
-				config.onError(error, req);
-			} else {
-				// eslint-disable-next-line no-console
-				console.error('[effuse-ssr] Streaming render error:', error);
-			}
+			reportError(config, error, req, 'Streaming render');
 			return new Response(
 				`<!DOCTYPE html><html><head><title>Error</title></head><body><h1>Server Error</h1></body></html>`,
 				{
@@ -198,6 +203,25 @@ export const createStreamingHandler = (config: HandlerConfig) => {
 			);
 		}
 	};
+};
+
+const reportError = (
+	config: HandlerConfig,
+	error: unknown,
+	request: Request,
+	operation: string
+): void => {
+	if (config.onError) {
+		try {
+			config.onError(error, request);
+			return;
+		} catch (reportingError) {
+			// eslint-disable-next-line no-console
+			console.error('[effuse-ssr] onError callback failed:', reportingError);
+		}
+	}
+	// eslint-disable-next-line no-console
+	console.error(`[effuse-ssr] ${operation} error:`, error);
 };
 
 const shouldSkip = (pathname: string): boolean => {
