@@ -83,6 +83,10 @@ export type InkComponents = {
 /** Backward-compatible alias. Prefer `InkComponents` in new code. */
 export type ComponentMap = InkComponents;
 
+interface TransformContext {
+	readonly headingIds: Map<string, number>;
+}
+
 const resolveElement = (
 	tag: string,
 	props: Record<string, unknown>,
@@ -116,7 +120,8 @@ const transformInlineCode = (
 
 const transformEmphasis = (
 	node: EmphasisNode,
-	components: InkComponents
+	components: InkComponents,
+	context: TransformContext
 ): EffuseChild => {
 	const tag =
 		node.style === 'bold'
@@ -128,14 +133,15 @@ const transformEmphasis = (
 	return resolveElement(
 		tag,
 		{},
-		node.children.map((child) => transformInline(child, components)),
+		node.children.map((child) => transformInline(child, components, context)),
 		components
 	);
 };
 
 const transformLink = (
 	node: LinkNode,
-	components: InkComponents
+	components: InkComponents,
+	context: TransformContext
 ): EffuseChild =>
 	resolveElement(
 		'a',
@@ -144,7 +150,7 @@ const transformLink = (
 			title: node.title,
 			class: 'ink-link',
 		},
-		node.children.map((child) => transformInline(child, components)),
+		node.children.map((child) => transformInline(child, components, context)),
 		components
 	);
 
@@ -166,7 +172,8 @@ const transformImage = (
 
 const transformInline = (
 	node: InlineNode,
-	components: InkComponents
+	components: InkComponents,
+	context: TransformContext
 ): EffuseChild => {
 	switch (node._tag) {
 		case 'Text':
@@ -174,23 +181,25 @@ const transformInline = (
 		case 'InlineCode':
 			return transformInlineCode(node, components);
 		case 'Emphasis':
-			return transformEmphasis(node, components);
+			return transformEmphasis(node, components, context);
 		case 'Link':
-			return transformLink(node, components);
+			return transformLink(node, components, context);
 		case 'Image':
 			return transformImage(node, components);
 		case 'LineBreak':
 			return resolveElement('br', {}, [], components);
 		case 'InlineComponent':
-			return transformComponent(node as unknown as ComponentNode, components);
+			return transformComponent(
+				node as unknown as ComponentNode,
+				components,
+				context
+			);
 		default:
 			return '';
 	}
 };
 
-const usedHeadingIds = new Map<string, number>();
-
-const generateHeadingId = (text: string): string => {
+const generateHeadingId = (text: string, context: TransformContext): string => {
 	let id = text
 		.toLowerCase()
 		.replace(/\s+/g, '-')
@@ -202,14 +211,10 @@ const generateHeadingId = (text: string): string => {
 		id = 'section';
 	}
 
-	const count = usedHeadingIds.get(id) ?? 0;
-	usedHeadingIds.set(id, count + 1);
+	const count = context.headingIds.get(id) ?? 0;
+	context.headingIds.set(id, count + 1);
 
 	return count === 0 ? id : `${id}-${String(count)}`;
-};
-
-export const resetHeadingIds = (): void => {
-	usedHeadingIds.clear();
 };
 
 const getHeadingText = (children: InlineNode[]): string => {
@@ -226,10 +231,11 @@ const getHeadingText = (children: InlineNode[]): string => {
 
 const transformHeading = (
 	node: HeadingNode,
-	components: InkComponents
+	components: InkComponents,
+	context: TransformContext
 ): EffuseChild => {
 	const text = getHeadingText(node.children);
-	const id = generateHeadingId(text);
+	const id = generateHeadingId(text, context);
 	const tag = `h${String(node.level)}` as
 		| 'h1'
 		| 'h2'
@@ -241,19 +247,20 @@ const transformHeading = (
 	return resolveElement(
 		tag,
 		{ class: `ink-${tag}`, id },
-		node.children.map((child) => transformInline(child, components)),
+		node.children.map((child) => transformInline(child, components, context)),
 		components
 	);
 };
 
 const transformParagraph = (
 	node: ParagraphNode,
-	components: InkComponents
+	components: InkComponents,
+	context: TransformContext
 ): EffuseChild =>
 	resolveElement(
 		'p',
 		{ class: 'ink-p' },
-		node.children.map((child) => transformInline(child, components)),
+		node.children.map((child) => transformInline(child, components, context)),
 		components
 	);
 
@@ -280,18 +287,20 @@ const transformCodeBlock = (
 
 const transformBlockquote = (
 	node: BlockquoteNode,
-	components: InkComponents
+	components: InkComponents,
+	context: TransformContext
 ): EffuseChild =>
 	resolveElement(
 		'blockquote',
 		{ class: 'ink-blockquote' },
-		node.children.map((child) => transformBlock(child, components)),
+		node.children.map((child) => transformBlock(child, components, context)),
 		components
 	);
 
 const transformListItem = (
 	node: ListItemNode,
-	components: InkComponents
+	components: InkComponents,
+	context: TransformContext
 ): EffuseChild => {
 	const isTaskItem = node.checked !== undefined;
 
@@ -300,13 +309,15 @@ const transformListItem = (
 		children = node.children.flatMap((child) => {
 			if (child._tag === 'Paragraph') {
 				return child.children.map((inline) =>
-					transformInline(inline, components)
+					transformInline(inline, components, context)
 				);
 			}
-			return [transformBlock(child, components)];
+			return [transformBlock(child, components, context)];
 		});
 	} else {
-		children = node.children.map((child) => transformBlock(child, components));
+		children = node.children.map((child) =>
+			transformBlock(child, components, context)
+		);
 	}
 
 	if (isTaskItem) {
@@ -341,7 +352,8 @@ const transformListItem = (
 
 const transformList = (
 	node: ListNode,
-	components: InkComponents
+	components: InkComponents,
+	context: TransformContext
 ): EffuseChild =>
 	resolveElement(
 		node.ordered ? 'ol' : 'ul',
@@ -349,7 +361,9 @@ const transformList = (
 			class: node.ordered ? 'ink-ol' : 'ink-ul',
 			start: node.ordered && node.start !== 1 ? node.start : undefined,
 		},
-		node.children.map((item) => transformListItem(item, components)),
+		node.children.map((item) =>
+			transformListItem(item, components, context)
+		),
 		components
 	);
 
@@ -360,7 +374,8 @@ const transformHorizontalRule = (
 
 const transformComponent = (
 	node: ComponentNode,
-	components: InkComponents
+	components: InkComponents,
+	context: TransformContext
 ): EffuseChild => {
 	const Component = components[node.name];
 
@@ -377,13 +392,13 @@ const transformComponent = (
 	}
 
 	const defaultSlotChildren = node.children.map((child) =>
-		transformBlock(child as BlockNode, components)
+		transformBlock(child as BlockNode, components, context)
 	);
 
 	const slots: Record<string, EffuseChild[]> = {};
 	for (const [slotName, slotNodes] of Object.entries(node.slots)) {
 		slots[slotName] = slotNodes.map((child) =>
-			transformBlock(child as BlockNode, components)
+			transformBlock(child as BlockNode, components, context)
 		);
 	}
 
@@ -398,7 +413,8 @@ const transformComponent = (
 
 const transformTable = (
 	node: TableNode,
-	components: InkComponents
+	components: InkComponents,
+	context: TransformContext
 ): EffuseChild => {
 	const headerCells = node.header.cells.map((cell, i) => {
 		const align = node.alignments[i];
@@ -408,7 +424,9 @@ const transformTable = (
 				class: 'ink-th',
 				style: align ? { textAlign: align } : undefined,
 			},
-			cell.children.map((child) => transformInline(child, components)),
+			cell.children.map((child) =>
+				transformInline(child, components, context)
+			),
 			components
 		);
 	});
@@ -429,7 +447,9 @@ const transformTable = (
 					class: 'ink-td',
 					style: align ? { textAlign: align } : undefined,
 				},
-				cell.children.map((child) => transformInline(child, components)),
+				cell.children.map((child) =>
+					transformInline(child, components, context)
+				),
 				components
 			);
 		});
@@ -449,25 +469,26 @@ const transformTable = (
 
 const transformBlock = (
 	node: BlockNode,
-	components: InkComponents
+	components: InkComponents,
+	context: TransformContext
 ): EffuseChild => {
 	switch (node._tag) {
 		case 'Heading':
-			return transformHeading(node, components);
+			return transformHeading(node, components, context);
 		case 'Paragraph':
-			return transformParagraph(node, components);
+			return transformParagraph(node, components, context);
 		case 'CodeBlock':
 			return transformCodeBlock(node, components);
 		case 'Blockquote':
-			return transformBlockquote(node, components);
+			return transformBlockquote(node, components, context);
 		case 'List':
-			return transformList(node, components);
+			return transformList(node, components, context);
 		case 'HorizontalRule':
 			return transformHorizontalRule(node, components);
 		case 'Table':
-			return transformTable(node, components);
+			return transformTable(node, components, context);
 		case 'Component':
-			return transformComponent(node, components);
+			return transformComponent(node, components, context);
 		default:
 			return '';
 	}
@@ -477,6 +498,6 @@ export const transformDocument = (
 	doc: DocumentNode,
 	components: InkComponents = {}
 ): EffuseChild[] => {
-	resetHeadingIds();
-	return doc.children.map((node) => transformBlock(node, components));
+	const context: TransformContext = { headingIds: new Map() };
+	return doc.children.map((node) => transformBlock(node, components, context));
 };

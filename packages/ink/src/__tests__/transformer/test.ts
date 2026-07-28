@@ -1,9 +1,6 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { Predicate } from 'effect';
-import {
-	transformDocument,
-	resetHeadingIds,
-} from '../../renderer/transformer.js';
+import { transformDocument } from '../../renderer/transformer.js';
 import { parseSync } from '../../parser/index.js';
 import { define } from '@effuse/core';
 import type { EffuseChild, ElementNode, BlueprintNode } from '@effuse/core';
@@ -27,10 +24,6 @@ const expectBlueprintNode = (node: EffuseChild | undefined): BlueprintNode => {
 };
 
 describe('Transformer', () => {
-	beforeEach(() => {
-		resetHeadingIds();
-	});
-
 	describe('basic transformations', () => {
 		it('should transform empty document to empty array', () => {
 			const doc = parseSync('');
@@ -356,18 +349,34 @@ More text`;
 			expect(uniqueIds.size).toBe(ids.length);
 		});
 
-		it('should reset heading IDs between documents', () => {
+		it('should scope heading IDs to each document', () => {
 			const doc1 = parseSync('# Title');
 			const result1 = transformDocument(doc1);
-
-			resetHeadingIds();
-
 			const doc2 = parseSync('# Title');
 			const result2 = transformDocument(doc2);
 
 			expect(expectElementNode(result1[0]).props?.id).toBe(
 				expectElementNode(result2[0]).props?.id
 			);
+		});
+
+		it('should isolate heading IDs from reentrant document transforms', () => {
+			const outerIds: unknown[] = [];
+			let nestedRendered = false;
+			const ReentrantHeading = (props: Record<string, unknown>) => {
+				outerIds.push(props['id']);
+				if (!nestedRendered) {
+					nestedRendered = true;
+					transformDocument(parseSync('# Title\n\n# Title'));
+				}
+				return null;
+			};
+
+			transformDocument(parseSync('# Title\n\n# Title'), {
+				h1: ReentrantHeading,
+			});
+
+			expect(outerIds).toEqual(['title', 'title-1']);
 		});
 	});
 
