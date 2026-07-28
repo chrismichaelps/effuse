@@ -30,7 +30,6 @@ export {
 	withTimeout,
 	withRetry,
 	withAbortSignal,
-
 	type ActionResult,
 	type AsyncAction,
 	type CancellableAction,
@@ -48,4 +47,6 @@ export {
 	useConcurrency,
 	type ConcurrencyStrategy,
 	type ConcurrencyOptions,
+	type CancellableConcurrencyOptions,
+	type ConcurrentAction,
 } from './useConcurrency.js';
