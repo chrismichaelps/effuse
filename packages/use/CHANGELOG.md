@@ -1,3 +1,16 @@
+## @effuse/use [1.2.2](https://github.com/chrismichaelps/effuse/compare/@effuse/use@1.2.1...@effuse/use@1.2.2) (2026-07-28)
+
+### Bug Fixes
+
+* **use:** defer timing hooks until mount refs [#420](https://github.com/chrismichaelps/effuse/issues/420) ([#421](https://github.com/chrismichaelps/effuse/issues/421)) ([b88d8f4](https://github.com/chrismichaelps/effuse/commit/b88d8f439c44e588e7f783f6ed825d90592a0f17))
+* **use:** separate media fallback from support refs [#422](https://github.com/chrismichaelps/effuse/issues/422) ([#423](https://github.com/chrismichaelps/effuse/issues/423)) ([d19d082](https://github.com/chrismichaelps/effuse/commit/d19d082e87f9f2578e8b828c76e402e848d58f01))
+* **use:** stabilize SSR hydration lifecycle refs [#407](https://github.com/chrismichaelps/effuse/issues/407) ([3b21330](https://github.com/chrismichaelps/effuse/commit/3b2133068c537e098616311be90bb69b2b94230b))
+
+
+### Dependencies
+
+* **@effuse/core:** upgraded to 2.0.2
+
 ## @effuse/use [1.2.1](https://github.com/chrismichaelps/effuse/compare/@effuse/use@1.2.0...@effuse/use@1.2.1) (2026-07-26)
 
 ### Bug Fixes
