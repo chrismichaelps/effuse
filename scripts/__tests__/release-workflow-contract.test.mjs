@@ -26,7 +26,7 @@ test('publication waits for every quality boundary', async () => {
 		'pnpm lint',
 		'pnpm typecheck',
 		'pnpm test',
-		'pnpm exec multi-semantic-release',
+		'pnpm exec multi-semantic-release --sequential-init',
 	];
 	const positions = commands.map((command) => workflow.indexOf(command));
 
