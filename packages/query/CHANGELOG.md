@@ -1,3 +1,17 @@
+## @effuse/query [2.0.2](https://github.com/chrismichaelps/effuse/compare/@effuse/query@2.0.1...@effuse/query@2.0.2) (2026-07-28)
+
+### Bug Fixes
+
+* **query:** cancel mutation work on disposal refs [#411](https://github.com/chrismichaelps/effuse/issues/411) ([#413](https://github.com/chrismichaelps/effuse/issues/413)) ([d0fcb0d](https://github.com/chrismichaelps/effuse/commit/d0fcb0d323cfd6a1b278080fcc3a8dd231c78d1a))
+* **query:** defer component fetches until mount refs [#426](https://github.com/chrismichaelps/effuse/issues/426) ([#427](https://github.com/chrismichaelps/effuse/issues/427)) ([00171ee](https://github.com/chrismichaelps/effuse/commit/00171ee3f078ef3af914ef2e428f99382afcb1c4))
+* **query:** isolate server request deduplication refs [#393](https://github.com/chrismichaelps/effuse/issues/393) ([bb7eeb7](https://github.com/chrismichaelps/effuse/commit/bb7eeb77ac5bacf5def0c9c5cb1dbae041a06cf6))
+* **query:** own reader hook lifecycles refs [#411](https://github.com/chrismichaelps/effuse/issues/411) ([6d7b767](https://github.com/chrismichaelps/effuse/commit/6d7b7679b6c5500d38257b754fe1783c0641142c))
+
+
+### Dependencies
+
+* **@effuse/core:** upgraded to 2.0.2
+
 ## @effuse/query [2.0.1](https://github.com/chrismichaelps/effuse/compare/@effuse/query@2.0.0...@effuse/query@2.0.1) (2026-07-26)
 
 ### Bug Fixes
