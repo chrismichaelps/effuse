@@ -30,6 +30,8 @@ import { buildAllLayersEffect } from './builder.js';
 import {
 	getGlobalLayerContextStore,
 	initGlobalLayerContext,
+	isLayerContextStoreActive,
+	markLayerContextStoreDisposed,
 	restoreGlobalLayerContext,
 	type LayerContextStore,
 } from '../context.js';
@@ -49,13 +51,7 @@ export const CoreServicesLive = Layer.mergeAll(
 	RegistryService.Default
 );
 
-const disposedLayerContextStores = new WeakSet<LayerContextStore>();
 const disposedTracingServices = new WeakSet<object>();
-
-const isActiveLayerContextStore = (
-	store: LayerContextStore | undefined
-): store is LayerContextStore =>
-	store !== undefined && !disposedLayerContextStores.has(store);
 
 const isActiveTracingService = <T extends object | null>(
 	service: T
@@ -118,7 +114,7 @@ export const createLayerRuntime = async (
 			disposePromise ??= (async () => {
 				const failures: unknown[] = [];
 				if (layerContextStore) {
-					disposedLayerContextStores.add(layerContextStore);
+					markLayerContextStoreDisposed(layerContextStore);
 				}
 				if (runtimeTracingService) {
 					disposedTracingServices.add(runtimeTracingService);
@@ -126,7 +122,7 @@ export const createLayerRuntime = async (
 
 				if (getGlobalLayerContextStore() === layerContextStore) {
 					restoreGlobalLayerContext(
-						isActiveLayerContextStore(previousLayerContextStore)
+						isLayerContextStoreActive(previousLayerContextStore)
 							? previousLayerContextStore
 							: undefined
 					);
