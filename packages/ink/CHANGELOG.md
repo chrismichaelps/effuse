@@ -1,3 +1,14 @@
+## @effuse/ink [1.2.2](https://github.com/chrismichaelps/effuse/compare/@effuse/ink@1.2.1...@effuse/ink@1.2.2) (2026-07-28)
+
+### Bug Fixes
+
+* **ink:** scope heading IDs per render refs [#386](https://github.com/chrismichaelps/effuse/issues/386) ([9cd12fd](https://github.com/chrismichaelps/effuse/commit/9cd12fd2e861517590b29e82140391163f70d96d))
+
+
+### Dependencies
+
+* **@effuse/core:** upgraded to 2.0.2
+
 ## @effuse/ink [1.2.1](https://github.com/chrismichaelps/effuse/compare/@effuse/ink@1.2.0...@effuse/ink@1.2.1) (2026-07-26)
 
 ### Bug Fixes
