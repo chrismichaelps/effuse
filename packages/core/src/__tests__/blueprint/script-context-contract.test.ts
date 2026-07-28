@@ -3,6 +3,7 @@ import {
 	clearGlobalRouter,
 	clearGlobalStoreGetter,
 	createScriptContext,
+	runWithRouterContext,
 	setGlobalRouter,
 	setGlobalStoreGetter,
 } from '../../blueprint/script-context.js';
@@ -44,6 +45,32 @@ describe('ScriptContext dependency contracts', () => {
 		expect(context.router).toBe(router);
 		restore();
 		expect(() => context.router).toThrow(/Router not configured/);
+	});
+
+	it('isolates routers across concurrent async contexts', async () => {
+		const firstRouter = { name: 'first' };
+		const secondRouter = { name: 'second' };
+		let releaseFirst: (() => void) | undefined;
+		const firstPaused = new Promise<void>((resolve) => {
+			releaseFirst = resolve;
+		});
+
+		const first = runWithRouterContext(firstRouter, async () => {
+			const { context } = createScriptContext({});
+			await firstPaused;
+			return context.router;
+		});
+		const second = runWithRouterContext(secondRouter, async () => {
+			const { context } = createScriptContext({});
+			await Promise.resolve();
+			releaseFirst?.();
+			return context.router;
+		});
+
+		expect(await Promise.all([first, second])).toEqual([
+			firstRouter,
+			secondRouter,
+		]);
 	});
 
 	it('uses one strict store contract for store and useStore', () => {

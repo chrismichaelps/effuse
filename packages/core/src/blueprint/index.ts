@@ -51,6 +51,8 @@ export {
 	clearGlobalStoreGetter,
 	setGlobalRouter,
 	clearGlobalRouter,
+	getConfiguredRouter,
+	runWithRouterContext,
 } from './script-context.js';
 
 export {
