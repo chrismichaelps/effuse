@@ -27,6 +27,7 @@ import './registry.js';
 export {
 	createRouter,
 	installRouter,
+	runWithRouter,
 	type RouterInstance,
 	type RouterOptions,
 	type NavigateOptions,

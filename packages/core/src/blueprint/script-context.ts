@@ -72,6 +72,7 @@ import {
 	StoreGetterNotConfiguredError,
 	StoreNotFoundError,
 } from '../errors.js';
+import { createRuntimeContext } from '../context/runtime-context.js';
 
 export type ExposedValues = object;
 
@@ -193,6 +194,13 @@ const coreRouterRuntime = (() => {
 	Object.defineProperty(shared, CORE_ROUTER_RUNTIME_KEY, { value: created });
 	return created;
 })();
+const coreRouterContext = createRuntimeContext<unknown>();
+
+export const runWithRouterContext = <T>(router: unknown, fn: () => T): T =>
+	coreRouterContext.run(router, fn);
+
+export const getConfiguredRouter = (): unknown =>
+	coreRouterContext.current() ?? coreRouterRuntime.current;
 
 export const setGlobalStoreGetter = (
 	getter: ((name: string) => unknown) | null
@@ -301,10 +309,11 @@ export const createScriptContext = <
 		store: resolveStore,
 
 		get router(): RouterType {
-			if (!coreRouterRuntime.current) {
+			const router = getConfiguredRouter();
+			if (!router) {
 				throw new RouterNotConfiguredError();
 			}
-			return coreRouterRuntime.current as RouterType;
+			return router as RouterType;
 		},
 
 		onMount: (callback): void => {

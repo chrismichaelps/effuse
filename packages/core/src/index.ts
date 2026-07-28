@@ -134,6 +134,8 @@ export {
 	clearGlobalStoreGetter,
 	setGlobalRouter,
 	clearGlobalRouter,
+	getConfiguredRouter,
+	runWithRouterContext,
 	createComponentLifecycleSync,
 	LifecycleError,
 	type ComponentLifecycle,

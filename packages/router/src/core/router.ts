@@ -48,7 +48,13 @@ import {
 } from '../navigation/guards.js';
 import { NavigationFailure } from '../navigation/errors.js';
 import { loadRouterConfig } from './RouterConfig.js';
-import { updateRouteSignal, installRouterContext } from './context.js';
+import {
+	getOrCreateRouteSignal,
+	injectRouter,
+	installRouterContext,
+	runWithRouterRouteContext,
+	updateRouteSignal,
+} from './context.js';
 
 let cachedConfig: {
 	base: string;
@@ -473,7 +479,18 @@ export const setGlobalRouter = (router: RouterInstance): (() => void) => {
 };
 
 export const getGlobalRouter = (): RouterInstance | null =>
-	routerRuntime.current;
+	(injectRouter() as RouterInstance | undefined) ?? routerRuntime.current;
+
+export const runWithRouter = <T>(
+	router: RouterInstance,
+	fn: () => T
+): T => {
+	const currentRoute = Effect.runSync(
+		SubscriptionRef.get(router.currentRoute)
+	);
+	const route = getOrCreateRouteSignal(router, currentRoute);
+	return runWithRouterRouteContext(router, route, fn);
+};
 
 export const installRouter = (
 	router: RouterInstance
