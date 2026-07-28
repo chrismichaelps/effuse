@@ -59,4 +59,9 @@ export {
 export type { PrefetchOptions } from './usePrefetch.js';
 
 export { useIsFetching } from './useIsFetching.js';
+export type {
+	QueryCountSignal,
+	UseIsFetchingOptions,
+} from './useIsFetching.js';
 export { useIsMutating } from './useIsMutating.js';
+export type { UseIsMutatingOptions } from './useIsMutating.js';

@@ -23,7 +23,13 @@
  */
 
 import { Effect } from 'effect';
-import { signal, computed, type Signal, type ReadonlySignal } from '@effuse/core';
+import {
+	computed,
+	defineHook,
+	signal,
+	type ReadonlySignal,
+	type Signal,
+} from '@effuse/core';
 import {
 	useQueryClient,
 	type QueryOptions,
@@ -81,9 +87,13 @@ const wrapQueryFn = <T>(
 	};
 };
 
-export const useQuery = <TData>(
-	options: QueryOptions<TData>
-): UseQueryResult<TData> => {
+const useQueryHook = defineHook<
+	QueryOptions<unknown>,
+	UseQueryResult<unknown>
+>({
+	name: 'useQuery',
+	setup: (ctx) => {
+	const options = ctx.config;
 	const {
 		queryKey,
 		queryFn,
@@ -106,7 +116,7 @@ export const useQuery = <TData>(
 	const client = options.client ?? useQueryClient();
 
 	// Signals mirroring the observer result
-	const dataSignal = signal<TData | undefined>(undefined);
+	const dataSignal = signal<unknown>(undefined);
 	const errorSignal = signal<Error | undefined>(undefined);
 	const statusSignal = signal<QueryStatus>('pending');
 	const fetchStatusSignal = signal<FetchStatus>('idle');
@@ -130,7 +140,7 @@ export const useQuery = <TData>(
 	);
 
 	// Get or create the query
-	const query = client.getQuery<TData, Error>({
+	const query = client.getQuery<unknown, Error>({
 		queryKey,
 		queryFn: wrapQueryFn(queryFn),
 		...(staleTime !== undefined && { staleTime }),
@@ -158,7 +168,7 @@ export const useQuery = <TData>(
 
 	// Sync signals from observer result
 	const syncResult = (result: ReturnType<typeof observer.getCurrentResult>): void => {
-		dataSignal.value = result.data as TData | undefined;
+		dataSignal.value = result.data;
 		errorSignal.value = result.error ?? undefined;
 		statusSignal.value = result.status;
 		fetchStatusSignal.value = result.fetchStatus;
@@ -176,14 +186,14 @@ export const useQuery = <TData>(
 		}
 
 		if (result.isSuccess && onSuccess) {
-			onSuccess(result.data as TData);
+			onSuccess(result.data);
 		}
 		if (result.isError && onError && result.error) {
 			onError(result.error);
 		}
 		if (onSettled) {
 			onSettled(
-				result.isSuccess ? (result.data as TData) : undefined,
+				result.isSuccess ? result.data : undefined,
 				result.isError ? result.error : undefined
 			);
 		}
@@ -204,57 +214,20 @@ export const useQuery = <TData>(
 		});
 	}
 
-	// Window focus refetch
 	const cleanupFns: Array<() => void> = [unsubscribe];
-
-	if (refetchOnWindowFocus && typeof window !== 'undefined') {
-		const handleFocus = (): void => {
-			if (enabled && query.isStale) {
-				query.fetch().catch(() => {
-					// Errors handled by observer
-				});
-			}
-		};
-		window.addEventListener('focus', handleFocus);
-		cleanupFns.push(() => window.removeEventListener('focus', handleFocus));
-	}
-
-	// Reconnect refetch
-	if (refetchOnReconnect && typeof window !== 'undefined') {
-		const handleOnline = (): void => {
-			if (enabled && query.isStale) {
-				query.fetch().catch(() => {
-					// Errors handled by observer
-				});
-			}
-		};
-		window.addEventListener('online', handleOnline);
-		cleanupFns.push(() => window.removeEventListener('online', handleOnline));
-	}
-
-	// Refetch interval
 	let intervalId: ReturnType<typeof setInterval> | null = null;
-	if (refetchInterval !== false && refetchInterval > 0) {
-		intervalId = setInterval(() => {
-			if (enabled) {
-				query.fetch().catch(() => {
-					// Errors handled by observer
-				});
-			}
-		}, refetchInterval);
-		cleanupFns.push(() => {
-			if (intervalId) {
-				clearInterval(intervalId);
-				intervalId = null;
-			}
-		});
-	}
+	let mountedCleanup: (() => void) | null = null;
+	let disposed = false;
 
 	const cancel = (): void => {
 		query.cancel();
 	};
 
 	const dispose = (): void => {
+		if (disposed) return;
+		disposed = true;
+		mountedCleanup?.();
+		mountedCleanup = null;
 		observer.destroy();
 		for (const fn of cleanupFns) {
 			fn();
@@ -264,6 +237,58 @@ export const useQuery = <TData>(
 			intervalId = null;
 		}
 	};
+
+	ctx.onMount(() => {
+		if (disposed) return undefined;
+		const mountedCleanups: Array<() => void> = [];
+		if (refetchOnWindowFocus && typeof window !== 'undefined') {
+			const handleFocus = (): void => {
+				if (enabled && query.isStale) {
+					query.fetch().catch(() => {
+						// Errors are handled by the observer.
+					});
+				}
+			};
+			window.addEventListener('focus', handleFocus);
+			mountedCleanups.push(() =>
+				window.removeEventListener('focus', handleFocus)
+			);
+		}
+		if (refetchOnReconnect && typeof window !== 'undefined') {
+			const handleOnline = (): void => {
+				if (enabled && query.isStale) {
+					query.fetch().catch(() => {
+						// Errors are handled by the observer.
+					});
+				}
+			};
+			window.addEventListener('online', handleOnline);
+			mountedCleanups.push(() =>
+				window.removeEventListener('online', handleOnline)
+			);
+		}
+		if (refetchInterval !== false && refetchInterval > 0) {
+			intervalId = setInterval(() => {
+				if (enabled) {
+					query.fetch().catch(() => {
+						// Errors are handled by the observer.
+					});
+				}
+			}, refetchInterval);
+		}
+		mountedCleanup = () => {
+			for (const cleanup of mountedCleanups) cleanup();
+			if (intervalId !== null) {
+				clearInterval(intervalId);
+				intervalId = null;
+			}
+		};
+		return () => {
+			mountedCleanup?.();
+			mountedCleanup = null;
+		};
+	});
+	ctx.onCleanup(dispose);
 
 	const refetch = async (): Promise<void> => {
 		if (!enabled) return;
@@ -291,4 +316,9 @@ export const useQuery = <TData>(
 		cancel,
 		dispose,
 	};
-};
+	},
+});
+
+export const useQuery = useQueryHook as <TData>(
+	options: QueryOptions<TData>
+) => UseQueryResult<TData>;

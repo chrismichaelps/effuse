@@ -22,8 +22,9 @@
  * SOFTWARE.
  */
 
-import { signal, computed, type ReadonlySignal } from '@effuse/core';
+import { computed, defineHook, signal } from '@effuse/core';
 import { useQueryClient, type QueryClientApi } from '../client/index.js';
+import type { QueryCountSignal } from './useIsFetching.js';
 
 export interface UseIsMutatingOptions {
 	readonly client?: QueryClientApi;
@@ -33,8 +34,13 @@ export interface UseIsMutatingOptions {
  * Returns a reactive signal with the count of currently pending mutations.
  * Useful for global mutation loading indicators.
  */
-export const useIsMutating = (options?: UseIsMutatingOptions): ReadonlySignal<number> => {
-	const client = options?.client ?? useQueryClient();
+export const useIsMutating = defineHook<
+	UseIsMutatingOptions | undefined,
+	QueryCountSignal
+>({
+	name: 'useIsMutating',
+	setup: (ctx) => {
+	const client = ctx.config?.client ?? useQueryClient();
 	const countSignal = signal<number>(0);
 
 	const updateCount = (): void => {
@@ -43,8 +49,16 @@ export const useIsMutating = (options?: UseIsMutatingOptions): ReadonlySignal<nu
 
 	updateCount();
 
-	void client.mutationCache.subscribe(updateCount);
+	const unsubscribe = client.mutationCache.subscribe(updateCount);
+	let disposed = false;
+	const dispose = (): void => {
+		if (disposed) return;
+		disposed = true;
+		unsubscribe();
+	};
+	ctx.onCleanup(dispose);
 
 	const result = computed(() => countSignal.value);
-	return result;
-};
+	return Object.assign(result, { dispose });
+	},
+});
