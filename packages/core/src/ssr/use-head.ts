@@ -26,6 +26,7 @@ import type { HeadProps } from './types.js';
 import { updateClientHead } from './client-head.js';
 import { Predicate } from 'effect';
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { runWithIdScope } from '../hooks/useId.js';
 
 export interface SSRHeadContext {
 	push: (head: HeadProps) => void;
@@ -45,7 +46,7 @@ const ssrStorage = new AsyncLocalStorage<SSRHeadContext>();
  * module-global fallback.
  */
 export const runWithSSRContext = <T>(ctx: SSRHeadContext, fn: () => T): T => {
-	return ssrStorage.run(ctx, fn);
+	return ssrStorage.run(ctx, () => runWithIdScope(fn));
 };
 
 /**

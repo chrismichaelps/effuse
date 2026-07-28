@@ -22,7 +22,18 @@
  * SOFTWARE.
  */
 
-let idCounter = 0;
+import { createAsyncContextStorage } from '../utils/async-context.js';
+
+interface IdScope {
+	counter: number;
+}
+
+const idScopeStorage = createAsyncContextStorage<IdScope>();
+let standaloneIdCounter = 0;
+
+/** Establishes one deterministic ID sequence for a render owner. */
+export const runWithIdScope = <T>(fn: () => T): T =>
+	idScopeStorage.run({ counter: 0 }, fn);
 
 /**
  * Generate a stable unique ID for accessibility attributes and SSR hydration.
@@ -38,5 +49,7 @@ let idCounter = 0;
  * ```
  */
 export const useId = (): string => {
-	return `:e${++idCounter}`;
+	const scope = idScopeStorage.getStore();
+	const nextId = scope ? ++scope.counter : ++standaloneIdCounter;
+	return `:e${String(nextId)}`;
 };
