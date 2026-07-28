@@ -93,9 +93,7 @@ export const useInterval = defineHook<UseIntervalConfig, UseIntervalReturn>({
 
 		traceIntervalInit(clampedDelay, immediate);
 
-		const internalState = ctx.signal<IntervalState>(
-			immediate && isClient() ? IS.Running({ count: 0 }) : IS.Stopped()
-		);
+		const internalState = ctx.signal<IntervalState>(IS.Stopped());
 
 		let intervalId: ReturnType<typeof setInterval> | null = null;
 
