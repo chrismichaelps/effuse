@@ -91,3 +91,26 @@ Effuse only appends a signal when `cancellable: true` is explicit.
 For server request work, call `dispose()` in the request cleanup path. Action
 rejections are consumed by every fire-and-forget strategy and can be observed
 through `onError`; intentional abort rejections are not reported as failures.
+
+The lower-level async helpers use the same opt-in contract:
+
+```ts
+const loadAccount = createCancellableAction(
+	async (accountId: string, signal: AbortSignal) =>
+		fetch(`/api/accounts/${accountId}`, { signal }),
+	{ cancellable: true }
+);
+
+const runForRequest = withAbortSignal(
+	async (accountId: string, signal: AbortSignal) =>
+		fetch(`/api/accounts/${accountId}`, { signal }),
+	{ cancellable: true }
+);
+```
+
+`createCancellableAction.cancel()` and a newer action call abort active
+cooperative work and settle the previous caller with `CancellationError`.
+`withAbortSignal()` checks for an already-aborted request before invoking the
+action. Without `cancellable: true`, these helpers preserve legacy arguments
+and can only settle the returned promise; they cannot stop work that does not
+observe an abort signal.
