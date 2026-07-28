@@ -25,9 +25,9 @@ create recurring work during server rendering.
 
 ```ts
 const user = useQuery({
-  queryKey: ['user', userId],
-  queryFn: () => loadUser(userId),
-  refetchInterval: 30_000,
+	queryKey: ['user', userId],
+	queryFn: () => loadUser(userId),
+	refetchInterval: 30_000,
 });
 ```
 
@@ -38,8 +38,15 @@ the browser without sharing authenticated cache entries across requests.
 Standalone hooks retain explicit ownership:
 
 - call `dispose()` on `useQuery` and `useInfiniteQuery` results
+- call `dispose()` on `useMutation` results to cancel active mutation work
 - call `dispose()` on `useIsFetching` and `useIsMutating` signals
 - call `dispose()` on each `useQueries` result or on the combined result
 
 All cleanup methods are idempotent. Effect remains an internal implementation
 detail and is not required in application query contracts.
+
+Only one mutation call is active per `useMutation` result. A newer call,
+`reset()`, or `dispose()` rejects the previous `mutateAsync()` promise with
+`CancellationError`. Component cleanup calls `dispose()` automatically and
+suppresses late state writes and callbacks, including work waiting in an async
+`onMutate` handler.
