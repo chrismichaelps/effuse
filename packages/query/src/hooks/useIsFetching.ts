@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-import { signal, computed, type ReadonlySignal } from '@effuse/core';
+import { computed, defineHook, signal, type ReadonlySignal } from '@effuse/core';
 import { useQueryClient, type QueryClientApi } from '../client/index.js';
 
 export interface UseIsFetchingOptions {
@@ -33,8 +33,17 @@ export interface UseIsFetchingOptions {
  * Returns a reactive signal with the count of currently fetching queries.
  * Useful for global loading indicators.
  */
-export const useIsFetching = (options?: UseIsFetchingOptions): ReadonlySignal<number> => {
-	const client = options?.client ?? useQueryClient();
+export interface QueryCountSignal extends ReadonlySignal<number> {
+	readonly dispose: () => void;
+}
+
+export const useIsFetching = defineHook<
+	UseIsFetchingOptions | undefined,
+	QueryCountSignal
+>({
+	name: 'useIsFetching',
+	setup: (ctx) => {
+	const client = ctx.config?.client ?? useQueryClient();
 	const countSignal = signal<number>(0);
 
 	const updateCount = (): void => {
@@ -44,10 +53,18 @@ export const useIsFetching = (options?: UseIsFetchingOptions): ReadonlySignal<nu
 
 	updateCount();
 
-	void client.queryCache.subscribe(updateCount);
+	const unsubscribe = client.queryCache.subscribe(updateCount);
+	let disposed = false;
+	const dispose = (): void => {
+		if (disposed) return;
+		disposed = true;
+		unsubscribe();
+	};
+	ctx.onCleanup(dispose);
 
 	const result = computed(() => countSignal.value);
 
 	// Attach cleanup to the computed signal's disposal if supported by the framework layer
-	return result;
-};
+	return Object.assign(result, { dispose });
+	},
+});

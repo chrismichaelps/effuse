@@ -22,7 +22,13 @@
  * SOFTWARE.
  */
 
-import { signal, computed, type Signal, type ReadonlySignal } from '@effuse/core';
+import {
+	computed,
+	defineHook,
+	signal,
+	type ReadonlySignal,
+	type Signal,
+} from '@effuse/core';
 import {
 	useQueryClient,
 	type QueryKey,
@@ -108,7 +114,14 @@ const normalizeRetryConfig = (
 
 export const useInfiniteQuery = <TData, TPageParam = number>(
 	options: InfiniteQueryOptions<TData, TPageParam>
-): UseInfiniteQueryResult<TData> => {
+): UseInfiniteQueryResult<TData> =>
+	defineHook<
+		InfiniteQueryOptions<TData, TPageParam>,
+		UseInfiniteQueryResult<TData>
+	>({
+		name: 'useInfiniteQuery',
+		setup: (ctx) => {
+	const options = ctx.config;
 	const {
 		queryKey,
 		queryFn,
@@ -419,40 +432,46 @@ export const useInfiniteQuery = <TData, TPageParam = number>(
 		refetch();
 	}
 
-	// Window focus refetch
-	const cleanupFns: Array<() => void> = [];
-
-	if (refetchOnWindowFocus && typeof window !== 'undefined') {
-		const handleFocus = (): void => {
-			if (enabled && (!cached || client.isStale(cacheKey, staleTime))) {
-				refetch().catch(() => {
-					// Errors handled internally
-				});
-			}
-		};
-		window.addEventListener('focus', handleFocus);
-		cleanupFns.push(() => window.removeEventListener('focus', handleFocus));
-	}
-
-	// Reconnect refetch
-	if (refetchOnReconnect && typeof window !== 'undefined') {
-		const handleOnline = (): void => {
-			if (enabled && (!cached || client.isStale(cacheKey, staleTime))) {
-				refetch().catch(() => {
-					// Errors handled internally
-				});
-			}
-		};
-		window.addEventListener('online', handleOnline);
-		cleanupFns.push(() => window.removeEventListener('online', handleOnline));
-	}
-
+	let mountedCleanup: (() => void) | null = null;
+	let disposed = false;
 	const dispose = (): void => {
+		if (disposed) return;
+		disposed = true;
+		mountedCleanup?.();
+		mountedCleanup = null;
 		cancel();
-		for (const fn of cleanupFns) {
-			fn();
-		}
 	};
+
+	ctx.onMount(() => {
+		if (disposed || typeof window === 'undefined') return undefined;
+		const cleanups: Array<() => void> = [];
+		if (refetchOnWindowFocus) {
+			const handleFocus = (): void => {
+				if (enabled && (!cached || client.isStale(cacheKey, staleTime))) {
+					void refetch();
+				}
+			};
+			window.addEventListener('focus', handleFocus);
+			cleanups.push(() => window.removeEventListener('focus', handleFocus));
+		}
+		if (refetchOnReconnect) {
+			const handleOnline = (): void => {
+				if (enabled && (!cached || client.isStale(cacheKey, staleTime))) {
+					void refetch();
+				}
+			};
+			window.addEventListener('online', handleOnline);
+			cleanups.push(() => window.removeEventListener('online', handleOnline));
+		}
+		mountedCleanup = () => {
+			for (const cleanup of cleanups) cleanup();
+		};
+		return () => {
+			mountedCleanup?.();
+			mountedCleanup = null;
+		};
+	});
+	ctx.onCleanup(dispose);
 
 	return {
 		data: dataSignal,
@@ -480,4 +499,5 @@ export const useInfiniteQuery = <TData, TPageParam = number>(
 		cancel,
 		dispose,
 	};
-};
+		},
+	})(options);
