@@ -37,5 +37,8 @@ describe('useResizeObserver', () => {
 		observerInstance.trigger([entry]);
 
 		expect(size.value).toEqual({ width: 200, height: 100 });
+		size.stop();
+		size.stop();
+		expect(disconnect).toHaveBeenCalledOnce();
 	});
 });

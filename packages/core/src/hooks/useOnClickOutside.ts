@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-import { getActiveLifecycle } from '../blueprint/lifecycle.js';
+import { ownLifecycleResource } from './lifecycle-resource.js';
 
 export interface ClickOutsideOptions {
 	/** Exclude elements matched by this selector from triggering the callback. */
@@ -37,38 +37,42 @@ export interface ClickOutsideOptions {
  * @example
  * ```ts
  * let ref: HTMLDivElement;
- * useOnClickOutside(() => ref, () => setOpen(false));
+ * const stop = useOnClickOutside(() => ref, () => setOpen(false));
+ * // stop() is optional for component-owned usage and required standalone.
  * ```
  */
 export const useOnClickOutside = (
 	elementRef: () => Element | null | undefined,
 	callback: (event: MouseEvent) => void,
 	options: ClickOutsideOptions = {}
-): void => {
-	if (typeof document === 'undefined') return;
+): (() => void) => {
+	const resource = ownLifecycleResource(() => {
+		if (typeof document === 'undefined') return undefined;
 
-	const handler = (event: MouseEvent) => {
-		const el = elementRef();
-		if (!el) return;
+		const handler = (event: MouseEvent) => {
+			const el = elementRef();
+			if (!el) return;
 
-		if (options.exclude) {
-			const excluded = document.querySelector(options.exclude);
-			if (excluded && event.target && excluded.contains(event.target as Node)) {
-				return;
+			if (options.exclude) {
+				const excluded = document.querySelector(options.exclude);
+				if (
+					excluded &&
+					event.target &&
+					excluded.contains(event.target as Node)
+				) {
+					return;
+				}
 			}
-		}
 
-		if (event.target && !el.contains(event.target as Node)) {
-			callback(event);
-		}
-	};
+			if (event.target && !el.contains(event.target as Node)) {
+				callback(event);
+			}
+		};
 
-	document.addEventListener('mousedown', handler);
-
-	const lifecycle = getActiveLifecycle();
-	if (lifecycle) {
-		lifecycle.onUnmount(() => {
+		document.addEventListener('mousedown', handler);
+		return () => {
 			document.removeEventListener('mousedown', handler);
-		});
-	}
+		};
+	});
+	return resource.stop;
 };

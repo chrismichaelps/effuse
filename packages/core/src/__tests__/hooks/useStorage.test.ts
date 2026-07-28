@@ -82,6 +82,18 @@ describe('useLocalStorage', () => {
 		handler({ key: 'other-key', newValue: JSON.stringify('b') } as StorageEvent);
 		expect(value.value).toBe('a');
 	});
+
+	it('should expose idempotent cleanup for standalone ownership', () => {
+		const setItem = vi.spyOn(mockStorage, 'setItem');
+		const result = useLocalStorage('owned-key', 'a');
+
+		result.dispose();
+		result.dispose();
+		expect(window.removeEventListener).toHaveBeenCalledTimes(1);
+		result.setValue('b');
+		expect(setItem).not.toHaveBeenCalled();
+		expect(result.value.value).toBe('b');
+	});
 });
 
 describe('useSessionStorage', () => {

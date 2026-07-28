@@ -46,5 +46,8 @@ describe('useIntersectionObserver', () => {
 		expect(result.value.isIntersecting).toBe(true);
 		expect(result.value.intersectionRatio).toBe(0.75);
 		expect(result.value.entry).toBe(entry);
+		result.stop();
+		result.stop();
+		expect(disconnect).toHaveBeenCalledOnce();
 	});
 });

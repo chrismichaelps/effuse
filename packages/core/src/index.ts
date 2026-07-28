@@ -196,9 +196,12 @@ export {
 	type InferHookReturn,
 	type InferHookConfig,
 	type StorageOptions,
+	type StorageHookResult,
 	type ClickOutsideOptions,
 	type ResizeObserverResult,
+	type ResizeObserverSignal,
 	type IntersectionObserverResult,
+	type IntersectionObserverSignal,
 } from './hooks/index.js';
 
 export { type MountedNode } from './services/index.js';

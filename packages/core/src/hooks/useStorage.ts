@@ -24,7 +24,7 @@
 
 import { signal, readonly } from '../reactivity/index.js';
 import type { ReadonlySignal } from '../types/index.js';
-import { getActiveLifecycle } from '../blueprint/lifecycle.js';
+import { ownLifecycleResource } from './lifecycle-resource.js';
 
 export interface StorageOptions<T> {
 	/** Serializer. Defaults to JSON.stringify. */
@@ -39,22 +39,33 @@ const getStorage = (
 	type: 'local' | 'session'
 ): Storage | null => {
 	if (typeof window === 'undefined') return null;
-	return type === 'local' ? window.localStorage : window.sessionStorage;
+	try {
+		return type === 'local' ? window.localStorage : window.sessionStorage;
+	} catch {
+		return null;
+	}
 };
+
+export interface StorageHookResult<T> {
+	readonly value: ReadonlySignal<T>;
+	readonly setValue: (value: T) => void;
+	readonly dispose: () => void;
+}
 
 const createStorageHook = <T>(
 	type: 'local' | 'session',
 	key: string,
 	initialValue: T,
 	options: StorageOptions<T> = {}
-): { value: ReadonlySignal<T>; setValue: (value: T) => void } => {
+): StorageHookResult<T> => {
 	const {
 		serialize = JSON.stringify,
 		deserialize = JSON.parse,
 		sync = true,
 	} = options;
 
-	const storage = getStorage(type);
+	let storage: Storage | null = null;
+	let pendingWrite = false;
 
 	const read = (): T => {
 		if (!storage) return initialValue;
@@ -75,10 +86,22 @@ const createStorageHook = <T>(
 		}
 	};
 
-	const sig = signal<T>(read());
+	const sig = signal<T>(initialValue);
+	const resource = ownLifecycleResource(() => {
+		storage = getStorage(type);
+		if (!storage) return undefined;
+		if (pendingWrite) {
+			write(sig.value);
+			pendingWrite = false;
+		} else {
+			sig.value = read();
+		}
+		if (!sync || typeof window === 'undefined') {
+			return () => {
+				storage = null;
+			};
+		}
 
-	// Subscribe to external storage changes (cross-tab sync)
-	if (sync && typeof window !== 'undefined') {
 		const handler = (e: StorageEvent) => {
 			if (e.key === key && e.newValue !== null) {
 				try {
@@ -90,21 +113,23 @@ const createStorageHook = <T>(
 		};
 
 		window.addEventListener('storage', handler);
-
-		const lifecycle = getActiveLifecycle();
-		if (lifecycle) {
-			lifecycle.onUnmount(() => {
-				window.removeEventListener('storage', handler);
-			});
-		}
-	}
+		return () => {
+			window.removeEventListener('storage', handler);
+			storage = null;
+		};
+	});
 
 	return {
 		value: readonly(sig),
 		setValue: (value: T) => {
 			sig.value = value;
-			write(value);
+			if (resource.active) {
+				write(value);
+			} else if (!resource.stopped) {
+				pendingWrite = true;
+			}
 		},
+		dispose: resource.stop,
 	};
 };
 
@@ -119,13 +144,14 @@ const createStorageHook = <T>(
  * const theme = useLocalStorage('theme', 'light');
  * // theme.value reads from localStorage
  * // theme.setValue('dark') writes to localStorage
+ * // theme.dispose() releases standalone synchronization
  * ```
  */
 export const useLocalStorage = <T>(
 	key: string,
 	initialValue: T,
 	options?: StorageOptions<T>
-): { value: ReadonlySignal<T>; setValue: (value: T) => void } =>
+): StorageHookResult<T> =>
 	createStorageHook('local', key, initialValue, options);
 
 /**
@@ -137,5 +163,5 @@ export const useSessionStorage = <T>(
 	key: string,
 	initialValue: T,
 	options?: StorageOptions<T>
-): { value: ReadonlySignal<T>; setValue: (value: T) => void } =>
+): StorageHookResult<T> =>
 	createStorageHook('session', key, initialValue, options);
