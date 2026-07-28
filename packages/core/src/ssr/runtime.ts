@@ -30,9 +30,9 @@ import { PropsService } from '../layers/services/PropsService.js';
 import { RegistryService } from '../layers/services/RegistryService.js';
 import { buildAllLayersEffect } from '../layers/internal/builder.js';
 import {
-	initGlobalLayerContext,
-	clearGlobalLayerContext,
 	getGlobalLayerContextStore,
+	isLayerContextStoreActive,
+	markLayerContextStoreDisposed,
 	restoreGlobalLayerContext,
 	runWithLayerContext,
 	type LayerContextStore,
@@ -128,7 +128,7 @@ export const createSSRRuntime = async (
 			const layerRegistry = yield* RegistryService;
 			layerContextStore = { propsRegistry, layerRegistry, layers };
 			if (!hasExistingLayerContext) {
-				initGlobalLayerContext(propsRegistry, layerRegistry, layers);
+				restoreGlobalLayerContext(layerContextStore);
 			}
 		});
 
@@ -149,8 +149,14 @@ export const createSSRRuntime = async (
 		dispose: () => {
 			const disposeRuntime = async (): Promise<void> => {
 				const failures: unknown[] = [];
-				clearGlobalLayerContext();
-				restoreGlobalLayerContext(previousLayerContextStore);
+				markLayerContextStoreDisposed(layerContextStore);
+				if (getGlobalLayerContextStore() === layerContextStore) {
+					restoreGlobalLayerContext(
+						isLayerContextStoreActive(previousLayerContextStore)
+							? previousLayerContextStore
+							: undefined
+					);
+				}
 
 				if (Predicate.isFunction(aggregatedCleanup)) {
 					try {

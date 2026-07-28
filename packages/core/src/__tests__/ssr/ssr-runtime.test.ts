@@ -9,6 +9,7 @@ import { createLayerRuntime } from '../../layers/internal/runtime.js';
 import { signal } from '../../reactivity/signal.js';
 import {
 	clearGlobalLayerContext,
+	getGlobalLayerContextStore,
 	getLayerService,
 	isLayerRuntimeReady,
 } from '../../layers/context.js';
@@ -53,6 +54,32 @@ describe('SSRRuntime', () => {
 			expect(runtime.run(() => isLayerRuntimeReady())).toBe(true);
 
 			await runtime.dispose();
+			expect(isLayerRuntimeReady()).toBe(false);
+		});
+
+		it('should not restore an older SSR context disposed first', async () => {
+			const first = await createSSRRuntime([]);
+			const firstStore = getGlobalLayerContextStore();
+			const second = await createSSRRuntime([]);
+
+			await first.dispose();
+			await second.dispose();
+
+			expect(firstStore).toBeDefined();
+			expect(getGlobalLayerContextStore()).toBeUndefined();
+			expect(isLayerRuntimeReady()).toBe(false);
+		});
+
+		it('should preserve the older SSR context until it disposes', async () => {
+			const first = await createSSRRuntime([]);
+			const firstStore = getGlobalLayerContextStore();
+			const second = await createSSRRuntime([]);
+
+			await second.dispose();
+			expect(getGlobalLayerContextStore()).toBe(firstStore);
+
+			await first.dispose();
+			expect(getGlobalLayerContextStore()).toBeUndefined();
 			expect(isLayerRuntimeReady()).toBe(false);
 		});
 
@@ -127,6 +154,33 @@ describe('SSRRuntime', () => {
 				}
 				await appRuntime.dispose();
 			}
+		});
+
+		it('should not clobber an app runtime installed after SSR starts', async () => {
+			const appService = { source: 'newer-app' };
+			const AppLayer = defineLayer({
+				name: 'newer-app-context',
+				services: {
+					app: () => appService,
+				},
+			});
+			const ssrRuntime = await createSSRRuntime([]);
+			const appRuntime = await createLayerRuntime(
+				resolveLayerDefinitions([AppLayer])
+			);
+			let ssrDisposed = false;
+
+			try {
+				await ssrRuntime.dispose();
+				ssrDisposed = true;
+				expect(isLayerRuntimeReady()).toBe(true);
+				expect(getLayerService('app')).toBe(appService);
+			} finally {
+				if (!ssrDisposed) await ssrRuntime.dispose();
+				await appRuntime.dispose();
+			}
+
+			expect(isLayerRuntimeReady()).toBe(false);
 		});
 
 		it('should collect head props from layer definitions', async () => {
