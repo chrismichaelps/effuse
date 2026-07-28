@@ -1,3 +1,17 @@
+## @effuse/store [1.1.2](https://github.com/chrismichaelps/effuse/compare/@effuse/store@1.1.1...@effuse/store@1.1.2) (2026-07-28)
+
+### Bug Fixes
+
+* **store:** isolate async scopes per request refs [#392](https://github.com/chrismichaelps/effuse/issues/392) ([76d3282](https://github.com/chrismichaelps/effuse/commit/76d32824a514a16efbea6ab5e1ba3642e7459830))
+* **store:** own concurrent action cleanup refs [#414](https://github.com/chrismichaelps/effuse/issues/414) ([#415](https://github.com/chrismichaelps/effuse/issues/415)) ([87fa811](https://github.com/chrismichaelps/effuse/commit/87fa8114764342fe2d647e4d0e091b0fcc2e4def))
+* **store:** propagate async action cancellation refs [#416](https://github.com/chrismichaelps/effuse/issues/416) ([#417](https://github.com/chrismichaelps/effuse/issues/417)) ([3dd0e5f](https://github.com/chrismichaelps/effuse/commit/3dd0e5f25b27f7f1e807d381d5b7a472dc7135dc))
+* **store:** wire registry to request scopes refs [#403](https://github.com/chrismichaelps/effuse/issues/403) ([eade2fb](https://github.com/chrismichaelps/effuse/commit/eade2fbddcda46c214ae3172b148ca856cb1bab3))
+
+
+### Dependencies
+
+* **@effuse/core:** upgraded to 2.0.2
+
 ## @effuse/store [1.1.1](https://github.com/chrismichaelps/effuse/compare/@effuse/store@1.1.0...@effuse/store@1.1.1) (2026-07-26)
 
 ### Bug Fixes
