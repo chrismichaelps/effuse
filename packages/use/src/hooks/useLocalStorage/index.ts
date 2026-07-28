@@ -83,47 +83,27 @@ export const useLocalStorage = defineHook<
 			syncTabs = true,
 		} = ctx.config;
 
-		const createInitialState = (): StorageState<unknown> => {
-			if (!isClient()) {
-				return SS.Unavailable({ fallback: defaultValue });
-			}
-
-			const stored = readStorage(key);
-			return Option.match(stored, {
-				onNone: () => {
-					const serialized = serializer(defaultValue);
-					if (serialized !== null) {
-						writeStorage(key, serialized);
-					}
-					return SS.Loaded({ value: defaultValue });
-				},
-				onSome: (raw) =>
-					Either.match(
-						Either.try(() => deserializer(raw)),
-						{
-							onLeft: () =>
-								SS.Error({
-									error: 'Failed to deserialize stored value',
-									fallback: defaultValue,
-								}),
-							onRight: (parsed) => SS.Loaded({ value: parsed }),
-						}
-					),
-			});
-		};
-
-		const internalState =
-			ctx.signal<StorageState<unknown>>(createInitialState());
+		const internalState = ctx.signal<StorageState<unknown>>(
+			SS.Unavailable({ fallback: defaultValue })
+		);
+		const available = ctx.signal(false);
 
 		traceLocalStorageInit(key);
 
 		const value = ctx.signal<unknown>(getValue(internalState.value));
 
+		let mounted = false;
 		let isExternalUpdate = false;
+
+		const synchronizeValue = (nextValue: unknown): void => {
+			if (Object.is(value.value, nextValue)) return;
+			isExternalUpdate = true;
+			value.value = nextValue;
+		};
 
 		ctx.watchEffect(() => {
 			const current = value.value;
-			if (!isClient()) return undefined;
+			if (!mounted || !isClient()) return undefined;
 
 			if (isExternalUpdate) {
 				isExternalUpdate = false;
@@ -148,16 +128,53 @@ export const useLocalStorage = defineHook<
 			return undefined;
 		});
 
-		ctx.watchEffect(() => {
-			if (!isClient() || !syncTabs) return undefined;
+		ctx.onMount(() => {
+			if (!isClient()) return undefined;
+			mounted = true;
+
+			Option.match(readStorage(key), {
+				onNone: () => {
+					const serialized = serializer(defaultValue);
+					if (serialized !== null && writeStorage(key, serialized)) {
+						available.value = true;
+						internalState.value = SS.Loaded({ value: defaultValue });
+						traceLocalStorageWrite(key);
+						return;
+					}
+					available.value = false;
+					internalState.value = SS.Error({
+						error: 'Failed to access localStorage',
+						fallback: defaultValue,
+					});
+				},
+				onSome: (raw) => {
+					available.value = true;
+					Either.match(Either.try(() => deserializer(raw)), {
+						onLeft: () => {
+							internalState.value = SS.Error({
+								error: 'Failed to deserialize stored value',
+								fallback: defaultValue,
+							});
+						},
+						onRight: (parsed) => {
+							synchronizeValue(parsed);
+							internalState.value = SS.Loaded({ value: parsed });
+						},
+					});
+				},
+			});
+
+			if (!syncTabs) {
+				return () => {
+					mounted = false;
+				};
+			}
 
 			const handleStorage = (event: StorageEvent): void => {
 				if (event.key !== key) return;
 
-				isExternalUpdate = true;
-
 				if (event.newValue === null) {
-					value.value = defaultValue;
+					synchronizeValue(defaultValue);
 					internalState.value = SS.Loaded({ value: defaultValue });
 				} else {
 					const newValue = event.newValue;
@@ -171,7 +188,7 @@ export const useLocalStorage = defineHook<
 								});
 							},
 							onRight: (parsed) => {
-								value.value = parsed;
+								synchronizeValue(parsed);
 								internalState.value = SS.Loaded({ value: parsed });
 							},
 						}
@@ -182,21 +199,24 @@ export const useLocalStorage = defineHook<
 			window.addEventListener(STORAGE_EVENT, handleStorage);
 
 			return () => {
+				mounted = false;
 				window.removeEventListener(STORAGE_EVENT, handleStorage);
 			};
 		});
 
 		const remove = (): void => {
-			if (!isClient()) return;
+			if (!mounted || !isClient()) return;
 			traceLocalStorageRemove(key);
 			removeStorage(key);
-			value.value = defaultValue;
+			synchronizeValue(defaultValue);
 			internalState.value = SS.Loaded({ value: defaultValue });
 		};
 
 		return {
 			value,
-			isAvailable: isClient(),
+			get isAvailable() {
+				return available.value;
+			},
 			get error() {
 				return getError(internalState.value);
 			},

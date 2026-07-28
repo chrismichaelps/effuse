@@ -26,7 +26,7 @@ import { Option } from 'effect';
 import { defineHook, type ReadonlySignal } from '@effuse/core';
 import { isClient } from '../../internal/utils.js';
 import { CHANGE_EVENT } from './constants.js';
-import { createMediaQuery, getInitialMatch } from './utils.js';
+import { createMediaQuery } from './utils.js';
 import {
 	traceMediaQueryInit,
 	traceMediaQueryChange,
@@ -67,27 +67,14 @@ export const useMediaQuery = defineHook<
 	setup: (ctx) => {
 		const { query, initialValue = false } = ctx.config;
 
-		const createInitialState = (): MediaQueryState => {
-			if (!isClient()) {
-				return initialValue ? MQS.Matched() : MQS.Unmatched();
-			}
-
-			const maybeMql = createMediaQuery(query);
-			return Option.match(maybeMql, {
-				onNone: () => MQS.Unavailable(),
-				onSome: (mql) =>
-					getInitialMatch(mql) ? MQS.Matched() : MQS.Unmatched(),
-			});
-		};
-
-		const initialState = createInitialState();
+		const initialState = initialValue ? MQS.Matched() : MQS.Unmatched();
 		traceMediaQueryInit(query, getMatches(initialState));
 
 		const internalState = ctx.signal<MediaQueryState>(initialState);
 
 		const matches = ctx.computed(() => getMatches(internalState.value));
 
-		ctx.watchEffect(() => {
+		ctx.onMount(() => {
 			if (!isClient()) return undefined;
 
 			const maybeMql = createMediaQuery(query);

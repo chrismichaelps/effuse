@@ -60,14 +60,7 @@ export const useOnline = defineHook<
 		const config = ctx.config ?? {};
 		const initialValue = config.initialValue ?? true;
 
-		const createInitialState = (): NetworkState => {
-			if (!isClient()) {
-				return initialValue ? NS.Online() : NS.Offline();
-			}
-			return getOnlineStatus() ? NS.Online() : NS.Offline();
-		};
-
-		const initialState = createInitialState();
+		const initialState = initialValue ? NS.Online() : NS.Offline();
 		const internalState = ctx.signal<NetworkState>(initialState);
 
 		traceOnlineInit(getIsOnline(initialState));
@@ -75,8 +68,9 @@ export const useOnline = defineHook<
 		const online = ctx.computed(() => getIsOnline(internalState.value));
 		const offline = ctx.computed(() => getIsOffline(internalState.value));
 
-		ctx.watchEffect(() => {
+		ctx.onMount(() => {
 			if (!isClient()) return undefined;
+			internalState.value = getOnlineStatus() ? NS.Online() : NS.Offline();
 
 			const handleOnline = (): void => {
 				traceOnlineChange(true);
