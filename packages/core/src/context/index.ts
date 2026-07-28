@@ -48,3 +48,8 @@ export {
 	type TypedContext,
 	type TypedContextOptions,
 } from './typed-context.js';
+
+export {
+	createRuntimeContext,
+	type RuntimeContext,
+} from './runtime-context.js';

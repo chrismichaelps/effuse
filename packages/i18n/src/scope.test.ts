@@ -113,6 +113,45 @@ describe('withI18n', () => {
 		});
 	});
 
+	it('should preserve a scoped locale across await', async () => {
+		const english = createI18nInstance({
+			defaultLocale: 'en',
+			translations,
+		});
+
+		const result = await withI18n(english, async () => {
+			await Promise.resolve();
+			return t('greeting');
+		});
+
+		expect(result).toBe('Hello');
+	});
+
+	it('should isolate overlapping async locale scopes', async () => {
+		const english = createI18nInstance({
+			defaultLocale: 'en',
+			translations,
+		});
+		const spanish = createI18nInstance({
+			defaultLocale: 'es',
+			translations,
+		});
+
+		const first = withI18n(english, async () => {
+			await new Promise((resolve) => setTimeout(resolve, 5));
+			return t('greeting');
+		});
+		const second = withI18n(spanish, async () => {
+			await Promise.resolve();
+			return t('greeting');
+		});
+
+		await expect(Promise.all([first, second])).resolves.toEqual([
+			'Hello',
+			'Hola',
+		]);
+	});
+
 	it('should still throw when nothing is bound or registered', () => {
 		expect(() => t('greeting')).toThrow(I18nNotInitializedError);
 	});
@@ -122,9 +161,9 @@ describe('resolveLocale', () => {
 	const available = ['en', 'es', 'de'];
 
 	it('should pick the highest-quality available locale', () => {
-		expect(
-			resolveLocale('es;q=0.9, de;q=1.0, fr;q=0.8', available, 'en')
-		).toBe('de');
+		expect(resolveLocale('es;q=0.9, de;q=1.0, fr;q=0.8', available, 'en')).toBe(
+			'de'
+		);
 	});
 
 	it('should match region tags to their base locale', () => {
@@ -143,8 +182,6 @@ describe('resolveLocale', () => {
 	});
 
 	it('should ignore malformed quality values', () => {
-		expect(resolveLocale('de;q=broken, es;q=0.5', available, 'en')).toBe(
-			'de'
-		);
+		expect(resolveLocale('de;q=broken, es;q=0.5', available, 'en')).toBe('de');
 	});
 });
