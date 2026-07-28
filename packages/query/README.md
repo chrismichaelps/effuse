@@ -31,8 +31,9 @@ const user = useQuery({
 });
 ```
 
-Initial server fetch behavior remains separate from browser refetch triggers.
-Provide a request-owned client and use query hydration to carry server data into
+Component-owned initial queries start on browser mount. Synchronous SSR never
+launches query work it cannot await. Prefetch server data explicitly with a
+request-owned client, dehydrate that client into the response, and hydrate it in
 the browser without sharing authenticated cache entries across requests.
 
 Standalone hooks retain explicit ownership:
