@@ -1,3 +1,15 @@
+## @effuse/i18n [1.1.2](https://github.com/chrismichaelps/effuse/compare/@effuse/i18n@1.1.1...@effuse/i18n@1.1.2) (2026-07-28)
+
+### Bug Fixes
+
+* **i18n:** make locale loading transactional refs [#418](https://github.com/chrismichaelps/effuse/issues/418) ([#419](https://github.com/chrismichaelps/effuse/issues/419)) ([248ed76](https://github.com/chrismichaelps/effuse/commit/248ed76af7c6c1b142799a4f2b2bb2dbcea6efa4))
+* **i18n:** preserve locale context across await refs [#391](https://github.com/chrismichaelps/effuse/issues/391) ([9faa718](https://github.com/chrismichaelps/effuse/commit/9faa7181c378dcfaaee836a9e44f83c2f410ea0f))
+
+
+### Dependencies
+
+* **@effuse/core:** upgraded to 2.0.2
+
 ## @effuse/i18n [1.1.1](https://github.com/chrismichaelps/effuse/compare/@effuse/i18n@1.1.0...@effuse/i18n@1.1.1) (2026-07-26)
 
 ### Bug Fixes
