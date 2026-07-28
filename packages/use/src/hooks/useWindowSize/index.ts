@@ -75,27 +75,7 @@ export const useWindowSize = defineHook<
 		const includeScrollbar = config.includeScrollbar ?? true;
 		const debounceMs = config.debounce ?? 0;
 
-		const createInitialState = (): WindowSizeState => {
-			if (isClient()) {
-				const size = getWindowSize();
-				return WSS.Available({
-					width: includeScrollbar
-						? size.width
-						: document.documentElement.clientWidth,
-					height: includeScrollbar
-						? size.height
-						: document.documentElement.clientHeight,
-				});
-			}
-			return WSS.Unavailable();
-		};
-
-		if (isClient()) {
-			const size = getWindowSize();
-			traceWindowSizeInit(size.width, size.height);
-		}
-
-		const internalState = ctx.signal<WindowSizeState>(createInitialState());
+		const internalState = ctx.signal<WindowSizeState>(WSS.Unavailable());
 
 		const width = ctx.computed(() =>
 			getWidth(internalState.value, initialWidth)
@@ -107,25 +87,34 @@ export const useWindowSize = defineHook<
 
 		const available = ctx.computed(() => isAvailable(internalState.value));
 
+		const readSize = (): { width: number; height: number } => {
+			const size = getWindowSize();
+			return {
+				width: includeScrollbar
+					? size.width
+					: document.documentElement.clientWidth,
+				height: includeScrollbar
+					? size.height
+					: document.documentElement.clientHeight,
+			};
+		};
+
 		const updateSize = (): void => {
 			if (!isClient()) return;
 
-			const newWidth = includeScrollbar
-				? window.innerWidth
-				: document.documentElement.clientWidth;
-			const newHeight = includeScrollbar
-				? window.innerHeight
-				: document.documentElement.clientHeight;
-
-			traceWindowSizeUpdate(newWidth, newHeight);
+			const size = readSize();
+			traceWindowSizeUpdate(size.width, size.height);
 			internalState.value = WSS.Available({
-				width: newWidth,
-				height: newHeight,
+				width: size.width,
+				height: size.height,
 			});
 		};
 
-		ctx.watchEffect(() => {
+		ctx.onMount(() => {
 			if (!isClient()) return undefined;
+			const size = readSize();
+			internalState.value = WSS.Available(size);
+			traceWindowSizeInit(size.width, size.height);
 
 			const handler =
 				debounceMs > 0 ? createDebounce(updateSize, debounceMs) : null;

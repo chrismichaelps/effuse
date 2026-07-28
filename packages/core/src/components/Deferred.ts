@@ -27,6 +27,7 @@ import { createListNode } from '../render/node.js';
 import type { Signal } from '../types/index.js';
 import { signal } from '../reactivity/index.js';
 import { Data, Option, Predicate } from 'effect';
+import { isServerRendering } from '../render/render-context.js';
 
 export class DeferredError extends Data.TaggedError('DeferredError')<{
 	readonly timeout: number;
@@ -42,7 +43,7 @@ export interface DeferredProps {
 type DeferredCache = {
 	ready: Signal<boolean>;
 	child: Option.Option<EffuseChild>;
-	timerId: number | null;
+	timerId: ReturnType<typeof setTimeout> | null;
 };
 
 const createCache = (): DeferredCache => ({
@@ -84,6 +85,10 @@ export const Deferred = (props: DeferredProps): EffuseNode => {
 		enumerable: true,
 		configurable: true,
 		get() {
+			if (isServerRendering()) {
+				return [props.children];
+			}
+
 			if (!listNode._mounted) {
 				listNode._mounted = true;
 				cache.child = Option.some(props.children);
@@ -93,7 +98,7 @@ export const Deferred = (props: DeferredProps): EffuseNode => {
 						cache.ready.value = true;
 					});
 				} else {
-					cache.timerId = window.setTimeout(() => {
+					cache.timerId = setTimeout(() => {
 						cache.ready.value = true;
 						cache.timerId = null;
 					}, timeout);
@@ -126,7 +131,7 @@ export const useDeferredState = (
 			ready: nodeCache.ready,
 			cancel: () => {
 				if (Predicate.isNotNullable(nodeCache.timerId)) {
-					window.clearTimeout(nodeCache.timerId);
+					clearTimeout(nodeCache.timerId);
 					nodeCache.timerId = null;
 				}
 			},

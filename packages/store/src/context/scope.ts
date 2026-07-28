@@ -22,6 +22,7 @@
  * SOFTWARE.
  */
 
+import { createRuntimeContext } from '@effuse/core';
 import type { Store } from '../core/types.js';
 
 // Scope identifier
@@ -40,7 +41,8 @@ const ROOT_SCOPE: ScopeNode = {
 	stores: new Map(),
 };
 
-let currentScope: ScopeNode = ROOT_SCOPE;
+const scopeRuntimeContext = createRuntimeContext<ScopeNode>();
+let fallbackScope: ScopeNode = ROOT_SCOPE;
 const scopeRegistry = new Map<ScopeId, ScopeNode>([
 	[ROOT_SCOPE.id, ROOT_SCOPE],
 ]);
@@ -52,7 +54,7 @@ export const createScope = (parentScope?: ScopeNode): ScopeNode => {
 	const id = `scope_${String(scopeCounter)}`;
 	const node: ScopeNode = {
 		id,
-		parent: parentScope ?? currentScope,
+		parent: parentScope ?? getCurrentScope(),
 		stores: new Map(),
 	};
 	scopeRegistry.set(id, node);
@@ -67,18 +69,19 @@ export const disposeScope = (scope: ScopeNode): void => {
 
 // Activate scope
 export const enterScope = (scope: ScopeNode): void => {
-	currentScope = scope;
+	fallbackScope = scope;
 };
 
 // Exit active scope
 export const exitScope = (): void => {
-	if (currentScope.parent) {
-		currentScope = currentScope.parent;
+	if (fallbackScope.parent) {
+		fallbackScope = fallbackScope.parent;
 	}
 };
 
 // Current scope access
-export const getCurrentScope = (): ScopeNode => currentScope;
+export const getCurrentScope = (): ScopeNode =>
+	scopeRuntimeContext.current() ?? fallbackScope;
 
 // Root scope access
 export const getRootScope = (): ScopeNode => ROOT_SCOPE;
@@ -87,7 +90,7 @@ export const getRootScope = (): ScopeNode => ROOT_SCOPE;
 export const registerScopedStore = <T>(
 	name: string,
 	store: Store<T>,
-	scope: ScopeNode = currentScope
+	scope: ScopeNode = getCurrentScope()
 ): void => {
 	scope.stores.set(name, store as Store<unknown>);
 };
@@ -95,7 +98,7 @@ export const registerScopedStore = <T>(
 // Find store in scope hierarchy
 export const getScopedStore = <T>(
 	name: string,
-	scope: ScopeNode = currentScope
+	scope: ScopeNode = getCurrentScope()
 ): Store<T> | null => {
 	let current: ScopeNode | null = scope;
 	while (current) {
@@ -109,28 +112,66 @@ export const getScopedStore = <T>(
 // Scope store detection
 export const hasScopedStore = (
 	name: string,
-	scope: ScopeNode = currentScope
+	scope: ScopeNode = getCurrentScope()
 ): boolean => {
 	return getScopedStore(name, scope) !== null;
 };
 
+export const removeScopedStore = (
+	name: string,
+	scope: ScopeNode = getCurrentScope()
+): boolean => {
+	let current: ScopeNode | null = scope;
+	while (current) {
+		if (current.stores.delete(name)) return true;
+		current = current.parent;
+	}
+	return false;
+};
+
+export const clearScopedStores = (
+	scope: ScopeNode = getCurrentScope()
+): void => {
+	scope.stores.clear();
+};
+
+export const getScopedStoreNames = (
+	scope: ScopeNode = getCurrentScope()
+): string[] => {
+	const names = new Set<string>();
+	let current: ScopeNode | null = scope;
+	while (current) {
+		for (const name of current.stores.keys()) names.add(name);
+		current = current.parent;
+	}
+	return Array.from(names);
+};
+
 // Execute in scope
 export const runInScope = <R>(scope: ScopeNode, fn: () => R): R => {
-	const prev = currentScope;
-	currentScope = scope;
-	try {
-		return fn();
-	} finally {
-		currentScope = prev;
-	}
+	return scopeRuntimeContext.run(scope, fn);
 };
+
+const isPromiseLike = (value: unknown): value is PromiseLike<unknown> =>
+	(typeof value === 'object' || typeof value === 'function') &&
+	value !== null &&
+	'then' in value &&
+	typeof value.then === 'function';
 
 // Execute in transient scope
 export const withScope = <R>(fn: (scope: ScopeNode) => R): R => {
 	const scope = createScope();
 	try {
-		return runInScope(scope, () => fn(scope));
-	} finally {
+		const result = runInScope(scope, () => fn(scope));
+		if (isPromiseLike(result)) {
+			return Promise.resolve(result).finally(() => {
+				disposeScope(scope);
+			}) as R;
+		}
 		disposeScope(scope);
+		return result;
+	} catch (error) {
+		disposeScope(scope);
+		throw error;
 	}
 };

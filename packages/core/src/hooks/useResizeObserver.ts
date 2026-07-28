@@ -24,11 +24,16 @@
 
 import { signal, readonly } from '../reactivity/index.js';
 import type { ReadonlySignal } from '../types/index.js';
-import { getActiveLifecycle } from '../blueprint/lifecycle.js';
+import { ownLifecycleResource } from './lifecycle-resource.js';
 
 export interface ResizeObserverResult {
 	readonly width: number;
 	readonly height: number;
+}
+
+export interface ResizeObserverSignal
+	extends ReadonlySignal<ResizeObserverResult> {
+	readonly stop: () => void;
 }
 
 /**
@@ -42,35 +47,35 @@ export interface ResizeObserverResult {
  * let ref: HTMLDivElement;
  * const size = useResizeObserver(() => ref);
  * // size.value.width / size.value.height
+ * // size.stop() releases standalone observation
  * ```
  */
 export const useResizeObserver = (
 	elementRef: () => Element | null | undefined
-): ReadonlySignal<ResizeObserverResult> => {
+): ResizeObserverSignal => {
 	const size = signal<ResizeObserverResult>({ width: 0, height: 0 });
 
-	if (typeof ResizeObserver === 'undefined') {
-		return readonly(size);
-	}
+	const resource = ownLifecycleResource(() => {
+		if (typeof ResizeObserver === 'undefined') return undefined;
+		const observer = new ResizeObserver((entries) => {
+			for (const entry of entries) {
+				const rect = entry.contentRect;
+				size.value = { width: rect.width, height: rect.height };
+			}
+		});
 
-	const observer = new ResizeObserver((entries) => {
-		for (const entry of entries) {
-			const rect = entry.contentRect;
-			size.value = { width: rect.width, height: rect.height };
+		const el = elementRef();
+		if (el) {
+			observer.observe(el);
 		}
+		return () => observer.disconnect();
 	});
 
-	const el = elementRef();
-	if (el) {
-		observer.observe(el);
-	}
-
-	const lifecycle = getActiveLifecycle();
-	if (lifecycle) {
-		lifecycle.onUnmount(() => {
-			observer.disconnect();
-		});
-	}
-
-	return readonly(size);
+	const value = readonly(size);
+	return {
+		get value() {
+			return value.value;
+		},
+		stop: resource.stop,
+	};
 };

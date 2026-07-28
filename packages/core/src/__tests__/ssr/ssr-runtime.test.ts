@@ -9,10 +9,16 @@ import { createLayerRuntime } from '../../layers/internal/runtime.js';
 import { signal } from '../../reactivity/signal.js';
 import {
 	clearGlobalLayerContext,
+	getGlobalLayerContextStore,
 	getLayerService,
 	isLayerRuntimeReady,
 } from '../../layers/context.js';
-import { clearGlobalTracing } from '../../layers/tracing/index.js';
+import {
+	clearGlobalTracing,
+	createTracingService,
+	getGlobalTracing,
+	setGlobalTracing,
+} from '../../layers/tracing/index.js';
 
 afterEach(() => {
 	clearGlobalLayerContext();
@@ -48,6 +54,32 @@ describe('SSRRuntime', () => {
 			expect(runtime.run(() => isLayerRuntimeReady())).toBe(true);
 
 			await runtime.dispose();
+			expect(isLayerRuntimeReady()).toBe(false);
+		});
+
+		it('should not restore an older SSR context disposed first', async () => {
+			const first = await createSSRRuntime([]);
+			const firstStore = getGlobalLayerContextStore();
+			const second = await createSSRRuntime([]);
+
+			await first.dispose();
+			await second.dispose();
+
+			expect(firstStore).toBeDefined();
+			expect(getGlobalLayerContextStore()).toBeUndefined();
+			expect(isLayerRuntimeReady()).toBe(false);
+		});
+
+		it('should preserve the older SSR context until it disposes', async () => {
+			const first = await createSSRRuntime([]);
+			const firstStore = getGlobalLayerContextStore();
+			const second = await createSSRRuntime([]);
+
+			await second.dispose();
+			expect(getGlobalLayerContextStore()).toBe(firstStore);
+
+			await first.dispose();
+			expect(getGlobalLayerContextStore()).toBeUndefined();
 			expect(isLayerRuntimeReady()).toBe(false);
 		});
 
@@ -124,6 +156,33 @@ describe('SSRRuntime', () => {
 			}
 		});
 
+		it('should not clobber an app runtime installed after SSR starts', async () => {
+			const appService = { source: 'newer-app' };
+			const AppLayer = defineLayer({
+				name: 'newer-app-context',
+				services: {
+					app: () => appService,
+				},
+			});
+			const ssrRuntime = await createSSRRuntime([]);
+			const appRuntime = await createLayerRuntime(
+				resolveLayerDefinitions([AppLayer])
+			);
+			let ssrDisposed = false;
+
+			try {
+				await ssrRuntime.dispose();
+				ssrDisposed = true;
+				expect(isLayerRuntimeReady()).toBe(true);
+				expect(getLayerService('app')).toBe(appService);
+			} finally {
+				if (!ssrDisposed) await ssrRuntime.dispose();
+				await appRuntime.dispose();
+			}
+
+			expect(isLayerRuntimeReady()).toBe(false);
+		});
+
 		it('should collect head props from layer definitions', async () => {
 			const TestLayer = defineLayer({
 				name: 'headed',
@@ -179,6 +238,88 @@ describe('SSRRuntime', () => {
 			expect(setupCalled).toBe(false);
 
 			await runtime.dispose();
+		});
+
+		it('should isolate tracing across concurrent async runtimes', async () => {
+			const first = await createSSRRuntime([]);
+			const second = await createSSRRuntime([]);
+			const firstTracing = first.run(() => getGlobalTracing());
+			const secondTracing = second.run(() => getGlobalTracing());
+			let releaseFirst: (() => void) | undefined;
+			const firstPaused = new Promise<void>((resolve) => {
+				releaseFirst = resolve;
+			});
+
+			try {
+				expect(firstTracing).toBeTruthy();
+				expect(secondTracing).toBeTruthy();
+				expect(firstTracing).not.toBe(secondTracing);
+				expect(getGlobalTracing()).toBeNull();
+
+				const firstObserved = first.run(async () => {
+					await firstPaused;
+					return getGlobalTracing();
+				});
+				const secondObserved = second.run(async () => {
+					await Promise.resolve();
+					releaseFirst?.();
+					return getGlobalTracing();
+				});
+
+				expect(await Promise.all([firstObserved, secondObserved])).toEqual([
+					firstTracing,
+					secondTracing,
+				]);
+			} finally {
+				await Promise.all([first.dispose(), second.dispose()]);
+			}
+		});
+
+		it('should not clear another runtime or the global tracing fallback', async () => {
+			const fallback = createTracingService({ serviceName: 'application' });
+			setGlobalTracing(fallback);
+			const first = await createSSRRuntime([]);
+			const second = await createSSRRuntime([]);
+			const secondTracing = second.run(() => getGlobalTracing());
+			let firstDisposed = false;
+			let secondDisposed = false;
+
+			try {
+				await first.dispose();
+				firstDisposed = true;
+
+				expect(second.run(() => getGlobalTracing())).toBe(secondTracing);
+				expect(getGlobalTracing()).toBe(fallback);
+
+				await second.dispose();
+				secondDisposed = true;
+				expect(getGlobalTracing()).toBe(fallback);
+			} finally {
+				if (!firstDisposed) await first.dispose();
+				if (!secondDisposed) await second.dispose();
+			}
+		});
+
+		it('should trace layer setup and async cleanup in the owning runtime', async () => {
+			let setupTracing: ReturnType<typeof getGlobalTracing> = null;
+			let cleanupTracing: ReturnType<typeof getGlobalTracing> = null;
+			const TestLayer = defineLayer({
+				name: 'traced-lifecycle',
+				setup: () => {
+					setupTracing = getGlobalTracing();
+					return async () => {
+						await Promise.resolve();
+						cleanupTracing = getGlobalTracing();
+					};
+				},
+			});
+			const runtime = await createSSRRuntime([TestLayer]);
+			const runtimeTracing = runtime.run(() => getGlobalTracing());
+
+			expect(setupTracing).toBe(runtimeTracing);
+			await runtime.dispose();
+			expect(cleanupTracing).toBe(runtimeTracing);
+			expect(getGlobalTracing()).toBeNull();
 		});
 
 		it('should register layer provides as services', async () => {

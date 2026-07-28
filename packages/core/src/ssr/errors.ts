@@ -23,6 +23,7 @@
  */
 
 import { Data } from 'effect';
+import { escapeHtml } from './escape.js';
 
 export class CycleError extends Data.TaggedError('CycleError')<{
 	readonly message: string;
@@ -67,10 +68,82 @@ export type SSRError =
 	| HeadMergeError
 	| PluginError;
 
+type ErrorDiagnostic = {
+	readonly name: string;
+	readonly message: string;
+	readonly stack?: string;
+	cause?: unknown;
+	errors?: readonly unknown[];
+	[key: string]: unknown;
+};
+
+const serializeDiagnosticValue = (
+	value: unknown,
+	seen: WeakSet<object>
+): unknown => {
+	if (
+		value === null ||
+		typeof value === 'boolean' ||
+		typeof value === 'string'
+	) {
+		return value;
+	}
+	if (typeof value === 'number') {
+		return Number.isFinite(value) ? value : String(value);
+	}
+	if (typeof value === 'bigint' || typeof value === 'symbol') {
+		return String(value);
+	}
+	if (typeof value === 'undefined') return '[undefined]';
+	if (typeof value === 'function')
+		return `[Function ${value.name || 'anonymous'}]`;
+
+	if (seen.has(value)) return '[Circular]';
+	seen.add(value);
+
+	if (value instanceof Error) {
+		const diagnostic: ErrorDiagnostic = {
+			name: value.name,
+			message: value.message,
+			...(value.stack ? { stack: value.stack } : {}),
+		};
+		if ('cause' in value && value.cause !== undefined) {
+			diagnostic.cause = serializeDiagnosticValue(value.cause, seen);
+		}
+		if (value instanceof AggregateError) {
+			diagnostic.errors = [...value.errors].map((error) =>
+				serializeDiagnosticValue(error, seen)
+			);
+		}
+		for (const [key, property] of Object.entries(value)) {
+			if (!(key in diagnostic)) {
+				diagnostic[key] = serializeDiagnosticValue(property, seen);
+			}
+		}
+		return diagnostic;
+	}
+
+	if (Array.isArray(value)) {
+		return value.map((item) => serializeDiagnosticValue(item, seen));
+	}
+
+	const diagnostic: Record<string, unknown> = {};
+	for (const [key, property] of Object.entries(value)) {
+		diagnostic[key] = serializeDiagnosticValue(property, seen);
+	}
+	return diagnostic;
+};
+
+export const createErrorDiagnostic = (error: SSRError): unknown =>
+	serializeDiagnosticValue(error, new WeakSet<object>());
+
 export const createErrorHtml = (error: SSRError): string => {
 	const isDev = process.env.NODE_ENV !== 'production';
 
 	if (isDev) {
+		const diagnostic = escapeHtml(
+			JSON.stringify(createErrorDiagnostic(error), null, 2)
+		);
 		return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -85,9 +158,9 @@ export const createErrorHtml = (error: SSRError): string => {
 </head>
 <body>
 	<div class="error">
-		<h1>${error._tag}</h1>
-		<p>${error.message}</p>
-		<pre>${JSON.stringify(error, null, 2)}</pre>
+		<h1>${escapeHtml(error._tag)}</h1>
+		<p>${escapeHtml(error.message)}</p>
+		<pre>${diagnostic}</pre>
 	</div>
 </body>
 </html>`;

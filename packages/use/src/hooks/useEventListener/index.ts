@@ -112,31 +112,35 @@ const useEventListenerHook = defineHook<
 			detach();
 		};
 
-		ctx.watchEffect(() => {
+		ctx.onMount(() => {
 			if (!isClient() || isStopped) return undefined;
+			const effect = ctx.watchEffect(() => {
+				const maybeTarget = resolveTarget(target);
 
-			const maybeTarget = resolveTarget(target);
+				Option.match(maybeTarget, {
+					onNone: () => {
+						internalState.value = LS.Error({
+							reason: 'Target is null or undefined',
+						});
+					},
+					onSome: (el) => {
+						const targetName = getTargetName(el);
+						traceEventListenerAdd(event, targetName);
+						el.addEventListener(event, handler, options);
+						internalState.value = LS.Active({ eventName: event });
 
-			Option.match(maybeTarget, {
-				onNone: () => {
-					internalState.value = LS.Error({
-						reason: 'Target is null or undefined',
-					});
-				},
-				onSome: (el) => {
-					const targetName = getTargetName(el);
-					traceEventListenerAdd(event, targetName);
-					el.addEventListener(event, handler, options);
-					internalState.value = LS.Active({ eventName: event });
+						cleanup = () => {
+							traceEventListenerRemove(event, targetName);
+							el.removeEventListener(event, handler, options);
+						};
+					},
+				});
 
-					cleanup = () => {
-						traceEventListenerRemove(event, targetName);
-						el.removeEventListener(event, handler, options);
-					};
-				},
+				return detach;
 			});
-
-			return detach;
+			return () => {
+				effect.stop();
+			};
 		});
 
 		return {

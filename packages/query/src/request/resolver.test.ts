@@ -24,12 +24,17 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Effect } from 'effect';
-import { executeQuery } from './resolver.js';
+import {
+	createQueryExecutionScope,
+	executeQueries,
+	executeQuery,
+} from './resolver.js';
 
 describe('resolver', () => {
 	describe('inFlightRequests deduplication', () => {
-		it('should deduplicate concurrent requests', async () => {
+		it('should deduplicate concurrent requests within one owner', async () => {
 			let calls = 0;
+			const scope = createQueryExecutionScope();
 			const queryFn = async () => {
 				calls++;
 				await new Promise((r) => setTimeout(r, 20));
@@ -37,13 +42,66 @@ describe('resolver', () => {
 			};
 
 			const [r1, r2] = await Promise.all([
-				executeQuery(['dedup'], queryFn).pipe(Effect.runPromise),
-				executeQuery(['dedup'], queryFn).pipe(Effect.runPromise),
+				executeQuery(['dedup'], queryFn, scope).pipe(Effect.runPromise),
+				executeQuery(['dedup'], queryFn, scope).pipe(Effect.runPromise),
 			]);
 
 			expect(calls).toBe(1);
 			expect(r1).toBe('result');
 			expect(r2).toBe('result');
+		});
+
+		it('should isolate identical keys across server request owners', async () => {
+			let releaseFirst!: () => void;
+			const firstGate = new Promise<void>((resolve) => {
+				releaseFirst = resolve;
+			});
+			const firstScope = createQueryExecutionScope();
+			const secondScope = createQueryExecutionScope();
+			const first = executeQuery(
+				['current-user'],
+				async () => {
+					await firstGate;
+					return 'user-a';
+				},
+				firstScope
+			).pipe(Effect.runPromise);
+			const second = executeQuery(
+				['current-user'],
+				async () => 'user-b',
+				secondScope
+			).pipe(Effect.runPromise);
+
+			releaseFirst();
+
+			await expect(Promise.all([first, second])).resolves.toEqual([
+				'user-a',
+				'user-b',
+			]);
+		});
+
+		it('should isolate standalone executions by default', async () => {
+			let calls = 0;
+			const queryFn = async () => ++calls;
+
+			const results = await Promise.all([
+				executeQuery(['standalone'], queryFn).pipe(Effect.runPromise),
+				executeQuery(['standalone'], queryFn).pipe(Effect.runPromise),
+			]);
+
+			expect(results).toEqual([1, 2]);
+		});
+
+		it('should deduplicate duplicate keys in one executeQueries batch', async () => {
+			const queryFn = vi.fn(async () => 'shared');
+
+			const result = await executeQueries([
+				{ queryKey: ['batch'], queryFn },
+				{ queryKey: ['batch'], queryFn },
+			]).pipe(Effect.runPromise);
+
+			expect(result).toEqual(['shared', 'shared']);
+			expect(queryFn).toHaveBeenCalledOnce();
 		});
 
 		it('should allow new request after previous completes', async () => {
@@ -83,10 +141,12 @@ describe('resolver', () => {
 
 		afterEach(() => {
 			vi.useRealTimers();
+			vi.restoreAllMocks();
 		});
 
 		it('should expire stale entries after TTL', async () => {
 			let calls = 0;
+			const scope = createQueryExecutionScope();
 			const queryFn = async () => {
 				calls++;
 				await new Promise((r) => setTimeout(r, 1000));
@@ -94,13 +154,13 @@ describe('resolver', () => {
 			};
 
 			// Start first request
-			const p1 = executeQuery(['ttl'], queryFn).pipe(Effect.runPromise);
+			const p1 = executeQuery(['ttl'], queryFn, scope).pipe(Effect.runPromise);
 
 			// Advance past TTL (30s)
 			vi.advanceTimersByTime(31000);
 
 			// Start second request — should NOT deduplicate because first expired
-			const p2 = executeQuery(['ttl'], queryFn).pipe(Effect.runPromise);
+			const p2 = executeQuery(['ttl'], queryFn, scope).pipe(Effect.runPromise);
 
 			// Advance so both complete
 			vi.advanceTimersByTime(2000);
@@ -109,7 +169,59 @@ describe('resolver', () => {
 			expect(calls).toBe(2);
 		});
 
+		it('should not let stale completion delete a newer replacement', async () => {
+			let now = 0;
+			vi.useRealTimers();
+			vi.spyOn(Date, 'now').mockImplementation(() => now);
+			const scope = createQueryExecutionScope();
+			let releaseFirst!: () => void;
+			let releaseSecond!: () => void;
+			const firstGate = new Promise<void>((resolve) => {
+				releaseFirst = resolve;
+			});
+			const secondGate = new Promise<void>((resolve) => {
+				releaseSecond = resolve;
+			});
+
+			const first = executeQuery(
+				['replacement'],
+				async () => {
+					await firstGate;
+					return 'stale';
+				},
+				scope
+			).pipe(Effect.runPromise);
+
+			now = 31_000;
+			const secondFn = vi.fn(async () => {
+				await secondGate;
+				return 'fresh';
+			});
+			const second = executeQuery(['replacement'], secondFn, scope).pipe(
+				Effect.runPromise
+			);
+
+			releaseFirst();
+			await expect(first).resolves.toBe('stale');
+
+			const unexpectedThirdFn = vi.fn(async () => 'wrong');
+			const third = executeQuery(
+				['replacement'],
+				unexpectedThirdFn,
+				scope
+			).pipe(Effect.runPromise);
+			releaseSecond();
+
+			await expect(Promise.all([second, third])).resolves.toEqual([
+				'fresh',
+				'fresh',
+			]);
+			expect(secondFn).toHaveBeenCalledOnce();
+			expect(unexpectedThirdFn).not.toHaveBeenCalled();
+		});
+
 		it('should enforce max size cap', async () => {
+			const scope = createQueryExecutionScope();
 			// We can't easily test the internal Map size directly,
 			// but we can verify behavior under pressure.
 			const promises: Promise<unknown>[] = [];
@@ -120,7 +232,7 @@ describe('resolver', () => {
 					return i;
 				};
 				promises.push(
-					executeQuery(['max', i], queryFn).pipe(Effect.runPromise)
+					executeQuery(['max', i], queryFn, scope).pipe(Effect.runPromise)
 				);
 			}
 

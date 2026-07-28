@@ -47,8 +47,7 @@ export const createCancellationToken = (): CancellationToken => {
 			}
 		},
 		throwIfCancelled: () => {
-			if (cancelled)
-				throw new CancellationError('Operation was cancelled');
+			if (cancelled) throw new CancellationError('Operation was cancelled');
 		},
 		onCancel: (callback: () => void) => {
 			if (cancelled) {
@@ -94,30 +93,36 @@ export const runWithAbortSignal = <A>(
 	signal: AbortSignal
 ): Promise<A> => {
 	if (signal.aborted) {
-		return Promise.reject(
-			new CancellationError('Operation was cancelled')
-		);
+		return Promise.reject(new CancellationError('Operation was cancelled'));
 	}
 
 	return new Promise((resolve, reject) => {
-		const onAbort = () => {
+		let settled = false;
+		const cleanup = (): void => {
+			signal.removeEventListener('abort', onAbort);
+		};
+		const onAbort = (): void => {
+			if (settled) return;
+			settled = true;
+			cleanup();
 			reject(new CancellationError('Operation was cancelled'));
 		};
 
 		signal.addEventListener('abort', onAbort, { once: true });
 
-		promise
-			.then((result) => {
-				signal.removeEventListener('abort', onAbort);
+		promise.then(
+			(result) => {
+				if (settled) return;
+				settled = true;
+				cleanup();
 				resolve(result);
-			})
-			.catch((error: unknown) => {
-				signal.removeEventListener('abort', onAbort);
-				reject(
-					error instanceof Error
-						? error
-						: new Error(String(error))
-				);
-			});
+			},
+			(error: unknown) => {
+				if (settled) return;
+				settled = true;
+				cleanup();
+				reject(error instanceof Error ? error : new Error(String(error)));
+			}
+		);
 	});
 };

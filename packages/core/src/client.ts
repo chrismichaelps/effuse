@@ -134,6 +134,8 @@ export {
 	clearGlobalStoreGetter,
 	setGlobalRouter,
 	clearGlobalRouter,
+	getConfiguredRouter,
+	runWithRouterContext,
 	createComponentLifecycleSync,
 	LifecycleError,
 	type ComponentLifecycle,
@@ -194,9 +196,12 @@ export {
 	type InferHookReturn,
 	type InferHookConfig,
 	type StorageOptions,
+	type StorageHookResult,
 	type ClickOutsideOptions,
 	type ResizeObserverResult,
+	type ResizeObserverSignal,
 	type IntersectionObserverResult,
+	type IntersectionObserverSignal,
 } from './hooks/index.js';
 
 export { type MountedNode } from './services/index.js';
@@ -489,6 +494,7 @@ export {
 export {
 	createContext,
 	createTypedContext,
+	createRuntimeContext,
 	useContext,
 	hasContextValue,
 	isEffuseContext,
@@ -498,6 +504,7 @@ export {
 	type EffuseContext,
 	type TypedContext,
 	type TypedContextOptions,
+	type RuntimeContext,
 } from './context/index.js';
 export {
 	createRef,

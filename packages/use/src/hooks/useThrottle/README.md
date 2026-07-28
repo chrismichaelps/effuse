@@ -82,4 +82,6 @@ const { value: throttledSize } = useThrottle({
 - **Rapid Changes:** Changes during cooldown are ignored (last one saved for trailing)
 - **Leading Edge:** First change updates immediately by default
 - **Trailing Edge:** Last ignored value applies after cooldown ends
+- **SSR:** Component-owned observation starts on mount; server rendering keeps the
+  initial snapshot and does not allocate timers
 - **Cleanup:** Timeout is automatically cleared on dispose

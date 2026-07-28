@@ -39,6 +39,19 @@ import { runWithSSRContext } from './use-head.js';
 import { serializeHydrationData, type HydrationData } from './hydration.js';
 import type { SSRRuntime } from './runtime.js';
 import type { ComponentLifecycle } from '../blueprint/lifecycle.js';
+import { runWithServerRenderContext } from '../render/render-context.js';
+
+const runServerRender = <T>(ssrRuntime: SSRRuntime, render: () => T): T =>
+	runWithServerRenderContext(() =>
+		runWithSSRContext(
+			{
+				push: (head: HeadProps) => {
+					ssrRuntime.headStack.push(head);
+				},
+			},
+			render
+		)
+	);
 
 /**
  * Render a component tree to a full HTML string using the SSRRuntime.
@@ -58,57 +71,55 @@ export const renderToString = (
 	const startTime = Date.now();
 
 	// Run the entire render inside the AsyncLocalStorage SSR context
-	return runWithSSRContext(
-		{
-			push: (head: HeadProps) => {
-				ssrRuntime.headStack.push(head);
-			},
-		},
-		() => {
-			try {
-				const html = renderNodeToString(root);
+	return runServerRender(ssrRuntime, () => {
+		try {
+			const html = renderNodeToString(root);
 
-				// Merge all collected heads (layer heads + useHead() calls)
-				const mergedHead = ssrRuntime.headStack.reduce<HeadProps>(
-					(acc, head) => ({ ...acc, ...head }),
-					{}
-				);
+			// Merge all collected heads (layer heads + useHead() calls)
+			const mergedHead = ssrRuntime.headStack.reduce<HeadProps>(
+				(acc, head) => ({ ...acc, ...head }),
+				{}
+			);
 
-				// Serialize state for hydration
-				const serializedState: Record<string, unknown> = {};
-				for (const [key, value] of ssrRuntime.state) {
-					serializedState[key] = value;
-				}
-
-				const hydrationData: HydrationData = {
-					head: mergedHead,
-					state: serializedState,
-					url,
-					timestamp: Date.now(),
-				};
-
-				const fullHtml = generateFullHtml(html, mergedHead, hydrationData, options);
-
-				const timing = Date.now() - startTime;
-
-				return {
-					html: fullHtml,
-					head: mergedHead,
-					state: serializedState,
-					timing,
-				};
-			} catch (error) {
-				if (error instanceof RenderError) {
-					throw error;
-				}
-				throw new RenderError({
-					message: `Render failed: ${String(error)}`,
-					url,
-					cause: error,
-				});
+			// Serialize state for hydration
+			const serializedState: Record<string, unknown> = {};
+			for (const [key, value] of ssrRuntime.state) {
+				serializedState[key] = value;
 			}
+
+			const hydrationData: HydrationData = {
+				head: mergedHead,
+				state: serializedState,
+				url,
+				timestamp: Date.now(),
+			};
+
+			const fullHtml = generateFullHtml(
+				html,
+				mergedHead,
+				hydrationData,
+				options
+			);
+
+			const timing = Date.now() - startTime;
+
+			return {
+				html: fullHtml,
+				head: mergedHead,
+				state: serializedState,
+				timing,
+			};
+		} catch (error) {
+			if (error instanceof RenderError) {
+				throw error;
+			}
+			throw new RenderError({
+				message: `Render failed: ${String(error)}`,
+				url,
+				cause: error,
+			});
 		}
-	);
+	});
 };
 
 /**
@@ -119,14 +130,7 @@ export const renderToFragment = (
 	root: Component | EffuseNode,
 	ssrRuntime: SSRRuntime
 ): string => {
-	return runWithSSRContext(
-		{
-			push: (head: HeadProps) => {
-				ssrRuntime.headStack.push(head);
-			},
-		},
-		() => renderNodeToString(root)
-	);
+	return runServerRender(ssrRuntime, () => renderNodeToString(root));
 };
 
 const renderNodeToString = (node: unknown): string => {
@@ -394,7 +398,7 @@ const generateFullHtml = (
 ): string => {
 	let headHtml = headToHtml(head);
 	const lang = head.lang ?? 'en';
-	
+
 	if (options.manifest) {
 		for (const chunk of Object.values(options.manifest)) {
 			if (chunk.isEntry) {
@@ -408,9 +412,8 @@ const generateFullHtml = (
 		}
 	}
 
-	const hydrationScript = options.hydrate !== false 
-		? serializeHydrationData(hydrationData) 
-		: '';
+	const hydrationScript =
+		options.hydrate !== false ? serializeHydrationData(hydrationData) : '';
 
 	return `<!DOCTYPE html>
 <html lang="${lang}">

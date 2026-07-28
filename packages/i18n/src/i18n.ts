@@ -23,7 +23,7 @@
  */
 
 import { Effect, Predicate } from 'effect';
-import type { Signal } from '@effuse/core';
+import { createRuntimeContext, type Signal } from '@effuse/core';
 import type {
 	I18n,
 	I18nOptions,
@@ -64,8 +64,13 @@ class I18nInstance implements I18n {
 	private readonly _locale: Signal<string>;
 	private readonly _version: Signal<number>;
 	private readonly _translations: Map<string, Translations>;
+	private readonly _pendingLoads = new Map<
+		string,
+		Promise<Translations>
+	>();
 	private readonly _fallbackLocale: string;
 	private readonly _options: I18nOptions | TypedI18nOptions<Translations>;
+	private _localeTransition = 0;
 
 	constructor(options: I18nOptions | TypedI18nOptions<Translations>) {
 		this._options = options;
@@ -148,8 +153,14 @@ class I18nInstance implements I18n {
 	};
 
 	setLocale = async (locale: string): Promise<void> => {
+		const transition = ++this._localeTransition;
+
 		if (!this._translations.has(locale)) {
 			await this._loadTranslationsForLocale(locale);
+		}
+
+		if (transition !== this._localeTransition) {
+			return;
 		}
 
 		this._locale.value = locale;
@@ -192,7 +203,17 @@ class I18nInstance implements I18n {
 		bumpTranslationsVersion(this._version);
 	};
 
-	private async _loadTranslationsForLocale(locale: string): Promise<void> {
+	private _loadTranslationsForLocale(locale: string): Promise<Translations> {
+		const loaded = this._translations.get(locale);
+		if (loaded) {
+			return Promise.resolve(loaded);
+		}
+
+		const pending = this._pendingLoads.get(locale);
+		if (pending) {
+			return pending;
+		}
+
 		const layer = makeI18nServiceLayer(this._options);
 
 		const loadEffect = Effect.gen(function* () {
@@ -202,13 +223,24 @@ class I18nInstance implements I18n {
 		});
 
 		const program = Effect.provide(loadEffect, layer);
+		const loadPromise = Effect.runPromise(Effect.either(program))
+			.then((result) => {
+				if (result._tag === 'Left') {
+					throw result.left;
+				}
 
-		try {
-			const loaded = await Effect.runPromise(program);
-			this._translations.set(locale, loaded);
-		} catch {
-			/* */
-		}
+				const translations = result.right;
+				this._translations.set(locale, translations);
+				return translations;
+			})
+			.finally(() => {
+				if (this._pendingLoads.get(locale) === loadPromise) {
+					this._pendingLoads.delete(locale);
+				}
+			});
+
+		this._pendingLoads.set(locale, loadPromise);
+		return loadPromise;
 	}
 }
 
@@ -244,10 +276,7 @@ export function createI18nInstance<const T>(
 	return new I18nInstance(scopedOptions) as I18n | TypedI18n<T>;
 }
 
-// Stack of instances bound by withI18n. The top of the stack wins over the
-// global instance, so a server render never observes another request's
-// locale. Bindings are synchronous: they cover the duration of the callback.
-const scopeStack: I18nInstance[] = [];
+const i18nRuntimeContext = createRuntimeContext<I18nInstance>();
 
 // Runs fn with the given instance bound as the current i18n resolution
 // target for getI18n/t/useTranslation. Restores the previous binding even
@@ -255,12 +284,7 @@ const scopeStack: I18nInstance[] = [];
 export function withI18n<R>(instance: I18n, fn: () => R): R;
 export function withI18n<T, R>(instance: TypedI18n<T>, fn: () => R): R;
 export function withI18n<R>(instance: unknown, fn: () => R): R {
-	scopeStack.push(instance as I18nInstance);
-	try {
-		return fn();
-	} finally {
-		scopeStack.pop();
-	}
+	return i18nRuntimeContext.run(instance as I18nInstance, fn);
 }
 
 // Retrieves the bound (scoped) instance if inside withI18n, otherwise the
@@ -268,7 +292,7 @@ export function withI18n<R>(instance: unknown, fn: () => R): R {
 export function getI18n(): I18n;
 export function getI18n<T>(): TypedI18n<T>;
 export function getI18n<T>(): I18n | TypedI18n<T> {
-	const scoped = scopeStack[scopeStack.length - 1];
+	const scoped = i18nRuntimeContext.current();
 	if (scoped) {
 		return scoped as I18n | TypedI18n<T>;
 	}

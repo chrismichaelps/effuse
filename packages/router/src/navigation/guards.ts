@@ -221,11 +221,13 @@ export const createAuthGuard = (
 export const createUnsavedChangesGuard =
 	(
 		hasUnsavedChanges: () => boolean,
-		confirmMessage: string = 'You have unsaved changes. Leave anyway?'
+		confirmMessage: string = 'You have unsaved changes. Leave anyway?',
+		confirmLeave: (message: string) => boolean = (message) =>
+			typeof window === 'undefined' ? true : window.confirm(message)
 	): NavigationGuard =>
 	(_to, _from) => {
 		if (hasUnsavedChanges()) {
-			const confirmed = window.confirm(confirmMessage);
+			const confirmed = confirmLeave(confirmMessage);
 			return confirmed
 				? NavigationResult.allowed()
 				: NavigationResult.cancelled('User cancelled due to unsaved changes');

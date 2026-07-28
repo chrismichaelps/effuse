@@ -10,8 +10,14 @@ import {
 	createHashHistory,
 	createMemoryHistory,
 } from '../core/history.js';
+import { createMemoryHistory as createPublicMemoryHistory } from '../index.js';
 
 describe('createMemoryHistory', () => {
+	it('should be available from the package entry point for SSR routers', () => {
+		const history = createPublicMemoryHistory('/server-rendered');
+		expect(history.getCurrentPath()).toBe('/server-rendered');
+	});
+
 	it('should return initial path', () => {
 		const history = createMemoryHistory('/start');
 		expect(history.getCurrentPath()).toBe('/start');

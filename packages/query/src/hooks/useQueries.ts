@@ -47,6 +47,7 @@ export interface UseQueriesResult<T> {
 	readonly isPending: Signal<boolean>;
 	readonly isSuccess: Signal<boolean>;
 	readonly isError: Signal<boolean>;
+	readonly dispose: () => void;
 }
 
 // Reactive parallel queries hook
@@ -67,6 +68,7 @@ export const useQueries = <T>(
 			isPending: result.isPending,
 			isSuccess: result.isSuccess,
 			isError: result.isError,
+			dispose: result.dispose,
 		};
 	});
 };
@@ -79,6 +81,7 @@ export interface CombinedQueryResult<T> {
 	readonly isSuccess: Signal<boolean>;
 	readonly isError: Signal<boolean>;
 	readonly isPartialSuccess: Signal<boolean>;
+	readonly dispose: () => void;
 }
 
 // Reactive combined queries hook
@@ -134,5 +137,8 @@ export const useCombinedQueries = <T>(
 		isSuccess,
 		isError,
 		isPartialSuccess,
+		dispose: () => {
+			for (const result of results) result.dispose();
+		},
 	};
 };

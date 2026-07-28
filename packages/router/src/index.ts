@@ -27,6 +27,7 @@ import './registry.js';
 export {
 	createRouter,
 	installRouter,
+	runWithRouter,
 	type RouterInstance,
 	type RouterOptions,
 	type NavigateOptions,
@@ -35,6 +36,7 @@ export {
 export {
 	createWebHistory,
 	createHashHistory,
+	createMemoryHistory,
 	type RouterHistory,
 } from './core/history.js';
 

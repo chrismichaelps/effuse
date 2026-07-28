@@ -33,6 +33,7 @@ import {
 	TimeoutError,
 	CancellationError,
 } from '../errors.js';
+import { runWithAbortSignal } from './cancellation.js';
 
 export interface ActionResult<T> {
 	data: T | null;
@@ -52,6 +53,31 @@ export interface CancellableAction<A extends unknown[], R> {
 }
 
 type ActionFn<A extends unknown[], R> = (...args: A) => Promise<R> | R;
+type CooperativeActionFn<A extends unknown[], R> = (
+	...args: [...A, AbortSignal]
+) => Promise<R> | R;
+
+export interface CancellableActionOptions {
+	readonly cancellable: true;
+}
+
+const invokeAction = <A extends unknown[], R>(
+	fn: ActionFn<A, R> | CooperativeActionFn<A, R>,
+	args: A,
+	signal: AbortSignal,
+	cancellable: boolean
+): Promise<R> => {
+	try {
+		const result = cancellable
+			? (fn as CooperativeActionFn<A, R>)(...args, signal)
+			: (fn as ActionFn<A, R>)(...args);
+		return Promise.resolve(result);
+	} catch (error) {
+		return Promise.reject(
+			error instanceof Error ? error : new Error(String(error))
+		);
+	}
+};
 
 export const createAsyncAction = <A extends unknown[], R>(
 	fn: ActionFn<A, R>
@@ -76,41 +102,66 @@ export const createAsyncAction = <A extends unknown[], R>(
 	return action as AsyncAction<A, R>;
 };
 
-export const createCancellableAction = <A extends unknown[], R>(
+export function createCancellableAction<A extends unknown[], R>(
+	fn: CooperativeActionFn<A, R>,
+	options: CancellableActionOptions
+): CancellableAction<A, R>;
+export function createCancellableAction<A extends unknown[], R>(
 	fn: ActionFn<A, R>
-): CancellableAction<A, R> => {
+): CancellableAction<A, R>;
+export function createCancellableAction<A extends unknown[], R>(
+	fn: ActionFn<A, R> | CooperativeActionFn<A, R>,
+	options?: CancellableActionOptions
+): CancellableAction<A, R> {
 	let pending = false;
-	let currentReject: ((error: Error) => void) | null = null;
+	let active:
+		| {
+				readonly controller: AbortController;
+				readonly reject: (error: Error) => void;
+				settled: boolean;
+		  }
+		| undefined;
 
-	const action = async (...args: A): Promise<R> => {
-		if (currentReject) {
-			currentReject(new CancellationError('Operation was cancelled'));
-			currentReject = null;
-		}
+	const cancelActive = (): void => {
+		const request = active;
+		active = undefined;
+		if (!request || request.settled) return;
+		request.settled = true;
+		request.controller.abort();
+		pending = false;
+		request.reject(new CancellationError());
+	};
 
+	const action = (...args: A): Promise<R> => {
+		cancelActive();
 		pending = true;
+		const controller = new AbortController();
 
 		return new Promise((resolve, reject) => {
-			currentReject = reject;
-			Promise.resolve(fn(...args))
-				.then((result) => {
-					if (currentReject === reject) {
-						currentReject = null;
-						pending = false;
-						resolve(result);
-					}
-				})
-			.catch((error: unknown) => {
-				if (currentReject === reject) {
-					currentReject = null;
+			const request = { controller, reject, settled: false };
+			active = request;
+
+				invokeAction(
+					fn,
+					args,
+					controller.signal,
+					options?.cancellable === true
+			).then(
+				(result) => {
+					if (active !== request || request.settled) return;
+					request.settled = true;
+					active = undefined;
 					pending = false;
-					reject(
-						error instanceof Error
-							? error
-							: new Error(String(error))
-					);
+					resolve(result);
+				},
+				(error: unknown) => {
+					if (active !== request || request.settled) return;
+					request.settled = true;
+					active = undefined;
+					pending = false;
+					reject(error instanceof Error ? error : new Error(String(error)));
 				}
-			});
+			);
 		});
 	};
 
@@ -120,18 +171,12 @@ export const createCancellableAction = <A extends unknown[], R>(
 	});
 
 	Object.defineProperty(action, 'cancel', {
-		value: () => {
-			if (currentReject) {
-				currentReject(new CancellationError('Operation was cancelled'));
-				currentReject = null;
-			}
-			pending = false;
-		},
+		value: cancelActive,
 		enumerable: true,
 	});
 
 	return action as CancellableAction<A, R>;
-};
+}
 
 export const withTimeout = <A extends unknown[], R>(
 	fn: ActionFn<A, R>,
@@ -144,12 +189,12 @@ export const withTimeout = <A extends unknown[], R>(
 				reject(new TimeoutError(timeoutMs));
 			}, timeoutMs);
 			promise
-			.then(() => {
-				clearTimeout(timer);
-			})
-			.catch(() => {
-				clearTimeout(timer);
-			});
+				.then(() => {
+					clearTimeout(timer);
+				})
+				.catch(() => {
+					clearTimeout(timer);
+				});
 		});
 		return Promise.race([promise, timeoutPromise]);
 	};
@@ -204,9 +249,7 @@ export const dispatch = <T>(
 	const storeRecord = store as unknown as Record<string, unknown>;
 	const action = storeRecord[actionName as string];
 	if (typeof action !== 'function') {
-		return Promise.reject(
-			new ActionNotFoundError(String(actionName))
-		);
+		return Promise.reject(new ActionNotFoundError(String(actionName)));
 	}
 	return Promise.resolve((action as (...args: unknown[]) => unknown)(...args));
 };
@@ -224,33 +267,27 @@ export const dispatchSync = <T>(
 	return (action as (...args: unknown[]) => unknown)(...args);
 };
 
-export const withAbortSignal = <A extends unknown[], R>(
+export function withAbortSignal<A extends unknown[], R>(
+	fn: CooperativeActionFn<A, R>,
+	options: CancellableActionOptions
+): (signal: AbortSignal, ...args: A) => Promise<R>;
+export function withAbortSignal<A extends unknown[], R>(
 	fn: ActionFn<A, R>
-): ((signal: AbortSignal, ...args: A) => Promise<R>) => {
+): (signal: AbortSignal, ...args: A) => Promise<R>;
+export function withAbortSignal<A extends unknown[], R>(
+	fn: ActionFn<A, R> | CooperativeActionFn<A, R>,
+	options?: CancellableActionOptions
+): (signal: AbortSignal, ...args: A) => Promise<R> {
 	return (signal: AbortSignal, ...args: A): Promise<R> => {
-		const promise = Promise.resolve(fn(...args));
 		if (signal.aborted) {
-			return Promise.reject(new Error('Operation was cancelled'));
+			return Promise.reject(new CancellationError());
 		}
-		return new Promise((resolve, reject) => {
-			const onAbort = () => {
-				reject(new Error('Operation was cancelled'));
-			};
-			signal.addEventListener('abort', onAbort, { once: true });
-			promise.then(
-				(value) => {
-					signal.removeEventListener('abort', onAbort);
-					resolve(value);
-				},
-			(error: unknown) => {
-				signal.removeEventListener('abort', onAbort);
-				reject(
-					error instanceof Error
-						? error
-						: new Error(String(error))
-				);
-			}
-			);
-		});
+		const promise = invokeAction(
+			fn,
+			args,
+			signal,
+			options?.cancellable === true
+		);
+		return runWithAbortSignal(promise, signal);
 	};
-};
+}

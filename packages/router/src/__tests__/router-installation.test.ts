@@ -9,14 +9,29 @@ import {
 	createRouter,
 	getGlobalRouter,
 	installRouter,
+	runWithRouter,
 } from '../core/router.js';
 import { createMemoryHistory } from '../core/history.js';
+import { useRoute, useRouter } from '../utils/composables.js';
 
 const createTestRouter = (path: string) =>
 	createRouter({
 		history: createMemoryHistory(path),
 		routes: [],
 	});
+
+const getScriptRouter = (): unknown => {
+	let context: ScriptContext<Record<string, unknown>> | undefined;
+	const Probe = define({
+		script: (value) => {
+			context = value;
+			return {};
+		},
+		template: () => null,
+	});
+	(Probe.state as (props: Record<string, unknown>) => unknown)({});
+	return context?.router;
+};
 
 afterEach(() => {
 	clearContext();
@@ -75,6 +90,77 @@ describe('router installation ownership', () => {
 		second.cleanup();
 		expect(getGlobalRouter()).toBeNull();
 		expect(injectRouter()).toBeUndefined();
+	});
+
+	it('isolates routers and routes across concurrent async contexts', async () => {
+		const firstRouter = createTestRouter('/first');
+		const secondRouter = createTestRouter('/second');
+		let releaseFirst: (() => void) | undefined;
+		const firstPaused = new Promise<void>((resolve) => {
+			releaseFirst = resolve;
+		});
+
+		const first = runWithRouter(firstRouter, async () => {
+			await firstPaused;
+			return {
+				router: useRouter(),
+				scriptRouter: getScriptRouter(),
+				path: useRoute().path,
+			};
+		});
+		const second = runWithRouter(secondRouter, async () => {
+			await Promise.resolve();
+			releaseFirst?.();
+			return {
+				router: useRouter(),
+				scriptRouter: getScriptRouter(),
+				path: useRoute().path,
+			};
+		});
+
+		expect(await Promise.all([first, second])).toEqual([
+			{ router: firstRouter, scriptRouter: firstRouter, path: '/first' },
+			{ router: secondRouter, scriptRouter: secondRouter, path: '/second' },
+		]);
+		expect(getGlobalRouter()).toBeNull();
+		expect(injectRouter()).toBeUndefined();
+	});
+
+	it('restores the global application router after scoped async work', async () => {
+		const application = installRouter(createTestRouter('/application'));
+		const request = createTestRouter('/request');
+
+		try {
+			await runWithRouter(request, async () => {
+				await Promise.resolve();
+				expect(useRouter()).toBe(request);
+				expect(useRoute().path).toBe('/request');
+			});
+
+			expect(useRouter()).toBe(application);
+			expect(useRoute().path).toBe('/application');
+		} finally {
+			application.cleanup();
+		}
+	});
+
+	it('keeps scoped route state current after async navigation', async () => {
+		const Page = define({ template: () => null });
+		const router = createRouter({
+			history: createMemoryHistory('/'),
+			routes: [
+				{ path: '/', component: Page },
+				{ path: '/about', name: 'about', component: Page },
+			],
+		});
+
+		await runWithRouter(router, async () => {
+			expect(useRoute().path).toBe('/');
+			await router.push('/about');
+			await Promise.resolve();
+			expect(useRoute().path).toBe('/about');
+			expect(useRoute().name).toBe('about');
+		});
 	});
 
 	it('preserves installation state across module replacement', async () => {

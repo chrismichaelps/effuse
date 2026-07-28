@@ -56,6 +56,18 @@ export interface LayerContextStore {
 
 const layerContextStorage = createAsyncContextStorage<LayerContextStore>();
 let globalLayerContextStore: LayerContextStore | undefined;
+const disposedLayerContextStores = new WeakSet<LayerContextStore>();
+
+export const markLayerContextStoreDisposed = (
+	store: LayerContextStore
+): void => {
+	disposedLayerContextStores.add(store);
+};
+
+export const isLayerContextStoreActive = (
+	store: LayerContextStore | undefined
+): store is LayerContextStore =>
+	store !== undefined && !disposedLayerContextStores.has(store);
 
 export const getLayerContextStore = (): LayerContextStore | undefined => {
 	return layerContextStorage.getStore() ?? globalLayerContextStore;
@@ -74,7 +86,7 @@ export const runWithLayerContext = <T>(
 export const restoreGlobalLayerContext = (
 	store: LayerContextStore | undefined
 ): void => {
-	globalLayerContextStore = store;
+	globalLayerContextStore = isLayerContextStoreActive(store) ? store : undefined;
 };
 
 export const initGlobalLayerContext = (

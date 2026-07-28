@@ -26,13 +26,19 @@ export { defineHook } from './defineHook.js';
 export { createHookContext } from './context.js';
 export { useId } from './useId.js';
 export { useLocalStorage, useSessionStorage } from './useStorage.js';
-export type { StorageOptions } from './useStorage.js';
+export type { StorageOptions, StorageHookResult } from './useStorage.js';
 export { useOnClickOutside } from './useOnClickOutside.js';
 export type { ClickOutsideOptions } from './useOnClickOutside.js';
 export { useResizeObserver } from './useResizeObserver.js';
-export type { ResizeObserverResult } from './useResizeObserver.js';
+export type {
+	ResizeObserverResult,
+	ResizeObserverSignal,
+} from './useResizeObserver.js';
 export { useIntersectionObserver } from './useIntersectionObserver.js';
-export type { IntersectionObserverResult } from './useIntersectionObserver.js';
+export type {
+	IntersectionObserverResult,
+	IntersectionObserverSignal,
+} from './useIntersectionObserver.js';
 export type {
 	HookContext,
 	HookDefinition,

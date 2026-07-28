@@ -346,6 +346,8 @@ export {
 	HydrationError,
 	HeadMergeError,
 	PluginError,
+	createErrorDiagnostic,
+	createErrorHtml,
 	type SSRError,
 } from './errors.js';
 

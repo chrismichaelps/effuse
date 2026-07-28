@@ -12,6 +12,7 @@ import { clearGlobalTracing } from '../../layers/tracing/index.js';
 import { CreateTextNode, type Component } from '../../render/node.js';
 import { EFFUSE_NODE } from '../../constants.js';
 import type { ServerTraceEvent } from '../../ssr/observability.js';
+import { RenderError } from '../../ssr/errors.js';
 
 afterEach(() => {
 	clearGlobalLayerContext();
@@ -937,6 +938,30 @@ describe('SSR handler', () => {
 	});
 
 	describe('error handling', () => {
+		it('should report render failures once and return an uncached diagnostic 500', async () => {
+			const cause = new Error('view exploded');
+			const onError = vi.fn();
+			const root = (() => {
+				throw cause;
+			}) as unknown as Component;
+			const handler = createHandler({ root, onError });
+			const request = new Request('http://localhost:3000/broken');
+
+			const response = await handler(request);
+			const html = await response.text();
+
+			expect(response.status).toBe(500);
+			expect(response.headers.get('Cache-Control')).toBe('no-store');
+			expect(response.headers.get('ETag')).toBeNull();
+			expect(onError).toHaveBeenCalledOnce();
+			expect(onError).toHaveBeenCalledWith(expect.any(RenderError), request);
+			const reported = onError.mock.calls[0]?.[0] as RenderError;
+			expect(reported.cause).toBe(cause);
+			expect(reported.url).toBe('/broken');
+			expect(html).toContain('view exploded');
+			expect(html).not.toContain('<script>');
+		});
+
 		it('should call onError when createHandler throws', async () => {
 			const onError = vi.fn();
 			const handler = createHandler({

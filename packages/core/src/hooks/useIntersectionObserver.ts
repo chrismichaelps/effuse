@@ -24,12 +24,17 @@
 
 import { signal, readonly } from '../reactivity/index.js';
 import type { ReadonlySignal } from '../types/index.js';
-import { getActiveLifecycle } from '../blueprint/lifecycle.js';
+import { ownLifecycleResource } from './lifecycle-resource.js';
 
 export interface IntersectionObserverResult {
 	readonly isIntersecting: boolean;
 	readonly intersectionRatio: number;
 	readonly entry: IntersectionObserverEntry | null;
+}
+
+export interface IntersectionObserverSignal
+	extends ReadonlySignal<IntersectionObserverResult> {
+	readonly stop: () => void;
 }
 
 /**
@@ -43,43 +48,46 @@ export interface IntersectionObserverResult {
  * let ref: HTMLDivElement;
  * const visible = useIntersectionObserver(() => ref, { threshold: 0.5 });
  * // visible.value.isIntersecting
+ * // visible.stop() releases standalone observation
  * ```
  */
 export const useIntersectionObserver = (
 	elementRef: () => Element | null | undefined,
 	options?: IntersectionObserverInit
-): ReadonlySignal<IntersectionObserverResult> => {
+): IntersectionObserverSignal => {
 	const result = signal<IntersectionObserverResult>({
 		isIntersecting: false,
 		intersectionRatio: 0,
 		entry: null,
 	});
 
-	if (typeof IntersectionObserver === 'undefined') {
-		return readonly(result);
-	}
+	const resource = ownLifecycleResource(() => {
+		if (typeof IntersectionObserver === 'undefined') return undefined;
+		const observer = new IntersectionObserver(
+			(entries) => {
+				for (const entry of entries) {
+					result.value = {
+						isIntersecting: entry.isIntersecting,
+						intersectionRatio: entry.intersectionRatio,
+						entry,
+					};
+				}
+			},
+			options
+		);
 
-	const observer = new IntersectionObserver((entries) => {
-		for (const entry of entries) {
-			result.value = {
-				isIntersecting: entry.isIntersecting,
-				intersectionRatio: entry.intersectionRatio,
-				entry,
-			};
+		const el = elementRef();
+		if (el) {
+			observer.observe(el);
 		}
-	}, options);
+		return () => observer.disconnect();
+	});
 
-	const el = elementRef();
-	if (el) {
-		observer.observe(el);
-	}
-
-	const lifecycle = getActiveLifecycle();
-	if (lifecycle) {
-		lifecycle.onUnmount(() => {
-			observer.disconnect();
-		});
-	}
-
-	return readonly(result);
+	const value = readonly(result);
+	return {
+		get value() {
+			return value.value;
+		},
+		stop: resource.stop,
+	};
 };

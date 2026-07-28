@@ -22,7 +22,12 @@
  * SOFTWARE.
  */
 
-import { signal, type Signal } from '@effuse/core';
+import {
+	createRuntimeContext,
+	runWithRouterContext as runWithCoreRouterContext,
+	signal,
+	type Signal,
+} from '@effuse/core';
 import type { Route } from './route.js';
 
 export const ROUTER_KEY = Symbol.for('effuse.router');
@@ -64,6 +69,7 @@ const routerContextRuntime = (() => {
 	Object.defineProperty(shared, ROUTER_CONTEXT_RUNTIME_KEY, { value: created });
 	return created;
 })();
+const routerRequestContext = createRuntimeContext<RouterContextInstallation>();
 
 // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters
 export const provide = <T>(key: symbol, value: T): void => {
@@ -72,12 +78,19 @@ export const provide = <T>(key: symbol, value: T): void => {
 
 // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters
 export const inject = <T>(key: symbol): T | undefined => {
+	const requestContext = routerRequestContext.current();
+	if (key === ROUTER_KEY && requestContext) {
+		return requestContext.router as T;
+	}
+	if (key === ROUTE_KEY && requestContext) {
+		return requestContext.route as T;
+	}
 	return routerContextRuntime.contextMap.get(key) as T | undefined;
 };
 
 export const injectWithDefault = <T>(key: symbol, defaultValue: T): T => {
-	const value = routerContextRuntime.contextMap.get(key);
-	return (value !== undefined ? value : defaultValue) as T;
+	const value = inject<T>(key);
+	return value !== undefined ? value : defaultValue;
 };
 
 export const clearContext = (): void => {
@@ -110,6 +123,26 @@ export const createRouteSignal = (
 	routerContextRuntime.globalRouteSignal = sig;
 	return sig;
 };
+
+export const getOrCreateRouteSignal = (
+	router: object,
+	initialRoute: Route
+): Signal<Route> => {
+	const existing = routerContextRuntime.routerRouteSignals.get(router);
+	if (existing) return existing;
+	const route = signal<Route>(initialRoute);
+	routerContextRuntime.routerRouteSignals.set(router, route);
+	return route;
+};
+
+export const runWithRouterRouteContext = <T>(
+	router: object,
+	route: Signal<Route>,
+	fn: () => T
+): T =>
+	routerRequestContext.run({ router, route }, () =>
+		runWithCoreRouterContext(router, fn)
+	);
 
 export const installRouterContext = (
 	router: object,
@@ -155,6 +188,8 @@ export const installRouterContext = (
 };
 
 export const getRouteSignal = (): Signal<Route> | null => {
+	const requestContext = routerRequestContext.current();
+	if (requestContext) return requestContext.route;
 	const router = injectRouter();
 	if (router && typeof router === 'object') {
 		const scoped = routerContextRuntime.routerRouteSignals.get(router);
