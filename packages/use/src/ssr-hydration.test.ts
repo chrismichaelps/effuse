@@ -1,13 +1,16 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
 	define,
+	signal,
 	type ComponentLifecycle,
 } from '@effuse/core';
+import { useDebounce } from './hooks/useDebounce/index.js';
 import { useEventListener } from './hooks/useEventListener/index.js';
 import { useInterval } from './hooks/useInterval/index.js';
 import { useLocalStorage } from './hooks/useLocalStorage/index.js';
 import { useMediaQuery } from './hooks/useMediaQuery/index.js';
 import { useOnline } from './hooks/useOnline/index.js';
+import { useThrottle } from './hooks/useThrottle/index.js';
 import { useWindowSize } from './hooks/useWindowSize/index.js';
 
 const setupComponentHook = <T>(setup: () => T) => {
@@ -193,5 +196,77 @@ describe('@effuse/use SSR hydration lifecycle', () => {
 
 		lifecycle.runCleanup();
 		expect(vi.getTimerCount()).toBe(0);
+	});
+
+	it('defers component-owned debounce timers until hydration mount', () => {
+		vi.useFakeTimers();
+		const source = signal('initial');
+		const { hook, lifecycle } = setupComponentHook(() => {
+			const debounce = useDebounce({ value: source, delay: 100 });
+			source.value = 'server-change';
+			return debounce;
+		});
+
+		expect(hook.value.value).toBe('initial');
+		expect(hook.isPending.value).toBe(false);
+		expect(vi.getTimerCount()).toBe(0);
+
+		lifecycle.runMount();
+		expect(hook.isPending.value).toBe(true);
+		expect(vi.getTimerCount()).toBe(1);
+		vi.advanceTimersByTime(100);
+		expect(hook.value.value).toBe('server-change');
+
+		lifecycle.runCleanup();
+		expect(vi.getTimerCount()).toBe(0);
+	});
+
+	it('defers component-owned throttle timers until hydration mount', () => {
+		vi.useFakeTimers();
+		const source = signal('initial');
+		const { hook, lifecycle } = setupComponentHook(() => {
+			const throttle = useThrottle({ value: source, interval: 100 });
+			source.value = 'server-change';
+			return throttle;
+		});
+
+		expect(hook.value.value).toBe('initial');
+		expect(hook.isThrottled.value).toBe(false);
+		expect(vi.getTimerCount()).toBe(0);
+
+		lifecycle.runMount();
+		expect(hook.value.value).toBe('server-change');
+		expect(hook.isThrottled.value).toBe(true);
+		expect(vi.getTimerCount()).toBe(1);
+
+		lifecycle.runCleanup();
+		expect(vi.getTimerCount()).toBe(0);
+	});
+
+	it('prevents pending timing hooks from committing after unmount', () => {
+		vi.useFakeTimers();
+		const debounceSource = signal('initial');
+		const debounceOwner = setupComponentHook(() =>
+			useDebounce({ value: debounceSource, delay: 100 })
+		);
+		const throttleSource = signal('initial');
+		const throttleOwner = setupComponentHook(() =>
+			useThrottle({ value: throttleSource, interval: 100 })
+		);
+
+		debounceOwner.lifecycle.runMount();
+		throttleOwner.lifecycle.runMount();
+		debounceSource.value = 'late';
+		throttleSource.value = 'leading';
+		throttleSource.value = 'late';
+		expect(vi.getTimerCount()).toBe(2);
+
+		debounceOwner.lifecycle.runCleanup();
+		throttleOwner.lifecycle.runCleanup();
+		expect(vi.getTimerCount()).toBe(0);
+		vi.advanceTimersByTime(200);
+
+		expect(debounceOwner.hook.value.value).toBe('initial');
+		expect(throttleOwner.hook.value.value).toBe('leading');
 	});
 });

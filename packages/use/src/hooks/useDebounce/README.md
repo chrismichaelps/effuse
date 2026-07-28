@@ -82,4 +82,6 @@ onCleanup(() => cancel());
 - **Rapid Changes:** Timer resets on each change
 - **Flush When Idle:** No-op if no pending value
 - **Cancel When Idle:** No-op if no pending value
+- **SSR:** Component-owned observation starts on mount; server rendering keeps the
+  initial snapshot and does not allocate timers
 - **Cleanup:** Timeout is automatically cleared on dispose
