@@ -23,7 +23,7 @@
  */
 
 import { Effect, Predicate } from 'effect';
-import type { Signal } from '@effuse/core';
+import { createRuntimeContext, type Signal } from '@effuse/core';
 import type {
 	I18n,
 	I18nOptions,
@@ -244,10 +244,7 @@ export function createI18nInstance<const T>(
 	return new I18nInstance(scopedOptions) as I18n | TypedI18n<T>;
 }
 
-// Stack of instances bound by withI18n. The top of the stack wins over the
-// global instance, so a server render never observes another request's
-// locale. Bindings are synchronous: they cover the duration of the callback.
-const scopeStack: I18nInstance[] = [];
+const i18nRuntimeContext = createRuntimeContext<I18nInstance>();
 
 // Runs fn with the given instance bound as the current i18n resolution
 // target for getI18n/t/useTranslation. Restores the previous binding even
@@ -255,12 +252,7 @@ const scopeStack: I18nInstance[] = [];
 export function withI18n<R>(instance: I18n, fn: () => R): R;
 export function withI18n<T, R>(instance: TypedI18n<T>, fn: () => R): R;
 export function withI18n<R>(instance: unknown, fn: () => R): R {
-	scopeStack.push(instance as I18nInstance);
-	try {
-		return fn();
-	} finally {
-		scopeStack.pop();
-	}
+	return i18nRuntimeContext.run(instance as I18nInstance, fn);
 }
 
 // Retrieves the bound (scoped) instance if inside withI18n, otherwise the
@@ -268,7 +260,7 @@ export function withI18n<R>(instance: unknown, fn: () => R): R {
 export function getI18n(): I18n;
 export function getI18n<T>(): TypedI18n<T>;
 export function getI18n<T>(): I18n | TypedI18n<T> {
-	const scoped = scopeStack[scopeStack.length - 1];
+	const scoped = i18nRuntimeContext.current();
 	if (scoped) {
 		return scoped as I18n | TypedI18n<T>;
 	}
