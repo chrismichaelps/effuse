@@ -39,11 +39,10 @@ import {
 } from '../layers/context.js';
 import {
 	TracingServiceLive,
-	setGlobalTracing,
-	getGlobalTracing,
-	clearGlobalTracing,
+	type TracingServiceApi,
 } from '../layers/tracing/index.js';
 import { TracingService } from '../layers/tracing/index.js';
+import { runWithTracing } from '../layers/tracing/global.js';
 import { CoreServicesLive } from '../layers/internal/runtime.js';
 import { resolveLayerDefinitions } from '../layers/api/defineLayer.js';
 
@@ -78,12 +77,8 @@ export const createSSRRuntime = async (
 ): Promise<SSRRuntime> => {
 	const { runSetup = true } = options;
 	const previousLayerContextStore = getGlobalLayerContextStore();
-	const previousTracingService = getGlobalTracing();
 	const hasExistingLayerContext = Predicate.isNotNullable(
 		previousLayerContextStore
-	);
-	const shouldInstallGlobalTracing = !Predicate.isNotNullable(
-		previousTracingService
 	);
 
 	const layers: AnyResolvedLayer[] = resolveLayerDefinitions(rawLayers);
@@ -104,6 +99,7 @@ export const createSSRRuntime = async (
 
 	let aggregatedCleanup: CleanupFn | undefined;
 	let disposePromise: Promise<void> | undefined;
+	let runtimeTracingService: TracingServiceApi | undefined;
 	let layerContextStore: LayerContextStore = {
 		propsRegistry: null,
 		layerRegistry: null,
@@ -111,19 +107,19 @@ export const createSSRRuntime = async (
 	};
 
 	if (runSetup) {
+		runtimeTracingService = await managedRuntime.runPromise(TracingService);
+		const tracingService = runtimeTracingService;
 		const runEffect = Effect.gen(function* () {
 			const layerRegistry = yield* RegistryService;
-			const tracingService = yield* TracingService;
 
 			layerRegistry.registerService('tracing', tracingService);
-			if (shouldInstallGlobalTracing) {
-				setGlobalTracing(tracingService);
-			}
 
 			return yield* buildAllLayersEffect(layers);
 		});
 
-		const buildResult = await managedRuntime.runPromise(runEffect);
+		const buildResult = await runWithTracing(tracingService, () =>
+			managedRuntime.runPromise(runEffect)
+		);
 
 		aggregatedCleanup = buildResult.cleanup;
 
@@ -144,17 +140,17 @@ export const createSSRRuntime = async (
 		headStack,
 		state,
 		run: <T>(fn: () => T): T => {
-			return runWithLayerContext(layerContextStore, fn);
+			return runWithLayerContext(layerContextStore, () =>
+				runtimeTracingService
+					? runWithTracing(runtimeTracingService, fn)
+					: fn()
+			);
 		},
 		dispose: () => {
-			disposePromise ??= (async () => {
+			const disposeRuntime = async (): Promise<void> => {
 				const failures: unknown[] = [];
 				clearGlobalLayerContext();
-				clearGlobalTracing();
 				restoreGlobalLayerContext(previousLayerContextStore);
-				if (previousTracingService) {
-					setGlobalTracing(previousTracingService);
-				}
 
 				if (Predicate.isFunction(aggregatedCleanup)) {
 					try {
@@ -176,7 +172,10 @@ export const createSSRRuntime = async (
 						`[Effuse] SSR layer runtime cleanup failed in ${failures.length} resources.`
 					);
 				}
-			})();
+			};
+			disposePromise ??= runtimeTracingService
+				? runWithTracing(runtimeTracingService, disposeRuntime)
+				: disposeRuntime();
 			return disposePromise;
 		},
 	};

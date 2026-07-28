@@ -23,16 +23,23 @@
  */
 
 import type { TracingServiceApi } from './TracingService.js';
+import { createRuntimeContext } from '../../context/runtime-context.js';
 
 let globalTracingService: TracingServiceApi | null = null;
+const tracingRuntimeContext = createRuntimeContext<TracingServiceApi>();
 
 export const setGlobalTracing = (service: TracingServiceApi): void => {
 	globalTracingService = service;
 };
 
 export const getGlobalTracing = (): TracingServiceApi | null => {
-	return globalTracingService;
+	return tracingRuntimeContext.current() ?? globalTracingService;
 };
+
+export const runWithTracing = <T>(
+	service: TracingServiceApi,
+	fn: () => T
+): T => tracingRuntimeContext.run(service, fn);
 
 export const clearGlobalTracing = (): void => {
 	globalTracingService = null;
