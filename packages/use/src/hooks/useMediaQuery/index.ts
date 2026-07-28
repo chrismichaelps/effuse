@@ -67,12 +67,16 @@ export const useMediaQuery = defineHook<
 	setup: (ctx) => {
 		const { query, initialValue = false } = ctx.config;
 
-		const initialState = initialValue ? MQS.Matched() : MQS.Unmatched();
-		traceMediaQueryInit(query, getMatches(initialState));
+		const initialState = MQS.Unavailable();
+		traceMediaQueryInit(query, initialValue);
 
 		const internalState = ctx.signal<MediaQueryState>(initialState);
 
-		const matches = ctx.computed(() => getMatches(internalState.value));
+		const matches = ctx.computed(() =>
+			isSupportedState(internalState.value)
+				? getMatches(internalState.value)
+				: initialValue
+		);
 
 		ctx.onMount(() => {
 			if (!isClient()) return undefined;

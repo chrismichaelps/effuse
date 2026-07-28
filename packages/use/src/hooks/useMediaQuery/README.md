@@ -89,6 +89,9 @@ const { matches: isTablet } = useMediaQuery({ query: breakpoints.md });
 
 ## Edge Cases
 
+- **SSR:** `initialValue` is used as the match fallback, while `isSupported`
+  remains false until `matchMedia` is successfully initialized on mount
+
 - **SSR:** Returns `initialValue` (defaults to `false`)
 - **Invalid Query:** Gracefully handles invalid queries
 - **Cleanup:** Listener is automatically removed on dispose
