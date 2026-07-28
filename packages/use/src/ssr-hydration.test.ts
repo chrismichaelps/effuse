@@ -92,15 +92,51 @@ describe('@effuse/use SSR hydration lifecycle', () => {
 		);
 
 		expect(hook.matches.value).toBe(false);
-		expect(hook.isSupported).toBe(true);
+		expect(hook.isSupported).toBe(false);
 		expect(matchMedia).not.toHaveBeenCalled();
 
 		lifecycle.runMount();
 		expect(hook.matches.value).toBe(true);
+		expect(hook.isSupported).toBe(true);
 		expect(matchMedia).toHaveBeenCalledOnce();
 
 		lifecycle.runCleanup();
 		expect(removeEventListener).toHaveBeenCalledOnce();
+	});
+
+	it('preserves the SSR media fallback when the browser API is unsupported', () => {
+		vi.stubGlobal('window', {});
+		vi.stubGlobal('document', {});
+		const { hook, lifecycle } = setupComponentHook(() =>
+			useMediaQuery({
+				query: '(min-width: 80rem)',
+				initialValue: true,
+			})
+		);
+
+		expect(hook.matches.value).toBe(true);
+		expect(hook.isSupported).toBe(false);
+
+		lifecycle.runMount();
+		expect(hook.matches.value).toBe(true);
+		expect(hook.isSupported).toBe(false);
+	});
+
+	it('preserves the SSR media fallback when matchMedia throws on mount', () => {
+		vi.stubGlobal('window', {
+			matchMedia: vi.fn(() => {
+				throw new Error('invalid media environment');
+			}),
+		});
+		vi.stubGlobal('document', {});
+		const { hook, lifecycle } = setupComponentHook(() =>
+			useMediaQuery({ query: '(display-mode: browser)', initialValue: true })
+		);
+
+		lifecycle.runMount();
+
+		expect(hook.matches.value).toBe(true);
+		expect(hook.isSupported).toBe(false);
 	});
 
 	it('defers network inspection and listeners until mount', () => {
