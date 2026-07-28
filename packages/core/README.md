@@ -21,3 +21,25 @@ CORS, runtime, region, and duration metadata that flows into responses and the
 server manifest.
 
 Read the detailed proposal in [FRAMEWORK_DX_PROPOSAL.md](./FRAMEWORK_DX_PROPOSAL.md).
+
+## Browser Hooks
+
+Core browser hooks keep server rendering and the browser's pre-mount hydration
+pass deterministic. Storage reads, DOM listeners, element-ref resolution, and
+observer construction begin after component mount.
+
+| Hook | Standalone cleanup |
+| --- | --- |
+| `useLocalStorage`, `useSessionStorage` | `result.dispose()` |
+| `useOnClickOutside` | returned `stop()` function |
+| `useResizeObserver`, `useIntersectionObserver` | `signal.stop()` |
+
+```ts
+const size = useResizeObserver(() => panelRef);
+const preferences = useLocalStorage('preferences', defaults);
+```
+
+Component-owned resources stop automatically during unmount. Call the cleanup
+API when using a hook outside a component. A storage write requested before
+mount updates the signal immediately and is flushed at mount without first
+replacing it from the stored value.
