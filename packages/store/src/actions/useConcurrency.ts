@@ -24,90 +24,153 @@
 
 export type ConcurrencyStrategy = 'switch' | 'exhaust' | 'merge' | 'concat';
 
-export interface ConcurrencyOptions {
-	strategy?: ConcurrencyStrategy;
-	debounceMs?: number;
-	throttleMs?: number;
+export interface ConcurrencyOptions<A extends unknown[] = unknown[]> {
+	readonly strategy?: ConcurrencyStrategy;
+	readonly debounceMs?: number;
+	readonly throttleMs?: number;
+	/** Inject an AbortSignal as the final action argument. */
+	readonly cancellable?: boolean;
+	/** Observes action failures after the helper has consumed the rejection. */
+	readonly onError?: (error: Error, args: Readonly<A>) => void;
 }
 
+export interface CancellableConcurrencyOptions<
+	A extends unknown[] = unknown[],
+> extends ConcurrencyOptions<A> {
+	readonly cancellable: true;
+}
+
+export interface ConcurrentAction<A extends unknown[]> {
+	(...args: A): void;
+	/** Abort active work, clear queued work, and ignore future calls. */
+	readonly dispose: () => void;
+	/** @deprecated Use dispose(). */
+	readonly destroy: () => void;
+	readonly disposed: boolean;
+}
+
+type Action<A extends unknown[], R> = (...args: A) => Promise<R> | R;
+type CancellableAction<A extends unknown[], R> = (
+	...args: [...A, AbortSignal]
+) => Promise<R> | R;
+
 interface RunningTask {
-	abort: () => void;
-	promise: Promise<unknown>;
+	readonly controller: AbortController;
+	readonly promise: Promise<void>;
 }
 
 export function useConcurrency<A extends unknown[], R>(
-	action: (...args: A) => Promise<R>,
-	options: ConcurrencyOptions = {}
-): (...args: A) => void {
-	const { strategy = 'switch', debounceMs, throttleMs } = options;
+	action: CancellableAction<A, R>,
+	options: CancellableConcurrencyOptions<A>
+): ConcurrentAction<A>;
+export function useConcurrency<A extends unknown[], R>(
+	action: Action<A, R>,
+	options?: ConcurrencyOptions<A>
+): ConcurrentAction<A>;
+export function useConcurrency<A extends unknown[], R>(
+	action: Action<A, R> | CancellableAction<A, R>,
+	options: ConcurrencyOptions<A> = {}
+): ConcurrentAction<A> {
+	const {
+		strategy = 'switch',
+		debounceMs,
+		throttleMs,
+		cancellable = false,
+		onError,
+	} = options;
 
 	let runningTask: RunningTask | null = null;
 	let debounceTimeout: ReturnType<typeof setTimeout> | null = null;
 	let lastCallTime = 0;
+	let processingQueue = false;
+	let disposed = false;
 	const queue: A[] = [];
-	let isProcessingQueue = false;
-	let destroyed = false;
+	const controllers = new Set<AbortController>();
+
+	const normalizeError = (error: unknown): Error =>
+		error instanceof Error ? error : new Error(String(error));
+
+	const reportError = (error: unknown, args: A): void => {
+		if (!onError) return;
+		try {
+			onError(normalizeError(error), args);
+		} catch {
+			// Error observers cannot create an unhandled control-flow rejection.
+		}
+	};
+
+	const invoke = (args: A, controller: AbortController): Promise<R> => {
+		try {
+			const result = cancellable
+				? (action as CancellableAction<A, R>)(...args, controller.signal)
+				: (action as Action<A, R>)(...args);
+			return Promise.resolve(result);
+		} catch (error) {
+			return Promise.reject(
+				error instanceof Error ? error : new Error(String(error))
+			);
+		}
+	};
+
+	const startTask = (args: A): RunningTask => {
+		const controller = new AbortController();
+		controllers.add(controller);
+		const promise = invoke(args, controller)
+			.then(
+				() => undefined,
+				(error: unknown) => {
+					if (!controller.signal.aborted) reportError(error, args);
+				}
+			)
+			.finally(() => {
+				controllers.delete(controller);
+			});
+		return { controller, promise };
+	};
 
 	const processQueue = async (): Promise<void> => {
-		if (isProcessingQueue || queue.length === 0) return;
-		isProcessingQueue = true;
-		while (queue.length > 0) {
-			if (destroyed) break;
-			const args = queue.shift() as A;
-			try {
-				await Promise.resolve(action(...args));
-			} catch {
-				// Ignore errors so the queue doesn't stall
+		if (processingQueue) return;
+		processingQueue = true;
+		try {
+			while (!disposed && queue.length > 0) {
+				const args = queue.shift();
+				if (!args) continue;
+				const task = startTask(args);
+				runningTask = task;
+				await task.promise;
+				if (runningTask === task) runningTask = null;
 			}
+		} finally {
+			processingQueue = false;
 		}
-		isProcessingQueue = false;
 	};
 
 	const execute = (...args: A): void => {
-		if (destroyed) return;
+		if (disposed) return;
 
 		switch (strategy) {
 			case 'switch': {
-				if (runningTask) {
-					runningTask.abort();
-				}
-				const controller = new AbortController();
-				const promise = Promise.resolve(action(...args));
-					runningTask = {
-						abort: () => {
-							controller.abort();
-						},
-						promise: promise.then(
-						() => {
-							if (runningTask?.promise === promise) {
-								runningTask = null;
-							}
-						},
-						() => {
-							if (runningTask?.promise === promise) {
-								runningTask = null;
-							}
-						}
-					),
-				};
+				runningTask?.controller.abort();
+				const task = startTask(args);
+				runningTask = task;
+				void task.promise.then(() => {
+					if (runningTask === task) runningTask = null;
+				});
 				break;
 			}
 
 			case 'exhaust': {
 				if (runningTask) return;
-				const promise = Promise.resolve(action(...args));
-				runningTask = {
-					abort: () => {},
-					promise: promise.finally(() => {
-						runningTask = null;
-					}),
-				};
+				const task = startTask(args);
+				runningTask = task;
+				void task.promise.then(() => {
+					if (runningTask === task) runningTask = null;
+				});
 				break;
 			}
 
 			case 'merge': {
-				// Unbounded concurrency: fire and forget
-				Promise.resolve(action(...args)).catch(() => {});
+				startTask(args);
 				break;
 			}
 
@@ -120,21 +183,18 @@ export function useConcurrency<A extends unknown[], R>(
 	};
 
 	const wrapped = (...args: A): void => {
-		if (destroyed) return;
+		if (disposed) return;
 		const now = Date.now();
 
 		if (throttleMs !== undefined && throttleMs > 0) {
-			if (now - lastCallTime < throttleMs) {
-				return;
-			}
+			if (now - lastCallTime < throttleMs) return;
 			lastCallTime = now;
 		}
 
 		if (debounceMs !== undefined && debounceMs > 0) {
-			if (debounceTimeout) {
-				clearTimeout(debounceTimeout);
-			}
+			if (debounceTimeout) clearTimeout(debounceTimeout);
 			debounceTimeout = setTimeout(() => {
+				debounceTimeout = null;
 				execute(...args);
 			}, debounceMs);
 			return;
@@ -143,16 +203,24 @@ export function useConcurrency<A extends unknown[], R>(
 		execute(...args);
 	};
 
-	(wrapped as unknown as { destroy: () => void }).destroy = () => {
-		destroyed = true;
+	const dispose = (): void => {
+		if (disposed) return;
+		disposed = true;
 		if (debounceTimeout) {
 			clearTimeout(debounceTimeout);
-		}
-		if (runningTask) {
-			runningTask.abort();
+			debounceTimeout = null;
 		}
 		queue.length = 0;
+		for (const controller of controllers) controller.abort();
+		controllers.clear();
+		runningTask = null;
 	};
 
-	return wrapped;
+	Object.defineProperties(wrapped, {
+		dispose: { value: dispose, enumerable: true },
+		destroy: { value: dispose, enumerable: true },
+		disposed: { get: () => disposed, enumerable: true },
+	});
+
+	return wrapped as ConcurrentAction<A>;
 }

@@ -86,6 +86,8 @@ export {
 	useConcurrency,
 	type ConcurrencyStrategy,
 	type ConcurrencyOptions,
+	type CancellableConcurrencyOptions,
+	type ConcurrentAction,
 } from './actions/index.js';
 
 export {
