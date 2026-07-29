@@ -59,13 +59,20 @@ export { el, fragment, toNode } from './element.js';
 
 export type CleanupFn = () => void;
 
-// Initialize reactive rendering
-export const render = (child: EffuseChild, container: Element): CleanupFn => {
+const runRender = (
+	child: EffuseChild,
+	container: Element,
+	mode: 'mount' | 'hydrate'
+): CleanupFn => {
 	let mountedResult: MountedNode | null = null;
 
 	const program = pipe(
 		MountService,
-		Effect.flatMap((service) => service.mount(child, container)),
+		Effect.flatMap((service) =>
+			mode === 'hydrate'
+				? service.hydrate(child, container)
+				: service.mount(child, container)
+		),
 		Effect.tap((result) =>
 			Effect.sync(() => {
 				mountedResult = result;
@@ -82,6 +89,17 @@ export const render = (child: EffuseChild, container: Element): CleanupFn => {
 		}
 	};
 };
+
+// Initialize reactive rendering
+export const render = (child: EffuseChild, container: Element): CleanupFn =>
+	runRender(child, container, 'mount');
+
+/**
+ * Adopt the server-rendered markup already inside `container` instead of
+ * appending a second copy of the tree.
+ */
+export const hydrate = (child: EffuseChild, container: Element): CleanupFn =>
+	runRender(child, container, 'hydrate');
 
 // Expose render helper globally for HMR re-rendering
 if (typeof globalThis !== 'undefined') {

@@ -49,6 +49,14 @@ import { isSuspendToken } from '../../suspense/Suspense.js';
 import { isEffuseNode } from '../../render/index.js';
 import { mapEffuseErrors } from '../../errors.js';
 import { registerComponent } from '../../hmr/runtime.js';
+import {
+	claimElement,
+	claimText,
+	createHydrationCursor,
+	dropUnclaimed,
+	insertAtCursor,
+	type HydrationCursor,
+} from './hydration-cursor.js';
 
 export interface MountedNode {
 	nodes: Node[];
@@ -57,6 +65,15 @@ export interface MountedNode {
 
 export interface MountServiceInterface {
 	readonly mount: (
+		child: EffuseChild,
+		container: Element
+	) => Effect.Effect<MountedNode, never, PropService | EventService>;
+
+	/**
+	 * Adopt the server-rendered markup already inside `container` instead of
+	 * building a second copy of the tree next to it.
+	 */
+	readonly hydrate: (
 		child: EffuseChild,
 		container: Element
 	) => Effect.Effect<MountedNode, never, PropService | EventService>;
@@ -519,10 +536,19 @@ const mountDynamicValue = (
 	evaluate: () => unknown,
 	cleanups: CleanupFn[],
 	onRender?: (nodes: Node[], anchor: Comment) => void,
-	componentScope?: ProvideScope
+	componentScope?: ProvideScope,
+	hydrationCursor?: HydrationCursor
 ): Effect.Effect<Node[], never, PropService | EventService> => {
 	const provideScope = componentScope ?? getCurrentProvideScope();
 	const anchor = document.createComment(label);
+
+	// The anchor has no server counterpart, so it is inserted at the cursor;
+	// the value it tracks then claims the nodes that follow it.
+	if (hydrationCursor) {
+		insertAtCursor(hydrationCursor, anchor);
+	}
+	// Consumed by the first evaluation only — later updates render normally.
+	let pendingCursor = hydrationCursor;
 	const currentNodes: Node[] = [];
 	const dynamicCleanups: CleanupFn[] = [];
 	let previousValue: EffuseChild | undefined;
@@ -552,6 +578,9 @@ const mountDynamicValue = (
 	};
 
 	const mountResolvedValue = (value: unknown): void => {
+		const cursor = pendingCursor;
+		pendingCursor = undefined;
+
 		if (value == null || Predicate.isBoolean(value)) {
 			setMountedNodes([]);
 			previousValue = value as EffuseChild;
@@ -559,8 +588,10 @@ const mountDynamicValue = (
 		}
 
 		if (Predicate.isString(value) || Predicate.isNumber(value)) {
-			const textNode = document.createTextNode(String(value));
-			if (Predicate.isNotNullable(anchor.parentNode)) {
+			const textNode = cursor
+				? claimText(cursor, String(value))
+				: document.createTextNode(String(value));
+			if (!cursor && Predicate.isNotNullable(anchor.parentNode)) {
 				anchor.parentNode.insertBefore(textNode, anchor.nextSibling);
 			}
 			setMountedNodes([textNode]);
@@ -575,7 +606,7 @@ const mountDynamicValue = (
 			try {
 				mountResult = Effect.runSync(
 					pipe(
-						mountChild(value as EffuseChild, childCleanups),
+						mountChild(value as EffuseChild, childCleanups, cursor),
 						Effect.provide(PropServiceLive),
 						Effect.provide(EventServiceLive),
 						mapEffuseErrors
@@ -594,7 +625,10 @@ const mountDynamicValue = (
 				return;
 			}
 
-			insertAfterAnchor(anchor, mountResult);
+			// Hydrated nodes are already in the document, in place.
+			if (!cursor) {
+				insertAfterAnchor(anchor, mountResult);
+			}
 			setMountedNodes(mountResult);
 			dynamicCleanups.push(...childCleanups);
 			previousValue = value as EffuseChild;
@@ -636,7 +670,14 @@ const mountDynamicValue = (
 		});
 	};
 
-	queueDynamicMount(runEffect);
+	// Hydration claims nodes in document order, so the first evaluation has to
+	// happen now — deferring it to a microtask would let later siblings claim
+	// this value's markup.
+	if (hydrationCursor) {
+		runEffect();
+	} else {
+		queueDynamicMount(runEffect);
+	}
 
 	cleanups.push(() => {
 		active = false;
@@ -653,14 +694,31 @@ const mountDynamicValue = (
 
 const mountChild = (
 	child: EffuseChild,
-	cleanups: CleanupFn[]
+	cleanups: CleanupFn[],
+	cursor?: HydrationCursor
+): Effect.Effect<Node[], never, PropService | EventService> => {
+	// While hydrating, every DOM decision must happen at execution time so
+	// siblings claim server nodes in document order. Suspending defers the
+	// eager branches below (text nodes, blueprint instantiation) accordingly.
+	if (cursor) {
+		return Effect.suspend(() => mountChildInner(child, cleanups, cursor));
+	}
+	return mountChildInner(child, cleanups, undefined);
+};
+
+const mountChildInner = (
+	child: EffuseChild,
+	cleanups: CleanupFn[],
+	cursor: HydrationCursor | undefined
 ): Effect.Effect<Node[], never, PropService | EventService> => {
 	if (child == null) {
 		return Effect.succeed([]);
 	}
 
 	if (Predicate.isString(child) || Predicate.isNumber(child)) {
-		const textNode = document.createTextNode(String(child));
+		const textNode = cursor
+			? claimText(cursor, String(child))
+			: document.createTextNode(String(child));
 		return Effect.succeed([textNode]);
 	}
 
@@ -670,23 +728,32 @@ const mountChild = (
 
 	if (Predicate.isFunction(child)) {
 		const fn = child as () => unknown;
-		return mountDynamicValue('fn', fn, cleanups);
+		return mountDynamicValue('fn', fn, cleanups, undefined, undefined, cursor);
 	}
 
 	if (isSignal(child)) {
 		const sig = child as Signal<EffuseChild>;
-		return mountDynamicValue('signal', () => sig.value, cleanups);
+		return mountDynamicValue(
+			'signal',
+			() => sig.value,
+			cleanups,
+			undefined,
+			undefined,
+			cursor
+		);
 	}
 
 	if (Array.isArray(child)) {
 		return pipe(
-			Effect.all(child.map((c: EffuseChild) => mountChild(c, cleanups))),
+			Effect.all(
+				child.map((c: EffuseChild) => mountChild(c, cleanups, cursor))
+			),
 			Effect.map((results) => results.flat())
 		);
 	}
 
 	if (isEffuseNode(child)) {
-		return mountNode(child, cleanups);
+		return mountNode(child, cleanups, cursor);
 	}
 
 	return Effect.succeed([]);
@@ -694,11 +761,14 @@ const mountChild = (
 
 const mountNode = (
 	node: EffuseNode,
-	cleanups: CleanupFn[]
+	cleanups: CleanupFn[],
+	cursor?: HydrationCursor
 ): Effect.Effect<Node[], never, PropService | EventService> => {
 	switch (node._tag) {
 		case 'Text': {
-			const domNode = document.createTextNode(node.text);
+			const domNode = cursor
+				? claimText(cursor, node.text)
+				: document.createTextNode(node.text);
 			return Effect.succeed([domNode]);
 		}
 		case 'Element': {
@@ -711,7 +781,9 @@ const mountNode = (
 				Effect.bind('propService', () => PropService),
 				Effect.bind('eventService', () => EventService),
 				Effect.flatMap(({ propService, eventService }) => {
-					const element = document.createElement(tag);
+					const element = cursor
+						? claimElement(cursor, tag)
+						: document.createElement(tag);
 					const bindingCleanups: CleanupFn[] = [];
 
 					const propEffects: Effect.Effect<PropBindingResult>[] = [];
@@ -772,24 +844,37 @@ const mountNode = (
 							});
 							return element;
 						}),
-						Effect.flatMap(() =>
-							pipe(
-								Effect.all(children.map((c) => mountChild(c, cleanups))),
+						Effect.flatMap(() => {
+							// Hydration walks the element's own children in place; a
+							// created element simply has none to claim, so the same code
+							// path inserts a fresh subtree.
+							const childCursor = cursor
+								? createHydrationCursor(element)
+								: undefined;
+
+							return pipe(
+								Effect.all(
+									children.map((c) => mountChild(c, cleanups, childCursor))
+								),
 								Effect.map((results) => {
+									if (childCursor) {
+										dropUnclaimed(childCursor);
+										return [element] as Node[];
+									}
 									for (const childNode of results.flat()) {
 										element.appendChild(childNode);
 									}
 									return [element] as Node[];
 								})
-							)
-						)
+							);
+						})
 					);
 				})
 			);
 		}
 		case 'Fragment': {
 			return pipe(
-				Effect.all(node.children.map((c) => mountChild(c, cleanups))),
+				Effect.all(node.children.map((c) => mountChild(c, cleanups, cursor))),
 				Effect.map((results) => results.flat())
 			);
 		}
@@ -799,9 +884,16 @@ const mountNode = (
 			const listCleanups: CleanupFn[] = [];
 			let effectHandle: { stop: () => void } | null = null;
 
+			if (cursor) {
+				insertAtCursor(cursor, anchor);
+			}
+			let pendingCursor = cursor;
+
 			const runEffect = () => {
 				effectHandle = watchEffect(() => {
 					const children = node.children;
+					const listCursor = pendingCursor;
+					pendingCursor = undefined;
 
 					for (const n of currentNodes) {
 						if (Predicate.isNotNullable(n.parentNode)) {
@@ -823,7 +915,9 @@ const mountNode = (
 					try {
 						const mountResult = Effect.runSync(
 							pipe(
-								Effect.all(children.map((c) => mountChild(c, childCleanups))),
+								Effect.all(
+									children.map((c) => mountChild(c, childCleanups, listCursor))
+								),
 								Effect.map((results) => results.flat()),
 								Effect.provide(PropServiceLive),
 								Effect.provide(EventServiceLive),
@@ -831,10 +925,12 @@ const mountNode = (
 							)
 						);
 
-						const insertPoint: Node | null = anchor.nextSibling;
-						for (const n of mountResult) {
-							if (anchor.parentNode) {
-								anchor.parentNode.insertBefore(n, insertPoint);
+						if (!listCursor) {
+							const insertPoint: Node | null = anchor.nextSibling;
+							for (const n of mountResult) {
+								if (anchor.parentNode) {
+									anchor.parentNode.insertBefore(n, insertPoint);
+								}
 							}
 						}
 						currentNodes = mountResult;
@@ -846,13 +942,23 @@ const mountNode = (
 				});
 			};
 
-			queueMicrotask(runEffect);
+			// Same ordering constraint as dynamic values: claims must land before
+			// the next sibling is walked.
+			if (cursor) {
+				runEffect();
+			} else {
+				queueMicrotask(runEffect);
+			}
 
 			cleanups.push(() => {
 				if (Predicate.isNotNullable(effectHandle)) {
 					effectHandle.stop();
 				}
-				runCleanups(listCleanups);
+				try {
+					runCleanups(listCleanups);
+				} finally {
+					removeNodes(currentNodes);
+				}
 			});
 
 			return Effect.succeed([anchor]);
@@ -919,7 +1025,8 @@ const mountNode = (
 					);
 					cleanups.push(instanceCleanup);
 				},
-				provideScope
+				provideScope,
+				cursor
 			);
 		}
 		default: {
@@ -935,6 +1042,24 @@ const mountNode = (
 	}
 };
 
+const createMountedNode = (
+	nodes: Node[],
+	cleanups: CleanupFn[]
+): MountedNode => ({
+	nodes,
+	cleanup: () => {
+		try {
+			runCleanups(cleanups);
+		} finally {
+			for (const nodeItem of nodes) {
+				if (Predicate.isNotNullable(nodeItem.parentNode)) {
+					nodeItem.parentNode.removeChild(nodeItem);
+				}
+			}
+		}
+	},
+});
+
 export const MountServiceLive = Layer.succeed(MountService, {
 	mount: (child: EffuseChild, container: Element) =>
 		pipe(
@@ -949,20 +1074,26 @@ export const MountServiceLive = Layer.succeed(MountService, {
 						for (const nodeItem of nodes) {
 							container.appendChild(nodeItem);
 						}
-						return {
-							nodes,
-							cleanup: () => {
-								try {
-									runCleanups(cleanups);
-								} finally {
-									for (const nodeItem of nodes) {
-										if (Predicate.isNotNullable(nodeItem.parentNode)) {
-											nodeItem.parentNode.removeChild(nodeItem);
-										}
-									}
-								}
-							},
-						};
+						return createMountedNode(nodes, cleanups);
+					})
+				)
+			)
+		),
+
+	hydrate: (child: EffuseChild, container: Element) =>
+		pipe(
+			Effect.sync(() => ({
+				cleanups: [] as CleanupFn[],
+				cursor: createHydrationCursor(container),
+			})),
+			Effect.flatMap(({ cleanups, cursor }) =>
+				pipe(
+					mountChild(child, cleanups, cursor),
+					Effect.map((nodes) => {
+						// Whatever the client render never claimed was rendered by a
+						// stale or divergent server pass; it must not survive.
+						dropUnclaimed(cursor);
+						return createMountedNode(nodes, cleanups);
 					})
 				)
 			)

@@ -25,11 +25,20 @@
 import { Effect } from 'effect';
 import type { BlueprintDef, EffuseChild } from '../render/node.js';
 import { el } from '../render/element.js';
-import { render } from '../render/index.js';
+import { hydrate as hydrateNode, render } from '../render/index.js';
 import { MountError, RenderError } from '../errors/internal.js';
 
 export interface Canvas {
 	paint: <P extends Record<string, unknown>>(
+		blueprint: BlueprintDef<P>,
+		props?: P
+	) => void;
+
+	/**
+	 * Adopt the server-rendered markup already in the container instead of
+	 * building a second copy of the tree beside it.
+	 */
+	hydrate: <P extends Record<string, unknown>>(
 		blueprint: BlueprintDef<P>,
 		props?: P
 	) => void;
@@ -56,7 +65,8 @@ export const canvas = (target: Element | string): Canvas => {
 
 	const canvasPaintEffect = <P extends Record<string, unknown>>(
 		blueprint: BlueprintDef<P>,
-		props?: P
+		props?: P,
+		mode: 'mount' | 'hydrate' = 'mount'
 	): Effect.Effect<void, RenderError | MountError> =>
 		Effect.try({
 			try: () => {
@@ -66,6 +76,15 @@ export const canvas = (target: Element | string): Canvas => {
 				}
 
 				const node = el(blueprint, props ?? ({} as P));
+				if (mode === 'hydrate') {
+					cleanupFn = hydrateNode(node as EffuseChild, container);
+					return;
+				}
+
+				// The canvas owns its container: anything already inside it (a
+				// server render, a loading placeholder) is replaced, never
+				// rendered alongside the client tree.
+				container.innerHTML = '';
 				cleanupFn = render(node as EffuseChild, container);
 			},
 			catch: (error) =>
@@ -102,6 +121,13 @@ export const canvas = (target: Element | string): Canvas => {
 			Effect.runSync(canvasPaintEffect(blueprint, props));
 		},
 
+		hydrate: <P extends Record<string, unknown>>(
+			blueprint: BlueprintDef<P>,
+			props?: P
+		): void => {
+			Effect.runSync(canvasPaintEffect(blueprint, props, 'hydrate'));
+		},
+
 		render: (node: EffuseChild): void => {
 			Effect.runSync(canvasRenderEffect(node));
 		},
@@ -123,5 +149,19 @@ export const mount = <P = Record<string, unknown>>(
 ): Canvas => {
 	const c = canvas(target);
 	c.paint(blueprint as BlueprintDef, props as Record<string, unknown>);
+	return c;
+};
+
+/**
+ * Mount a blueprint onto server-rendered markup, adopting the existing DOM
+ * inside `target` rather than rendering a second copy over it.
+ */
+export const hydrate = <P = Record<string, unknown>>(
+	blueprint: BlueprintDef<P>,
+	target: Element | string,
+	props?: P
+): Canvas => {
+	const c = canvas(target);
+	c.hydrate(blueprint as BlueprintDef, props as Record<string, unknown>);
 	return c;
 };

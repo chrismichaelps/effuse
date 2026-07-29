@@ -173,7 +173,7 @@ export {
 	type ProvideScope,
 } from './blueprint/index.js';
 
-export { canvas, mount, type Canvas } from './canvas/index.js';
+export { canvas, mount, hydrate, type Canvas } from './canvas/index.js';
 
 export {
 	defineHook,
@@ -308,6 +308,19 @@ export {
 export {
 	createServerApp,
 	type ServerApp,
+	appendBodyTail,
+	collectEntryAssets,
+	injectIntoTemplate,
+	renderEntryAssetTags,
+	renderEntryLinkTags,
+	renderEntryScriptTags,
+	splitTemplate,
+	templateDeclaresEntry,
+	DEFAULT_CONTAINER_ID,
+	SSR_OUTLET_COMMENT,
+	type EntryAssets,
+	type TemplateInjection,
+	type TemplateParts,
 	createSSRRuntime,
 	type SSRRuntime,
 	type SSRRuntimeOptions,
