@@ -30,6 +30,16 @@ import { RenderError, createErrorHtml } from './errors.js';
 import { headToHtml } from './head-registry.js';
 import { runWithSSRContext } from './use-head.js';
 import { serializeHydrationData, type HydrationData } from './hydration.js';
+import {
+	appendBodyTail,
+	collectEntryAssets,
+	renderEntryLinkTags,
+	renderEntryScriptTags,
+	splitTemplate,
+	omitTemplateDeclaredScripts,
+	DEFAULT_CONTAINER_ID,
+} from './document.js';
+import { escapeAttr } from './escape.js';
 import { createSSRRuntime, type SSRRuntime } from './runtime.js';
 
 export interface ServerApp {
@@ -130,20 +140,12 @@ export const createServerApp = (root: Component): ServerApp => {
 				const mergeHeads = (heads: readonly HeadProps[]): HeadProps =>
 					heads.reduce<HeadProps>((acc, head) => ({ ...acc, ...head }), {});
 
-				const withManifestLinks = (headHtml: string): string => {
-					if (!options.manifest) return headHtml;
-					let result = headHtml;
-					for (const chunk of Object.values(options.manifest)) {
-						if (!chunk.isEntry) continue;
-						result += `\n\t<link rel="modulepreload" crossorigin href="/${chunk.file}">`;
-						if (chunk.css) {
-							for (const cssFile of chunk.css) {
-								result += `\n\t<link rel="stylesheet" href="/${cssFile}">`;
-							}
-						}
-					}
-					return result;
-				};
+				const containerId = options.containerId ?? DEFAULT_CONTAINER_ID;
+				const assets = omitTemplateDeclaredScripts(
+					collectEntryAssets(options.manifest, options.clientEntry),
+					options.template
+				);
+				const entryScripts = renderEntryScriptTags(assets);
 
 				return new ReadableStream<Uint8Array>({
 					async start(controller) {
@@ -157,12 +159,27 @@ export const createServerApp = (root: Component): ServerApp => {
 							// streaming renderer makes. renderToString keeps full head in
 							// <head> for full-head SEO.
 							const staticHead = mergeHeads(runtime.headStack);
-							const staticHeadHtml = withManifestLinks(headToHtml(staticHead));
+							const staticHeadHtml = `${headToHtml(staticHead)}${renderEntryLinkTags(assets)}`;
 							const lang = staticHead.lang ?? 'en';
+
+							// With a template, the document is the user's own: split it at
+							// the render outlet so the shell flushes first and the tail —
+							// including the template's client entry script — closes the
+							// stream verbatim.
+							const templateParts = options.template
+								? splitTemplate(options.template, {
+										headHtml: staticHeadHtml,
+										bodyTailHtml: entryScripts,
+										containerId,
+										url,
+									})
+								: null;
 
 							controller.enqueue(
 								encoder.encode(
-									`<!DOCTYPE html>\n<html lang="${lang}">\n<head>\n\t${staticHeadHtml}\n</head>\n<body>\n\t<div id="app">`
+									templateParts
+										? templateParts.shell
+										: `<!DOCTYPE html>\n<html lang="${lang}">\n<head>\n\t${staticHeadHtml}\n</head>\n<body>\n\t<div id="${escapeAttr(containerId)}">`
 								)
 							);
 
@@ -207,7 +224,9 @@ export const createServerApp = (root: Component): ServerApp => {
 
 							controller.enqueue(
 								encoder.encode(
-									`</div>\n\t${hydrationScript}\n</body>\n</html>`
+									templateParts
+										? appendBodyTail(templateParts.tail, hydrationScript)
+										: `</div>${entryScripts}\n\t${hydrationScript}\n</body>\n</html>`
 								)
 							);
 							controller.close();

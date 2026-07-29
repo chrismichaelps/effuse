@@ -37,6 +37,14 @@ import { escapeHtml, escapeAttr, escapeAttrName } from './escape.js';
 import { headToHtml } from './head-registry.js';
 import { runWithSSRContext } from './use-head.js';
 import { serializeHydrationData, type HydrationData } from './hydration.js';
+import {
+	collectEntryAssets,
+	injectIntoTemplate,
+	renderEntryLinkTags,
+	renderEntryScriptTags,
+	omitTemplateDeclaredScripts,
+	DEFAULT_CONTAINER_ID,
+} from './document.js';
 import type { SSRRuntime } from './runtime.js';
 import type { ComponentLifecycle } from '../blueprint/lifecycle.js';
 import { runWithServerRenderContext } from '../render/render-context.js';
@@ -396,24 +404,31 @@ const generateFullHtml = (
 	hydrationData: HydrationData,
 	options: ServerAppOptions = {}
 ): string => {
-	let headHtml = headToHtml(head);
 	const lang = head.lang ?? 'en';
-
-	if (options.manifest) {
-		for (const chunk of Object.values(options.manifest)) {
-			if (chunk.isEntry) {
-				headHtml += `\n\t<link rel="modulepreload" crossorigin href="/${chunk.file}">`;
-				if (chunk.css) {
-					for (const cssFile of chunk.css) {
-						headHtml += `\n\t<link rel="stylesheet" href="/${cssFile}">`;
-					}
-				}
-			}
-		}
-	}
-
+	const containerId = options.containerId ?? DEFAULT_CONTAINER_ID;
 	const hydrationScript =
 		options.hydrate !== false ? serializeHydrationData(hydrationData) : '';
+
+	// The client entry must actually execute — a modulepreload alone downloads
+	// the bundle and never runs it, which leaves the page permanently static.
+	const assets = omitTemplateDeclaredScripts(
+		collectEntryAssets(options.manifest, options.clientEntry),
+		options.template
+	);
+	const headHtml = `${headToHtml(head)}${renderEntryLinkTags(assets)}`;
+	const entryScripts = renderEntryScriptTags(assets);
+
+	if (options.template) {
+		return injectIntoTemplate(options.template, {
+			appHtml: bodyHtml,
+			headHtml,
+			// Scripts run before the payload is parsed either way; keeping the
+			// payload last means the entry can read a fully written document.
+			bodyTailHtml: `${entryScripts}${hydrationScript}`,
+			containerId,
+			url: hydrationData.url,
+		});
+	}
 
 	return `<!DOCTYPE html>
 <html lang="${lang}">
@@ -421,7 +436,7 @@ const generateFullHtml = (
 	${headHtml}
 </head>
 <body>
-	<div id="app">${bodyHtml}</div>
+	<div id="${escapeAttr(containerId)}">${bodyHtml}</div>${entryScripts}
 	${hydrationScript}
 </body>
 </html>`;
