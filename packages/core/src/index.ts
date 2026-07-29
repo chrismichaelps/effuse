@@ -173,7 +173,7 @@ export {
 	type ProvideScope,
 } from './blueprint/index.js';
 
-export { canvas, mount, type Canvas } from './canvas/index.js';
+export { canvas, mount, hydrate, type Canvas } from './canvas/index.js';
 
 export {
 	defineHook,

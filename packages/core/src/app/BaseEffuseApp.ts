@@ -37,7 +37,12 @@ import {
 	type LayerInputSource,
 	resolveLayerDefinitions,
 } from '../layers/index.js';
-import { mount as mountComponent, type Canvas } from '../canvas/canvas.js';
+import {
+	hydrate as hydrateComponent,
+	mount as mountComponent,
+	type Canvas,
+} from '../canvas/canvas.js';
+import { getHydrationData, applyHydratedHead } from '../ssr/hydration.js';
 import {
 	installLifecycleErrorHandler,
 	type LifecycleErrorHandler,
@@ -47,7 +52,17 @@ export interface AppInstance {
 	unmount: () => Promise<void>;
 }
 
-export type MountOptions = LayerRuntimeOptions;
+export interface MountOptions extends LayerRuntimeOptions {
+	/**
+	 * Adopt the server-rendered markup already inside the mount target instead
+	 * of rendering a second copy of the app over it.
+	 *
+	 * Left unset, the app hydrates when the page carries a hydration payload
+	 * and the container holds server-rendered markup, and mounts clean
+	 * otherwise. Set it explicitly to opt in or out.
+	 */
+	readonly hydrate?: boolean;
+}
 
 export interface AppOptions {
 	readonly onError?: LifecycleErrorHandler;
@@ -93,6 +108,12 @@ export class BaseEffuseApp {
 		return this;
 	}
 
+	/**
+	 * Mount the app onto the page.
+	 *
+	 * On a server-rendered document this adopts the existing markup (see
+	 * `MountOptions.hydrate`), so the app is never rendered twice.
+	 */
 	async mount(
 		selector: string,
 		options: MountOptions = {}
@@ -103,6 +124,11 @@ export class BaseEffuseApp {
 		this.activeMountId = mountId;
 		this.layers = resolvedLayers;
 
+		const shouldHydrate = this.resolveHydration(selector, options.hydrate);
+		const runtimeOptions: LayerRuntimeOptions = options.tracing
+			? { tracing: options.tracing }
+			: {};
+
 		try {
 			if (this.options.onError) {
 				this.restoreLifecycleErrorHandler = installLifecycleErrorHandler(
@@ -111,9 +137,11 @@ export class BaseEffuseApp {
 			}
 			this.layerRuntime = await createLayerRuntime(
 				resolvedLayers as AnyResolvedLayer[],
-				options
+				runtimeOptions
 			);
-			this.mountedCanvas = mountComponent(this.rootComponent, selector);
+			this.mountedCanvas = shouldHydrate
+				? hydrateComponent(this.rootComponent, selector)
+				: mountComponent(this.rootComponent, selector);
 		} catch (error) {
 			if (this.activeMountId === mountId) {
 				try {
@@ -135,6 +163,49 @@ export class BaseEffuseApp {
 				}
 			},
 		};
+	}
+
+	/**
+	 * Mount the app onto server-rendered markup, adopting the existing DOM.
+	 *
+	 * Equivalent to `mount(selector, { hydrate: true })`. Structural mismatches
+	 * are repaired locally, including a missing server node, while matching DOM
+	 * nodes retain their identity and receive client bindings.
+	 */
+	async hydrate(
+		selector: string,
+		options: Omit<MountOptions, 'hydrate'> = {}
+	): Promise<AppInstance> {
+		return this.mount(selector, { ...options, hydrate: true });
+	}
+
+	/**
+	 * Hydration is the right default on a server-rendered page and the wrong
+	 * one everywhere else, so an unset flag is resolved from the document: a
+	 * hydration payload plus markup in the container means the server rendered
+	 * this page.
+	 */
+	private resolveHydration(
+		selector: string,
+		requested: boolean | undefined
+	): boolean {
+		if (requested !== undefined) {
+			if (requested) {
+				applyHydratedHead(getHydrationData()?.head ?? {});
+			}
+			return requested;
+		}
+
+		if (typeof document === 'undefined') return false;
+
+		const data = getHydrationData();
+		if (!data) return false;
+
+		const container = document.querySelector(selector);
+		if (!container || container.childNodes.length === 0) return false;
+
+		applyHydratedHead(data.head);
+		return true;
 	}
 
 	private async cleanup(): Promise<void> {

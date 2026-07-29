@@ -25,5 +25,6 @@
 export {
 	canvas,
 	mount,
+	hydrate,
 	type Canvas,
 } from './canvas.js';
