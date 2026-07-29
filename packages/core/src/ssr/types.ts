@@ -146,14 +146,36 @@ export interface ServerAppOptions {
 
 	readonly minify?: boolean;
 
+	/**
+	 * An HTML document to render into, instead of the generated shell.
+	 *
+	 * The template is preserved verbatim except for three injection points: the
+	 * render outlet (an element with `containerId`, or an
+	 * `<!--effuse-ssr-outlet-->` marker), the end of `<head>`, and the end of
+	 * `<body>`. Anything else the template declares — most importantly its
+	 * client entry `<script type="module">` — is emitted as-is, so the served
+	 * page can hydrate.
+	 */
 	readonly template?: string;
+
+	/** Id of the element the app renders into and hydrates from. Defaults to `app`. */
+	readonly containerId?: string;
 
 	readonly hydrate?: boolean;
 
 	/**
+	 * URL of the client entry module, emitted as an executing
+	 * `<script type="module">`. Use this when there is no build manifest
+	 * (dev servers, hand-rolled builds). Ignored when the same URL is already
+	 * emitted by `manifest` or present in `template`.
+	 */
+	readonly clientEntry?: string;
+
+	/**
 	 * A parsed Vite manifest.json from the client build.
-	 * When provided, renderToStream will automatically inject `<link rel="preload">`
-	 * and `<link rel="stylesheet">` tags for the entry assets to prevent FOUC.
+	 * When provided, the renderer emits the entry chunk's executing
+	 * `<script type="module">` plus `<link rel="modulepreload">` and
+	 * `<link rel="stylesheet">` tags for its assets, preventing FOUC.
 	 */
 	readonly manifest?: AssetManifest;
 }

@@ -40,6 +40,22 @@ export type {
 export { createServerApp, type ServerApp } from './server-app.js';
 
 export {
+	appendBodyTail,
+	collectEntryAssets,
+	injectIntoTemplate,
+	renderEntryAssetTags,
+	renderEntryLinkTags,
+	renderEntryScriptTags,
+	splitTemplate,
+	templateDeclaresEntry,
+	DEFAULT_CONTAINER_ID,
+	SSR_OUTLET_COMMENT,
+	type EntryAssets,
+	type TemplateInjection,
+	type TemplateParts,
+} from './document.js';
+
+export {
 	createSSRRuntime,
 	type SSRRuntime,
 	type SSRRuntimeOptions,
