@@ -1,3 +1,10 @@
+## @effuse/server [1.0.3](https://github.com/chrismichaelps/effuse/compare/@effuse/server@1.0.2...@effuse/server@1.0.3) (2026-07-29)
+
+
+### Dependencies
+
+* **@effuse/core:** upgraded to 2.0.3
+
 ## @effuse/server [1.0.2](https://github.com/chrismichaelps/effuse/compare/@effuse/server@1.0.1...@effuse/server@1.0.2) (2026-07-28)
 
 
