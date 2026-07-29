@@ -1,3 +1,10 @@
+## @effuse/core [2.0.3](https://github.com/chrismichaelps/effuse/compare/@effuse/core@2.0.2...@effuse/core@2.0.3) (2026-07-29)
+
+### Bug Fixes
+
+* **core:** adopt server markup during hydration refs [#432](https://github.com/chrismichaelps/effuse/issues/432) ([#433](https://github.com/chrismichaelps/effuse/issues/433)) ([5ddaa02](https://github.com/chrismichaelps/effuse/commit/5ddaa0237dbdef2bdeb3d9773f55e35f3350e81e))
+* **ssr:** preserve executable client entries refs [#431](https://github.com/chrismichaelps/effuse/issues/431) ([#434](https://github.com/chrismichaelps/effuse/issues/434)) ([f0c7c01](https://github.com/chrismichaelps/effuse/commit/f0c7c015ade7ce6f7336de8190fe25b0080bf8f9))
+
 ## @effuse/core [2.0.2](https://github.com/chrismichaelps/effuse/compare/@effuse/core@2.0.1...@effuse/core@2.0.2) (2026-07-28)
 
 ### Bug Fixes

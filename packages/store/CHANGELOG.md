@@ -1,3 +1,10 @@
+## @effuse/store [1.1.3](https://github.com/chrismichaelps/effuse/compare/@effuse/store@1.1.2...@effuse/store@1.1.3) (2026-07-29)
+
+
+### Dependencies
+
+* **@effuse/core:** upgraded to 2.0.3
+
 ## @effuse/store [1.1.2](https://github.com/chrismichaelps/effuse/compare/@effuse/store@1.1.1...@effuse/store@1.1.2) (2026-07-28)
 
 ### Bug Fixes
