@@ -48,7 +48,7 @@
  */
 
 import { randomBytes } from 'node:crypto';
-import { ConfigError, InvalidTokenError, SessionExpiredError, SessionNotFoundError, SessionRevokedError, TokenSignatureMismatchError, type AuthError } from '../errors.js';
+import { ConfigError, InvalidTokenError, SessionExpiredError, SessionNotFoundError, SessionRevokedError, StoreError, TokenSignatureMismatchError, type AuthError } from '../errors.js';
 import { decodeClaims, type ClaimsShape, type InferClaims } from '../claims.js';
 import type { Clock, SessionId, SessionStore, StoredSession, TokenCodec } from '../contract.js';
 
@@ -211,10 +211,69 @@ export const createSessionEngine = <Shape extends ClaimsShape>(
 
 	const supportsRevocation = store !== undefined;
 
+	/**
+	 * Runs a store operation, converting a rejection into a typed failure.
+	 *
+	 * Backends fail: connections reset, replicas lag, namespaces get throttled.
+	 * Left unguarded, any of those surfaces as an unhandled rejection out of a
+	 * request handler — a 500 with a stack trace instead of a decision the
+	 * caller can make. Routing them through {@link StoreError} keeps the whole
+	 * failure surface inside the typed channel.
+	 */
+	const attempt = async <Value>(
+		operation: string,
+		run: () => Promise<Value>
+	): Promise<
+		{ readonly ok: true; readonly value: Value } | { readonly ok: false; readonly error: StoreError }
+	> => {
+		try {
+			return { ok: true, value: await run() };
+		} catch (cause) {
+			return {
+				ok: false,
+				error: new StoreError({
+					operation,
+					cause,
+					// The backend's own message often carries a connection string.
+					// It lives in `detail`, which never reaches a response.
+					detail: cause instanceof Error ? cause.message : String(cause),
+				}),
+			};
+		}
+	};
+
+	/**
+	 * Validates a record coming back from the store.
+	 *
+	 * Records get hand-edited, half-written, and migrated badly. A malformed one
+	 * must fail its own request rather than propagate half-typed values into
+	 * policies that will index into them.
+	 */
+	const isStoredSession = (value: unknown): value is StoredSession => {
+		if (typeof value !== 'object' || value === null) return false;
+
+		const record = value as Record<string, unknown>;
+
+		return (
+			typeof record['id'] === 'string' &&
+			typeof record['subject'] === 'string' &&
+			typeof record['claims'] === 'object' &&
+			record['claims'] !== null &&
+			!Array.isArray(record['claims']) &&
+			Number.isFinite(record['createdAt']) &&
+			Number.isFinite(record['lastSeenAt']) &&
+			Number.isFinite(record['absoluteExpiresAt'])
+		);
+	};
+
 	/** Persists the record backing revocation and rotation-overlap resolution. */
-	const persist = async (session: StoredSession): Promise<void> => {
-		if (store === undefined) return;
-		await store.write(session);
+	const persist = async (
+		session: StoredSession
+	): Promise<StoreError | undefined> => {
+		if (store === undefined) return undefined;
+
+		const written = await attempt('write', async () => store.write(session));
+		return written.ok ? undefined : written.error;
 	};
 
 	const encode = async (session: StoredSession): Promise<string> =>
@@ -268,11 +327,46 @@ export const createSessionEngine = <Shape extends ClaimsShape>(
 		};
 	};
 
-	const resolveStored = async (
-		payload: TokenPayload
-	): Promise<StoredSession | undefined> => {
+	type Resolved =
+		| { readonly ok: true; readonly value: StoredSession | undefined }
+		| { readonly ok: false; readonly error: StoreError };
+
+	/** Reads a record from the store, validating whatever comes back. */
+	const readRecord = async (id: SessionId): Promise<Resolved> => {
+		if (store === undefined) return { ok: true, value: undefined };
+
+		const found = await attempt('read', async () => store.read(id));
+		if (!found.ok) return { ok: false, error: found.error };
+
+		// Widened deliberately. `SessionStore` is implemented by users, so what
+		// actually comes back is whatever their backend produced — the declared
+		// type is a promise, not a guarantee, and `null` from a JSON column is the
+		// common way it gets broken.
+		const record: unknown = found.value;
+
+		// Absent is a legitimate answer; present-but-malformed is not, and the two
+		// must not be conflated — one means "signed out", the other means
+		// "something is wrong with your data store".
+		if (record === undefined || record === null) {
+			return { ok: true, value: undefined };
+		}
+
+		if (!isStoredSession(record)) {
+			return {
+				ok: false,
+				error: new StoreError({
+					operation: 'read',
+					detail: `Malformed session record for id ${id}.`,
+				}),
+			};
+		}
+
+		return { ok: true, value: record };
+	};
+
+	const resolveStored = async (payload: TokenPayload): Promise<Resolved> => {
 		if (strategy === 'stateful') {
-			return store?.read(payload.sid as SessionId);
+			return readRecord(payload.sid as SessionId);
 		}
 
 		// Stateless with a store: the store is authoritative on liveness, and a
@@ -282,19 +376,24 @@ export const createSessionEngine = <Shape extends ClaimsShape>(
 		// own proof of validity, and "sign out everywhere" would silently do
 		// nothing.
 		if (store !== undefined) {
-			return store.read(payload.sid as SessionId);
+			return readRecord(payload.sid as SessionId);
 		}
 
 		// No store at all. The token is the only record there is, which is the
 		// documented cost of running stateless without one.
-		return Promise.resolve(storedFromPayload(payload));
+		return Promise.resolve({ ok: true, value: storedFromPayload(payload) });
 	};
 
 	const issueFrom = async (
 		stored: StoredSession,
 		validatedClaims: InferClaims<Shape>
 	): Promise<SessionIssueResult<Shape>> => {
-		await persist(stored);
+		// A session that could not be persisted is not a session. Returning a
+		// token for it would hand the caller a cookie that fails on the very next
+		// request, with no indication of why.
+		const failure = await persist(stored);
+		if (failure !== undefined) return { ok: false, error: failure };
+
 		return {
 			ok: true,
 			token: await encode(stored),
@@ -356,7 +455,10 @@ export const createSessionEngine = <Shape extends ClaimsShape>(
 				return { ok: false, error: new SessionExpiredError() };
 			}
 
-			let stored = await resolveStored(parsed);
+			const resolved = await resolveStored(parsed);
+			if (!resolved.ok) return { ok: false, error: resolved.error };
+
+			let stored = resolved.value;
 			if (stored === undefined) {
 				return { ok: false, error: new SessionNotFoundError() };
 			}
@@ -371,15 +473,18 @@ export const createSessionEngine = <Shape extends ClaimsShape>(
 				}
 
 				const successorId = stored.supersededBy;
-				const successor =
-					successorId === undefined ? undefined : await store?.read(successorId);
-
-				if (successor === undefined) {
+				if (successorId === undefined) {
 					return { ok: false, error: new SessionRevokedError() };
 				}
 
-				stored = successor;
-				renewedToken = await encode(successor);
+				const successor = await readRecord(successorId);
+				if (!successor.ok) return { ok: false, error: successor.error };
+				if (successor.value === undefined) {
+					return { ok: false, error: new SessionRevokedError() };
+				}
+
+				stored = successor.value;
+				renewedToken = await encode(successor.value);
 			}
 
 			if (now >= stored.absoluteExpiresAt) {
@@ -405,6 +510,9 @@ export const createSessionEngine = <Shape extends ClaimsShape>(
 			const touched: StoredSession = { ...stored, lastSeenAt: now };
 			const shouldRenew = now - stored.lastSeenAt >= renewAfterMs;
 
+			// A failure to slide the idle window is not worth failing the request
+			// over: the session is valid, and the worst case is that it expires
+			// slightly earlier than it would have.
 			if (strategy === 'stateful') {
 				if (shouldRenew) await persist(touched);
 			} else if (shouldRenew && renewedToken === undefined) {
@@ -448,13 +556,16 @@ export const createSessionEngine = <Shape extends ClaimsShape>(
 			// Mark the predecessor superseded rather than deleting it, so a request
 			// already in flight with the old token converges instead of 401-ing.
 			if (store !== undefined) {
-				const predecessor = await store.read(current.session.id);
-				if (predecessor !== undefined) {
-					await store.write({
-						...predecessor,
+				const predecessor = await readRecord(current.session.id);
+				if (!predecessor.ok) return { ok: false, error: predecessor.error };
+
+				if (predecessor.value !== undefined) {
+					const marked = await persist({
+						...predecessor.value,
 						supersededAt: now + rotationOverlapMs,
 						supersededBy: successor.id,
 					});
+					if (marked !== undefined) return { ok: false, error: marked };
 				}
 			}
 
@@ -470,13 +581,23 @@ export const createSessionEngine = <Shape extends ClaimsShape>(
 			const parsed = readTokenPayload(payload);
 			if (parsed === undefined) return false;
 
-			await store.destroy(parsed.sid as SessionId);
-			return true;
+			// Reported as "not revoked" rather than thrown. The caller's next move
+			// is to clear the cookie either way, and an exception here would turn a
+			// sign-out into an error page for a user who has already decided to
+			// leave.
+			const removed = await attempt('destroy', async () =>
+				store.destroy(parsed.sid as SessionId)
+			);
+			return removed.ok;
 		},
 
 		destroyForSubject: async (subject) => {
 			if (store === undefined) return 0;
-			return store.destroyForSubject(subject);
+
+			const removed = await attempt('destroyForSubject', async () =>
+				store.destroyForSubject(subject)
+			);
+			return removed.ok ? removed.value : 0;
 		},
 	};
 

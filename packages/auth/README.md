@@ -14,7 +14,7 @@ The prevailing option in this space has a set of problems that configuration
 cannot fix. Its own issue tracker makes the case — the highest-reaction open
 issues are all one root cause:
 
-| 👍 | Issue |
+| Reactions | Issue |
 | --- | --- |
 | 64 | Tokens rotation does not persist the new token |
 | 49 | `useSession` only gets the session after manually reloading |
