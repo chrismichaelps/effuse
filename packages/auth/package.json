@@ -1,0 +1,120 @@
+{
+	"name": "@effuse/auth",
+	"version": "1.0.0",
+	"description": "Production-ready authentication for Effuse: one typed session, swappable ports with conformance suites, and named mitigations for session fixation, enumeration, brute force, and rotation races.",
+	"author": "Chris M. Pérez",
+	"license": "MIT",
+	"publishConfig": {
+		"access": "public"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/chrismichaelps/effuse.git"
+	},
+	"bugs": {
+		"url": "https://github.com/chrismichaelps/effuse/issues"
+	},
+	"homepage": "https://github.com/chrismichaelps/effuse#readme",
+	"type": "module",
+	"main": "./dist/index.cjs",
+	"module": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"import": {
+				"types": "./dist/index.d.ts",
+				"default": "./dist/index.js"
+			},
+			"require": {
+				"types": "./dist/index.d.cts",
+				"default": "./dist/index.cjs"
+			}
+		},
+		"./server": {
+			"import": {
+				"types": "./dist/server/index.d.ts",
+				"default": "./dist/server/index.js"
+			},
+			"require": {
+				"types": "./dist/server/index.d.cts",
+				"default": "./dist/server/index.cjs"
+			}
+		},
+		"./client": {
+			"import": {
+				"types": "./dist/client/index.d.ts",
+				"default": "./dist/client/index.js"
+			},
+			"require": {
+				"types": "./dist/client/index.d.cts",
+				"default": "./dist/client/index.cjs"
+			}
+		},
+		"./testing": {
+			"import": {
+				"types": "./dist/testing/index.d.ts",
+				"default": "./dist/testing/index.js"
+			},
+			"require": {
+				"types": "./dist/testing/index.d.cts",
+				"default": "./dist/testing/index.cjs"
+			}
+		},
+		"./conformance": {
+			"import": {
+				"types": "./dist/conformance.d.ts",
+				"default": "./dist/conformance.js"
+			},
+			"require": {
+				"types": "./dist/conformance.d.cts",
+				"default": "./dist/conformance.cjs"
+			}
+		}
+	},
+	"files": [
+		"dist",
+		"src",
+		"SECURITY.md"
+	],
+	"scripts": {
+		"build": "tsup",
+		"dev": "tsup --watch",
+		"lint": "eslint src --max-warnings 0",
+		"typecheck": "tsc --noEmit",
+		"pretest": "node ../../scripts/check-node-version.mjs",
+		"test": "vitest run"
+	},
+	"keywords": [
+		"effuse",
+		"auth",
+		"authentication",
+		"authorization",
+		"session",
+		"credentials",
+		"oauth",
+		"oidc",
+		"csrf",
+		"security",
+		"effect-ts",
+		"typescript"
+	],
+	"engines": {
+		"node": ">=22.14.0"
+	},
+	"peerDependencies": {
+		"@effuse/core": "2.0.3"
+	},
+	"dependencies": {
+		"effect": "^3.21.5"
+	},
+	"devDependencies": {
+		"@effuse/core": "2.0.3",
+		"@eslint/js": "^9.39.4",
+		"@types/node": "^25.5.0",
+		"eslint": "^10.0.3",
+		"tsup": "^8.5.1",
+		"typescript": "^5.9.3",
+		"typescript-eslint": "^8.57.1",
+		"vitest": "^4.1.0"
+	}
+}

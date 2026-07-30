@@ -33,6 +33,37 @@ importers:
         specifier: ^4.1.0
         version: 4.1.0(@opentelemetry/api@1.9.0)(@types/node@25.5.0)(jsdom@29.0.0)(vite@8.0.0(@types/node@25.5.0)(esbuild@0.27.4))
 
+  packages/auth:
+    dependencies:
+      effect:
+        specifier: ^3.21.5
+        version: 3.22.0
+    devDependencies:
+      '@effuse/core':
+        specifier: 2.0.3
+        version: link:../core
+      '@eslint/js':
+        specifier: ^9.39.4
+        version: 9.39.4
+      '@types/node':
+        specifier: ^25.5.0
+        version: 25.5.0
+      eslint:
+        specifier: ^10.0.3
+        version: 10.0.3
+      tsup:
+        specifier: ^8.5.1
+        version: 8.5.1(postcss@8.5.8)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      typescript-eslint:
+        specifier: ^8.57.1
+        version: 8.57.1(eslint@10.0.3)(typescript@5.9.3)
+      vitest:
+        specifier: ^4.1.0
+        version: 4.1.0(@opentelemetry/api@1.9.0)(@types/node@25.5.0)(jsdom@29.0.0)(vite@8.0.0(@types/node@25.5.0)(esbuild@0.27.4))
+
   packages/cli:
     dependencies:
       '@effect/platform':
@@ -42,10 +73,10 @@ importers:
         specifier: ^0.106.0
         version: 0.106.0(@effect/cluster@0.58.1(@effect/platform@0.96.0(effect@3.22.0))(@effect/rpc@0.75.0(@effect/platform@0.96.0(effect@3.22.0))(effect@3.22.0))(@effect/sql@0.51.0(@effect/experimental@0.60.0(@effect/platform@0.96.0(effect@3.22.0))(effect@3.22.0))(@effect/platform@0.96.0(effect@3.22.0))(effect@3.22.0))(@effect/workflow@0.18.0(@effect/experimental@0.60.0(@effect/platform@0.96.0(effect@3.22.0))(effect@3.22.0))(@effect/platform@0.96.0(effect@3.22.0))(@effect/rpc@0.75.0(@effect/platform@0.96.0(effect@3.22.0))(effect@3.22.0))(effect@3.22.0))(effect@3.22.0))(@effect/platform@0.96.0(effect@3.22.0))(@effect/rpc@0.75.0(@effect/platform@0.96.0(effect@3.22.0))(effect@3.22.0))(@effect/sql@0.51.0(@effect/experimental@0.60.0(@effect/platform@0.96.0(effect@3.22.0))(effect@3.22.0))(@effect/platform@0.96.0(effect@3.22.0))(effect@3.22.0))(effect@3.22.0)
       '@effuse/core':
-        specifier: 2.0.2
+        specifier: 2.0.3
         version: link:../core
       '@effuse/server':
-        specifier: 1.0.2
+        specifier: 1.0.3
         version: link:../server
       cac:
         specifier: ^6.7.14
@@ -184,7 +215,7 @@ importers:
         specifier: ^0.3.2
         version: 0.3.2
       '@effuse/core':
-        specifier: 2.0.2
+        specifier: 2.0.3
         version: link:../core
       '@eslint/js':
         specifier: ^9.39.4
@@ -218,7 +249,7 @@ importers:
         specifier: ^0.3.2
         version: 0.3.2
       '@effuse/core':
-        specifier: 2.0.2
+        specifier: 2.0.3
         version: link:../core
       '@eslint/js':
         specifier: ^9.39.4
@@ -252,7 +283,7 @@ importers:
         specifier: ^0.3.2
         version: 0.3.2
       '@effuse/core':
-        specifier: 2.0.2
+        specifier: 2.0.3
         version: link:../core
       '@eslint/js':
         specifier: ^9.39.4
@@ -286,7 +317,7 @@ importers:
         specifier: ^0.3.2
         version: 0.3.2
       '@effuse/core':
-        specifier: 2.0.2
+        specifier: 2.0.3
         version: link:../core
       '@eslint/js':
         specifier: ^9.39.4
@@ -317,7 +348,7 @@ importers:
         version: 3.22.0
     devDependencies:
       '@effuse/core':
-        specifier: 2.0.2
+        specifier: 2.0.3
         version: link:../core
       '@eslint/js':
         specifier: ^9.39.4
@@ -351,7 +382,7 @@ importers:
         specifier: ^0.3.2
         version: 0.3.2
       '@effuse/core':
-        specifier: 2.0.2
+        specifier: 2.0.3
         version: link:../core
       '@eslint/js':
         specifier: ^9.26.0
@@ -388,7 +419,7 @@ importers:
         specifier: ^0.3.2
         version: 0.3.2
       '@effuse/core':
-        specifier: 2.0.2
+        specifier: 2.0.3
         version: link:../core
       '@eslint/js':
         specifier: ^9.39.4
