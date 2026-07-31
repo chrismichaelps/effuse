@@ -3,9 +3,9 @@
 Authentication for Effuse. One typed session, swappable ports with conformance
 suites, and named mitigations with tests behind each of them.
 
-> **Status:** foundation, session engine, and credentials have shipped. OAuth /
-> OIDC, single-flight refresh, and authorization policies are tracked and not yet
-> implemented — see [Not yet implemented](#not-yet-implemented). Read
+> **Status:** foundation, session engine, credentials, and OAuth/OIDC have
+> shipped. Single-flight refresh and authorization policies are tracked and not
+> yet implemented — see [Not yet implemented](#not-yet-implemented). Read
 > [SECURITY.md](./SECURITY.md) before deploying.
 
 ## Why this exists
@@ -113,6 +113,45 @@ if (error !== undefined) {
 }
 ```
 
+### OAuth and OpenID Connect
+
+```ts
+import { createOAuthClient, google, createRedirectValidator } from '@effuse/auth/server';
+
+const oauth = createOAuthClient({
+  provider: google({ clientId, clientSecret }),
+  redirectUri: 'https://app.example.com/auth/callback',
+  storage,
+  clock: { now: () => Date.now() },
+  redirects: createRedirectValidator({ baseUrl: 'https://app.example.com' }),
+});
+
+// Begin: apply setCookies to the response, then redirect.
+const started = await oauth.start({ redirectTo: '/dashboard' });
+
+// Callback:
+const result = await oauth.callback(request);
+
+if (result.ok) {
+  result.profile;        // your typed mapper's output
+  result.emailVerified;  // do not link accounts without this
+  result.redirectTo;     // already validated, safe to redirect to
+}
+```
+
+PKCE with S256, `state` bound to the browser by cookie, `nonce`, full ID-token
+validation, mix-up detection, and open-redirect defence are on by default and
+not configurable off. Presets exist for Google, Microsoft, Auth0, Okta, and
+Keycloak; `oidc()` covers any conforming provider, and an unlisted provider is
+configured exactly as a listed one.
+
+**Account linking is deliberately not automatic.** `emailVerified` is reported
+so the decision is yours — linking on an unverified email is the most common
+OAuth account-takeover vector.
+
+Plain OAuth 2.0 providers that issue no ID token (GitHub, for instance) are not
+supported yet; only OpenID Connect providers work today.
+
 ### Email and password
 
 ```ts
@@ -171,7 +210,7 @@ rather than letting `destroy` quietly do nothing.
 | `@effuse/auth` | types, `claim`, `defineAuth`, errors | yes |
 | `@effuse/auth/server` | session engine, providers, everything using `node:crypto` | no |
 | `@effuse/auth/client` | session snapshot and subscription | yes |
-| `@effuse/auth/testing` | in-memory ports, controllable clock | tests |
+| `@effuse/auth/testing` | in-memory ports, controllable clock, fake IdP | tests |
 | `@effuse/auth/conformance` | executable port conformance suites | tests |
 
 The split is enforced by a test that walks the actual import closure, not by
@@ -219,7 +258,8 @@ hide.
 
 Tracked, not hidden:
 
-- OAuth 2.1 / OIDC — [#443](https://github.com/chrismichaelps/effuse/issues/443)
+- Plain OAuth 2.0 providers with no ID token (GitHub) — OIDC providers are supported today
+- Automatic account linking — `emailVerified` is reported; the decision is the application's
 - Single-flight token refresh — [#444](https://github.com/chrismichaelps/effuse/issues/444)
 - Authorization policies — [#445](https://github.com/chrismichaelps/effuse/issues/445)
 - Client bindings and SSR hydration — [#446](https://github.com/chrismichaelps/effuse/issues/446)

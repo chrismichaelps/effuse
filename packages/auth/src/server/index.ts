@@ -85,3 +85,63 @@ export {
 	type CookieOptions,
 	type SameSitePolicy,
 } from './cookies.js';
+
+export {
+	createOAuthClient,
+	type CallbackOutcome,
+	type CallbackSuccess,
+	type OAuthClient,
+	type OAuthClientOptions,
+	type OAuthProvider,
+	type OAuthTokens,
+	type StartOutcome,
+	type StartResult,
+} from './oauth/flow.js';
+
+export {
+	createPkcePair,
+	verifyPkce,
+	MAX_VERIFIER_LENGTH,
+	MIN_VERIFIER_LENGTH,
+	type PkcePair,
+	type PkceMethod,
+} from './oauth/pkce.js';
+
+export {
+	createRedirectValidator,
+	type RedirectValidator,
+	type RedirectValidatorOptions,
+} from './oauth/redirect.js';
+
+export {
+	verifyIdToken,
+	type IdTokenAlgorithm,
+	type IdTokenClaims,
+	type JwksResolver,
+	type VerifyIdTokenOptions,
+	type VerifyIdTokenResult,
+} from './oauth/id-token.js';
+
+export {
+	createJwksResolver,
+	type JwksResolverOptions,
+} from './oauth/jwks.js';
+
+export {
+	createDiscoveryClient,
+	type DiscoveryClient,
+	type DiscoveryOptions,
+	type ProviderMetadata,
+} from './oauth/discovery.js';
+
+export {
+	auth0,
+	google,
+	keycloak,
+	microsoft,
+	oidc,
+	okta,
+	standardProfile,
+	type PresetCredentials,
+	type StandardProfile,
+} from './oauth/presets.js';
