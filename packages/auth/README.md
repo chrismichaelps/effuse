@@ -3,9 +3,10 @@
 Authentication for Effuse. One typed session, swappable ports with conformance
 suites, and named mitigations with tests behind each of them.
 
-> **Status:** foundation, session engine, credentials, and OAuth/OIDC have
-> shipped. Single-flight refresh and authorization policies are tracked and not
-> yet implemented — see [Not yet implemented](#not-yet-implemented). Read
+> **Status:** foundation, session engine, credentials, OAuth/OIDC, and
+> single-flight token refresh have shipped. Authorization policies and client
+> bindings are tracked and not yet implemented — see
+> [Not yet implemented](#not-yet-implemented). Read
 > [SECURITY.md](./SECURITY.md) before deploying.
 
 ## Why this exists
@@ -152,6 +153,31 @@ OAuth account-takeover vector.
 Plain OAuth 2.0 providers that issue no ID token (GitHub, for instance) are not
 supported yet; only OpenID Connect providers work today.
 
+### Keeping access tokens fresh
+
+```ts
+import { createTokenRefresher } from '@effuse/auth/server';
+
+const refresher = createTokenRefresher({
+  tokenEndpoint, clientId, clientSecret, providerId: 'google',
+  storage, store, clock: { now: () => Date.now() },
+});
+
+await refresher.remember({ sessionId, subject, ...result.tokens });
+
+// Anywhere you need to call the provider:
+const token = await refresher.getAccessToken(sessionId);
+```
+
+Concurrent calls for one session collapse into a single upstream redemption —
+in-process via a promise map, across replicas via a store-backed lock. That is
+the fix for the highest-reaction bug in the incumbent library, where a page
+load's worth of parallel requests each redeem the same refresh token, the
+provider invalidates it on first use, and the user is silently signed out.
+
+Rotation, a bounded reuse-overlap window, skew-aware early refresh, and a
+TTL-bounded lock are all built in.
+
 ### Email and password
 
 ```ts
@@ -260,7 +286,6 @@ Tracked, not hidden:
 
 - Plain OAuth 2.0 providers with no ID token (GitHub) — OIDC providers are supported today
 - Automatic account linking — `emailVerified` is reported; the decision is the application's
-- Single-flight token refresh — [#444](https://github.com/chrismichaelps/effuse/issues/444)
 - Authorization policies — [#445](https://github.com/chrismichaelps/effuse/issues/445)
 - Client bindings and SSR hydration — [#446](https://github.com/chrismichaelps/effuse/issues/446)
 - Password reset flows
