@@ -158,6 +158,29 @@ export class TokenSignatureMismatchError extends Data.TaggedError(
 	readonly safeMessage = 'Malformed authentication token.';
 }
 
+/**
+ * The caller is known, but not permitted.
+ *
+ * Distinct from {@link SessionNotFoundError}: that one means "sign in", this one
+ * means "signing in again will not help". Conflating them sends an
+ * already-authenticated user back to a sign-in page they will bounce straight
+ * out of, and makes 401 rates useless as a signal.
+ */
+export class ForbiddenError extends Data.TaggedError('ForbiddenError')<
+	SafeErrorFields & {
+		/** The policy that refused, for operators. Never sent to clients. */
+		readonly policy?: string;
+	}
+> {
+	constructor(args: SafeErrorFields & { readonly policy?: string } = {}) {
+		super(args);
+	}
+
+	// Deliberately opaque, and identical regardless of which policy refused. A
+	// message naming the missing role tells a prober exactly what to obtain.
+	readonly safeMessage = 'You do not have access to this resource.';
+}
+
 /** The double-submit CSRF token was absent or did not match the session. */
 export class CsrfMismatchError extends Data.TaggedError('CsrfMismatchError')<
 	SafeErrorFields
@@ -233,6 +256,7 @@ export type AuthError =
 	| InvalidTokenError
 	| TokenSignatureMismatchError
 	| CsrfMismatchError
+	| ForbiddenError
 	| ProviderError
 	| StoreError
 	| ConfigError;
@@ -247,6 +271,7 @@ const AUTH_ERROR_TAGS: ReadonlySet<string> = new Set([
 	'InvalidTokenError',
 	'TokenSignatureMismatchError',
 	'CsrfMismatchError',
+	'ForbiddenError',
 	'ProviderError',
 	'StoreError',
 	'ConfigError',
@@ -285,6 +310,7 @@ const statusFor = (error: AuthError): number => {
 		case 'TokenSignatureMismatchError':
 			return 401;
 		case 'CsrfMismatchError':
+		case 'ForbiddenError':
 			return 403;
 		case 'AccountLockedError':
 			// 423 Locked, rather than 403, so operators can separate a policy

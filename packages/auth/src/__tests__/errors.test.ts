@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	AccountLockedError,
 	CsrfMismatchError,
+	ForbiddenError,
 	InvalidCredentialsError,
 	RateLimitedError,
 	SessionExpiredError,
@@ -38,6 +39,8 @@ describe('AuthError', () => {
 					return 'signature';
 				case 'CsrfMismatchError':
 					return 'csrf';
+				case 'ForbiddenError':
+					return 'forbidden';
 				case 'ProviderError':
 					return 'provider';
 				case 'StoreError':
@@ -96,6 +99,7 @@ describe('toSafeResponseInit', () => {
 		);
 		expect(toSafeResponseInit(new SessionRevokedError()).status).toBe(401);
 		expect(toSafeResponseInit(new CsrfMismatchError()).status).toBe(403);
+		expect(toSafeResponseInit(new ForbiddenError()).status).toBe(403);
 		expect(
 			toSafeResponseInit(new AccountLockedError({ retryAfterMs: 60_000 })).status
 		).toBe(423);

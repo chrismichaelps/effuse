@@ -3,9 +3,9 @@
 Authentication for Effuse. One typed session, swappable ports with conformance
 suites, and named mitigations with tests behind each of them.
 
-> **Status:** foundation, session engine, credentials, OAuth/OIDC, and
-> single-flight token refresh have shipped. Authorization policies and client
-> bindings are tracked and not yet implemented — see
+> **Status:** foundation, session engine, credentials, OAuth/OIDC,
+> single-flight token refresh, and authorization policies have shipped. Client
+> bindings and SSR hydration are tracked and not yet implemented — see
 > [Not yet implemented](#not-yet-implemented). Read
 > [SECURITY.md](./SECURITY.md) before deploying.
 
@@ -212,6 +212,45 @@ transparent rehashing on cost increases are built in. There is no
 "credentials does not support database sessions" caveat — it uses the same engine
 as every other provider.
 
+## Authorization
+
+Policies are values built against the same claims declaration the session uses,
+so a typo is a compile error rather than a comparison that is always false:
+
+```ts
+import { createPolicies, createPolicyRegistry } from '@effuse/auth/server';
+
+const p = createPolicies<typeof claims>();
+
+const registry = createPolicyRegistry<typeof claims>()
+  .protect({ path: '/api/*', policy: p.authenticated() })
+  .protect({ path: '/api/admin/*', policy: p.claim('role', 'admin') })
+  .protect({ path: '/health', policy: p.public(), override: true });
+```
+
+Overlapping rules combine with **AND**, so adding a rule can only ever narrow
+access. Making one route more permissive than its prefix needs an explicit
+`override: true` — a silent widening is one nobody reviewed.
+
+Then guard requests, and audit the whole surface:
+
+```ts
+import { createPolicyGuard, assertPolicyCoverage } from '@effuse/auth/server';
+
+const guard = createPolicyGuard({ registry, resolveSession: auth.fromRequest });
+
+const { response, session } = await guard.protect(request);
+if (response) return response;
+
+// In a test or build step — fails on any route with no declared policy:
+assertPolicyCoverage(manifest, registry);
+```
+
+`assertPolicyCoverage` is the setting that turns a forgotten check from an
+incident into a failed CI run. Scattered `if (session.user.role !== 'admin')`
+conditionals cannot be audited at all: there is no list of routes to compare
+against, so a missing check is invisible until someone exploits it.
+
 ## Session strategies
 
 | | Stateless | Stateful |
@@ -286,12 +325,11 @@ Tracked, not hidden:
 
 - Plain OAuth 2.0 providers with no ID token (GitHub) — OIDC providers are supported today
 - Automatic account linking — `emailVerified` is reported; the decision is the application's
-- Authorization policies — [#445](https://github.com/chrismichaelps/effuse/issues/445)
 - Client bindings and SSR hydration — [#446](https://github.com/chrismichaelps/effuse/issues/446)
 - Password reset flows
 
-Until policies ship, authorization is the application's responsibility. Client
-session state is presentational only and must never be an enforcement point.
+Client session state is presentational only and must never be an enforcement
+point.
 
 ## Security
 
