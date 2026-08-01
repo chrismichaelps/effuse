@@ -191,3 +191,12 @@ export {
 	type GuardOutcome,
 	type PolicyGuard,
 } from './policy/guard.js';
+
+export {
+	renderSessionHydration,
+	renderSessionScript,
+	toHydrationPayload,
+	SESSION_SCRIPT_ID,
+	type RenderSessionScriptOptions,
+	type SessionHydrationPayload,
+} from './hydration.js';

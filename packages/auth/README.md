@@ -4,10 +4,9 @@ Authentication for Effuse. One typed session, swappable ports with conformance
 suites, and named mitigations with tests behind each of them.
 
 > **Status:** foundation, session engine, credentials, OAuth/OIDC,
-> single-flight token refresh, and authorization policies have shipped. Client
-> bindings and SSR hydration are tracked and not yet implemented — see
-> [Not yet implemented](#not-yet-implemented). Read
-> [SECURITY.md](./SECURITY.md) before deploying.
+> single-flight token refresh, authorization policies, and client/SSR hydration
+> have shipped. See [Not yet implemented](#not-yet-implemented) for what is
+> still absent, and read [SECURITY.md](./SECURITY.md) before deploying.
 
 ## Why this exists
 
@@ -251,6 +250,35 @@ incident into a failed CI run. Scattered `if (session.user.role !== 'admin')`
 conditionals cannot be audited at all: there is no list of routes to compare
 against, so a missing check is invisible until someone exploits it.
 
+## Client and SSR hydration
+
+The server resolves the session once and writes it into the page; the client
+adopts that value. It never fetches one of its own, which is what removes the
+window where the two can disagree.
+
+```ts
+// Server, while rendering:
+import { renderSessionHydration } from '@effuse/auth/server';
+const scriptTag = renderSessionHydration(config.claims, session);
+
+// Client, at start-up:
+import { hydrateSessionClient } from '@effuse/auth/client';
+const sessionClient = hydrateSessionClient<typeof claims>();
+
+sessionClient.current();               // synchronous — hydrated, not fetched
+sessionClient.subscribe(render);       // one channel, every subscriber
+sessionClient.clear();                 // after sign-out, no reload needed
+```
+
+Only claims left at the exposure default are serialised; `expose: false` claims
+and the subject never reach the browser. The payload is an inert
+`<script type="application/json">` block rather than a `window.__SESSION__`
+assignment, so a display name containing `</script>` cannot become code.
+
+**Client state is presentational.** It decides what to render, never what to
+permit — a check that exists only there is one an attacker skips by not running
+your JavaScript.
+
 ## Session strategies
 
 | | Stateless | Stateful |
@@ -274,7 +302,7 @@ rather than letting `destroy` quietly do nothing.
 | --- | --- | --- |
 | `@effuse/auth` | types, `claim`, `defineAuth`, errors | yes |
 | `@effuse/auth/server` | session engine, providers, everything using `node:crypto` | no |
-| `@effuse/auth/client` | session snapshot and subscription | yes |
+| `@effuse/auth/client` | session snapshot, hydration, subscription | yes |
 | `@effuse/auth/testing` | in-memory ports, controllable clock, fake IdP | tests |
 | `@effuse/auth/conformance` | executable port conformance suites | tests |
 
@@ -325,7 +353,6 @@ Tracked, not hidden:
 
 - Plain OAuth 2.0 providers with no ID token (GitHub) — OIDC providers are supported today
 - Automatic account linking — `emailVerified` is reported; the decision is the application's
-- Client bindings and SSR hydration — [#446](https://github.com/chrismichaelps/effuse/issues/446)
 - Password reset flows
 
 Client session state is presentational only and must never be an enforcement
