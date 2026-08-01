@@ -327,3 +327,11 @@ export {
 } from './fake-idp.js';
 
 export { createMemoryAuthStorage } from './storage.js';
+
+export {
+	createTestEnvironment,
+	createTestSession,
+	TEST_SECRET,
+	type CreateTestSessionOptions,
+	type TestSession,
+} from './session.js';

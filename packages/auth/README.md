@@ -336,16 +336,76 @@ already caught one such bug in this package's own reference implementation.
 
 ## Testing your app
 
-```ts
-import { createTestClock, createMemorySessionStore } from '@effuse/auth/testing';
+Testing an authenticated route should be three lines, not a sign-in flow:
 
-const clock = createTestClock();
-clock.advance(30 * 60_000); // expiry and lockout tested without sleeping
+```ts
+import { createTestSession } from '@effuse/auth/testing';
+
+const signedIn = await createTestSession({
+  claims: appClaims,
+  values: { role: 'admin', displayName: 'Ada', email: 'ada@example.com' },
+});
+
+const response = await handler(signedIn.request('/api/admin'));
+```
+
+**Nothing is faked.** `createTestSession` builds a real engine with a real codec
+and issues a real signed token, so the cookie it returns is accepted by the
+production path because it is genuinely valid — proven by a test that reads it
+back through an independently constructed server.
+
+It also hands back `clock`, `storage`, `auth`, the raw `token`, and the
+`setCookies` headers, so expiry, revocation, and rotation are all drivable:
+
+```ts
+const { clock } = signedIn;
+clock.advance(31 * 60_000);          // no sleeping, no flake
+await signedIn.auth.signOutEverywhere('test-subject');
 ```
 
 Time control matters more than it sounds: without it every expiry test is slow or
 flaky, so in practice they do not get written — and expiry is where auth bugs
 hide.
+
+For OAuth, `createFakeIdp()` generates a real RSA keypair, signs genuine tokens,
+serves discovery and JWKS, and its token endpoint actually verifies the PKCE
+challenge — so a green flow test is evidence your client sent the right verifier,
+not merely that it sent something. It also mints deliberately wrong tokens
+(foreign key, `alg: none`, wrong issuer, bad nonce) so hostile cases are
+generated rather than hand-written.
+
+## Writing a backend
+
+Implementing a port? Run its conformance suite and find out whether you got it
+right:
+
+```ts
+import {
+  runSessionStoreConformance,
+  runRateLimiterConformance,
+  runPasswordHasherConformance,
+  runTokenCodecConformance,
+  runUserStoreConformance,
+} from '@effuse/auth/conformance';
+
+runSessionStoreConformance({
+  harness: { describe, it, expect },
+  createStore: () => createRedisSessionStore(client),
+  advanceTime: (ms) => clock.advance(ms),   // omit to skip the TTL cases
+});
+```
+
+The harness is a minimal `{ describe, it, expect }` surface, so the suites run
+under vitest, jest, or `node:test` without adopting this repo's runner.
+
+They cover the properties that are easy to get subtly wrong and impossible to
+notice until production: lock exclusivity under real concurrency, TTL that
+actually expires, fencing on release, value isolation from later mutation,
+independent rate-limit budgets per scope, salting, and `verify` returning `false`
+rather than throwing on a foreign hash.
+
+Every reference implementation in `@effuse/auth/testing` passes the same suites —
+a suite the reference cannot satisfy is one nobody should be asked to satisfy.
 
 ## Not yet implemented
 
