@@ -145,3 +145,14 @@ export {
 	type PresetCredentials,
 	type StandardProfile,
 } from './oauth/presets.js';
+
+export {
+	classifyRefreshToken,
+	createTokenRefresher,
+	type AccessTokenResult,
+	type ReuseDetectedEvent,
+	type ReuseVerdict,
+	type TokenRecord,
+	type TokenRefresher,
+	type TokenRefresherOptions,
+} from './oauth/refresh.js';
