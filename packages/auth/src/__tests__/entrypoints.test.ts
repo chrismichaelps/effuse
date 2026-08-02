@@ -216,7 +216,7 @@ describe('session client', () => {
 	it('adopts the hydrated payload without fetching', () => {
 		const client = createSessionClient<{
 			role: ReturnType<typeof claim.enum<['admin', 'member']>>;
-		}>({ role: 'admin' });
+		}>({ status: 'authenticated', claims: { role: 'admin' }, expiresAt: undefined });
 
 		expect(client.current().status).toBe('authenticated');
 		expect(client.current().claims?.role).toBe('admin');
@@ -231,7 +231,7 @@ describe('session client', () => {
 		client.subscribe((session) => seen.push(session.status));
 		client.subscribe((session) => seen.push(session.status));
 
-		client.publish({ status: 'anonymous', claims: undefined });
+		client.publish({ status: 'anonymous', claims: undefined, expiresAt: undefined });
 
 		expect(seen).toEqual(['anonymous', 'anonymous']);
 	});
@@ -244,7 +244,7 @@ describe('session client', () => {
 			calls += 1;
 		});
 		unsubscribe();
-		client.publish({ status: 'anonymous', claims: undefined });
+		client.publish({ status: 'anonymous', claims: undefined, expiresAt: undefined });
 
 		expect(calls).toBe(0);
 	});
@@ -259,7 +259,7 @@ describe('session client', () => {
 			secondCalled = true;
 		});
 
-		client.publish({ status: 'anonymous', claims: undefined });
+		client.publish({ status: 'anonymous', claims: undefined, expiresAt: undefined });
 
 		expect(secondCalled).toBe(true);
 	});
