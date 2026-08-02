@@ -114,6 +114,7 @@ for the full contract.
 | Package            | Responsibility                                                                                                             |
 | ------------------ | -------------------------------------------------------------------------------------------------------------------------- |
 | `@effuse/core`     | Signals, components, DOM rendering, layers, SSR, server routes/actions, middleware, schemas, manifests, and typed clients. |
+| `@effuse/auth`     | Typed sessions, credentials, OAuth/OIDC, token refresh, authorization policies, SSR hydration, and conformance suites.     |
 | `@effuse/router`   | Histories, route matching, nested views, navigation, guards, links, and route context.                                     |
 | `@effuse/store`    | Reactive application state, actions, middleware, persistence, validation, selectors, and devtools integration.             |
 | `@effuse/query`    | Server-state caching, observers, retries, mutations, hydration, invalidation, and optimistic updates.                      |

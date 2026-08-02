@@ -69,12 +69,13 @@ export interface ClaimSchema<Value, Optional extends boolean = false> {
 }
 
 /** Any claim, for use in generic positions. */
-export type AnyClaim = ClaimSchema<never, boolean>;
+export type AnyClaim = ClaimSchema<unknown, boolean>;
 
 /** A declared session shape. */
-export type ClaimsShape = Readonly<Record<string, ClaimSchema<never, boolean>>>;
+export type ClaimsShape = Readonly<Record<string, AnyClaim>>;
 
-type ClaimValue<C> = C extends ClaimSchema<infer Value, boolean> ? Value : never;
+type ClaimValue<C> =
+	C extends ClaimSchema<infer Value, boolean> ? Value : never;
 
 type OptionalKeys<Shape> = {
 	[K in keyof Shape]-?: Shape[K] extends ClaimSchema<unknown, true> ? K : never;

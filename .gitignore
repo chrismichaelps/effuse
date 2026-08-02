@@ -130,3 +130,5 @@ FMCF-MASTER-SEED.md
 
 # Ignore internal docs
 docs
+!packages/auth/docs/
+!packages/auth/docs/**
