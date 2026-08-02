@@ -156,3 +156,38 @@ export {
 	type TokenRefresher,
 	type TokenRefresherOptions,
 } from './oauth/refresh.js';
+
+export {
+	createPolicies,
+	type Policy,
+	type PolicyBuilders,
+	type PolicyContext,
+	type PolicyDecision,
+} from './policy/predicates.js';
+
+export {
+	createPolicyRegistry,
+	type PolicyMatch,
+	type PolicyMethod,
+	type PolicyRegistry,
+	type PolicyRule,
+} from './policy/registry.js';
+
+export {
+	assertPolicyCoverage,
+	auditPolicyCoverage,
+	formatCoverageReport,
+	PolicyCoverageError,
+	type AuditableManifest,
+	type AuditableRoute,
+	type AuditOptions,
+	type CoverageEntry,
+	type CoverageReport,
+} from './policy/audit.js';
+
+export {
+	createPolicyGuard,
+	type GuardOptions,
+	type GuardOutcome,
+	type PolicyGuard,
+} from './policy/guard.js';

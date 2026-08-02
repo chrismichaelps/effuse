@@ -56,6 +56,7 @@ export {
 	AccountLockedError,
 	ConfigError,
 	CsrfMismatchError,
+	ForbiddenError,
 	InvalidCredentialsError,
 	InvalidTokenError,
 	ProviderError,
