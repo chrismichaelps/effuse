@@ -35,6 +35,8 @@ export * from '../index.js';
 
 export { createAuthServer, type AuthServer } from './create-auth-server.js';
 
+export { appendAuthCookies } from './http.js';
+
 export {
 	createSessionEngine,
 	type Session,
@@ -51,7 +53,11 @@ export {
 	type TokenCodecOptions,
 } from './token-codec.js';
 
-export { createCsrfGuard, type CsrfGuard, type CsrfGuardOptions } from './csrf.js';
+export {
+	createCsrfGuard,
+	type CsrfGuard,
+	type CsrfGuardOptions,
+} from './csrf.js';
 
 export {
 	createScryptHasher,
@@ -122,10 +128,7 @@ export {
 	type VerifyIdTokenResult,
 } from './oauth/id-token.js';
 
-export {
-	createJwksResolver,
-	type JwksResolverOptions,
-} from './oauth/jwks.js';
+export { createJwksResolver, type JwksResolverOptions } from './oauth/jwks.js';
 
 export {
 	createDiscoveryClient,

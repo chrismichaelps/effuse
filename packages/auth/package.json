@@ -73,6 +73,7 @@
 	},
 	"files": [
 		"dist",
+		"docs",
 		"src",
 		"SECURITY.md"
 	],
@@ -80,7 +81,7 @@
 		"build": "tsup",
 		"dev": "tsup --watch",
 		"lint": "eslint src --max-warnings 0",
-		"typecheck": "tsc --noEmit",
+		"typecheck": "tsc --noEmit && tsc --project tsconfig.docs.json --noEmit",
 		"pretest": "node ../../scripts/check-node-version.mjs",
 		"test": "vitest run"
 	},
