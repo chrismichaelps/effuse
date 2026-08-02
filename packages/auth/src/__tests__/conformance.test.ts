@@ -1,9 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
+	runPasswordHasherConformance,
 	runRateLimiterConformance,
 	runSessionStoreConformance,
+	runTokenCodecConformance,
+	runUserStoreConformance,
 	type ConformanceHarness,
 } from '../conformance.js';
+import { createScryptHasher } from '../server/password-hasher.js';
+import { createTokenCodec } from '../server/token-codec.js';
+import { createMemoryUserStore } from '../testing/index.js';
 import { createStorageSessionStore } from '../server/storage-session-store.js';
 import {
 	createMemoryRateLimiter,
@@ -68,6 +74,36 @@ describe('memory rate limiter', () => {
 		},
 		advanceTime: (ms) => {
 			clock.advance(ms);
+		},
+	});
+});
+
+describe('scrypt password hasher', () => {
+	// Deliberately weak parameters so the suite stays fast. Production defaults
+	// are exercised in password-hasher.test.ts.
+	runPasswordHasherConformance({
+		harness,
+		createHasher: () =>
+			createScryptHasher({ cost: 2 ** 12, blockSize: 8, parallelism: 1 }),
+		createWeakerHasher: () =>
+			createScryptHasher({ cost: 2 ** 11, blockSize: 8, parallelism: 1 }),
+	});
+});
+
+describe('hmac token codec', () => {
+	runTokenCodecConformance({
+		harness,
+		createCodec: () => createTokenCodec({ secrets: ['c'.repeat(32)] }),
+		createForeignCodec: () => createTokenCodec({ secrets: ['d'.repeat(32)] }),
+	});
+});
+
+describe('memory user store', () => {
+	runUserStoreConformance({
+		harness,
+		createStore: () => {
+			const store = createMemoryUserStore();
+			return { store, seed: store.seed, read: store.get };
 		},
 	});
 });
