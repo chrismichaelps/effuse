@@ -5,8 +5,10 @@ suites, and named mitigations with tests behind each of them.
 
 > **Status:** foundation, session engine, credentials, OAuth/OIDC,
 > single-flight token refresh, authorization policies, and client/SSR hydration
-> have shipped. See [Not yet implemented](#not-yet-implemented) for what is
-> still absent, and read [SECURITY.md](./SECURITY.md) before deploying.
+> are implemented on the current development branch. Start with the complete
+> [secure setup](./docs/getting-started.md), see the
+> [NextAuth migration guide](./docs/migrating-from-nextauth.md), and read
+> [SECURITY.md](./SECURITY.md) before deploying.
 
 ## Why this exists
 
@@ -14,14 +16,14 @@ The prevailing option in this space has a set of problems that configuration
 cannot fix. Its own issue tracker makes the case — the highest-reaction open
 issues are all one root cause:
 
-| Reactions | Issue |
-| --- | --- |
-| 64 | Tokens rotation does not persist the new token |
-| 49 | `useSession` only gets the session after manually reloading |
-| 27 | Cannot modify JWT to refresh `access_token` |
-| 26 | `signOut` does not reload client-side `useSession` state |
-| 24 | Session data inconsistency on initial login |
-| 12 | Race condition with cookie-altering requests |
+| Reactions | Issue                                                       |
+| --------- | ----------------------------------------------------------- |
+| 64        | Tokens rotation does not persist the new token              |
+| 49        | `useSession` only gets the session after manually reloading |
+| 27        | Cannot modify JWT to refresh `access_token`                 |
+| 26        | `signOut` does not reload client-side `useSession` state    |
+| 24        | Session data inconsistency on initial login                 |
+| 12        | Race condition with cookie-altering requests                |
 
 Adding one field to a session there means implementing a `jwt` callback,
 implementing a `session` callback, and module-augmenting three interfaces in a
@@ -34,12 +36,12 @@ Here it is one:
 import { claim, defineAuth } from '@effuse/auth';
 
 export const config = defineAuth({
-  secrets: [process.env.AUTH_SECRET!],
-  claims: {
-    role: claim.enum(['admin', 'member']),
-    displayName: claim.string(),
-    email: claim.string({ expose: false }), // never serialised to the browser
-  },
+	secrets: [process.env.AUTH_SECRET!],
+	claims: {
+		role: claim.enum(['admin', 'member']),
+		displayName: claim.string(),
+		email: claim.string({ expose: false }), // never serialised to the browser
+	},
 });
 ```
 
@@ -49,6 +51,10 @@ this package's intended usage — if a type cannot be inferred from `defineAuth`
 that is a bug.
 
 ## Getting started
+
+The [secure getting-started guide](./docs/getting-started.md) covers the complete
+path: installation, one typed claims declaration, explicit Effuse auth routes,
+route policies, OAuth sign-in, cookie propagation, and build-time coverage.
 
 ```bash
 pnpm add @effuse/auth
@@ -69,7 +75,7 @@ import { createAuthServer } from '@effuse/auth/server';
 import { createMemoryStorage } from '@effuse/server';
 
 export const auth = createAuthServer(config, {
-  storage: createMemoryStorage(),
+	storage: createMemoryStorage(),
 });
 ```
 
@@ -81,10 +87,10 @@ sign-out:
 const { session, error, setCookies } = await auth.fromRequest(request);
 
 if (session === undefined) {
-  return new Response('Unauthorized', { status: 401 });
+	return new Response('Unauthorized', { status: 401 });
 }
 
-session.claims.role;        // 'admin' | 'member' — inferred, not asserted
+session.claims.role; // 'admin' | 'member' — inferred, not asserted
 session.claims.displayName; // string
 ```
 
@@ -92,8 +98,8 @@ Sign in and out:
 
 ```ts
 const { setCookies, session } = await auth.signIn({
-  subject: user.id,
-  claims: { role: 'admin', displayName: 'Ada', email: 'ada@example.com' },
+	subject: user.id,
+	claims: { role: 'admin', displayName: 'Ada', email: 'ada@example.com' },
 });
 
 const { setCookies } = await auth.signOut(request);
@@ -108,22 +114,26 @@ reason internals cannot leak by accident:
 import { toSafeResponseInit } from '@effuse/auth';
 
 if (error !== undefined) {
-  const { status, headers, body } = toSafeResponseInit(error);
-  return new Response(JSON.stringify(body), { status, headers });
+	const { status, headers, body } = toSafeResponseInit(error);
+	return new Response(JSON.stringify(body), { status, headers });
 }
 ```
 
 ### OAuth and OpenID Connect
 
 ```ts
-import { createOAuthClient, google, createRedirectValidator } from '@effuse/auth/server';
+import {
+	createOAuthClient,
+	google,
+	createRedirectValidator,
+} from '@effuse/auth/server';
 
 const oauth = createOAuthClient({
-  provider: google({ clientId, clientSecret }),
-  redirectUri: 'https://app.example.com/auth/callback',
-  storage,
-  clock: { now: () => Date.now() },
-  redirects: createRedirectValidator({ baseUrl: 'https://app.example.com' }),
+	provider: google({ clientId, clientSecret }),
+	redirectUri: 'https://app.example.com/auth/callback',
+	storage,
+	clock: { now: () => Date.now() },
+	redirects: createRedirectValidator({ baseUrl: 'https://app.example.com' }),
 });
 
 // Begin: apply setCookies to the response, then redirect.
@@ -133,9 +143,9 @@ const started = await oauth.start({ redirectTo: '/dashboard' });
 const result = await oauth.callback(request);
 
 if (result.ok) {
-  result.profile;        // your typed mapper's output
-  result.emailVerified;  // do not link accounts without this
-  result.redirectTo;     // already validated, safe to redirect to
+	result.profile; // your typed mapper's output
+	result.emailVerified; // do not link accounts without this
+	result.redirectTo; // already validated, safe to redirect to
 }
 ```
 
@@ -158,8 +168,13 @@ supported yet; only OpenID Connect providers work today.
 import { createTokenRefresher } from '@effuse/auth/server';
 
 const refresher = createTokenRefresher({
-  tokenEndpoint, clientId, clientSecret, providerId: 'google',
-  storage, store, clock: { now: () => Date.now() },
+	tokenEndpoint,
+	clientId,
+	clientSecret,
+	providerId: 'google',
+	storage,
+	store,
+	clock: { now: () => Date.now() },
 });
 
 await refresher.remember({ sessionId, subject, ...result.tokens });
@@ -181,28 +196,28 @@ TTL-bounded lock are all built in.
 
 ```ts
 import {
-  createCredentialsProvider,
-  createScryptHasher,
+	createCredentialsProvider,
+	createScryptHasher,
 } from '@effuse/auth/server';
 
 const credentials = createCredentialsProvider({
-  users,   // your UserStore
-  hasher: createScryptHasher(),
-  limiter, // your RateLimiter
-  clock: { now: () => Date.now() },
+	users, // your UserStore
+	hasher: createScryptHasher(),
+	limiter, // your RateLimiter
+	clock: { now: () => Date.now() },
 });
 
 const result = await credentials.authenticate({
-  identifier: 'ada@example.com',
-  password,
-  clientIp,
+	identifier: 'ada@example.com',
+	password,
+	clientIp,
 });
 
 if (result.ok) {
-  const { setCookies } = await auth.signIn({
-    subject: result.subject,
-    claims: { role: 'admin', displayName: 'Ada', email: 'ada@example.com' },
-  });
+	const { setCookies } = await auth.signIn({
+		subject: result.subject,
+		claims: { role: 'admin', displayName: 'Ada', email: 'ada@example.com' },
+	});
 }
 ```
 
@@ -222,9 +237,9 @@ import { createPolicies, createPolicyRegistry } from '@effuse/auth/server';
 const p = createPolicies<typeof claims>();
 
 const registry = createPolicyRegistry<typeof claims>()
-  .protect({ path: '/api/*', policy: p.authenticated() })
-  .protect({ path: '/api/admin/*', policy: p.claim('role', 'admin') })
-  .protect({ path: '/health', policy: p.public(), override: true });
+	.protect({ path: '/api/*', policy: p.authenticated() })
+	.protect({ path: '/api/admin/*', policy: p.claim('role', 'admin') })
+	.protect({ path: '/health', policy: p.public(), override: true });
 ```
 
 Overlapping rules combine with **AND**, so adding a rule can only ever narrow
@@ -265,9 +280,9 @@ const scriptTag = renderSessionHydration(config.claims, session);
 import { hydrateSessionClient } from '@effuse/auth/client';
 const sessionClient = hydrateSessionClient<typeof claims>();
 
-sessionClient.current();               // synchronous — hydrated, not fetched
-sessionClient.subscribe(render);       // one channel, every subscriber
-sessionClient.clear();                 // after sign-out, no reload needed
+sessionClient.current(); // synchronous — hydrated, not fetched
+sessionClient.subscribe(render); // one channel, every subscriber
+sessionClient.clear(); // after sign-out, no reload needed
 ```
 
 Only claims left at the exposure default are serialised; `expose: false` claims
@@ -281,12 +296,12 @@ your JavaScript.
 
 ## Session strategies
 
-| | Stateless | Stateful |
-| --- | --- | --- |
-| Where the session lives | in the signed cookie | in a `SessionStore` |
-| Store read per request | no (unless a store is configured) | yes |
-| Revocable server-side | only with a store | always |
-| Cookie size | grows with claims; chunked past ~4 KB | constant |
+|                         | Stateless                             | Stateful            |
+| ----------------------- | ------------------------------------- | ------------------- |
+| Where the session lives | in the signed cookie                  | in a `SessionStore` |
+| Store read per request  | no (unless a store is configured)     | yes                 |
+| Revocable server-side   | only with a store                     | always              |
+| Cookie size             | grows with claims; chunked past ~4 KB | constant            |
 
 Stateful when a store is supplied, stateless otherwise. Set
 `session.strategy` explicitly to override. Both satisfy one interface and are
@@ -298,13 +313,13 @@ rather than letting `destroy` quietly do nothing.
 
 ## Entrypoints
 
-| Import | Contains | Safe in a browser bundle |
-| --- | --- | --- |
-| `@effuse/auth` | types, `claim`, `defineAuth`, errors | yes |
-| `@effuse/auth/server` | session engine, providers, everything using `node:crypto` | no |
-| `@effuse/auth/client` | session snapshot, hydration, subscription | yes |
-| `@effuse/auth/testing` | in-memory ports, controllable clock, fake IdP | tests |
-| `@effuse/auth/conformance` | executable port conformance suites | tests |
+| Import                     | Contains                                                  | Safe in a browser bundle |
+| -------------------------- | --------------------------------------------------------- | ------------------------ |
+| `@effuse/auth`             | types, `claim`, `defineAuth`, errors                      | yes                      |
+| `@effuse/auth/server`      | session engine, providers, everything using `node:crypto` | no                       |
+| `@effuse/auth/client`      | session snapshot, hydration, subscription                 | yes                      |
+| `@effuse/auth/testing`     | in-memory ports, controllable clock, fake IdP             | tests                    |
+| `@effuse/auth/conformance` | executable port conformance suites                        | tests                    |
 
 The split is enforced by a test that walks the actual import closure, not by
 convention.
@@ -324,8 +339,8 @@ implementation and an executable conformance suite:
 import { runSessionStoreConformance } from '@effuse/auth/conformance';
 
 runSessionStoreConformance({
-  harness: { describe, it, expect },
-  createStore: () => createRedisSessionStore(client),
+	harness: { describe, it, expect },
+	createStore: () => createRedisSessionStore(client),
 });
 ```
 
@@ -342,8 +357,8 @@ Testing an authenticated route should be three lines, not a sign-in flow:
 import { createTestSession } from '@effuse/auth/testing';
 
 const signedIn = await createTestSession({
-  claims: appClaims,
-  values: { role: 'admin', displayName: 'Ada', email: 'ada@example.com' },
+	claims: appClaims,
+	values: { role: 'admin', displayName: 'Ada', email: 'ada@example.com' },
 });
 
 const response = await handler(signedIn.request('/api/admin'));
@@ -359,7 +374,7 @@ It also hands back `clock`, `storage`, `auth`, the raw `token`, and the
 
 ```ts
 const { clock } = signedIn;
-clock.advance(31 * 60_000);          // no sleeping, no flake
+clock.advance(31 * 60_000); // no sleeping, no flake
 await signedIn.auth.signOutEverywhere('test-subject');
 ```
 
@@ -381,17 +396,17 @@ right:
 
 ```ts
 import {
-  runSessionStoreConformance,
-  runRateLimiterConformance,
-  runPasswordHasherConformance,
-  runTokenCodecConformance,
-  runUserStoreConformance,
+	runSessionStoreConformance,
+	runRateLimiterConformance,
+	runPasswordHasherConformance,
+	runTokenCodecConformance,
+	runUserStoreConformance,
 } from '@effuse/auth/conformance';
 
 runSessionStoreConformance({
-  harness: { describe, it, expect },
-  createStore: () => createRedisSessionStore(client),
-  advanceTime: (ms) => clock.advance(ms),   // omit to skip the TTL cases
+	harness: { describe, it, expect },
+	createStore: () => createRedisSessionStore(client),
+	advanceTime: (ms) => clock.advance(ms), // omit to skip the TTL cases
 });
 ```
 
@@ -422,7 +437,7 @@ point.
 
 See [SECURITY.md](./SECURITY.md) for every mitigation, the attack it addresses,
 and the test that proves it — plus an explicit list of what this package does
-*not* defend against.
+_not_ defend against.
 
 ## Licence
 
