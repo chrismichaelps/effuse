@@ -59,6 +59,7 @@ test('every tested public package participates in the workspace gate', async () 
 	}
 
 	assert.deepEqual(publicPackages.sort(), [
+		'@effuse/auth',
 		'@effuse/cli',
 		'@effuse/compiler',
 		'@effuse/core',
