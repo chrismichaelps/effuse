@@ -40,13 +40,27 @@ that only lists wins is a marketing page.
 | Forced sign-out on secret rotation | Ordered secret list: the first signs, all verify. Rotation is a two-deploy operation with no session loss. | `token-codec.test.ts` → *secret rotation* |
 | Server crypto in the client bundle | `@effuse/auth/client` and the isomorphic root are asserted to reach no `node:` builtin, by walking the actual import closure. | `entrypoints.test.ts` → *client bundle purity* |
 | Session data leaking into HTML | Claims are `expose: false` opt-out, and `exposedClaims` is the only projection the hydration path uses. | `claims.test.ts` → *omits claims not marked for exposure* |
+| Authorization-code interception | PKCE with S256 is mandatory. `plain` and every unrecognised method are refused with no fall-through, so a downgrade cannot be negotiated. A provider that does not advertise S256 support is refused at `start`. | `oauth-pkce.test.ts`; `oauth-flow.test.ts` → *pkce enforcement* |
+| Login CSRF via a planted callback | The state id also travels in an HttpOnly cookie, and the callback requires both to be present and equal. The `state` parameter alone only proves a callback matches *a* flow we started, not one *this browser* started — which is what lets an attacker hand a victim their own callback URL. | `oauth-flow.test.ts` → *login CSRF* |
+| Callback replay | The stored flow record is single-use and consumed before anything else can fail, so a replayed callback finds nothing even when the first attempt errored. | `oauth-flow.test.ts` → *replay* |
+| ID token forgery | Signature verified before any claim is read. Key type checked against the algorithm family. | `oauth-id-token.test.ts` → *signature forgery* |
+| `alg: none` | A signature-free token is rejected before any comparison, and `none` is in no allowlist. | `oauth-id-token.test.ts` → *rejects a token with no signature at all* |
+| RS256-to-HS256 confusion | HMAC algorithms are never permitted for ID tokens, and key material is an asymmetric `KeyObject` that cannot serve as an HMAC secret. The header's `alg` is checked against provider metadata; it never selects the routine. | `oauth-id-token.test.ts` → *rejects an HMAC algorithm* |
+| ID token replay | `nonce` is required whenever one was sent, and a token that omits the claim is rejected rather than skipping the check. | `oauth-id-token.test.ts` → *replay protection* |
+| Token substitution | `aud` must contain this client; with multiple audiences `azp` must name it. `at_hash` binds the ID token to the access token issued with it. | `oauth-id-token.test.ts` → *claim validation* |
+| Mix-up attacks | When the provider echoes `iss` (RFC 9207) it must match the one that started the flow, so a code from one issuer cannot be redeemed at another. Absence is tolerated; a mismatch is not. | `oauth-flow.test.ts` → *mix-up* |
+| Open redirect after sign-in | Targets are resolved through the URL parser and checked by origin against an allowlist, then re-validated on the way out. Covers protocol-relative, backslash, userinfo, control-character, and lookalike-suffix forms. | `oauth-redirect.test.ts` |
+| Discovery pointing elsewhere | The document's own `issuer` must match the one requested, and every endpoint must be https. Otherwise the document redirects the key fetch itself to an issuer nobody chose. | `oauth-flow.test.ts` → *discovery* |
+| JWKS fetch amplification | Refetch on an unknown `kid` is rate-limited and concurrent fetches collapse into one, so forged tokens with random key ids cannot be turned into traffic against the provider. A plaintext JWKS endpoint is refused outright. | `oauth-id-token.test.ts` → *jwks resolver* |
+| Account takeover via unverified email | Automatic linking is not performed by this package at all. `emailVerified` is surfaced on the callback result so the decision is explicit, and `standardProfile` requires `email_verified === true` rather than coercing a truthy value. | `oauth-flow.test.ts` → *reports whether the provider asserts the email is verified* |
 | Silent adapter divergence | Every port ships an executable conformance suite covering lock exclusivity under real concurrency, TTL expiry, fencing on release, and value isolation. | `conformance.ts`, exercised in `conformance.test.ts` against both reference implementations |
 
 ## What this package does not do yet
 
 These are tracked, not hidden. Do not assume coverage that has not shipped.
 
-- **OAuth and OIDC** are not implemented ([#443](https://github.com/chrismichaelps/effuse/issues/443)). PKCE, `state`, `nonce`, ID-token validation, open-redirect defence, and mix-up protection all land there.
+- **Plain OAuth 2.0 providers that issue no ID token** — GitHub being the obvious one — are not supported. They need a userinfo-based path that has not shipped; only OpenID Connect providers work today.
+- **Account linking is not implemented.** The callback reports `emailVerified`; deciding whether to link is the application's call, and linking on an unverified email is an account-takeover vector.
 - **Single-flight token refresh** is not implemented ([#444](https://github.com/chrismichaelps/effuse/issues/444)). The `SessionStore` lock primitive it needs exists and is conformance-tested, but nothing uses it yet.
 - **Authorization policies** are not implemented ([#445](https://github.com/chrismichaelps/effuse/issues/445)). Until then, authorization is the application's responsibility.
 - **Password reset flows** are not implemented. Reset tokens must be single-use, short-lived, stored hashed, and invalidated on password change.

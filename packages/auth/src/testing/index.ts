@@ -316,3 +316,14 @@ export const createMemoryUserStore = (): MemoryUserStore => {
 
 /** Narrows a string to a {@link SessionId} in test fixtures. */
 export const asSessionId = (value: string): SessionId => value as SessionId;
+
+export {
+	createFakeIdp,
+	publicKeyFromJwk,
+	type AuthorizeOptions,
+	type FakeIdp,
+	type FakeIdpOptions,
+	type MintOptions,
+} from './fake-idp.js';
+
+export { createMemoryAuthStorage } from './storage.js';
