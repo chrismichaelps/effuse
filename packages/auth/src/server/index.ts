@@ -70,9 +70,11 @@ export {
 	defaultPasswordPolicy,
 	type AuthenticateInput,
 	type AuthenticateResult,
+	type ChangePasswordInput,
 	type ChangePasswordResult,
 	type CredentialsProvider,
 	type CredentialsProviderOptions,
+	type PasswordChangedEvent,
 	type PasswordPolicy,
 } from './credentials.js';
 

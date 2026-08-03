@@ -213,7 +213,39 @@ Navigate to `/api/auth/sign-in`. Google returns to the explicit callback route,
 which validates PKCE, state, nonce, issuer, signature, audience, and redirect
 target before issuing the Effuse session.
 
-## 7. Add password recovery
+## 7. Add server-side password change
+
+Build the credentials provider beside the auth server so session invalidation
+cannot be forgotten:
+
+```ts
+export const credentials = createCredentialsProvider({
+	users,
+	hasher,
+	limiter,
+	clock,
+	revokeSessions: (subject) => auth.signOutEverywhere(subject),
+	onPasswordChanged: (event) =>
+		securityOutbox.enqueue({
+			type: 'password-changed',
+			...event,
+		}),
+});
+```
+
+The route must resolve the server session, verify a session-bound CSRF token,
+and pass the stable session subject rather than accepting a subject from the
+request body. `changePassword` then re-verifies the current password, throttles
+by subject and client address, rejects password reuse, revokes every session,
+and atomically replaces the verified hash. Clear the browser cookie after
+success and send the user through normal sign-in.
+
+Revocation happens before credential persistence. A session-store failure leaves
+the old password unchanged; a credential-store failure leaves sessions revoked.
+Both outcomes fail closed. The completion hook runs after the security state
+commits and should enqueue into a durable, monitored outbox.
+
+## 8. Add password recovery
 
 Implement `PasswordResetStore` with atomic replacement and consumption, then
 run `runPasswordResetStoreConformance` against the production adapter. Assemble

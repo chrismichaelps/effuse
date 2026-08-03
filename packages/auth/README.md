@@ -216,6 +216,12 @@ const credentials = createCredentialsProvider({
 	hasher: createScryptHasher(),
 	limiter, // your RateLimiter
 	clock: { now: () => Date.now() },
+	revokeSessions: (subject) => auth.signOutEverywhere(subject),
+	onPasswordChanged: (event) =>
+		securityOutbox.enqueue({
+			type: 'password-changed',
+			...event,
+		}),
 });
 
 const result = await credentials.authenticate({
@@ -230,12 +236,22 @@ if (result.ok) {
 		claims: { role: 'admin', displayName: 'Ada', email: 'ada@example.com' },
 	});
 }
+
+const changed = await credentials.changePassword({
+	subject: session.subject,
+	currentPassword,
+	newPassword,
+	clientIp,
+});
 ```
 
 Enumeration resistance, per-identifier and per-IP rate limiting, lockout, and
 transparent rehashing on cost increases are built in. There is no
 "credentials does not support database sessions" caveat — it uses the same engine
-as every other provider.
+as every other provider. Password change is server-only and requires current
+credential reauthentication, independent subject/IP throttling, atomic
+compare-and-replace persistence, all-session revocation, and a durable
+completion event. A stolen session alone is insufficient.
 
 ### Password recovery
 
@@ -497,7 +513,8 @@ contract. Run it from the repository root with:
 pnpm --filter @effuse/auth test:mutation
 ```
 
-The gate mutates `src/config.ts` and `src/server/password-reset.ts`, runs related Vitest coverage per test, and
+The gate mutates `src/config.ts`, `src/server/credentials.ts`, and
+`src/server/password-reset.ts`, runs related Vitest coverage per test, and
 requires every non-equivalent mutant to be killed. Reports are written to
 `packages/auth/reports/mutation/` and intentionally ignored by Git. The narrow
 scope keeps the command practical for pull requests; broader security and

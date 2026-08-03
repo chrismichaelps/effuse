@@ -36,8 +36,13 @@ typed session, and a value that fails the runtime decoder is rejected.
 ## 2. Split the adapter by responsibility
 
 Most OAuth-only applications need only `AuthStorage`. Credentials applications
-also provide `UserStore`, `PasswordHasher`, and `RateLimiter`. Custom
-implementations must run the exported conformance suite for their port.
+also provide `UserStore`, `PasswordHasher`, and `RateLimiter`; password changes
+add the auth server's session-revocation callback and a durable completion hook.
+Custom implementations must run the exported conformance suite for their port.
+
+When upgrading from the subject-only password-change API, add `findBySubject`
+and atomic `replacePasswordHash` to `UserStore`, configure `revokeSessions` and
+`onPasswordChanged`, and pass `currentPassword` plus `clientIp` on every call.
 
 Do not migrate unused adapter methods. Smaller ports keep session persistence,
 identity lookup, password hashing, and rate limiting independently replaceable.
