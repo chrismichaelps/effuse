@@ -287,10 +287,30 @@ export const createMemoryUserStore = (): MemoryUserStore => {
 			);
 		},
 
+		findBySubject: (subject) => Promise.resolve(bySubject.get(subject)),
+
 		updatePasswordHash: (subject, passwordHash) => {
 			const existing = bySubject.get(subject);
 			if (existing !== undefined) put({ ...existing, passwordHash });
 			return Promise.resolve();
+		},
+
+		replacePasswordHash: (subject, expectedPasswordHash, passwordHash) => {
+			const existing = bySubject.get(subject);
+			if (
+				existing === undefined ||
+				existing.passwordHash !== expectedPasswordHash
+			) {
+				return Promise.resolve(false);
+			}
+
+			put({
+				subject: existing.subject,
+				identifier: existing.identifier,
+				passwordHash,
+				failedAttempts: 0,
+			});
+			return Promise.resolve(true);
 		},
 
 		recordFailedAttempt: (subject, lockedUntil) => {

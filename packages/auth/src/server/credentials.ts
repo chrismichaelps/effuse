@@ -63,6 +63,18 @@ export interface CredentialsProviderOptions {
 	readonly lockoutDurationMs?: number;
 	/** Returns a reason string when a password is unacceptable. */
 	readonly passwordPolicy?: PasswordPolicy;
+	/** Revokes every session after current-password reauthentication succeeds. */
+	readonly revokeSessions: (subject: string) => Promise<number>;
+	/** Enqueue an audit/security notification after the password change commits. */
+	readonly onPasswordChanged: (
+		event: PasswordChangedEvent
+	) => Promise<void> | void;
+}
+
+export interface PasswordChangedEvent {
+	readonly subject: string;
+	readonly revokedSessions: number;
+	readonly completedAt: number;
 }
 
 export interface AuthenticateInput {
@@ -77,15 +89,21 @@ export type AuthenticateResult =
 	| { readonly ok: false; readonly error: AuthError };
 
 export type ChangePasswordResult =
-	| { readonly ok: true }
+	| { readonly ok: true; readonly revokedSessions: number }
 	| { readonly ok: false; readonly error: AuthError };
+
+export interface ChangePasswordInput {
+	/** Stable subject resolved from the authenticated server session. */
+	readonly subject: string;
+	readonly currentPassword: string;
+	readonly newPassword: string;
+	/** The client address, for the independent password-change budget. */
+	readonly clientIp: string;
+}
 
 export interface CredentialsProvider {
 	authenticate(input: AuthenticateInput): Promise<AuthenticateResult>;
-	changePassword(input: {
-		readonly subject: string;
-		readonly newPassword: string;
-	}): Promise<ChangePasswordResult>;
+	changePassword(input: ChangePasswordInput): Promise<ChangePasswordResult>;
 }
 
 const DEFAULT_LOCKOUT_THRESHOLD = 10;
@@ -94,6 +112,8 @@ const DEFAULT_LOCKOUT_DURATION_MS = 15 * 60_000;
 /** Rate-limit scopes. Separate namespaces keep the two budgets independent. */
 const SCOPE_IDENTIFIER = 'credentials:identifier';
 const SCOPE_IP = 'credentials:ip';
+const SCOPE_CHANGE_SUBJECT = 'credentials:change:subject';
+const SCOPE_CHANGE_IP = 'credentials:change:ip';
 
 /**
  * A stand-in hash verified when no user matches.
@@ -143,6 +163,8 @@ export const createCredentialsProvider = (
 		lockoutThreshold = DEFAULT_LOCKOUT_THRESHOLD,
 		lockoutDurationMs = DEFAULT_LOCKOUT_DURATION_MS,
 		passwordPolicy = defaultPasswordPolicy,
+		revokeSessions,
+		onPasswordChanged,
 	} = options;
 
 	// Built once, lazily, so construction stays synchronous and the cost is paid
@@ -192,6 +214,7 @@ export const createCredentialsProvider = (
 			}
 
 			if (
+				// Stryker disable next-line ConditionalExpression: undefined > now is false, so replacing this guard with true is equivalent
 				record.lockedUntil !== undefined &&
 				record.lockedUntil > clock.now()
 			) {
@@ -245,7 +268,68 @@ export const createCredentialsProvider = (
 			return { ok: true, subject: record.subject };
 		},
 
-		changePassword: async ({ subject, newPassword }) => {
+		changePassword: async ({
+			subject,
+			currentPassword,
+			newPassword,
+			clientIp,
+		}) => {
+			const [bySubject, byIp] = await Promise.all([
+				limiter.consume(SCOPE_CHANGE_SUBJECT, subject),
+				limiter.consume(SCOPE_CHANGE_IP, clientIp),
+			]);
+			if (!bySubject.allowed || !byIp.allowed) {
+				const exhausted = !bySubject.allowed ? bySubject : byIp;
+				return {
+					ok: false,
+					error: new RateLimitedError({
+						retryAfterMs: exhausted.retryAfterMs,
+						scope: !bySubject.allowed ? SCOPE_CHANGE_SUBJECT : SCOPE_CHANGE_IP,
+					}),
+				};
+			}
+
+			const record = await users.findBySubject(subject);
+			if (record === undefined) {
+				await hasher.verify(currentPassword, await getDummyHash());
+				return {
+					ok: false,
+					error: new InvalidCredentialsError({
+						detail: `No credential record for subject ${subject}.`,
+					}),
+				};
+			}
+
+			if (
+				// Stryker disable next-line ConditionalExpression: undefined > now is false, so replacing this guard with true is equivalent
+				record.lockedUntil !== undefined &&
+				record.lockedUntil > clock.now()
+			) {
+				return {
+					ok: false,
+					error: new AccountLockedError({
+						retryAfterMs: record.lockedUntil - clock.now(),
+						detail: `Subject ${record.subject} is locked.`,
+					}),
+				};
+			}
+
+			if (!(await hasher.verify(currentPassword, record.passwordHash))) {
+				const attempts = record.failedAttempts + 1;
+				await users.recordFailedAttempt(
+					record.subject,
+					attempts >= lockoutThreshold
+						? clock.now() + lockoutDurationMs
+						: undefined
+				);
+				return {
+					ok: false,
+					error: new InvalidCredentialsError({
+						detail: `Password-change reauthentication failed for subject ${record.subject}.`,
+					}),
+				};
+			}
+
 			const rejection = passwordPolicy(newPassword);
 			if (rejection !== undefined) {
 				return {
@@ -253,14 +337,38 @@ export const createCredentialsProvider = (
 					error: new PasswordPolicyError({ reason: rejection }),
 				};
 			}
+			if (newPassword === currentPassword) {
+				return {
+					ok: false,
+					error: new PasswordPolicyError({
+						reason: 'New password must be different from the current password.',
+					}),
+				};
+			}
 
-			await users.updatePasswordHash(subject, await hasher.hash(newPassword));
+			const passwordHash = await hasher.hash(newPassword);
+			const revokedSessions = await revokeSessions(subject);
+			const changed = await users.replacePasswordHash(
+				subject,
+				record.passwordHash,
+				passwordHash
+			);
+			if (!changed) {
+				return {
+					ok: false,
+					error: new InvalidCredentialsError({
+						detail: `Credential changed concurrently for subject ${subject}.`,
+					}),
+				};
+			}
 
-			// The user has demonstrably regained control of the account, so keeping
-			// the lock in place only punishes the victim of the attempt that set it.
-			await users.clearFailedAttempts(subject);
+			await onPasswordChanged({
+				subject,
+				revokedSessions,
+				completedAt: clock.now(),
+			});
 
-			return { ok: true };
+			return { ok: true, revokedSessions };
 		},
 	};
 };

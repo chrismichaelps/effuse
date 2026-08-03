@@ -1,6 +1,10 @@
 /** @type {import('@stryker-mutator/api/core').PartialStrykerOptions} */
 export default {
-	mutate: ['src/config.ts', 'src/server/password-reset.ts'],
+	mutate: [
+		'src/config.ts',
+		'src/server/credentials.ts',
+		'src/server/password-reset.ts',
+	],
 	testRunner: 'vitest',
 	vitest: {
 		configFile: 'vitest.config.ts',

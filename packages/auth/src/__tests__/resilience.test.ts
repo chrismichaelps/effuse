@@ -14,8 +14,14 @@ import {
 	createTestClock,
 	type TestClock,
 } from '../testing/index.js';
+
 import { createMemoryAuthStorage } from '../testing/storage.js';
 import type { SessionId, SessionStore, StoredSession } from '../contract.js';
+
+const passwordChangeDependencies = {
+	revokeSessions: () => Promise.resolve(0),
+	onPasswordChanged: () => undefined,
+};
 
 const SECRET = 'r'.repeat(32);
 const shape = { role: claim.enum(['admin', 'member']) };
@@ -747,6 +753,7 @@ describe('credentials edge cases', () => {
 				clock,
 				lockoutThreshold: 5,
 				lockoutDurationMs: 15 * 60_000,
+				...passwordChangeDependencies,
 			}),
 		};
 	};
@@ -826,7 +833,9 @@ describe('credentials edge cases', () => {
 			(
 				await provider.changePassword({
 					subject: 'u_1',
+					currentPassword: 'a-perfectly-reasonable-passphrase',
 					newPassword: 'x'.repeat(257),
+					clientIp: '203.0.113.2',
 				})
 			).ok
 		).toBe(false);
@@ -835,7 +844,9 @@ describe('credentials edge cases', () => {
 			(
 				await provider.changePassword({
 					subject: 'u_1',
+					currentPassword: 'a-perfectly-reasonable-passphrase',
 					newPassword: 'x'.repeat(256),
+					clientIp: '203.0.113.3',
 				})
 			).ok
 		).toBe(true);
@@ -856,6 +867,7 @@ describe('credentials edge cases', () => {
 			hasher,
 			limiter: createMemoryRateLimiter({ limit: 50, windowMs: 60_000 }, clock),
 			clock,
+			...passwordChangeDependencies,
 		});
 
 		const result = await provider.authenticate({
@@ -888,6 +900,7 @@ describe('credentials edge cases', () => {
 			clock,
 			lockoutThreshold: 3,
 			lockoutDurationMs: 60_000,
+			...passwordChangeDependencies,
 		});
 
 		for (let i = 0; i < 3; i += 1) {

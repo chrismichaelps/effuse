@@ -6,6 +6,7 @@ import { AUTH_SECRET_MIN_LENGTH, claim, defineAuth } from '../index.js';
 import {
 	createAuthServer,
 	createPasswordResetService,
+	type PasswordChangedEvent,
 	type PasswordResetCompletedEvent,
 } from '../server/index.js';
 import { createSessionClient } from '../client/index.js';
@@ -103,6 +104,16 @@ describe('source hygiene', () => {
 		expect(createPasswordResetService).toBeTypeOf('function');
 		expect(createMemoryPasswordResetStore).toBeTypeOf('function');
 		expect(event.revokedSessions).toBe(2);
+	});
+
+	it('publishes the server-side password-change event contract', () => {
+		const event = {
+			subject: 'u_1',
+			revokedSessions: 3,
+			completedAt: 1_700_000_000_000,
+		} satisfies PasswordChangedEvent;
+
+		expect(event.revokedSessions).toBe(3);
 	});
 
 	it('carries the licence header on every source file', async () => {

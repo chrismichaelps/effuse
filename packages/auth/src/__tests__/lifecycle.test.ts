@@ -66,7 +66,9 @@ class FakeBrowser {
 	/** The session token as the server would reassemble it from the jar. */
 	token(name = 'effuse.session'): string {
 		const chunks = [...this.jar.keys()]
-			.filter((key) => new RegExp(`^(__Host-)?${name.replace(/\./g, '\\.')}\\.\\d+$`).test(key))
+			.filter((key) =>
+				new RegExp(`^(__Host-)?${name.replace(/\./g, '\\.')}\\.\\d+$`).test(key)
+			)
 			.sort((a, b) => Number(a.split('.').pop()) - Number(b.split('.').pop()));
 
 		if (chunks.length > 0) {
@@ -88,7 +90,10 @@ const build = (storage?: AuthStorage, clock?: TestClock) => {
 	return {
 		clock: activeClock,
 		storage: activeStorage,
-		auth: createAuthServer(config, { storage: activeStorage, clock: activeClock }),
+		auth: createAuthServer(config, {
+			storage: activeStorage,
+			clock: activeClock,
+		}),
 	};
 };
 
@@ -190,7 +195,9 @@ describe('multiple devices', () => {
 		await auth.signOut(laptop.request());
 
 		expect((await auth.fromRequest(laptop.request())).session).toBeUndefined();
-		expect((await auth.fromRequest(phone.request())).session?.subject).toBe('u_1');
+		expect((await auth.fromRequest(phone.request())).session?.subject).toBe(
+			'u_1'
+		);
 	});
 
 	it('signs every device out at once when the password changes', async () => {
@@ -210,7 +217,9 @@ describe('multiple devices', () => {
 		expect(await auth.signOutEverywhere('u_1')).toBe(3);
 
 		for (const device of devices) {
-			expect((await auth.fromRequest(device.request())).session).toBeUndefined();
+			expect(
+				(await auth.fromRequest(device.request())).session
+			).toBeUndefined();
 		}
 	});
 
@@ -231,7 +240,11 @@ describe('multiple devices', () => {
 			(
 				await auth.signIn({
 					subject: 'u_2',
-					claims: { role: 'member', displayName: 'Bob', email: 'b@example.com' },
+					claims: {
+						role: 'member',
+						displayName: 'Bob',
+						email: 'b@example.com',
+					},
 				})
 			).setCookies
 		);
@@ -239,7 +252,9 @@ describe('multiple devices', () => {
 		await auth.signOutEverywhere('u_1');
 
 		expect((await auth.fromRequest(mine.request())).session).toBeUndefined();
-		expect((await auth.fromRequest(theirs.request())).session?.subject).toBe('u_2');
+		expect((await auth.fromRequest(theirs.request())).session?.subject).toBe(
+			'u_2'
+		);
 	});
 });
 
@@ -390,10 +405,14 @@ describe('concurrent requests', () => {
 		);
 
 		const results = await Promise.all(
-			Array.from({ length: 25 }, async () => auth.fromRequest(browser.request()))
+			Array.from({ length: 25 }, async () =>
+				auth.fromRequest(browser.request())
+			)
 		);
 
-		expect(results.every((result) => result.session?.subject === 'u_1')).toBe(true);
+		expect(results.every((result) => result.session?.subject === 'u_1')).toBe(
+			true
+		);
 		expect(new Set(results.map((result) => result.session?.id)).size).toBe(1);
 	});
 
@@ -452,6 +471,8 @@ describe('credentials sign-in end to end', () => {
 			clock,
 			lockoutThreshold: 5,
 			lockoutDurationMs: 15 * 60_000,
+			revokeSessions: (subject) => auth.signOutEverywhere(subject),
+			onPasswordChanged: () => undefined,
 		});
 
 		return { auth, clock, credentials, users };
@@ -547,13 +568,16 @@ describe('credentials sign-in end to end', () => {
 
 		const changed = await credentials.changePassword({
 			subject: 'u_1',
+			currentPassword: 'a-perfectly-reasonable-passphrase',
 			newPassword: 'an-entirely-different-passphrase',
+			clientIp: '203.0.113.10',
 		});
 		expect(changed.ok).toBe(true);
-		await auth.signOutEverywhere('u_1');
 
 		for (const device of devices) {
-			expect((await auth.fromRequest(device.request())).session).toBeUndefined();
+			expect(
+				(await auth.fromRequest(device.request())).session
+			).toBeUndefined();
 		}
 
 		// And the old password no longer works.

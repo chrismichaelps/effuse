@@ -195,7 +195,18 @@ export interface CredentialRecord {
  */
 export interface UserStore {
 	findByIdentifier(identifier: string): Promise<CredentialRecord | undefined>;
+	/** Resolves credentials by the stable authenticated subject. */
+	findBySubject(subject: string): Promise<CredentialRecord | undefined>;
 	updatePasswordHash(subject: string, passwordHash: string): Promise<void>;
+	/**
+	 * Atomically replaces the expected hash and clears failed-authentication state.
+	 * Returns false when the subject disappeared or another writer changed the hash.
+	 */
+	replacePasswordHash(
+		subject: string,
+		expectedPasswordHash: string,
+		passwordHash: string
+	): Promise<boolean>;
 	recordFailedAttempt(subject: string, lockedUntil?: number): Promise<void>;
 	clearFailedAttempts(subject: string): Promise<void>;
 }

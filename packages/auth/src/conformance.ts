@@ -712,6 +712,16 @@ export const runUserStoreConformance = (
 			);
 		});
 
+		it('finds a seeded record by stable subject', async () => {
+			const { store, seed } = createStore();
+			await seed(record());
+
+			expect((await store.findBySubject('u_1'))?.identifier).toBe(
+				'ada@example.com'
+			);
+			expect(await store.findBySubject('nobody')).toBeUndefined();
+		});
+
 		it('updates the password hash', async () => {
 			const { store, seed, read } = createStore();
 			await seed(record());
@@ -719,6 +729,39 @@ export const runUserStoreConformance = (
 			await store.updatePasswordHash('u_1', 'new-hash');
 
 			expect((await read('u_1'))?.passwordHash).toBe('new-hash');
+		});
+
+		it('atomically replaces the expected password hash and clears failures', async () => {
+			const { store, seed, read } = createStore();
+			await seed(
+				record({
+					failedAttempts: 5,
+					lockedUntil: 1_700_000_060_000,
+				})
+			);
+
+			expect(
+				await store.replacePasswordHash('u_1', 'stored-hash', 'new-hash')
+			).toBe(true);
+			expect(await read('u_1')).toEqual({
+				subject: 'u_1',
+				identifier: 'ada@example.com',
+				passwordHash: 'new-hash',
+				failedAttempts: 0,
+			});
+		});
+
+		it('refuses a stale password-hash replacement without changing state', async () => {
+			const { store, seed, read } = createStore();
+			await seed(record());
+
+			expect(
+				await store.replacePasswordHash('u_1', 'stale-hash', 'new-hash')
+			).toBe(false);
+			expect((await read('u_1'))?.passwordHash).toBe('stored-hash');
+			expect(
+				await store.replacePasswordHash('nobody', 'stored-hash', 'new-hash')
+			).toBe(false);
 		});
 
 		it('increments the failure count', async () => {
