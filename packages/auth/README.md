@@ -422,6 +422,22 @@ rather than throwing on a foreign hash.
 Every reference implementation in `@effuse/auth/testing` passes the same suites —
 a suite the reference cannot satisfy is one nobody should be asked to satisfy.
 
+## Mutation testing
+
+The package carries a bounded mutation gate for the boot-time configuration
+contract. Run it from the repository root with:
+
+```bash
+pnpm --filter @effuse/auth test:mutation
+```
+
+The gate mutates `src/config.ts`, runs related Vitest coverage per test, and
+requires every non-equivalent mutant to be killed. Reports are written to
+`packages/auth/reports/mutation/` and intentionally ignored by Git. The narrow
+scope keeps the command practical for pull requests; broader security and
+protocol behavior remains covered by the full regression, adversarial,
+conformance, and lifecycle suites.
+
 ## Not yet implemented
 
 Tracked, not hidden:
