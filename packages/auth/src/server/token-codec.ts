@@ -40,6 +40,7 @@
 
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { ConfigError } from '../errors.js';
+import { AUTH_SECRET_MIN_LENGTH } from '../security-constants.js';
 import type { TokenCodec } from '../contract.js';
 
 export interface TokenCodecOptions {
@@ -60,8 +61,6 @@ export interface TokenCodecOptions {
  * against a captured token becomes tractable, and a session cookie is exactly
  * the kind of thing an attacker gets to keep and grind on offline.
  */
-const MIN_SECRET_LENGTH = 32;
-
 const encoder = new TextEncoder();
 
 const base64UrlEncode = (input: string): string =>
@@ -124,10 +123,10 @@ export const createTokenCodec = (options: TokenCodecOptions): TokenCodec => {
 	}
 
 	secrets.forEach((secret, index) => {
-		if (secret.length < MIN_SECRET_LENGTH) {
+		if (secret.length < AUTH_SECRET_MIN_LENGTH) {
 			throw new ConfigError({
 				path: `secrets[${String(index)}]`,
-				reason: `Signing secrets must be at least ${String(MIN_SECRET_LENGTH)} characters. A shorter secret is brute-forceable offline against a captured token.`,
+				reason: `Signing secrets must be at least ${String(AUTH_SECRET_MIN_LENGTH)} characters. A shorter secret is brute-forceable offline against a captured token.`,
 			});
 		}
 	});
@@ -186,7 +185,7 @@ export const createTokenCodec = (options: TokenCodecOptions): TokenCodec => {
 };
 
 /** Exported for the conformance suite. */
-export const TOKEN_CODEC_MIN_SECRET_LENGTH = MIN_SECRET_LENGTH;
+export const TOKEN_CODEC_MIN_SECRET_LENGTH = AUTH_SECRET_MIN_LENGTH;
 
 /** Not part of the public surface; used by the cookie codec for chunk naming. */
 export const utf8ByteLength = (value: string): number =>

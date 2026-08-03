@@ -50,6 +50,13 @@ rule for what may be sent to the client. There is no `declare module` anywhere i
 this package's intended usage — if a type cannot be inferred from `defineAuth`,
 that is a bug.
 
+`defineAuth` is also the eager configuration boundary. It rejects every signing
+secret shorter than 32 characters, duplicate rotation entries, unsafe cookie
+metadata, and impossible `__Host-` combinations before the server accepts
+traffic. Cookie domains are lowercase-normalized and may be supplied with a
+legacy leading dot; schemes, ports, paths, Unicode hostnames, and malformed DNS
+labels are rejected with a path-specific `ConfigError`.
+
 ## Getting started
 
 The [secure getting-started guide](./docs/getting-started.md) covers the complete
@@ -65,6 +72,10 @@ Generate a secret:
 ```bash
 openssl rand -base64 32
 ```
+
+Keep rotation secrets distinct and ordered newest first. The first secret signs
+new tokens and every later secret verifies existing tokens. Weakness in any
+entry compromises the rotation set, so the minimum applies to all of them.
 
 Assemble the server. `storage` is anything with `get`/`set`/`delete`/`namespace`
 — including `createMemoryStorage()` from `@effuse/server`, or a ~30-line Redis

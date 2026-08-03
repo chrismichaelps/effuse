@@ -39,8 +39,17 @@ export const authConfig = defineAuth({
 ```
 
 The declaration is the static type, runtime decoder, and browser-exposure
-policy. `email` can be used by server policies but cannot enter the hydration
-payload.
+policy. It also validates every security-sensitive option during startup:
+
+- Every rotation secret must contain at least 32 characters and be unique.
+- Cookie names must be unprefixed HTTP tokens; Effuse owns the `__Host-` prefix.
+- Cookie paths must be absolute and cookie domains must be bare ASCII hostnames.
+- `hostPrefix: true` requires `secure: true`, `path: '/'`, and no `domain`.
+
+When `hostPrefix` is omitted, Effuse enables it only when those browser rules
+are satisfied. A leading dot in a domain is accepted for migration compatibility
+and normalized away. `email` can be used by server policies but cannot enter the
+hydration payload.
 
 ## 3. Assemble the server and policies
 
