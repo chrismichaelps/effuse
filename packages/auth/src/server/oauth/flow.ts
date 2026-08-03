@@ -44,27 +44,88 @@ import { ProviderError, type AuthError } from '../../errors.js';
 import { createPkcePair, verifyPkce } from './pkce.js';
 import { verifyIdToken, type IdTokenAlgorithm, type IdTokenClaims } from './id-token.js';
 import { createJwksResolver } from './jwks.js';
-import { createDiscoveryClient, type ProviderMetadata } from './discovery.js';
+import {
+	createDiscoveryClient,
+	type OAuthProviderMetadata,
+	type ProviderMetadata,
+} from './discovery.js';
 import { serializeCookieChunks, parseCookieHeader, clearCookieChunks } from '../cookies.js';
 import type { AuthStorage, Clock } from '../../contract.js';
 import type { RedirectValidator } from './redirect.js';
+import {
+	OAUTH_PROVIDER_MODE,
+	OAUTH_TOKEN_TYPE,
+	OIDC_DEFAULT_SCOPES,
+	PKCE_METHOD,
+	SUPPORTED_ID_TOKEN_ALGORITHMS,
+	TOKEN_ENDPOINT_AUTH_METHOD,
+} from './constants.js';
+import {
+	oauthResolvedIdentitySchema,
+	oauthTokenResponseSchema,
+} from './schemas.js';
+import { isSafeOAuthEndpoint } from './utils.js';
+import type { OAuthFetch } from './types.js';
 
-/** A provider definition. Data, not code. */
-export interface OAuthProvider<Profile> {
+interface OAuthProviderBase {
 	/** Stable identifier, used in storage keys and to detect mix-ups. */
 	readonly id: string;
 	readonly clientId: string;
 	readonly clientSecret: string;
+	readonly tokenEndpointAuthMethod?:
+		| typeof TOKEN_ENDPOINT_AUTH_METHOD.BASIC
+		| typeof TOKEN_ENDPOINT_AUTH_METHOD.POST;
 	/** Discovered from this issuer unless `metadata` is supplied outright. */
 	readonly issuer: string;
 	/** Skips discovery. Useful for providers with no well-known document. */
-	readonly metadata?: ProviderMetadata;
 	readonly scopes?: readonly string[];
-	/** Maps verified ID-token claims into the shape the application wants. */
-	readonly profile: (claims: IdTokenClaims) => Profile;
 	/** Extra authorization-request parameters, e.g. `prompt` or `hd`. */
 	readonly authorizationParams?: Readonly<Record<string, string>>;
 }
+
+/** An OpenID Connect provider whose identity is carried by a signed ID token. */
+export interface OidcProvider<Profile> extends OAuthProviderBase {
+	readonly mode?: typeof OAUTH_PROVIDER_MODE.OIDC;
+	/** Skips discovery. Useful for providers with no well-known document. */
+	readonly metadata?: ProviderMetadata;
+	/** Maps verified ID-token claims into the shape the application wants. */
+	readonly profile: (claims: IdTokenClaims) => Profile;
+}
+
+export interface OAuthIdentityClaims {
+	readonly sub: string;
+	readonly [claim: string]: unknown;
+}
+
+export interface OAuthResolvedIdentity<Profile> {
+	readonly profile: Profile;
+	readonly claims: OAuthIdentityClaims;
+	readonly emailVerified: boolean;
+}
+
+export interface OAuthIdentityContext {
+	readonly accessToken: string;
+	readonly fetch: OAuthFetch;
+}
+
+/** A plain OAuth provider whose identity is resolved server-side from its API. */
+export interface OAuthUserInfoProvider<Profile> extends OAuthProviderBase {
+	readonly mode: typeof OAUTH_PROVIDER_MODE.OAUTH;
+	/** Plain OAuth has no discovery contract, so endpoints must be explicit. */
+	readonly metadata: OAuthProviderMetadata;
+	/**
+	 * Exchanges the bearer token for a normalized identity. This callback runs
+	 * only on the server and must reject malformed or ambiguous provider data.
+	 */
+	readonly resolveIdentity: (
+		context: OAuthIdentityContext
+	) => Promise<OAuthResolvedIdentity<Profile> | undefined>;
+}
+
+/** A provider definition. OIDC remains the default for backwards compatibility. */
+export type OAuthProvider<Profile> =
+	| OidcProvider<Profile>
+	| OAuthUserInfoProvider<Profile>;
 
 export interface OAuthClientOptions<Profile> {
 	readonly provider: OAuthProvider<Profile>;
@@ -75,7 +136,7 @@ export interface OAuthClientOptions<Profile> {
 	readonly redirects: RedirectValidator;
 	/** How long an in-flight authorization request stays valid. Defaults to 10 minutes. */
 	readonly flowTtlMs?: number;
-	readonly fetch?: (input: string | URL | Request) => Promise<Response>;
+	readonly fetch?: OAuthFetch;
 	/** Cookie name carrying the state id. Defaults to `effuse.oauth`. */
 	readonly cookieName?: string;
 	/** Set false only for local http development. */
@@ -93,14 +154,14 @@ export interface OAuthTokens {
 	readonly tokenType: string;
 	readonly expiresInSeconds?: number;
 	readonly refreshToken?: string;
-	readonly idToken: string;
+	readonly idToken?: string;
 	readonly scope?: string;
 }
 
 export interface CallbackSuccess<Profile> {
 	readonly ok: true;
 	readonly profile: Profile;
-	readonly claims: IdTokenClaims;
+	readonly claims: IdTokenClaims | OAuthIdentityClaims;
 	readonly tokens: OAuthTokens;
 	/** Validated destination. Always safe to redirect to. */
 	readonly redirectTo: string;
@@ -180,8 +241,26 @@ export const createOAuthClient = <Profile>(
 		hostPrefix: true,
 	};
 
-	const metadataFor = async (): Promise<ProviderMetadata | undefined> =>
-		provider.metadata ?? (await discovery.load());
+	const metadataFor = async (): Promise<OAuthProviderMetadata | ProviderMetadata | undefined> => {
+		const metadata = provider.metadata ?? (await discovery.load());
+		if (metadata === undefined || metadata.issuer !== provider.issuer) return undefined;
+		if (
+			![metadata.authorizationEndpoint, metadata.tokenEndpoint].every(
+				isSafeOAuthEndpoint
+			)
+		) {
+			return undefined;
+		}
+		if (
+			provider.mode !== OAUTH_PROVIDER_MODE.OAUTH &&
+			(!('jwksUri' in metadata) ||
+				typeof metadata.jwksUri !== 'string' ||
+				!isSafeOAuthEndpoint(metadata.jwksUri))
+		) {
+			return undefined;
+		}
+		return metadata;
+	};
 
 	const failure = (detail: string, code?: string): AuthError =>
 		new ProviderError({
@@ -202,7 +281,7 @@ export const createOAuthClient = <Profile>(
 			// interceptable, which is the thing PKCE exists to prevent.
 			if (
 				metadata.codeChallengeMethods.length > 0 &&
-				!metadata.codeChallengeMethods.includes('S256')
+				!metadata.codeChallengeMethods.includes(PKCE_METHOD.S256)
 			) {
 				return {
 					ok: false,
@@ -235,10 +314,15 @@ export const createOAuthClient = <Profile>(
 			url.searchParams.set('redirect_uri', redirectUri);
 			url.searchParams.set(
 				'scope',
-				(provider.scopes ?? ['openid', 'email', 'profile']).join(' ')
+				(
+					provider.scopes ??
+					(provider.mode === OAUTH_PROVIDER_MODE.OAUTH ? [] : OIDC_DEFAULT_SCOPES)
+				).join(' ')
 			);
 			url.searchParams.set('state', state);
-			url.searchParams.set('nonce', nonce);
+			if (provider.mode !== OAUTH_PROVIDER_MODE.OAUTH) {
+				url.searchParams.set('nonce', nonce);
+			}
 			url.searchParams.set('code_challenge', pkce.challenge);
 			url.searchParams.set('code_challenge_method', pkce.method);
 
@@ -329,11 +413,28 @@ export const createOAuthClient = <Profile>(
 
 			// Belt and braces: the stored verifier must still match its challenge.
 			// Catches a tampered or partially-overwritten record.
-			if (!(await verifyPkce(stored.codeVerifier, stored.codeChallenge, 'S256'))) {
+			if (
+				!(await verifyPkce(
+					stored.codeVerifier,
+					stored.codeChallenge,
+					PKCE_METHOD.S256
+				))
+			) {
 				return reject('Stored PKCE verifier does not match its challenge.', 'pkce');
 			}
 
 			const run = fetchImpl ?? globalThis.fetch;
+
+			const tokenBody: Record<string, string> = {
+				grant_type: 'authorization_code',
+				code,
+				redirect_uri: redirectUri,
+				client_id: provider.clientId,
+				code_verifier: stored.codeVerifier,
+			};
+			if (provider.tokenEndpointAuthMethod === TOKEN_ENDPOINT_AUTH_METHOD.POST) {
+				tokenBody['client_secret'] = provider.clientSecret;
+			}
 
 			let tokenResponse: Response;
 			try {
@@ -343,19 +444,18 @@ export const createOAuthClient = <Profile>(
 						headers: {
 							'Content-Type': 'application/x-www-form-urlencoded',
 							Accept: 'application/json',
-							// Client secret in the Authorization header rather than the
-							// body: it stays out of request logs that record form bodies.
-							Authorization: `Basic ${Buffer.from(
-								`${encodeURIComponent(provider.clientId)}:${encodeURIComponent(provider.clientSecret)}`
-							).toString('base64')}`,
+							// Basic is the secure default because it keeps the secret out of
+							// request logs that record form bodies. POST remains available for
+							// providers, such as GitHub, that require body credentials.
+							...(provider.tokenEndpointAuthMethod === TOKEN_ENDPOINT_AUTH_METHOD.POST
+								? {}
+								: {
+										Authorization: `Basic ${Buffer.from(
+											`${encodeURIComponent(provider.clientId)}:${encodeURIComponent(provider.clientSecret)}`
+										).toString('base64')}`,
+									}),
 						},
-						body: new URLSearchParams({
-							grant_type: 'authorization_code',
-							code,
-							redirect_uri: redirectUri,
-							client_id: provider.clientId,
-							code_verifier: stored.codeVerifier,
-						}).toString(),
+						body: new URLSearchParams(tokenBody).toString(),
 					})
 				);
 			} catch (cause) {
@@ -372,29 +472,72 @@ export const createOAuthClient = <Profile>(
 				);
 			}
 
-			let body: unknown;
+			let rawBody: unknown;
 			try {
-				body = await tokenResponse.json();
+				rawBody = await tokenResponse.json();
 			} catch {
 				return reject('Token endpoint returned unparseable JSON.', 'token');
 			}
 
-			if (!isRecord(body)) {
-				return reject('Token response is not an object.', 'token');
+			const parsedToken = oauthTokenResponseSchema.safeParse(rawBody);
+			if (!parsedToken.success) {
+				return reject('Token response has an invalid shape.', 'token');
+			}
+			const body = parsedToken.data;
+			const accessToken = body.access_token;
+			const tokenType = body.token_type;
+			if (tokenType.toLowerCase() !== OAUTH_TOKEN_TYPE.BEARER) {
+				return reject('Token response carried an unsupported token type.', 'token');
 			}
 
-			const idToken = body['id_token'];
-			const accessToken = body['access_token'];
+			const tokens: OAuthTokens = {
+				accessToken,
+				tokenType,
+				...(body.id_token === undefined ? {} : { idToken: body.id_token }),
+				...(body.expires_in === undefined
+					? {}
+					: { expiresInSeconds: body.expires_in }),
+				...(body.refresh_token === undefined
+					? {}
+					: { refreshToken: body.refresh_token }),
+				...(body.scope === undefined ? {} : { scope: body.scope }),
+			};
 
-			if (typeof idToken !== 'string' || idToken.length === 0) {
+			if (provider.mode === OAUTH_PROVIDER_MODE.OAUTH) {
+				let identity: OAuthResolvedIdentity<Profile> | undefined;
+				try {
+					identity = await provider.resolveIdentity({ accessToken, fetch: run });
+				} catch (cause) {
+					return reject(
+						`Provider identity endpoint failed: ${cause instanceof Error ? cause.message : String(cause)}`,
+						'userinfo'
+					);
+				}
+
+				const parsedIdentity = oauthResolvedIdentitySchema.safeParse(identity);
+				if (!parsedIdentity.success) {
+					return reject('Provider returned an invalid identity.', 'userinfo');
+				}
+				identity = parsedIdentity.data as OAuthResolvedIdentity<Profile>;
+
+				return {
+					ok: true,
+					profile: identity.profile,
+					claims: identity.claims,
+					tokens,
+					redirectTo: redirects.resolve(stored.redirectTo),
+					setCookies: clearing,
+					emailVerified: identity.emailVerified,
+				};
+			}
+
+			const idToken = body.id_token;
+			if (idToken === undefined) {
 				return reject('Token response carried no ID token.', 'token');
-			}
-			if (typeof accessToken !== 'string' || accessToken.length === 0) {
-				return reject('Token response carried no access token.', 'token');
 			}
 
 			const jwks = createJwksResolver({
-				jwksUri: metadata.jwksUri,
+				jwksUri: 'jwksUri' in metadata ? metadata.jwksUri : '',
 				clock,
 				...(fetchImpl === undefined ? {} : { fetch: fetchImpl }),
 			});
@@ -408,28 +551,18 @@ export const createOAuthClient = <Profile>(
 				accessToken,
 				// Narrowed to what the provider itself advertises, intersected with
 				// what this package implements.
-				allowedAlgorithms: metadata.idTokenSigningAlgValues.filter(
+				allowedAlgorithms: ('idTokenSigningAlgValues' in metadata
+					? metadata.idTokenSigningAlgValues
+					: []
+				).filter(
 					(algorithm): algorithm is IdTokenAlgorithm =>
-						['RS256', 'RS384', 'RS512', 'ES256', 'ES384'].includes(algorithm)
+						(SUPPORTED_ID_TOKEN_ALGORITHMS as readonly string[]).includes(algorithm)
 				),
 			});
 
 			if (!verified.ok) {
 				return { ok: false, error: verified.error, setCookies: clearing };
 			}
-
-			const tokens: OAuthTokens = {
-				accessToken,
-				tokenType: typeof body['token_type'] === 'string' ? body['token_type'] : 'Bearer',
-				idToken,
-				...(typeof body['expires_in'] === 'number'
-					? { expiresInSeconds: body['expires_in'] }
-					: {}),
-				...(typeof body['refresh_token'] === 'string'
-					? { refreshToken: body['refresh_token'] }
-					: {}),
-				...(typeof body['scope'] === 'string' ? { scope: body['scope'] } : {}),
-			};
 
 			return {
 				ok: true,

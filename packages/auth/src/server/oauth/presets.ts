@@ -34,14 +34,23 @@
  * changed string. A provider nobody has written a preset for is not
  * second-class: pass an issuer and a mapper and it works identically.
  *
- * Only OpenID Connect providers are covered. Plain OAuth 2.0 services that issue
- * no ID token — GitHub being the obvious one — need a userinfo-based path that
- * has not shipped yet, and pretending otherwise here would produce a preset that
- * fails at the first callback.
+ * OpenID Connect providers use signed ID-token claims. Plain OAuth providers use
+ * an explicit server-side identity resolver; they never silently downgrade from
+ * OIDC when an expected ID token is absent.
  */
 
 import type { IdTokenClaims } from './id-token.js';
-import type { OAuthProvider } from './flow.js';
+import type { OAuthProvider, OAuthUserInfoProvider } from './flow.js';
+import {
+	GITHUB_API,
+	GITHUB_DEFAULT_SCOPES,
+	GITHUB_ENDPOINTS,
+	OAUTH_PROVIDER_MODE,
+	PKCE_METHOD,
+	TOKEN_ENDPOINT_AUTH_METHOD,
+} from './constants.js';
+import { githubEmailsSchema, githubUserSchema } from './schemas.js';
+import { parseJsonResponse } from './utils.js';
 
 /** The profile shape the built-in presets produce. */
 export interface StandardProfile {
@@ -169,4 +178,74 @@ export const oidc = (
 	profile: standardProfile,
 	clientId: options.clientId,
 	clientSecret: options.clientSecret,
+});
+
+/**
+ * GitHub OAuth Apps.
+ *
+ * Identity is revalidated after every token exchange through `/user`, as GitHub
+ * requires. Email comes only from the authenticated email endpoint and is
+ * considered verified only when GitHub marks the primary address verified.
+ */
+export const github = (
+	credentials: PresetCredentials
+): OAuthUserInfoProvider<StandardProfile> => ({
+	mode: OAUTH_PROVIDER_MODE.OAUTH,
+	id: 'github',
+	issuer: GITHUB_ENDPOINTS.ISSUER,
+	clientId: credentials.clientId,
+	clientSecret: credentials.clientSecret,
+	tokenEndpointAuthMethod: TOKEN_ENDPOINT_AUTH_METHOD.POST,
+	scopes: GITHUB_DEFAULT_SCOPES,
+	metadata: {
+		issuer: GITHUB_ENDPOINTS.ISSUER,
+		authorizationEndpoint: GITHUB_ENDPOINTS.AUTHORIZATION,
+		tokenEndpoint: GITHUB_ENDPOINTS.TOKEN,
+		codeChallengeMethods: [PKCE_METHOD.S256],
+	},
+	resolveIdentity: async ({ accessToken, fetch }) => {
+		const headers = {
+			Accept: GITHUB_API.ACCEPT,
+			Authorization: `Bearer ${accessToken}`,
+			'X-GitHub-Api-Version': GITHUB_API.VERSION,
+		};
+		const [userResponse, emailsResponse] = await Promise.all([
+			fetch(new Request(GITHUB_ENDPOINTS.USER, { headers })),
+			fetch(new Request(GITHUB_ENDPOINTS.EMAILS, { headers })),
+		]);
+		if (!userResponse.ok || !emailsResponse.ok) return undefined;
+
+		const [user, emails] = await Promise.all([
+			parseJsonResponse(userResponse, githubUserSchema),
+			parseJsonResponse(emailsResponse, githubEmailsSchema),
+		]);
+		if (user === undefined || emails === undefined) return undefined;
+
+		const primary = emails
+			.find(
+				(email) =>
+					email.primary && email.verified
+			);
+		const email = primary?.email;
+		const subject = String(user.id);
+
+		return {
+			claims: {
+				sub: subject,
+				login: user.login,
+				email,
+				email_verified: email !== undefined,
+				name: user.name ?? undefined,
+				picture: user.avatar_url ?? undefined,
+			},
+			profile: {
+				providerAccountId: subject,
+				email,
+				emailVerified: email !== undefined,
+				name: user.name ?? user.login,
+				picture: user.avatar_url ?? undefined,
+			},
+			emailVerified: email !== undefined,
+		};
+	},
 });

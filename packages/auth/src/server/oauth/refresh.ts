@@ -72,6 +72,7 @@ import {
 	type AuthError,
 } from '../../errors.js';
 import type { AuthStorage, Clock, SessionStore } from '../../contract.js';
+import type { OAuthFetch } from './types.js';
 
 /** The persisted token state for one grant. */
 export interface TokenRecord {
@@ -138,7 +139,7 @@ export interface TokenRefresherOptions {
 	 * enough that a stolen token is not a lasting foothold.
 	 */
 	readonly reuseOverlapMs?: number;
-	readonly fetch?: (input: string | URL | Request) => Promise<Response>;
+	readonly fetch?: OAuthFetch;
 	/** Injected for tests, so waiting does not depend on real time. */
 	readonly sleep?: (ms: number) => Promise<void>;
 	/** Called when a reuse is detected, for audit. */

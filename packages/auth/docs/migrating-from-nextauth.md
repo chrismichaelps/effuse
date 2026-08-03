@@ -44,6 +44,12 @@ When upgrading from the subject-only password-change API, add `findBySubject`
 and atomic `replacePasswordHash` to `UserStore`, configure `revokeSessions` and
 `onPasswordChanged`, and pass `currentPassword` plus `clientIp` on every call.
 
+Plain OAuth providers use `mode: 'oauth'`, explicit HTTPS metadata, and a
+server-only `resolveIdentity` function. The built-in `github()` preset performs
+the authenticated user and verified-primary-email requests. Because a plain
+OAuth response has no ID token, `OAuthTokens.idToken` is optional; OIDC callbacks
+still reject a missing or invalid ID token instead of falling back to userinfo.
+
 Do not migrate unused adapter methods. Smaller ports keep session persistence,
 identity lookup, password hashing, and rate limiting independently replaceable.
 

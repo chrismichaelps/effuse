@@ -112,10 +112,17 @@ export {
 	type OAuthClient,
 	type OAuthClientOptions,
 	type OAuthProvider,
+	type OAuthIdentityClaims,
+	type OAuthIdentityContext,
+	type OAuthResolvedIdentity,
+	type OAuthUserInfoProvider,
+	type OidcProvider,
 	type OAuthTokens,
 	type StartOutcome,
 	type StartResult,
 } from './oauth/flow.js';
+
+export type { OAuthFetch } from './oauth/types.js';
 
 export {
 	createPkcePair,
@@ -148,10 +155,12 @@ export {
 	type DiscoveryClient,
 	type DiscoveryOptions,
 	type ProviderMetadata,
+	type OAuthProviderMetadata,
 } from './oauth/discovery.js';
 
 export {
 	auth0,
+	github,
 	google,
 	keycloak,
 	microsoft,

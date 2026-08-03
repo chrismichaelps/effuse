@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { AUTH_SECRET_MIN_LENGTH, claim, defineAuth } from '../index.js';
 import {
 	createAuthServer,
+	github,
 	createPasswordResetService,
 	type PasswordChangedEvent,
 	type PasswordResetCompletedEvent,
@@ -114,6 +115,14 @@ describe('source hygiene', () => {
 		} satisfies PasswordChangedEvent;
 
 		expect(event.revokedSessions).toBe(3);
+	});
+
+	it('publishes the plain OAuth provider preset only from the server entrypoint', () => {
+		const preset = github({ clientId: 'id', clientSecret: 'secret' });
+
+		expect(preset.mode).toBe('oauth');
+		expect(preset.id).toBe('github');
+		expect(preset.resolveIdentity).toBeTypeOf('function');
 	});
 
 	it('carries the licence header on every source file', async () => {
