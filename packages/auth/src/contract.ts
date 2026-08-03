@@ -53,7 +53,11 @@
  */
 export interface AuthStorage {
 	get<Value = unknown>(key: string): Promise<Value | undefined>;
-	set(key: string, value: unknown, options?: { readonly ttlMs?: number }): Promise<void>;
+	set(
+		key: string,
+		value: unknown,
+		options?: { readonly ttlMs?: number }
+	): Promise<void>;
 	delete(key: string): Promise<void>;
 	has(key: string): Promise<boolean>;
 	keys(): Promise<readonly string[]>;
@@ -194,4 +198,35 @@ export interface UserStore {
 	updatePasswordHash(subject: string, passwordHash: string): Promise<void>;
 	recordFailedAttempt(subject: string, lockedUntil?: number): Promise<void>;
 	clearFailedAttempts(subject: string): Promise<void>;
+}
+
+/** A password-reset capability as persisted. The raw bearer token is never stored. */
+export interface PasswordResetRecord {
+	/** Lowercase SHA-256 digest of the raw reset token. */
+	readonly digest: string;
+	readonly subject: string;
+	/** Epoch millis. The record is invalid at and after this instant. */
+	readonly expiresAt: number;
+}
+
+/**
+ * Atomic persistence for password-reset capabilities.
+ *
+ * Replacement and consumption are named operations because composing them from
+ * key-value `get` and `delete` calls is racy across replicas. Implementations
+ * should use a transaction, compare-and-delete, or equivalent database
+ * primitive; the conformance suite proves the externally visible contract.
+ */
+export interface PasswordResetStore {
+	/** Atomically revokes any existing record for the subject and stores this one. */
+	replace(record: PasswordResetRecord): Promise<void>;
+	/** Reads a live record without consuming it. Expired records return undefined. */
+	read(digest: string, now: number): Promise<PasswordResetRecord | undefined>;
+	/** Atomically returns and removes one live record. Exactly one concurrent caller may win. */
+	consume(
+		digest: string,
+		now: number
+	): Promise<PasswordResetRecord | undefined>;
+	/** Revokes the subject's current reset capability, if one exists. */
+	revokeForSubject(subject: string): Promise<void>;
 }

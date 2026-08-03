@@ -77,6 +77,17 @@ export {
 } from './credentials.js';
 
 export {
+	createPasswordResetService,
+	DEFAULT_PASSWORD_RESET_TTL_MS,
+	MAX_PASSWORD_RESET_TTL_MS,
+	type IssuePasswordResetResult,
+	type PasswordResetCompletedEvent,
+	type PasswordResetService,
+	type PasswordResetServiceOptions,
+	type RedeemPasswordResetResult,
+} from './password-reset.js';
+
+export {
 	createStorageSessionStore,
 	type StorageSessionStoreOptions,
 } from './storage-session-store.js';

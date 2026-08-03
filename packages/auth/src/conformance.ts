@@ -39,6 +39,8 @@
 import type {
 	CredentialRecord,
 	PasswordHasher,
+	PasswordResetRecord,
+	PasswordResetStore,
 	RateLimiter,
 	SessionId,
 	SessionStore,
@@ -46,6 +48,93 @@ import type {
 	TokenCodec,
 	UserStore,
 } from './contract.js';
+
+export interface PasswordResetStoreConformanceOptions {
+	readonly harness: ConformanceHarness;
+	/** Produces a fresh, empty store for each test. */
+	readonly createStore: () => PasswordResetStore | Promise<PasswordResetStore>;
+}
+
+const resetRecord = (
+	digest: string,
+	subject: string,
+	expiresAt = 2_000
+): PasswordResetRecord => ({ digest, subject, expiresAt });
+
+/** Proves replacement, expiry, revocation, isolation, and atomic consumption. */
+export const runPasswordResetStoreConformance = (
+	options: PasswordResetStoreConformanceOptions
+): void => {
+	const { harness, createStore } = options;
+	const { describe, it, expect } = harness;
+
+	describe('PasswordResetStore conformance', () => {
+		it('reads a live record without consuming it', async () => {
+			const store = await createStore();
+			await store.replace(resetRecord('a', 'u1'));
+
+			expect(await store.read('a', 1_000)).toEqual(resetRecord('a', 'u1'));
+			expect(await store.read('a', 1_000)).toEqual(resetRecord('a', 'u1'));
+		});
+
+		it('atomically replaces the subject previous record', async () => {
+			const store = await createStore();
+			await store.replace(resetRecord('old', 'u1'));
+			await store.replace(resetRecord('new', 'u1'));
+
+			expect(await store.read('old', 1_000)).toBeUndefined();
+			expect(await store.read('new', 1_000)).toBeDefined();
+		});
+
+		it('keeps records for different subjects independent', async () => {
+			const store = await createStore();
+			await store.replace(resetRecord('a', 'u1'));
+			await store.replace(resetRecord('b', 'u2'));
+
+			expect((await store.read('a', 1_000))?.subject).toBe('u1');
+			expect((await store.read('b', 1_000))?.subject).toBe('u2');
+		});
+
+		it('expires at the exact boundary and stays unavailable', async () => {
+			const store = await createStore();
+			await store.replace(resetRecord('a', 'u1'));
+
+			expect(await store.read('a', 1_999)).toBeDefined();
+			expect(await store.read('a', 2_000)).toBeUndefined();
+			expect(await store.consume('a', 1_999)).toBeUndefined();
+		});
+
+		it('allows exactly one of many concurrent consumers to win', async () => {
+			const store = await createStore();
+			await store.replace(resetRecord('a', 'u1'));
+			const results = await Promise.all(
+				Array.from({ length: 10 }, async () => store.consume('a', 1_000))
+			);
+
+			expect(results.filter((record) => record !== undefined).length).toBe(1);
+			expect(await store.consume('a', 1_000)).toBeUndefined();
+		});
+
+		it('revokes the current record for a subject', async () => {
+			const store = await createStore();
+			await store.replace(resetRecord('a', 'u1'));
+			await store.replace(resetRecord('b', 'u2'));
+			await store.revokeForSubject('u1');
+
+			expect(await store.read('a', 1_000)).toBeUndefined();
+			expect(await store.read('b', 1_000)).toBeDefined();
+		});
+
+		it('isolates persisted records from caller mutation', async () => {
+			const store = await createStore();
+			const record = resetRecord('a', 'u1');
+			await store.replace(record);
+			(record as { expiresAt: number }).expiresAt = 500;
+
+			expect(await store.read('a', 1_000)).toBeDefined();
+		});
+	});
+};
 
 /** The minimal test-runner surface a suite needs. Satisfied by vitest, jest, and node:test. */
 export interface ConformanceHarness {
@@ -126,7 +215,9 @@ export const runSessionStoreConformance = (
 				await store.write(session('s1', 'u1', { supersededAt: 123 }));
 				await store.write(session('s1', 'u1'));
 
-				expect((await store.read('s1' as SessionId))?.supersededAt).toBeUndefined();
+				expect(
+					(await store.read('s1' as SessionId))?.supersededAt
+				).toBeUndefined();
 			});
 
 			it('isolates stored values from later mutation by the caller', async () => {
@@ -384,7 +475,9 @@ export const runPasswordHasherConformance = (
 			const hasher = await createHasher();
 			const stored = await hasher.hash('correct horse battery staple');
 
-			expect(await hasher.verify('correct horse battery staple', stored)).toBe(true);
+			expect(await hasher.verify('correct horse battery staple', stored)).toBe(
+				true
+			);
 		});
 
 		it('rejects a wrong password', async () => {
@@ -504,7 +597,8 @@ export const runTokenCodecConformance = (
 			const codec = await createCodec();
 
 			expect(
-				(await codec.sign({ sub: 'u_1' })) === (await codec.sign({ sub: 'u_2' }))
+				(await codec.sign({ sub: 'u_1' })) ===
+					(await codec.sign({ sub: 'u_2' }))
 			).toBe(false);
 		});
 
@@ -526,7 +620,9 @@ export const runTokenCodecConformance = (
 			const mine = await createCodec();
 			const attacker = await createForeignCodec();
 
-			expect(await mine.verify(await attacker.sign({ sub: 'u_1' }))).toBeUndefined();
+			expect(
+				await mine.verify(await attacker.sign({ sub: 'u_1' }))
+			).toBeUndefined();
 		});
 
 		it('returns undefined rather than throwing on malformed input', async () => {
@@ -534,7 +630,15 @@ export const runTokenCodecConformance = (
 			// throw is an unhandled 500 and a one-line denial of service.
 			const codec = await createCodec();
 
-			for (const bad of ['', '.', '..', 'not-a-token', 'a.b.c.d', '%%%', '\u0000']) {
+			for (const bad of [
+				'',
+				'.',
+				'..',
+				'not-a-token',
+				'a.b.c.d',
+				'%%%',
+				'\u0000',
+			]) {
 				expect(await codec.verify(bad)).toBeUndefined();
 			}
 		});
@@ -556,7 +660,9 @@ export interface UserStoreConformanceOptions {
 	readonly createStore: () => {
 		readonly store: UserStore;
 		readonly seed: (record: CredentialRecord) => void | Promise<void>;
-		readonly read: (subject: string) => CredentialRecord | undefined | Promise<CredentialRecord | undefined>;
+		readonly read: (
+			subject: string
+		) => CredentialRecord | undefined | Promise<CredentialRecord | undefined>;
 	};
 }
 
@@ -567,7 +673,9 @@ export const runUserStoreConformance = (
 	const { harness, createStore } = options;
 	const { describe, it, expect } = harness;
 
-	const record = (overrides: Partial<CredentialRecord> = {}): CredentialRecord => ({
+	const record = (
+		overrides: Partial<CredentialRecord> = {}
+	): CredentialRecord => ({
 		subject: 'u_1',
 		identifier: 'ada@example.com',
 		passwordHash: 'stored-hash',
@@ -580,13 +688,17 @@ export const runUserStoreConformance = (
 			const { store, seed } = createStore();
 			await seed(record());
 
-			expect((await store.findByIdentifier('ada@example.com'))?.subject).toBe('u_1');
+			expect((await store.findByIdentifier('ada@example.com'))?.subject).toBe(
+				'u_1'
+			);
 		});
 
 		it('returns undefined for an unknown identifier', async () => {
 			const { store } = createStore();
 
-			expect(await store.findByIdentifier('nobody@example.com')).toBeUndefined();
+			expect(
+				await store.findByIdentifier('nobody@example.com')
+			).toBeUndefined();
 		});
 
 		it('matches identifiers case-insensitively', async () => {
@@ -595,7 +707,9 @@ export const runUserStoreConformance = (
 			const { store, seed } = createStore();
 			await seed(record());
 
-			expect((await store.findByIdentifier('ADA@EXAMPLE.COM'))?.subject).toBe('u_1');
+			expect((await store.findByIdentifier('ADA@EXAMPLE.COM'))?.subject).toBe(
+				'u_1'
+			);
 		});
 
 		it('updates the password hash', async () => {

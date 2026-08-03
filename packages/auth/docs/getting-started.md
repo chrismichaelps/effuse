@@ -213,6 +213,58 @@ Navigate to `/api/auth/sign-in`. Google returns to the explicit callback route,
 which validates PKCE, state, nonce, issuer, signature, audience, and redirect
 target before issuing the Effuse session.
 
+## 7. Add password recovery
+
+Implement `PasswordResetStore` with atomic replacement and consumption, then
+run `runPasswordResetStoreConformance` against the production adapter. Assemble
+the service with the same user, session, password-hasher, and rate-limiter ports
+used by sign-in:
+
+```ts
+import {
+	createPasswordResetService,
+	createScryptHasher,
+} from '@effuse/auth/server';
+
+export const passwordReset = createPasswordResetService({
+	store: resetStore,
+	users,
+	hasher: createScryptHasher(),
+	sessions: sessionStore,
+	limiter,
+	clock: { now: () => Date.now() },
+	onCompleted: (event) =>
+		securityOutbox.enqueue({
+			type: 'password-reset-completed',
+			...event,
+		}),
+});
+```
+
+The request endpoint should resolve the identifier, call `issue` only for a
+known subject, queue the HTTPS link to the verified recovery address, and always
+return the same generic response in comparable time. Never return the token to
+the browser. Construct the link from a configured trusted origin, not the Host
+header supplied by the request.
+
+The reset page should confirm the new password, send the token and password to
+`redeem`, set `Referrer-Policy: no-referrer`, and send the user through normal
+sign-in after success. Effuse does not auto-login. A successful redemption
+atomically consumes the link, revokes every subject session, preserves failed
+authentication counters, and invokes the required completion-notification hook.
+The service consumes the capability and revokes sessions before writing the new
+credential. If an adapter fails, it fails closed and the user requests another
+link instead of retaining a reusable capability. Implement `onCompleted` as a
+durable outbox enqueue: it runs after the security state commits, so delivery
+failures need operational retry rather than a rollback.
+
+This division follows the
+[OWASP Forgot Password Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Forgot_Password_Cheat_Sheet.html)
+and [NIST SP 800-63B account recovery](https://pages.nist.gov/800-63-4/sp800-63b.html#account-recovery):
+cryptographically random, hashed, single-use, expiring capabilities; throttled
+verification; side-channel delivery; uniform account-facing responses; session
+invalidation; and a recovery notification.
+
 The complete route setup is also checked into
 [`docs/snippets/getting-started.ts`](./snippets/getting-started.ts) and compiled
 by the package's `typecheck` command. Runtime behavior is covered by the passing
