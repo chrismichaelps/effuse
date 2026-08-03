@@ -39,6 +39,7 @@
 
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { ConfigError } from '../errors.js';
+import { AUTH_SECRET_MIN_LENGTH } from '../security-constants.js';
 import type { Clock } from '../contract.js';
 
 export interface CsrfGuardOptions {
@@ -60,8 +61,6 @@ export interface CsrfGuard {
 
 const DEFAULT_TTL_MS = 12 * 60 * 60_000;
 
-const MIN_SECRET_LENGTH = 32;
-
 /**
  * Methods defined as safe by RFC 9110.
  *
@@ -70,7 +69,12 @@ const MIN_SECRET_LENGTH = 32;
  * anticipated reaching a state-changing handler unchallenged is a far worse
  * outcome than a needless challenge.
  */
-const SAFE_METHODS: ReadonlySet<string> = new Set(['GET', 'HEAD', 'OPTIONS', 'TRACE']);
+const SAFE_METHODS: ReadonlySet<string> = new Set([
+	'GET',
+	'HEAD',
+	'OPTIONS',
+	'TRACE',
+]);
 
 const sign = (message: string, secret: string): string =>
 	createHmac('sha256', secret).update(message).digest('base64url');
@@ -93,10 +97,13 @@ export const createCsrfGuard = (options: CsrfGuardOptions): CsrfGuard => {
 	}
 
 	const [signingSecret] = secrets;
-	if (signingSecret === undefined || signingSecret.length < MIN_SECRET_LENGTH) {
+	if (
+		signingSecret === undefined ||
+		signingSecret.length < AUTH_SECRET_MIN_LENGTH
+	) {
 		throw new ConfigError({
 			path: 'secrets[0]',
-			reason: `CSRF signing secrets must be at least ${String(MIN_SECRET_LENGTH)} characters.`,
+			reason: `CSRF signing secrets must be at least ${String(AUTH_SECRET_MIN_LENGTH)} characters.`,
 		});
 	}
 

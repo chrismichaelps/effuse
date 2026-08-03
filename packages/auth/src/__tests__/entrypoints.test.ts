@@ -2,7 +2,7 @@ import { readFile, readdir } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { claim, defineAuth } from '../index.js';
+import { AUTH_SECRET_MIN_LENGTH, claim, defineAuth } from '../index.js';
 import { createAuthServer } from '../server/index.js';
 import { createSessionClient } from '../client/index.js';
 import { createMemoryAuthStorage } from '../testing/storage.js';
@@ -82,6 +82,10 @@ describe('client bundle purity', () => {
 });
 
 describe('source hygiene', () => {
+	it('exports the shared secret policy from the isomorphic root', () => {
+		expect(AUTH_SECRET_MIN_LENGTH).toBe(32);
+	});
+
 	it('carries the licence header on every source file', async () => {
 		const files = await collect(SRC);
 
@@ -216,7 +220,11 @@ describe('session client', () => {
 	it('adopts the hydrated payload without fetching', () => {
 		const client = createSessionClient<{
 			role: ReturnType<typeof claim.enum<['admin', 'member']>>;
-		}>({ status: 'authenticated', claims: { role: 'admin' }, expiresAt: undefined });
+		}>({
+			status: 'authenticated',
+			claims: { role: 'admin' },
+			expiresAt: undefined,
+		});
 
 		expect(client.current().status).toBe('authenticated');
 		expect(client.current().claims?.role).toBe('admin');
@@ -231,7 +239,11 @@ describe('session client', () => {
 		client.subscribe((session) => seen.push(session.status));
 		client.subscribe((session) => seen.push(session.status));
 
-		client.publish({ status: 'anonymous', claims: undefined, expiresAt: undefined });
+		client.publish({
+			status: 'anonymous',
+			claims: undefined,
+			expiresAt: undefined,
+		});
 
 		expect(seen).toEqual(['anonymous', 'anonymous']);
 	});
@@ -244,7 +256,11 @@ describe('session client', () => {
 			calls += 1;
 		});
 		unsubscribe();
-		client.publish({ status: 'anonymous', claims: undefined, expiresAt: undefined });
+		client.publish({
+			status: 'anonymous',
+			claims: undefined,
+			expiresAt: undefined,
+		});
 
 		expect(calls).toBe(0);
 	});
@@ -259,7 +275,11 @@ describe('session client', () => {
 			secondCalled = true;
 		});
 
-		client.publish({ status: 'anonymous', claims: undefined, expiresAt: undefined });
+		client.publish({
+			status: 'anonymous',
+			claims: undefined,
+			expiresAt: undefined,
+		});
 
 		expect(secondCalled).toBe(true);
 	});

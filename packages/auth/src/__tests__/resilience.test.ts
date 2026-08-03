@@ -5,6 +5,7 @@ import { createSessionEngine } from '../server/session-engine.js';
 import { createTokenCodec } from '../server/token-codec.js';
 import { createStorageSessionStore } from '../server/storage-session-store.js';
 import { createCredentialsProvider } from '../server/credentials.js';
+import { createAuthServer } from '../server/create-auth-server.js';
 import { createScryptHasher } from '../server/password-hasher.js';
 import {
 	createMemoryRateLimiter,
@@ -190,7 +191,9 @@ describe('schema evolution', () => {
 		return { clock, storage: createMemoryAuthStorage(clock) };
 	};
 
-	const engineWith = <S extends Record<string, ReturnType<typeof claim.string>>>(
+	const engineWith = <
+		S extends Record<string, ReturnType<typeof claim.string>>,
+	>(
 		claims: S,
 		clock: TestClock,
 		store: SessionStore
@@ -318,7 +321,11 @@ describe('storage-backed store housekeeping', () => {
 		};
 	};
 
-	const record = (id: string, subject: string, clock: TestClock): StoredSession => ({
+	const record = (
+		id: string,
+		subject: string,
+		clock: TestClock
+	): StoredSession => ({
 		id: id as SessionId,
 		subject,
 		claims: { role: 'member' },
@@ -349,9 +356,7 @@ describe('storage-backed store housekeeping', () => {
 		await store.write(record('s1', 'u_1', clock));
 		await store.destroy('s1' as SessionId);
 
-		expect(
-			await storage.namespace('subjects').has('u_1')
-		).toBe(false);
+		expect(await storage.namespace('subjects').has('u_1')).toBe(false);
 	});
 
 	it('does not double-index a session written twice', async () => {
@@ -411,6 +416,21 @@ describe('storage-backed store housekeeping', () => {
 
 describe('defineAuth validation', () => {
 	const claims = { role: claim.enum(['admin', 'member']) };
+	const validSecret = 'a'.repeat(32);
+	const expectConfigFailure = (
+		build: () => unknown,
+		path: string,
+		message: string
+	): void => {
+		try {
+			build();
+			expect.unreachable('expected a ConfigError');
+		} catch (error) {
+			expect(error).toBeInstanceOf(ConfigError);
+			expect((error as ConfigError).path).toBe(path);
+			expect((error as ConfigError).message).toContain(message);
+		}
+	};
 
 	it('rejects an empty secret list', () => {
 		try {
@@ -421,6 +441,27 @@ describe('defineAuth validation', () => {
 			expect((error as ConfigError).path).toBe('secrets');
 			expect((error as ConfigError).message).toContain('signing secret');
 		}
+	});
+
+	it.each([
+		[0, 'short'],
+		[1, 'rotation-is-also-too-short'],
+	] as const)('rejects a weak signing secret at index %i', (index, weak) => {
+		const secrets = [validSecret, validSecret.replace(/a/g, 'b')];
+		secrets[index] = weak;
+		expectConfigFailure(
+			() => defineAuth({ secrets, claims }),
+			`secrets[${String(index)}]`,
+			'at least 32 characters'
+		);
+	});
+
+	it('rejects duplicate rotation secrets', () => {
+		expectConfigFailure(
+			() => defineAuth({ secrets: [validSecret, validSecret], claims }),
+			'secrets[1]',
+			'more than once'
+		);
 	});
 
 	it('rejects an empty claims shape', () => {
@@ -505,6 +546,138 @@ describe('defineAuth validation', () => {
 		}
 	});
 
+	it.each([
+		'',
+		'session name',
+		'session;Secure',
+		'session\r\nX-Injected',
+		'__proto__',
+		'constructor',
+		'prototype',
+		'__Host-session',
+		'__Secure-session',
+	])('rejects an unsafe cookie name %j', (name) => {
+		expectConfigFailure(
+			() => defineAuth({ secrets: [validSecret], claims, cookie: { name } }),
+			'cookie.name',
+			'unprefixed HTTP token'
+		);
+	});
+
+	it.each([
+		'relative',
+		'/auth; Secure',
+		'/auth\u0000admin',
+		`/auth${String.fromCharCode(31)}admin`,
+		`/auth${String.fromCharCode(127)}admin`,
+	])('rejects an unsafe cookie path %j', (path) => {
+		expectConfigFailure(
+			() => defineAuth({ secrets: [validSecret], claims, cookie: { path } }),
+			'cookie.path',
+			'absolute cookie path'
+		);
+	});
+
+	it.each([
+		['', 'must not be empty'],
+		['.', 'contain a hostname'],
+		[' example.com', 'surrounding whitespace'],
+		['https://example.com', 'hostname only'],
+		['example.com:443', 'hostname only'],
+		['example.com/auth', 'hostname only'],
+		['example..com', 'valid ASCII hostname'],
+		['-example.com', 'valid ASCII hostname'],
+		['example.com; Secure', 'controls or semicolons'],
+	] as const)('rejects an unsafe cookie domain %j', (domain, message) => {
+		expectConfigFailure(
+			() => defineAuth({ secrets: [validSecret], claims, cookie: { domain } }),
+			'cookie.domain',
+			message
+		);
+	});
+
+	it('rejects a cookie domain longer than the DNS maximum', () => {
+		const domain = [
+			'a'.repeat(63),
+			'b'.repeat(63),
+			'c'.repeat(63),
+			'd'.repeat(62),
+		].join('.');
+		expect(domain).toHaveLength(254);
+		expectConfigFailure(
+			() => defineAuth({ secrets: [validSecret], claims, cookie: { domain } }),
+			'cookie.domain',
+			'must not exceed 253 characters'
+		);
+	});
+
+	it.each([
+		'x',
+		'example.io',
+		'example.long',
+		'a.b.c',
+		['a'.repeat(63), 'b'.repeat(63), 'c'.repeat(63), 'd'.repeat(61)].join('.'),
+	])('accepts and normalizes a valid cookie domain %j', (domain) => {
+		const config = defineAuth({
+			secrets: [validSecret],
+			claims,
+			cookie: { domain },
+		});
+
+		expect(config.cookie.domain).toBe(domain.toLowerCase());
+	});
+
+	it.each([
+		{ secure: false, hostPrefix: true },
+		{ path: '/auth', hostPrefix: true },
+		{ domain: 'example.com', hostPrefix: true },
+	] as const)(
+		'rejects contradictory explicit host-prefix settings',
+		(cookie) => {
+			expectConfigFailure(
+				() => defineAuth({ secrets: [validSecret], claims, cookie }),
+				'cookie.hostPrefix',
+				'require Secure, Path=/, and no Domain'
+			);
+		}
+	);
+
+	it.each([
+		{ secure: false },
+		{ path: '/auth' },
+		{ domain: 'example.com' },
+	] as const)(
+		'truthfully disables the default host prefix when ineligible',
+		(cookie) => {
+			const config = defineAuth({ secrets: [validSecret], claims, cookie });
+
+			expect(config.cookie.hostPrefix).toBe(false);
+		}
+	);
+
+	it('normalizes a leading-dot domain and carries valid metadata into a real session cookie', async () => {
+		const config = defineAuth({
+			secrets: [validSecret],
+			claims,
+			cookie: { name: 'app.session', path: '/auth', domain: '.Example.COM' },
+		});
+		const auth = createAuthServer(config, {
+			storage: createMemoryAuthStorage(),
+		});
+		const issued = await auth.signIn({
+			subject: 'u_1',
+			claims: { role: 'member' },
+		});
+
+		expect(config.cookie.domain).toBe('example.com');
+		expect(config.cookie.hostPrefix).toBe(false);
+		expect(issued.error).toBeUndefined();
+		expect(issued.setCookies[0]).toContain('app.session=');
+		expect(issued.setCookies[0]).toContain('Path=/auth');
+		expect(issued.setCookies[0]).toContain('Domain=example.com');
+		expect(issued.setCookies[0]).not.toContain('__Host-');
+	});
+
 	it('surfaces the offending path and reason in the error message', () => {
 		// A boot-time failure is read in a log with no debugger attached, so the
 		// message has to carry the diagnosis on its own.
@@ -567,7 +740,10 @@ describe('credentials edge cases', () => {
 			provider: createCredentialsProvider({
 				users,
 				hasher,
-				limiter: createMemoryRateLimiter({ limit: 50, windowMs: 60_000 }, clock),
+				limiter: createMemoryRateLimiter(
+					{ limit: 50, windowMs: 60_000 },
+					clock
+				),
 				clock,
 				lockoutThreshold: 5,
 				lockoutDurationMs: 15 * 60_000,

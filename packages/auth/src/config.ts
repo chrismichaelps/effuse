@@ -38,6 +38,7 @@
  */
 
 import { ConfigError } from './errors.js';
+import { AUTH_SECRET_MIN_LENGTH } from './security-constants.js';
 import type { ClaimsShape } from './claims.js';
 import type { SameSitePolicy } from './server/cookies.js';
 
@@ -61,7 +62,7 @@ export interface CookieConfigInput {
 	/** Defaults to `lax`. */
 	readonly sameSite?: SameSitePolicy;
 	readonly domain?: string;
-	/** Request the `__Host-` prefix. Defaults to `true`. */
+	/** Request the `__Host-` prefix. Defaults on when the other cookie options qualify. */
 	readonly hostPrefix?: boolean;
 }
 
@@ -98,6 +99,78 @@ const DEFAULTS = {
 	cookiePath: '/',
 } as const;
 
+const COOKIE_NAME_PATTERN = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
+const FORBIDDEN_COOKIE_NAMES: ReadonlySet<string> = new Set([
+	'__proto__',
+	'constructor',
+	'prototype',
+]);
+const COOKIE_DOMAIN_PATTERN =
+	/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(?:\.(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?))*$/;
+
+const hasForbiddenCookieMetadata = (value: string): boolean => {
+	for (const character of value) {
+		const code = character.charCodeAt(0);
+		if (code <= 31 || code === 127 || code === 59) return true;
+	}
+	return false;
+};
+
+const configError = (path: string, reason: string): never => {
+	throw new ConfigError({ path, reason });
+};
+
+const normalizeCookieDomain = (
+	domain: string | undefined
+): string | undefined => {
+	if (domain === undefined) return undefined;
+	if (domain.length === 0) {
+		return configError('cookie.domain', 'Cookie domain must not be empty.');
+	}
+	if (domain !== domain.trim()) {
+		return configError(
+			'cookie.domain',
+			'Cookie domain must not contain surrounding whitespace.'
+		);
+	}
+	if (hasForbiddenCookieMetadata(domain)) {
+		return configError(
+			'cookie.domain',
+			'Cookie domain must not contain controls or semicolons.'
+		);
+	}
+	if (/[/:@?#\\]/.test(domain)) {
+		return configError(
+			'cookie.domain',
+			'Expected a hostname only, without a scheme, port, path, query, or fragment.'
+		);
+	}
+
+	const normalized = (
+		domain.startsWith('.') ? domain.slice(1) : domain
+	).toLowerCase();
+	if (normalized.length === 0) {
+		return configError(
+			'cookie.domain',
+			'Cookie domain must contain a hostname.'
+		);
+	}
+	if (normalized.length > 253) {
+		return configError(
+			'cookie.domain',
+			'Cookie domain must not exceed 253 characters.'
+		);
+	}
+	if (!COOKIE_DOMAIN_PATTERN.test(normalized)) {
+		return configError(
+			'cookie.domain',
+			'Expected a valid ASCII hostname. Convert internationalized domains to their punycode form first.'
+		);
+	}
+
+	return normalized;
+};
+
 const assertFiniteDuration = (
 	path: string,
 	value: number,
@@ -133,6 +206,23 @@ export const defineAuth = <Shape extends ClaimsShape>(
 		});
 	}
 
+	const seenSecrets = new Set<string>();
+	input.secrets.forEach((secret, index) => {
+		if (secret.length < AUTH_SECRET_MIN_LENGTH) {
+			configError(
+				`secrets[${String(index)}]`,
+				`Signing secrets must be at least ${String(AUTH_SECRET_MIN_LENGTH)} characters. A shorter secret is brute-forceable offline against a captured token.`
+			);
+		}
+		if (seenSecrets.has(secret)) {
+			configError(
+				`secrets[${String(index)}]`,
+				'A signing secret appears more than once. Rotation entries must be distinct and ordered newest first.'
+			);
+		}
+		seenSecrets.add(secret);
+	});
+
 	if (Object.keys(input.claims).length === 0) {
 		throw new ConfigError({
 			path: 'claims',
@@ -165,6 +255,28 @@ export const defineAuth = <Shape extends ClaimsShape>(
 
 	const secure = input.cookie?.secure ?? true;
 	const sameSite = input.cookie?.sameSite ?? 'lax';
+	const cookieName = input.cookie?.name ?? DEFAULTS.cookieName;
+	const cookiePath = input.cookie?.path ?? DEFAULTS.cookiePath;
+	const cookieDomain = normalizeCookieDomain(input.cookie?.domain);
+
+	if (
+		!COOKIE_NAME_PATTERN.test(cookieName) ||
+		FORBIDDEN_COOKIE_NAMES.has(cookieName) ||
+		cookieName.startsWith('__Host-') ||
+		cookieName.startsWith('__Secure-')
+	) {
+		configError(
+			'cookie.name',
+			'Expected an unprefixed HTTP token containing no spaces, controls, separators, or reserved cookie prefixes.'
+		);
+	}
+
+	if (!cookiePath.startsWith('/') || hasForbiddenCookieMetadata(cookiePath)) {
+		configError(
+			'cookie.path',
+			'Expected an absolute cookie path beginning with "/" and containing no controls or semicolons.'
+		);
+	}
 
 	if (sameSite === 'none' && !secure) {
 		throw new ConfigError({
@@ -173,6 +285,17 @@ export const defineAuth = <Shape extends ClaimsShape>(
 				'SameSite=None requires Secure. Browsers reject the combination outright, so the session cookie would never persist.',
 		});
 	}
+
+	const explicitlyRequestedHostPrefix = input.cookie?.hostPrefix === true;
+	const qualifiesForHostPrefix =
+		secure && cookiePath === '/' && cookieDomain === undefined;
+	if (explicitlyRequestedHostPrefix && !qualifiesForHostPrefix) {
+		configError(
+			'cookie.hostPrefix',
+			'__Host- cookies require Secure, Path=/, and no Domain. Remove the conflicting option or set hostPrefix to false explicitly.'
+		);
+	}
+	const hostPrefix = input.cookie?.hostPrefix ?? qualifiesForHostPrefix;
 
 	return {
 		secrets: input.secrets,
@@ -184,16 +307,15 @@ export const defineAuth = <Shape extends ClaimsShape>(
 			rotationOverlapMs,
 		},
 		cookie: {
-			name: input.cookie?.name ?? DEFAULTS.cookieName,
-			path: input.cookie?.path ?? DEFAULTS.cookiePath,
+			name: cookieName,
+			path: cookiePath,
 			secure,
 			sameSite,
-			domain: input.cookie?.domain,
+			domain: cookieDomain,
 			// On by default. The prefix is enforced by the browser and is what stops
 			// a sibling subdomain overwriting the session cookie — the usual
-			// session-fixation route on a shared apex domain. It is dropped
-			// automatically when a Domain is set and the cookie no longer qualifies.
-			hostPrefix: input.cookie?.hostPrefix ?? true,
+			// session-fixation route on a shared apex domain.
+			hostPrefix,
 		},
 	};
 };

@@ -52,6 +52,8 @@ export {
 	type SessionConfigInput,
 } from './config.js';
 
+export { AUTH_SECRET_MIN_LENGTH } from './security-constants.js';
+
 export {
 	AccountLockedError,
 	ConfigError,
