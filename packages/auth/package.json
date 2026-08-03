@@ -107,7 +107,8 @@
 		"@effuse/core": "2.0.3"
 	},
 	"dependencies": {
-		"effect": "^3.21.5"
+		"effect": "^3.21.5",
+		"zod": "^4.4.3"
 	},
 	"devDependencies": {
 		"@effuse/core": "2.0.3",

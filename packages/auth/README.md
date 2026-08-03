@@ -135,6 +135,7 @@ if (error !== undefined) {
 ```ts
 import {
 	createOAuthClient,
+	github,
 	google,
 	createRedirectValidator,
 } from '@effuse/auth/server';
@@ -142,6 +143,15 @@ import {
 const oauth = createOAuthClient({
 	provider: google({ clientId, clientSecret }),
 	redirectUri: 'https://app.example.com/auth/callback',
+	storage,
+	clock: { now: () => Date.now() },
+	redirects: createRedirectValidator({ baseUrl: 'https://app.example.com' }),
+});
+
+// Plain OAuth providers are explicit and remain entirely server-side.
+const githubOAuth = createOAuthClient({
+	provider: github({ clientId: githubClientId, clientSecret: githubClientSecret }),
+	redirectUri: 'https://app.example.com/auth/github/callback',
 	storage,
 	clock: { now: () => Date.now() },
 	redirects: createRedirectValidator({ baseUrl: 'https://app.example.com' }),
@@ -160,18 +170,22 @@ if (result.ok) {
 }
 ```
 
-PKCE with S256, `state` bound to the browser by cookie, `nonce`, full ID-token
-validation, mix-up detection, and open-redirect defence are on by default and
-not configurable off. Presets exist for Google, Microsoft, Auth0, Okta, and
-Keycloak; `oidc()` covers any conforming provider, and an unlisted provider is
-configured exactly as a listed one.
+PKCE with S256, `state` bound to the browser by cookie, mix-up detection, and
+open-redirect defence are on by default and not configurable off. OIDC providers
+also require `nonce` and full ID-token validation. Presets exist for GitHub,
+Google, Microsoft, Auth0, Okta, and Keycloak; `oidc()` covers any conforming OIDC
+provider. Plain OAuth providers use an explicit server-only identity resolver and
+never become a fallback when an expected OIDC ID token is missing or invalid.
+
+GitHub identity is revalidated through the authenticated `/user` API after every
+token exchange. The stable numeric account id becomes `providerAccountId`; only
+a primary address carrying GitHub's explicit `verified: true` evidence is exposed
+as verified. Token responses and provider payloads are parsed by internal Zod
+schemas. Applications consume ordinary Effuse types and do not import Zod.
 
 **Account linking is deliberately not automatic.** `emailVerified` is reported
 so the decision is yours — linking on an unverified email is the most common
 OAuth account-takeover vector.
-
-Plain OAuth 2.0 providers that issue no ID token (GitHub, for instance) are not
-supported yet; only OpenID Connect providers work today.
 
 ### Keeping access tokens fresh
 
@@ -513,9 +527,12 @@ contract. Run it from the repository root with:
 pnpm --filter @effuse/auth test:mutation
 ```
 
-The gate mutates `src/config.ts`, `src/server/credentials.ts`, and
-`src/server/password-reset.ts`, runs related Vitest coverage per test, and
-requires every non-equivalent mutant to be killed. Reports are written to
+The gate mutates `src/config.ts`, credentials and password-reset services, the
+plain-OAuth token/identity decision range, the GitHub identity resolver, and the
+OAuth boundary utilities. It runs related Vitest coverage per test and requires
+every non-equivalent mutant to be killed. Zod schema declarations are covered by
+direct malformed-payload matrices instead of static initialization mutants.
+Reports are written to
 `packages/auth/reports/mutation/` and intentionally ignored by Git. The narrow
 scope keeps the command practical for pull requests; broader security and
 protocol behavior remains covered by the full regression, adversarial,
@@ -525,7 +542,6 @@ conformance, and lifecycle suites.
 
 Tracked, not hidden:
 
-- Plain OAuth 2.0 providers with no ID token (GitHub) — OIDC providers are supported today
 - Automatic account linking — `emailVerified` is reported; the decision is the application's
 
 Client session state is presentational only and must never be an enforcement

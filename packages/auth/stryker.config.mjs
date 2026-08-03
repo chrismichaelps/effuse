@@ -4,6 +4,10 @@ export default {
 		'src/config.ts',
 		'src/server/credentials.ts',
 		'src/server/password-reset.ts',
+		'src/server/oauth/flow.ts:426-531',
+		'src/server/oauth/presets.ts:190-251',
+		// Excludes only the equivalent explicit-undefined catch return at lines 52-54.
+		'src/server/oauth/utils.ts:27-51',
 	],
 	testRunner: 'vitest',
 	vitest: {

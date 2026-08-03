@@ -32,16 +32,23 @@
  */
 
 import type { Clock } from '../../contract.js';
+import { DEFAULT_ID_TOKEN_ALGORITHMS } from './constants.js';
+import { oidcDiscoveryDocumentSchema } from './schemas.js';
+import { isSafeOAuthEndpoint, parseJsonResponse } from './utils.js';
+import type { OAuthFetch } from './types.js';
 
-export interface ProviderMetadata {
+export interface OAuthProviderMetadata {
 	readonly issuer: string;
 	readonly authorizationEndpoint: string;
 	readonly tokenEndpoint: string;
+	readonly codeChallengeMethods: readonly string[];
+}
+
+export interface ProviderMetadata extends OAuthProviderMetadata {
 	readonly jwksUri: string;
 	readonly userinfoEndpoint?: string;
 	/** Algorithms the provider says it signs ID tokens with. */
 	readonly idTokenSigningAlgValues: readonly string[];
-	readonly codeChallengeMethods: readonly string[];
 }
 
 export interface DiscoveryOptions {
@@ -50,31 +57,10 @@ export interface DiscoveryOptions {
 	readonly clock: Clock;
 	/** How long a fetched document is reused. Defaults to 24 hours. */
 	readonly cacheTtlMs?: number;
-	readonly fetch?: (input: string | URL | Request) => Promise<Response>;
+	readonly fetch?: OAuthFetch;
 }
 
 const DEFAULT_CACHE_TTL_MS = 24 * 60 * 60_000;
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-	typeof value === 'object' && value !== null && !Array.isArray(value);
-
-const stringField = (
-	document: Record<string, unknown>,
-	key: string
-): string | undefined => {
-	const value = document[key];
-	return typeof value === 'string' && value.length > 0 ? value : undefined;
-};
-
-const stringArrayField = (
-	document: Record<string, unknown>,
-	key: string
-): readonly string[] => {
-	const value = document[key];
-	return Array.isArray(value)
-		? value.filter((entry): entry is string => typeof entry === 'string')
-		: [];
-};
 
 export interface DiscoveryClient {
 	/** Fetches and caches the provider's metadata. */
@@ -104,47 +90,40 @@ export const createDiscoveryClient = (
 	const wellKnown = `${issuer.replace(/\/$/, '')}/.well-known/openid-configuration`;
 
 	const doLoad = async (): Promise<ProviderMetadata | undefined> => {
+		// Validate the issuer before the first network request. Otherwise an invalid
+		// configuration could make discovery contact a plaintext remote origin even
+		// though the endpoints in its response would later be rejected.
+		if (!isSafeOAuthEndpoint(issuer)) return undefined;
+
 		const run = fetchImpl ?? globalThis.fetch;
 
 		const response = await run(wellKnown);
 		if (!response.ok) return undefined;
 
-		const body: unknown = await response.json();
-		if (!isRecord(body)) return undefined;
+		const body = await parseJsonResponse(response, oidcDiscoveryDocumentSchema);
+		if (body === undefined) return undefined;
 
 		// The document declares its own issuer, and it must match the one we asked
 		// about. A mismatch means the discovery endpoint is serving metadata for
 		// somebody else — accepting it would point every subsequent request,
 		// including the key fetch, at an issuer we never chose.
-		const declaredIssuer = stringField(body, 'issuer');
+		const declaredIssuer = body.issuer;
 		if (declaredIssuer !== issuer) return undefined;
 
-		const authorizationEndpoint = stringField(body, 'authorization_endpoint');
-		const tokenEndpoint = stringField(body, 'token_endpoint');
-		const jwksUri = stringField(body, 'jwks_uri');
-
-		if (
-			authorizationEndpoint === undefined ||
-			tokenEndpoint === undefined ||
-			jwksUri === undefined
-		) {
-			return undefined;
-		}
+		const authorizationEndpoint = body.authorization_endpoint;
+		const tokenEndpoint = body.token_endpoint;
+		const jwksUri = body.jwks_uri;
 
 		// Every endpoint we will subsequently talk to must be https. A provider
 		// advertising a plaintext token endpoint would have us post an
 		// authorization code in the clear.
-		for (const endpoint of [authorizationEndpoint, tokenEndpoint, jwksUri]) {
-			try {
-				const parsed = new URL(endpoint);
-				const loopback =
-					parsed.hostname === 'localhost' ||
-					parsed.hostname === '127.0.0.1' ||
-					parsed.hostname === '[::1]';
-				if (parsed.protocol !== 'https:' && !loopback) return undefined;
-			} catch {
-				return undefined;
-			}
+		for (const endpoint of [
+			authorizationEndpoint,
+			tokenEndpoint,
+			jwksUri,
+			...(body.userinfo_endpoint === undefined ? [] : [body.userinfo_endpoint]),
+		]) {
+			if (!isSafeOAuthEndpoint(endpoint)) return undefined;
 		}
 
 		const metadata: ProviderMetadata = {
@@ -152,17 +131,17 @@ export const createDiscoveryClient = (
 			authorizationEndpoint,
 			tokenEndpoint,
 			jwksUri,
-			...(stringField(body, 'userinfo_endpoint') === undefined
+			...(body.userinfo_endpoint === undefined
 				? {}
-				: { userinfoEndpoint: stringField(body, 'userinfo_endpoint') as string }),
+				: { userinfoEndpoint: body.userinfo_endpoint }),
 			// Defaulted rather than left empty: a provider that omits the field
 			// almost certainly means RS256, and an empty allowlist would reject
 			// every token it issues.
 			idTokenSigningAlgValues:
-				stringArrayField(body, 'id_token_signing_alg_values_supported').length > 0
-					? stringArrayField(body, 'id_token_signing_alg_values_supported')
-					: ['RS256'],
-			codeChallengeMethods: stringArrayField(body, 'code_challenge_methods_supported'),
+				body.id_token_signing_alg_values_supported.length > 0
+					? body.id_token_signing_alg_values_supported
+					: DEFAULT_ID_TOKEN_ALGORITHMS,
+			codeChallengeMethods: body.code_challenge_methods_supported,
 		};
 
 		cached = metadata;

@@ -447,6 +447,7 @@ describe('provider errors', () => {
 		expect(result.ok).toBe(false);
 		if (result.ok) return;
 		expect(result.error).toMatchObject({ code: 'network' });
+		expect(result.error.detail).toBe('Token endpoint unreachable: ECONNREFUSED');
 	});
 });
 
@@ -630,6 +631,81 @@ describe('discovery', () => {
 						{ status: 200, headers: { 'Content-Type': 'application/json' } }
 					)
 				),
+		});
+
+		expect((await client.start()).ok).toBe(false);
+	});
+
+	it('refuses an unsafe issuer before attempting discovery', async () => {
+		const clock = createTestClock();
+		const fetch = vi.fn();
+		const client = createOAuthClient<Profile>({
+			provider: {
+				id: 'unsafe',
+				clientId: 'client',
+				clientSecret: 'secret',
+				issuer: 'http://idp.example.com',
+				profile: (claims) => ({ id: claims.sub, email: undefined }),
+			},
+			redirectUri: REDIRECT_URI,
+			storage: createMemoryAuthStorage(clock),
+			clock,
+			redirects: createRedirectValidator({ baseUrl: 'https://app.example.com' }),
+			fetch,
+		});
+
+		expect((await client.start()).ok).toBe(false);
+		expect(fetch).not.toHaveBeenCalled();
+	});
+
+	it('refuses a discovery document advertising a plaintext userinfo endpoint', async () => {
+		const clock = createTestClock();
+		const idp = createFakeIdp({ now: () => clock.now() });
+		const client = createOAuthClient<Profile>({
+			provider: {
+				id: 'fake',
+				clientId: idp.audience,
+				clientSecret: 'secret',
+				issuer: idp.issuer,
+				profile: (claims) => ({ id: claims.sub, email: undefined }),
+			},
+			redirectUri: REDIRECT_URI,
+			storage: createMemoryAuthStorage(clock),
+			clock,
+			redirects: createRedirectValidator({ baseUrl: 'https://app.example.com' }),
+			fetch: () =>
+				Promise.resolve(
+					Response.json({
+						...idp.discoveryDocument(),
+						userinfo_endpoint: 'http://idp.example.com/userinfo',
+					})
+				),
+		});
+
+		expect((await client.start()).ok).toBe(false);
+	});
+
+	it.each([
+		['empty authorization endpoint', { authorization_endpoint: '' }],
+		['wrong algorithms shape', { id_token_signing_alg_values_supported: 'RS256' }],
+		['wrong PKCE shape', { code_challenge_methods_supported: 'S256' }],
+	] as const)('rejects malformed discovery metadata: %s', async (_name, override) => {
+		const clock = createTestClock();
+		const idp = createFakeIdp({ now: () => clock.now() });
+		const client = createOAuthClient<Profile>({
+			provider: {
+				id: 'fake',
+				clientId: idp.audience,
+				clientSecret: 'secret',
+				issuer: idp.issuer,
+				profile: (claims) => ({ id: claims.sub, email: undefined }),
+			},
+			redirectUri: REDIRECT_URI,
+			storage: createMemoryAuthStorage(clock),
+			clock,
+			redirects: createRedirectValidator({ baseUrl: 'https://app.example.com' }),
+			fetch: () =>
+				Promise.resolve(Response.json({ ...idp.discoveryDocument(), ...override })),
 		});
 
 		expect((await client.start()).ok).toBe(false);

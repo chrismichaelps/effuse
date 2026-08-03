@@ -38,6 +38,7 @@
 
 import type { Clock } from '../../contract.js';
 import type { JwksResolver } from './id-token.js';
+import type { OAuthFetch } from './types.js';
 
 export interface JwksResolverOptions {
 	/** The `jwks_uri` from the provider's discovery document. */
@@ -51,7 +52,7 @@ export interface JwksResolverOptions {
 	 */
 	readonly minRefetchIntervalMs?: number;
 	/** Injected for tests. Defaults to global `fetch`. */
-	readonly fetch?: (input: string | URL | Request) => Promise<Response>;
+	readonly fetch?: OAuthFetch;
 }
 
 const DEFAULT_CACHE_TTL_MS = 60 * 60_000;
