@@ -237,6 +237,61 @@ transparent rehashing on cost increases are built in. There is no
 "credentials does not support database sessions" caveat — it uses the same engine
 as every other provider.
 
+### Password recovery
+
+Password reset is a server capability backed by an atomic port, not a signed
+token helper. That distinction is what makes replacement and single-use
+redemption hold across replicas:
+
+```ts
+import {
+	createPasswordResetService,
+	createScryptHasher,
+} from '@effuse/auth/server';
+
+const passwordReset = createPasswordResetService({
+	store: resetStore, // your PasswordResetStore
+	users,
+	hasher: createScryptHasher(),
+	sessions: sessionStore,
+	limiter,
+	clock: { now: () => Date.now() },
+	onCompleted: (event) =>
+		securityOutbox.enqueue({
+			type: 'password-reset-completed',
+			...event,
+		}),
+});
+
+const issued = await passwordReset.issue({ subject: user.id, clientIp });
+if (issued.ok) await emailResetLink(user.email, issued.token);
+
+const redeemed = await passwordReset.redeem({
+	token,
+	newPassword,
+	clientIp,
+});
+```
+
+The raw 256-bit bearer token is returned once and persistence receives only its
+SHA-256 digest. Issuing a replacement atomically revokes the previous link;
+redemption is atomic, expires after 15 minutes by default, revokes every active
+session, and requires a post-reset security-notification hook. Failed-login
+counters remain intact, and the service never signs the user in automatically.
+On redemption, Effuse consumes the capability and revokes sessions before
+persisting the new credential. Adapter failures therefore fail closed: a link
+may become unusable without changing the password, and the user must request a
+new one. Make `onCompleted` enqueue into a durable outbox; it runs after the
+security state commits and must be safe to retry operationally.
+
+The identifier-facing endpoint stays application-owned. It must return the same
+message and comparable timing for known and unknown accounts, enqueue delivery
+through a side channel, build HTTPS links from a trusted configured origin, set
+`Referrer-Policy: no-referrer` on the reset page, and never expose `issued.token`
+in an HTTP response. These requirements follow the
+[OWASP Forgot Password guidance](https://cheatsheetseries.owasp.org/cheatsheets/Forgot_Password_Cheat_Sheet.html)
+and [NIST SP 800-63B account-recovery requirements](https://pages.nist.gov/800-63-4/sp800-63b.html#account-recovery).
+
 ## Authorization
 
 Policies are values built against the same claims declaration the session uses,
@@ -442,7 +497,7 @@ contract. Run it from the repository root with:
 pnpm --filter @effuse/auth test:mutation
 ```
 
-The gate mutates `src/config.ts`, runs related Vitest coverage per test, and
+The gate mutates `src/config.ts` and `src/server/password-reset.ts`, runs related Vitest coverage per test, and
 requires every non-equivalent mutant to be killed. Reports are written to
 `packages/auth/reports/mutation/` and intentionally ignored by Git. The narrow
 scope keeps the command practical for pull requests; broader security and
@@ -455,7 +510,6 @@ Tracked, not hidden:
 
 - Plain OAuth 2.0 providers with no ID token (GitHub) — OIDC providers are supported today
 - Automatic account linking — `emailVerified` is reported; the decision is the application's
-- Password reset flows
 
 Client session state is presentational only and must never be an enforcement
 point.

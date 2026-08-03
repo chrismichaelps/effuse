@@ -39,10 +39,16 @@
 import {
 	AccountLockedError,
 	InvalidCredentialsError,
+	PasswordPolicyError,
 	RateLimitedError,
 	type AuthError,
 } from '../errors.js';
-import type { Clock, PasswordHasher, RateLimiter, UserStore } from '../contract.js';
+import type {
+	Clock,
+	PasswordHasher,
+	RateLimiter,
+	UserStore,
+} from '../contract.js';
 
 export type PasswordPolicy = (password: string) => string | undefined;
 
@@ -185,7 +191,10 @@ export const createCredentialsProvider = (
 				};
 			}
 
-			if (record.lockedUntil !== undefined && record.lockedUntil > clock.now()) {
+			if (
+				record.lockedUntil !== undefined &&
+				record.lockedUntil > clock.now()
+			) {
 				return {
 					ok: false,
 					error: new AccountLockedError({
@@ -227,7 +236,10 @@ export const createCredentialsProvider = (
 			// the port: raising cost needs neither a migration nor a forced reset,
 			// because records upgrade as their owners sign in.
 			if (hasher.needsRehash(record.passwordHash)) {
-				await users.updatePasswordHash(record.subject, await hasher.hash(password));
+				await users.updatePasswordHash(
+					record.subject,
+					await hasher.hash(password)
+				);
 			}
 
 			return { ok: true, subject: record.subject };
@@ -238,7 +250,7 @@ export const createCredentialsProvider = (
 			if (rejection !== undefined) {
 				return {
 					ok: false,
-					error: new InvalidCredentialsError({ detail: rejection }),
+					error: new PasswordPolicyError({ reason: rejection }),
 				};
 			}
 

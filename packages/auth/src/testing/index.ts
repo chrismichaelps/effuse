@@ -40,6 +40,8 @@ import type {
 	Clock,
 	CredentialRecord,
 	LockHandle,
+	PasswordResetRecord,
+	PasswordResetStore,
 	RateLimitVerdict,
 	RateLimiter,
 	SessionId,
@@ -62,7 +64,9 @@ export interface TestClock extends Clock {
  * The default start is a real, arbitrary past instant rather than `0`, so that
  * code accidentally treating a timestamp as falsy is caught.
  */
-export const createTestClock = (startEpochMs = 1_700_000_000_000): TestClock => {
+export const createTestClock = (
+	startEpochMs = 1_700_000_000_000
+): TestClock => {
 	let current = startEpochMs;
 
 	return {
@@ -114,7 +118,9 @@ export const createMemorySessionStore = (
 		// reach back into the store.
 		read: (id) => {
 			const found = sessions.get(id);
-			return Promise.resolve(found === undefined ? undefined : structuredClone(found));
+			return Promise.resolve(
+				found === undefined ? undefined : structuredClone(found)
+			);
 		},
 
 		// Deep copy, not a spread. A shallow copy leaves nested `claims` shared
@@ -208,7 +214,10 @@ export const createMemoryRateLimiter = (
 		const now = clock.now();
 		const existing = buckets.get(id);
 
-		if (existing === undefined || now - existing.windowStartedAt >= options.windowMs) {
+		if (
+			existing === undefined ||
+			now - existing.windowStartedAt >= options.windowMs
+		) {
 			const fresh: Bucket = { count: 0, windowStartedAt: now };
 			buckets.set(id, fresh);
 			return fresh;
@@ -310,6 +319,89 @@ export const createMemoryUserStore = (): MemoryUserStore => {
 			};
 			put(cleared);
 			return Promise.resolve();
+		},
+	};
+};
+
+/** An in-memory password-reset store with observable live records. */
+export interface MemoryPasswordResetStore extends PasswordResetStore {
+	readonly snapshot: () => readonly PasswordResetRecord[];
+	readonly reset: () => void;
+}
+
+/**
+ * Reference implementation of the atomic password-reset persistence contract.
+ *
+ * Map mutations occur synchronously before each promise resolves, so concurrent
+ * consumers in one process exercise the same single-winner contract a database
+ * adapter must implement with a transaction or compare-and-delete operation.
+ */
+export const createMemoryPasswordResetStore = (): MemoryPasswordResetStore => {
+	const byDigest = new Map<string, PasswordResetRecord>();
+	const digestBySubject = new Map<string, string>();
+
+	const remove = (record: PasswordResetRecord): void => {
+		byDigest.delete(record.digest);
+		if (digestBySubject.get(record.subject) === record.digest) {
+			digestBySubject.delete(record.subject);
+		}
+	};
+
+	const findLive = (
+		digest: string,
+		now: number
+	): PasswordResetRecord | undefined => {
+		const record = byDigest.get(digest);
+		if (record === undefined) return undefined;
+		if (record.expiresAt <= now) {
+			remove(record);
+			return undefined;
+		}
+		return record;
+	};
+
+	return {
+		replace: (record) => {
+			const previousDigest = digestBySubject.get(record.subject);
+			if (previousDigest !== undefined) {
+				const previous = byDigest.get(previousDigest);
+				if (previous !== undefined) remove(previous);
+			}
+
+			const copy = structuredClone(record);
+			byDigest.set(copy.digest, copy);
+			digestBySubject.set(copy.subject, copy.digest);
+			return Promise.resolve();
+		},
+
+		read: (digest, now) => {
+			const record = findLive(digest, now);
+			return Promise.resolve(
+				record === undefined ? undefined : structuredClone(record)
+			);
+		},
+
+		consume: (digest, now) => {
+			const record = findLive(digest, now);
+			if (record === undefined) return Promise.resolve(undefined);
+			remove(record);
+			return Promise.resolve(structuredClone(record));
+		},
+
+		revokeForSubject: (subject) => {
+			const digest = digestBySubject.get(subject);
+			if (digest !== undefined) {
+				const record = byDigest.get(digest);
+				if (record !== undefined) remove(record);
+			}
+			return Promise.resolve();
+		},
+
+		snapshot: () =>
+			[...byDigest.values()].map((record) => structuredClone(record)),
+		reset: () => {
+			byDigest.clear();
+			digestBySubject.clear();
 		},
 	};
 };

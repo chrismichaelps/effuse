@@ -70,6 +70,15 @@ export class InvalidCredentialsError extends Data.TaggedError(
 	readonly safeMessage = 'Invalid email or password.';
 }
 
+/** A proposed password does not satisfy the configured password policy. */
+export class PasswordPolicyError extends Data.TaggedError(
+	'PasswordPolicyError'
+)<SafeErrorFields & { readonly reason: string }> {
+	get safeMessage(): string {
+		return this.reason;
+	}
+}
+
 /** Too many failed attempts against a single account; sign-in is suspended. */
 export class AccountLockedError extends Data.TaggedError('AccountLockedError')<
 	SafeErrorFields & {
@@ -142,6 +151,19 @@ export class InvalidTokenError extends Data.TaggedError('InvalidTokenError')<
 	readonly safeMessage = 'Malformed authentication token.';
 }
 
+/** A password-reset link is malformed, expired, replaced, or already consumed. */
+export class InvalidResetTokenError extends Data.TaggedError(
+	'InvalidResetTokenError'
+)<SafeErrorFields> {
+	constructor(args: SafeErrorFields = {}) {
+		super(args);
+	}
+
+	// Every invalid state is deliberately identical at the wire. Distinguishing
+	// expiry from replay gives an observer information about account activity.
+	readonly safeMessage = 'This password reset link is invalid or expired.';
+}
+
 /**
  * A token's signature did not verify under any configured secret.
  *
@@ -182,9 +204,9 @@ export class ForbiddenError extends Data.TaggedError('ForbiddenError')<
 }
 
 /** The double-submit CSRF token was absent or did not match the session. */
-export class CsrfMismatchError extends Data.TaggedError('CsrfMismatchError')<
-	SafeErrorFields
-> {
+export class CsrfMismatchError extends Data.TaggedError(
+	'CsrfMismatchError'
+)<SafeErrorFields> {
 	constructor(args: SafeErrorFields = {}) {
 		super(args);
 	}
@@ -248,12 +270,14 @@ export class ConfigError extends Data.TaggedError('ConfigError')<
 /** Every failure this package can produce. */
 export type AuthError =
 	| InvalidCredentialsError
+	| PasswordPolicyError
 	| AccountLockedError
 	| RateLimitedError
 	| SessionExpiredError
 	| SessionNotFoundError
 	| SessionRevokedError
 	| InvalidTokenError
+	| InvalidResetTokenError
 	| TokenSignatureMismatchError
 	| CsrfMismatchError
 	| ForbiddenError
@@ -263,12 +287,14 @@ export type AuthError =
 
 const AUTH_ERROR_TAGS: ReadonlySet<string> = new Set([
 	'InvalidCredentialsError',
+	'PasswordPolicyError',
 	'AccountLockedError',
 	'RateLimitedError',
 	'SessionExpiredError',
 	'SessionNotFoundError',
 	'SessionRevokedError',
 	'InvalidTokenError',
+	'InvalidResetTokenError',
 	'TokenSignatureMismatchError',
 	'CsrfMismatchError',
 	'ForbiddenError',
@@ -309,6 +335,9 @@ const statusFor = (error: AuthError): number => {
 		case 'InvalidTokenError':
 		case 'TokenSignatureMismatchError':
 			return 401;
+		case 'PasswordPolicyError':
+		case 'InvalidResetTokenError':
+			return 400;
 		case 'CsrfMismatchError':
 		case 'ForbiddenError':
 			return 403;
@@ -358,7 +387,9 @@ export const toSafeResponseInit = (error: AuthError): SafeResponseInit => {
 		// Rounded up, and never below one second. Rounding down would advertise a
 		// retry the limiter still rejects, turning a compliant client into a hot
 		// loop against the very endpoint being protected.
-		headers['Retry-After'] = String(Math.max(1, Math.ceil(retryAfterMs / 1000)));
+		headers['Retry-After'] = String(
+			Math.max(1, Math.ceil(retryAfterMs / 1000))
+		);
 	}
 
 	return {

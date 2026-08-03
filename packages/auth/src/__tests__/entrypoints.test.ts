@@ -3,10 +3,17 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { AUTH_SECRET_MIN_LENGTH, claim, defineAuth } from '../index.js';
-import { createAuthServer } from '../server/index.js';
+import {
+	createAuthServer,
+	createPasswordResetService,
+	type PasswordResetCompletedEvent,
+} from '../server/index.js';
 import { createSessionClient } from '../client/index.js';
 import { createMemoryAuthStorage } from '../testing/storage.js';
-import { createTestClock } from '../testing/index.js';
+import {
+	createMemoryPasswordResetStore,
+	createTestClock,
+} from '../testing/index.js';
 
 const SRC = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -84,6 +91,18 @@ describe('client bundle purity', () => {
 describe('source hygiene', () => {
 	it('exports the shared secret policy from the isomorphic root', () => {
 		expect(AUTH_SECRET_MIN_LENGTH).toBe(32);
+	});
+
+	it('publishes password reset only through server and testing entries', () => {
+		const event = {
+			subject: 'u_1',
+			revokedSessions: 2,
+			completedAt: 1_700_000_000_000,
+		} satisfies PasswordResetCompletedEvent;
+
+		expect(createPasswordResetService).toBeTypeOf('function');
+		expect(createMemoryPasswordResetStore).toBeTypeOf('function');
+		expect(event.revokedSessions).toBe(2);
 	});
 
 	it('carries the licence header on every source file', async () => {

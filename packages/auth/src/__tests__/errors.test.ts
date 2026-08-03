@@ -4,6 +4,8 @@ import {
 	CsrfMismatchError,
 	ForbiddenError,
 	InvalidCredentialsError,
+	InvalidResetTokenError,
+	PasswordPolicyError,
 	RateLimitedError,
 	SessionExpiredError,
 	SessionRevokedError,
@@ -23,6 +25,8 @@ describe('AuthError', () => {
 			switch (error._tag) {
 				case 'InvalidCredentialsError':
 					return 'credentials';
+				case 'PasswordPolicyError':
+					return 'password-policy';
 				case 'AccountLockedError':
 					return 'locked';
 				case 'RateLimitedError':
@@ -35,6 +39,8 @@ describe('AuthError', () => {
 					return 'revoked';
 				case 'InvalidTokenError':
 					return 'token';
+				case 'InvalidResetTokenError':
+					return 'reset-token';
 				case 'TokenSignatureMismatchError':
 					return 'signature';
 				case 'CsrfMismatchError':
@@ -98,10 +104,17 @@ describe('toSafeResponseInit', () => {
 			401
 		);
 		expect(toSafeResponseInit(new SessionRevokedError()).status).toBe(401);
+		expect(toSafeResponseInit(new InvalidResetTokenError()).status).toBe(400);
+		expect(
+			toSafeResponseInit(
+				new PasswordPolicyError({ reason: 'Use at least 12 characters.' })
+			).status
+		).toBe(400);
 		expect(toSafeResponseInit(new CsrfMismatchError()).status).toBe(403);
 		expect(toSafeResponseInit(new ForbiddenError()).status).toBe(403);
 		expect(
-			toSafeResponseInit(new AccountLockedError({ retryAfterMs: 60_000 })).status
+			toSafeResponseInit(new AccountLockedError({ retryAfterMs: 60_000 }))
+				.status
 		).toBe(423);
 		expect(
 			toSafeResponseInit(new RateLimitedError({ retryAfterMs: 1000 })).status
@@ -131,8 +144,8 @@ describe('toSafeResponseInit', () => {
 	});
 
 	it('omits Retry-After for members that carry no retry budget', () => {
-		expect(toSafeResponseInit(new CsrfMismatchError()).headers).not.toHaveProperty(
-			'Retry-After'
-		);
+		expect(
+			toSafeResponseInit(new CsrfMismatchError()).headers
+		).not.toHaveProperty('Retry-After');
 	});
 });

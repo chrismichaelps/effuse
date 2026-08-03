@@ -29,7 +29,10 @@ interface Harness {
 const harness = (hasher: PasswordHasher = fastHasher): Harness => {
 	const clock = createTestClock();
 	const users = createMemoryUserStore();
-	const limiter = createMemoryRateLimiter({ limit: 20, windowMs: 60_000 }, clock);
+	const limiter = createMemoryRateLimiter(
+		{ limit: 20, windowMs: 60_000 },
+		clock
+	);
 
 	const provider = createCredentialsProvider({
 		users,
@@ -270,7 +273,10 @@ describe('brute force', () => {
 		// Sharing one budget turns a brute-force control into a denial-of-service
 		// tool: an attacker spends the victim's allowance from anywhere and locks
 		// them out without ever guessing a password.
-		const limiter = createMemoryRateLimiter({ limit: 3, windowMs: 60_000 }, h.clock);
+		const limiter = createMemoryRateLimiter(
+			{ limit: 3, windowMs: 60_000 },
+			h.clock
+		);
 		const provider = createCredentialsProvider({
 			users: h.users,
 			hasher: fastHasher,
@@ -306,7 +312,10 @@ describe('brute force', () => {
 	});
 
 	it('reports a rate-limit failure with a retry budget', async () => {
-		const limiter = createMemoryRateLimiter({ limit: 2, windowMs: 60_000 }, h.clock);
+		const limiter = createMemoryRateLimiter(
+			{ limit: 2, windowMs: 60_000 },
+			h.clock
+		);
 		const provider = createCredentialsProvider({
 			users: h.users,
 			hasher: fastHasher,
@@ -343,8 +352,16 @@ describe('transparent rehash', () => {
 	it('upgrades a weak stored hash on the next successful sign-in', async () => {
 		// The whole reason `needsRehash` is in the port: raising cost must not
 		// require a migration or a forced password reset.
-		const weak = createScryptHasher({ cost: 2 ** 12, blockSize: 8, parallelism: 1 });
-		const strong = createScryptHasher({ cost: 2 ** 14, blockSize: 8, parallelism: 1 });
+		const weak = createScryptHasher({
+			cost: 2 ** 12,
+			blockSize: 8,
+			parallelism: 1,
+		});
+		const strong = createScryptHasher({
+			cost: 2 ** 14,
+			blockSize: 8,
+			parallelism: 1,
+		});
 
 		const h = harness(strong);
 		h.users.seed({
@@ -373,8 +390,16 @@ describe('transparent rehash', () => {
 	});
 
 	it('does not rehash after a failed sign-in', async () => {
-		const weak = createScryptHasher({ cost: 2 ** 12, blockSize: 8, parallelism: 1 });
-		const strong = createScryptHasher({ cost: 2 ** 14, blockSize: 8, parallelism: 1 });
+		const weak = createScryptHasher({
+			cost: 2 ** 12,
+			blockSize: 8,
+			parallelism: 1,
+		});
+		const strong = createScryptHasher({
+			cost: 2 ** 14,
+			blockSize: 8,
+			parallelism: 1,
+		});
 
 		const h = harness(strong);
 		h.users.seed({
@@ -404,6 +429,12 @@ describe('password policy', () => {
 		});
 
 		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			expect(result.error._tag).toBe('PasswordPolicyError');
+			expect(result.error.safeMessage).toBe(
+				'Password must be at least 12 characters.'
+			);
+		}
 	});
 
 	it('accepts a password that satisfies the policy and stores it hashed', async () => {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
 	runPasswordHasherConformance,
+	runPasswordResetStoreConformance,
 	runRateLimiterConformance,
 	runSessionStoreConformance,
 	runTokenCodecConformance,
@@ -9,7 +10,10 @@ import {
 } from '../conformance.js';
 import { createScryptHasher } from '../server/password-hasher.js';
 import { createTokenCodec } from '../server/token-codec.js';
-import { createMemoryUserStore } from '../testing/index.js';
+import {
+	createMemoryPasswordResetStore,
+	createMemoryUserStore,
+} from '../testing/index.js';
 import { createStorageSessionStore } from '../server/storage-session-store.js';
 import {
 	createMemoryRateLimiter,
@@ -105,5 +109,12 @@ describe('memory user store', () => {
 			const store = createMemoryUserStore();
 			return { store, seed: store.seed, read: store.get };
 		},
+	});
+});
+
+describe('memory password reset store', () => {
+	runPasswordResetStoreConformance({
+		harness,
+		createStore: createMemoryPasswordResetStore,
 	});
 });
