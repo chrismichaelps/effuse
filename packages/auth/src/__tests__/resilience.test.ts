@@ -413,15 +413,27 @@ describe('defineAuth validation', () => {
 	const claims = { role: claim.enum(['admin', 'member']) };
 
 	it('rejects an empty secret list', () => {
-		expect(() => defineAuth({ secrets: [], claims })).toThrow(ConfigError);
+		try {
+			defineAuth({ secrets: [], claims });
+			expect.unreachable('expected a ConfigError');
+		} catch (error) {
+			expect(error).toBeInstanceOf(ConfigError);
+			expect((error as ConfigError).path).toBe('secrets');
+			expect((error as ConfigError).message).toContain('signing secret');
+		}
 	});
 
 	it('rejects an empty claims shape', () => {
 		// A session with no claims cannot express anything, and silently accepting
 		// it would produce a package that appears configured but is inert.
-		expect(() => defineAuth({ secrets: ['a'.repeat(32)], claims: {} })).toThrow(
-			ConfigError
-		);
+		try {
+			defineAuth({ secrets: ['a'.repeat(32)], claims: {} });
+			expect.unreachable('expected a ConfigError');
+		} catch (error) {
+			expect(error).toBeInstanceOf(ConfigError);
+			expect((error as ConfigError).path).toBe('claims');
+			expect((error as ConfigError).message).toContain('at least one claim');
+		}
 	});
 
 	it('rejects an idle window longer than the absolute lifetime', () => {
@@ -434,14 +446,63 @@ describe('defineAuth validation', () => {
 		).toThrow(ConfigError);
 	});
 
+	it.each([
+		['session.idleTtlMs', { idleTtlMs: 0 }],
+		['session.idleTtlMs', { idleTtlMs: Number.NaN }],
+		['session.idleTtlMs', { idleTtlMs: Number.POSITIVE_INFINITY }],
+		['session.absoluteTtlMs', { absoluteTtlMs: -1 }],
+		['session.absoluteTtlMs', { absoluteTtlMs: 0 }],
+		['session.absoluteTtlMs', { absoluteTtlMs: Number.NaN }],
+		['session.rotationOverlapMs', { rotationOverlapMs: -1 }],
+		[
+			'session.rotationOverlapMs',
+			{ rotationOverlapMs: Number.POSITIVE_INFINITY },
+		],
+	] as const)('rejects invalid duration at %s', (path, session) => {
+		try {
+			defineAuth({ secrets: ['a'.repeat(32)], claims, session });
+			expect.unreachable('expected a ConfigError');
+		} catch (error) {
+			expect(error).toBeInstanceOf(ConfigError);
+			expect((error as ConfigError).path).toBe(path);
+			expect((error as ConfigError).message).toContain('finite');
+		}
+	});
+
+	it('accepts a zero rotation overlap when immediate invalidation is intended', () => {
+		const config = defineAuth({
+			secrets: ['a'.repeat(32)],
+			claims,
+			session: { rotationOverlapMs: 0 },
+		});
+
+		expect(config.session.rotationOverlapMs).toBe(0);
+	});
+
+	it('accepts equal idle and absolute lifetimes', () => {
+		const config = defineAuth({
+			secrets: ['a'.repeat(32)],
+			claims,
+			session: { idleTtlMs: 1000, absoluteTtlMs: 1000 },
+		});
+
+		expect(config.session.idleTtlMs).toBe(1000);
+		expect(config.session.absoluteTtlMs).toBe(1000);
+	});
+
 	it('rejects SameSite=None without Secure', () => {
-		expect(() =>
+		try {
 			defineAuth({
 				secrets: ['a'.repeat(32)],
 				claims,
 				cookie: { sameSite: 'none', secure: false },
-			})
-		).toThrow(ConfigError);
+			});
+			expect.unreachable('expected a ConfigError');
+		} catch (error) {
+			expect(error).toBeInstanceOf(ConfigError);
+			expect((error as ConfigError).path).toBe('cookie.sameSite');
+			expect((error as ConfigError).message).toContain('requires Secure');
+		}
 	});
 
 	it('surfaces the offending path and reason in the error message', () => {

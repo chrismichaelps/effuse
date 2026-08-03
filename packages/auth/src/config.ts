@@ -98,6 +98,22 @@ const DEFAULTS = {
 	cookiePath: '/',
 } as const;
 
+const assertFiniteDuration = (
+	path: string,
+	value: number,
+	minimum: 'positive' | 'non-negative'
+): void => {
+	const valid =
+		Number.isFinite(value) && (minimum === 'positive' ? value > 0 : value >= 0);
+
+	if (!valid) {
+		throw new ConfigError({
+			path,
+			reason: `Expected a finite ${minimum} duration in milliseconds.`,
+		});
+	}
+};
+
 /**
  * Validates and normalises configuration.
  *
@@ -127,6 +143,17 @@ export const defineAuth = <Shape extends ClaimsShape>(
 
 	const idleTtlMs = input.session?.idleTtlMs ?? DEFAULTS.idleTtlMs;
 	const absoluteTtlMs = input.session?.absoluteTtlMs ?? DEFAULTS.absoluteTtlMs;
+	const rotationOverlapMs =
+		input.session?.rotationOverlapMs ?? DEFAULTS.rotationOverlapMs;
+
+	assertFiniteDuration('session.idleTtlMs', idleTtlMs, 'positive');
+	assertFiniteDuration('session.absoluteTtlMs', absoluteTtlMs, 'positive');
+	assertFiniteDuration(
+		'session.rotationOverlapMs',
+		rotationOverlapMs,
+		// Stryker disable next-line StringLiteral: the helper fallback is the same non-negative branch
+		'non-negative'
+	);
 
 	if (idleTtlMs > absoluteTtlMs) {
 		throw new ConfigError({
@@ -154,8 +181,7 @@ export const defineAuth = <Shape extends ClaimsShape>(
 			strategy: input.session?.strategy,
 			idleTtlMs,
 			absoluteTtlMs,
-			rotationOverlapMs:
-				input.session?.rotationOverlapMs ?? DEFAULTS.rotationOverlapMs,
+			rotationOverlapMs,
 		},
 		cookie: {
 			name: input.cookie?.name ?? DEFAULTS.cookieName,
