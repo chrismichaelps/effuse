@@ -677,3 +677,21 @@ export {
 	type Directive,
 	type RefOptions,
 } from './refs/index.js';
+
+export {
+	createBroadcastTransport,
+	createLeaderElection,
+	createMemoryTransportHub,
+	createNoopTransport,
+	syncedSignal,
+	whenLeader,
+	type LeaderElection,
+	type LeaderElectionOptions,
+	type LeaderTaskHandle,
+	type MemoryTransportHub,
+	type SyncedSignal,
+	type SyncedSignalOptions,
+	type SyncMessage,
+	type SyncTransport,
+	type VersionedValue,
+} from './sync/index.js';
