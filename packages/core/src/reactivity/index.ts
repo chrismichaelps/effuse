@@ -61,6 +61,16 @@ export {
 } from './async-hydration.js';
 
 export {
+	optimistic,
+	type CommitContext,
+	type MutationHandle,
+	type MutationStatus,
+	type OptimisticOptions,
+	type OptimisticQueue,
+	type PendingMutation,
+} from './optimistic.js';
+
+export {
 	readonly,
 	isReadonly,
 	shallowReadonly,

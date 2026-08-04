@@ -105,6 +105,59 @@ Three details worth knowing:
   so a component remounted later fetches fresh data rather than resurrecting a
   value that may be minutes old.
 
+## Optimistic Mutations
+
+React 19 shipped `useOptimistic`, and the ecosystem immediately documented what
+it does not do — silent rollback, lost updates under concurrent mutations,
+rollback-target drift, and three pieces of state each claiming to be the truth.
+
+`optimistic` removes those through architecture rather than extra handling. There
+is exactly one source of truth, and pending changes are a **queue projected over
+it**:
+
+```
+value = pending.reduce(apply, base)
+```
+
+Ordered rollback then falls out for free. Removing a failed mutation and
+recomputing replays the survivors in order, so failing the second of three leaves
+the first and third applied. There is no second copy of the state to repair.
+
+```ts
+const todos = optimistic(todosSignal, {
+  apply: (state, change) => [...state, change],          // pure
+  commit: (change, ctx) => api.create(change, { signal: ctx.signal }),
+  reconcile: (state, created) => [...state, created],
+  onRollback: (change, cause) => toast.error(`Could not add ${change.title}`),
+});
+
+const handle = todos.mutate({ title: 'Buy milk' });
+handle.status;   // 'pending' | 'committed' | 'rolled-back'
+await handle.settled;
+```
+
+| Behaviour | Why it matters |
+| --- | --- |
+| `onRollback` fires with the change and cause | A silent revert reads to users as the application losing their work |
+| Rollback is ordered | Failing one mutation must not discard the ones after it |
+| Stable `idempotencyKey` across retries | Otherwise a retry after a lost response creates a second record |
+| Base and queue update in one batch | Separately, the value briefly shows the item twice |
+| A late commit cannot resurrect a rolled-back mutation | The lost-update bug |
+| `ctx.signal` aborts on rollback and disposal | An abandoned request still costs bandwidth and a connection slot |
+
+`apply` must be pure, because the projection recomputes from base on every read —
+an implementation that mutates in place corrupts the base state rather than
+merely misbehaving. Outside production, returning the state it was given
+produces a warning naming both readings (an in-place mutation, or a deliberate
+no-op), with `detectImpureApply: false` to silence it.
+
+### Server-side rendering
+
+Optimistic mutations are inherently client-side: there are no user actions during
+a server render. The queue starts empty and the projection is just `base`, so a
+server-rendered page shows confirmed state and nothing else. Nothing in this
+module touches a browser global, so importing it on the server is safe.
+
 ## Browser Hooks
 
 Core browser hooks keep server rendering and the browser's pre-mount hydration
