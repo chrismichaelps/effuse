@@ -158,6 +158,73 @@ a server render. The queue starts empty and the projection is just `base`, so a
 server-rendered page shows confirmed state and nothing else. Nothing in this
 module touches a browser global, so importing it on the server is safe.
 
+## Cross-Tab Coherence
+
+No mainstream framework ships this. Every application that needs "signing out
+here signs out everywhere", or "only one tab holds the websocket", reimplements
+the same `BroadcastChannel` and Web Locks plumbing — and hand-rolled versions
+routinely miss the same things.
+
+```ts
+// One value, shared across every tab.
+const session = syncedSignal(sessionSignal, { channel: 'app.session' });
+
+// One job, running in exactly one tab, moving if that tab dies.
+const socket = whenLeader(() => {
+  const ws = openWebSocket();
+  return () => ws.close();
+}, { name: 'socket' });
+```
+
+| Problem | How it is handled |
+| --- | --- |
+| Leader crashes rather than closing | Web Locks releases on tab death however it dies; the heartbeat fallback presumes a silent leader dead |
+| No Web Locks available | Heartbeat protocol, with the smallest id winning ties deterministically |
+| Two tabs both think they lead | On hearing a peer heartbeat, the larger id stands down immediately |
+| Concurrent writes | Last-write-wins by default, with a logical clock so a causally later write always wins on merit |
+| Tab was suspended and missed messages | `reconcile()` asks peers for current state, and runs automatically on `visibilitychange` |
+| Demoted tab keeps its socket | The `whenLeader` cleanup runs on losing leadership, not only on disposal |
+
+### Why a logical clock
+
+Wall-clock last-write-wins has a failure that looks like it should be rare and
+is not. `Date.now()` has millisecond resolution, so a tab that adopts a peer's
+value and then writes again can produce a stamp equal to the value it replaced.
+The tie-break then resolves by origin, the peer rejects the newer value, and the
+two tabs disagree **permanently**.
+
+Stamping each write as `max(wallClock, highestSeen + 1)` makes a causally later
+write strictly greater, so the origin tie-break is only ever reached by genuinely
+concurrent writes — where either answer is defensible and all that matters is
+that every tab picks the same one.
+
+### Testing, and why the transport is a port
+
+Cross-tab behaviour cannot be tested by opening real tabs, so `SyncTransport` and
+the scheduler are injectable. `createMemoryTransportHub()` gives N simulated tabs
+sharing one channel, which makes crash handover and split brain real tests rather
+than mocks:
+
+```ts
+const hub = createMemoryTransportHub();
+const tabs = Array.from({ length: 5 }, () =>
+  createLeaderElection({ name: 'socket', transport: hub.connect(), /* ... */ })
+);
+```
+
+### Server-side rendering
+
+Every export is safe to import and construct on the server. Without
+`BroadcastChannel` the transport is a no-op, no timers or listeners are
+installed, and a synced signal behaves as an ordinary one. Leader election
+resolves immediately rather than waiting out a timeout for peers that cannot
+reply — a lone participant needs no coordination.
+
+That is correct behaviour rather than a degraded mode: a server render produces
+the initial state for one client, and there is nothing to synchronise with. A
+test asserts that no `setTimeout` is scheduled on that path, because work
+outliving the request is the specific way this kind of module leaks.
+
 ## Browser Hooks
 
 Core browser hooks keep server rendering and the browser's pre-mount hydration
