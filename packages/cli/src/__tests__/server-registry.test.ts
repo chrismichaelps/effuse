@@ -32,6 +32,21 @@ const touchAction = (root: string, path: string): void => {
 
 const typecheckGeneratedRegistry = (root: string): readonly string[] => {
 	const outputPath = writeServerRegistryModule(discoverServerRegistry(root));
+	const coreContractPath = resolve(root, '.effuse/core-server.d.ts');
+	writeFileSync(
+		coreContractPath,
+		`export interface ServerApiFileModule { readonly GET?: (...args: never[]) => unknown; }
+export interface ServerActionFileModule { readonly default?: (...args: never[]) => unknown; }
+export interface LazyServerApiFileEntry { readonly kind: 'api'; readonly filePath: string; readonly path: string; readonly load: () => Promise<ServerApiFileModule>; }
+export interface LazyServerActionFileEntry { readonly kind: 'action'; readonly filePath: string; readonly name: string; readonly load: () => Promise<ServerActionFileModule>; }
+export type LazyServerFileEntry = LazyServerApiFileEntry | LazyServerActionFileEntry;
+export interface ServerFileMatchOptions {}
+export type ServerFileMatch = Readonly<Record<string, unknown>>;
+export interface ServerFilesInput { readonly api?: Readonly<Record<string, ServerApiFileModule>>; readonly actions?: Readonly<Record<string, ServerActionFileModule>>; }
+export declare function compileServerFileRegistry(source: readonly LazyServerFileEntry[]): unknown;
+export declare function matchServerFileRequest(request: Request, source: unknown, options?: ServerFileMatchOptions): ServerFileMatch | null;
+`
+	);
 	const program = ts.createProgram([outputPath], {
 		allowImportingTsExtensions: true,
 		baseUrl: root,
@@ -39,9 +54,7 @@ const typecheckGeneratedRegistry = (root: string): readonly string[] => {
 		moduleResolution: ts.ModuleResolutionKind.Bundler,
 		noEmit: true,
 		paths: {
-			'@effuse/core/server': [
-				resolve(import.meta.dirname, '../../../core/src/server.ts'),
-			],
+			'@effuse/core/server': [coreContractPath],
 		},
 		skipLibCheck: true,
 		strict: true,
