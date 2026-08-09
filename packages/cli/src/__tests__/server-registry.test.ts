@@ -9,6 +9,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
+import ts from 'typescript';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
 	discoverServerRegistry,
@@ -21,6 +22,36 @@ const touch = (root: string, path: string): void => {
 	const target = resolve(root, path);
 	mkdirSync(dirname(target), { recursive: true });
 	writeFileSync(target, 'export const GET = () => ({ ok: true });\n');
+};
+
+const touchAction = (root: string, path: string): void => {
+	const target = resolve(root, path);
+	mkdirSync(dirname(target), { recursive: true });
+	writeFileSync(target, 'export default () => ({ ok: true });\n');
+};
+
+const typecheckGeneratedRegistry = (root: string): readonly string[] => {
+	const outputPath = writeServerRegistryModule(discoverServerRegistry(root));
+	const program = ts.createProgram([outputPath], {
+		allowImportingTsExtensions: true,
+		baseUrl: root,
+		module: ts.ModuleKind.ESNext,
+		moduleResolution: ts.ModuleResolutionKind.Bundler,
+		noEmit: true,
+		paths: {
+			'@effuse/core/server': [
+				resolve(import.meta.dirname, '../../../core/src/server.ts'),
+			],
+		},
+		skipLibCheck: true,
+		strict: true,
+		target: ts.ScriptTarget.ES2022,
+	});
+	return ts
+		.getPreEmitDiagnostics(program)
+		.map((diagnostic) =>
+			ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n')
+		);
 };
 
 describe('server registry compiler', () => {
@@ -183,6 +214,21 @@ describe('server registry compiler', () => {
 		expect(first).toContain('export function matchServerFile(request: Request');
 		expect(first).toContain('signature":"api/users/[]');
 		expect(first).not.toContain('node:fs');
+	});
+
+	it.each([
+		['API-only', ['api']],
+		['action-only', ['action']],
+		['empty', []],
+		['mixed', ['api', 'action']],
+	] as const)('generates a TypeScript-valid %s registry', (_name, kinds) => {
+		const includedKinds = new Set<string>(kinds);
+		if (includedKinds.has('api')) touch(root, 'src/server/api/health.ts');
+		if (includedKinds.has('action')) {
+			touchAction(root, 'src/server/actions/cache/clear.ts');
+		}
+
+		expect(typecheckGeneratedRegistry(root)).toEqual([]);
 	});
 
 	it('normalizes custom source directories to portable registry paths', () => {
