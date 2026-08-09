@@ -9,6 +9,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
+import ts from 'typescript';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
 	discoverServerRegistry,
@@ -21,6 +22,49 @@ const touch = (root: string, path: string): void => {
 	const target = resolve(root, path);
 	mkdirSync(dirname(target), { recursive: true });
 	writeFileSync(target, 'export const GET = () => ({ ok: true });\n');
+};
+
+const touchAction = (root: string, path: string): void => {
+	const target = resolve(root, path);
+	mkdirSync(dirname(target), { recursive: true });
+	writeFileSync(target, 'export default () => ({ ok: true });\n');
+};
+
+const typecheckGeneratedRegistry = (root: string): readonly string[] => {
+	const outputPath = writeServerRegistryModule(discoverServerRegistry(root));
+	const coreContractPath = resolve(root, '.effuse/core-server.d.ts');
+	writeFileSync(
+		coreContractPath,
+		`export interface ServerApiFileModule { readonly GET?: (...args: never[]) => unknown; }
+export interface ServerActionFileModule { readonly default?: (...args: never[]) => unknown; }
+export interface LazyServerApiFileEntry { readonly kind: 'api'; readonly filePath: string; readonly path: string; readonly load: () => Promise<ServerApiFileModule>; }
+export interface LazyServerActionFileEntry { readonly kind: 'action'; readonly filePath: string; readonly name: string; readonly load: () => Promise<ServerActionFileModule>; }
+export type LazyServerFileEntry = LazyServerApiFileEntry | LazyServerActionFileEntry;
+export interface ServerFileMatchOptions {}
+export type ServerFileMatch = Readonly<Record<string, unknown>>;
+export interface ServerFilesInput { readonly api?: Readonly<Record<string, ServerApiFileModule>>; readonly actions?: Readonly<Record<string, ServerActionFileModule>>; }
+export declare function compileServerFileRegistry(source: readonly LazyServerFileEntry[]): unknown;
+export declare function matchServerFileRequest(request: Request, source: unknown, options?: ServerFileMatchOptions): ServerFileMatch | null;
+`
+	);
+	const program = ts.createProgram([outputPath], {
+		allowImportingTsExtensions: true,
+		baseUrl: root,
+		module: ts.ModuleKind.ESNext,
+		moduleResolution: ts.ModuleResolutionKind.Bundler,
+		noEmit: true,
+		paths: {
+			'@effuse/core/server': [coreContractPath],
+		},
+		skipLibCheck: true,
+		strict: true,
+		target: ts.ScriptTarget.ES2022,
+	});
+	return ts
+		.getPreEmitDiagnostics(program)
+		.map((diagnostic) =>
+			ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n')
+		);
 };
 
 describe('server registry compiler', () => {
@@ -183,6 +227,21 @@ describe('server registry compiler', () => {
 		expect(first).toContain('export function matchServerFile(request: Request');
 		expect(first).toContain('signature":"api/users/[]');
 		expect(first).not.toContain('node:fs');
+	});
+
+	it.each([
+		['API-only', ['api']],
+		['action-only', ['action']],
+		['empty', []],
+		['mixed', ['api', 'action']],
+	] as const)('generates a TypeScript-valid %s registry', (_name, kinds) => {
+		const includedKinds = new Set<string>(kinds);
+		if (includedKinds.has('api')) touch(root, 'src/server/api/health.ts');
+		if (includedKinds.has('action')) {
+			touchAction(root, 'src/server/actions/cache/clear.ts');
+		}
+
+		expect(typecheckGeneratedRegistry(root)).toEqual([]);
 	});
 
 	it('normalizes custom source directories to portable registry paths', () => {
