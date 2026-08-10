@@ -19,6 +19,9 @@ import {
 const DEFAULT_API_DIR = 'src/server/api';
 const DEFAULT_ACTIONS_DIR = 'src/server/actions';
 const DEFAULT_MIDDLEWARE_DIR = 'src/server/middleware';
+export const DEFAULT_SERVER_REGISTRY_OUTPUT = '.effuse/server-registry.ts';
+export const DEFAULT_SERVER_MIDDLEWARE_REGISTRY_OUTPUT =
+	'.effuse/server-middleware-registry.ts';
 const SERVER_MODULE = /\.(?:[cm]?[jt]s)$/i;
 const DECLARATION = /\.d\.[cm]?ts$/i;
 const TEST_MODULE = /(?:^|\.)(?:test|spec)\.[cm]?[jt]s$/i;
@@ -343,7 +346,7 @@ export const generateServerMiddlewareRegistryModule = (
 ): string => {
 	const outputPath = resolve(
 		registry.rootDir,
-		options.outputPath ?? '.effuse/server-middleware-registry.ts'
+		options.outputPath ?? DEFAULT_SERVER_MIDDLEWARE_REGISTRY_OUTPUT
 	);
 	if (!isWithin(registry.rootDir, outputPath)) {
 		throw new TypeError(
@@ -374,7 +377,7 @@ export const generateServerRegistryModule = (
 ): string => {
 	const outputPath = resolve(
 		registry.rootDir,
-		options.outputPath ?? '.effuse/server-registry.ts'
+		options.outputPath ?? DEFAULT_SERVER_REGISTRY_OUTPUT
 	);
 	if (!isWithin(registry.rootDir, outputPath)) {
 		throw new TypeError(
@@ -403,7 +406,7 @@ export const writeServerRegistryModule = (
 ): string => {
 	const outputPath = resolve(
 		registry.rootDir,
-		options.outputPath ?? '.effuse/server-registry.ts'
+		options.outputPath ?? DEFAULT_SERVER_REGISTRY_OUTPUT
 	);
 	const source = generateServerRegistryModule(registry, options);
 	mkdirSync(dirname(outputPath), { recursive: true });
@@ -424,7 +427,7 @@ export const writeServerMiddlewareRegistryModule = (
 ): string => {
 	const outputPath = resolve(
 		registry.rootDir,
-		options.outputPath ?? '.effuse/server-middleware-registry.ts'
+		options.outputPath ?? DEFAULT_SERVER_MIDDLEWARE_REGISTRY_OUTPUT
 	);
 	const source = generateServerMiddlewareRegistryModule(registry, options);
 	mkdirSync(dirname(outputPath), { recursive: true });

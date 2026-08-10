@@ -4,6 +4,7 @@ import {
 	mkdirSync,
 	mkdtempSync,
 	readFileSync,
+	realpathSync,
 	rmSync,
 	writeFileSync,
 } from 'node:fs';
@@ -40,7 +41,9 @@ describe('Effuse server registry Vite plugin', () => {
 
 	beforeEach(() => {
 		vi.useFakeTimers();
-		root = mkdtempSync(resolve(tmpdir(), 'effuse-registry-plugin-'));
+		root = realpathSync.native(
+			mkdtempSync(resolve(tmpdir(), 'effuse-registry-plugin-'))
+		);
 		watcher = new Watcher();
 		sent = [];
 		errors = [];
@@ -80,6 +83,59 @@ describe('Effuse server registry Vite plugin', () => {
 			resolve(root, 'src/server/actions'),
 			resolve(root, 'src/server/middleware'),
 		]);
+	});
+
+	it('resolves generated registry specifiers to their TypeScript sources', () => {
+		const importer = resolve(root, 'src/layers/AppServerLayer.ts');
+		const registry = resolve(root, '.effuse/server-registry.ts');
+		const middleware = resolve(root, '.effuse/server-middleware-registry.ts');
+
+		for (const source of [
+			'../../.effuse/server-registry.js',
+			'../../.effuse/server-registry.ts',
+			registry,
+		]) {
+			expect(callHook(plugin.resolveId, plugin, source, importer)).toBe(registry);
+		}
+		expect(
+			callHook(
+				plugin.resolveId,
+				plugin,
+				'../../.effuse/server-middleware-registry.js',
+				importer
+			)
+		).toBe(middleware);
+	});
+
+	it('generates a missing registry when a specifier resolves', () => {
+		const importer = resolve(root, 'src/layers/AppServerLayer.ts');
+		touch(root, 'src/server/api/health.ts');
+
+		const resolved = callHook<string>(
+			plugin.resolveId,
+			plugin,
+			'../../.effuse/server-registry.js',
+			importer
+		);
+
+		expect(existsSync(resolved)).toBe(true);
+		expect(readFileSync(resolved, 'utf-8')).toContain('./src/server/api/health.ts');
+	});
+
+	it('leaves unrelated specifiers to other resolvers', () => {
+		const importer = resolve(root, 'src/layers/AppServerLayer.ts');
+
+		for (const source of [
+			'./unrelated.js',
+			'@scope/server-registry.js',
+			'../../.effuse/server-registry.mjs',
+			'../../.effuse/other-registry.js',
+		]) {
+			expect(callHook(plugin.resolveId, plugin, source, importer)).toBeNull();
+		}
+		expect(
+			callHook(plugin.resolveId, plugin, '../../.effuse/server-registry.js', undefined)
+		).toBeNull();
 	});
 
 	it('coalesces route add and rename events into one valid reload', () => {
