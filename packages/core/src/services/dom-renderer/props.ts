@@ -184,8 +184,10 @@ export const PropServiceLive = Layer.succeed(PropService, {
 			if (key === 'ref') {
 				if (isRefCallback(value) || isRefObject(value)) {
 					applyRef(value, element);
-				} else if (Predicate.isFunction(value)) {
-					(value as (el: Element) => void)(element);
+					// Detaching on unmount keeps `ref.current` honest and lets the
+					// removed element be collected; without it a ref pins a detached
+					// node for as long as the ref itself is reachable.
+					return { cleanup: () => applyRef(value, null) };
 				}
 				return { cleanup: () => {} };
 			}

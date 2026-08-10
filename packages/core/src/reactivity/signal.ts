@@ -41,16 +41,24 @@ interface SignalInternal<T> extends Signal<T> {
 
 // Initialize reactive signal
 export function signal<T>(initialValue: T, name?: string): Signal<T> {
-	const refEffect = SubscriptionRef.make(initialValue);
-	const ref = Effect.runSync(refEffect);
 	const dep = new Dep();
 	const version = { value: 0 };
 	let cached = initialValue;
+
+	// The SubscriptionRef is public surface (`getSignalRef`) that no internal
+	// path reads: `cached` serves every read and `dep` drives every update.
+	// Building it eagerly and writing through on every set put a full Effect
+	// runtime entry on the hottest path in the framework, so it is materialized
+	// on first request and only kept in step while it exists.
+	let ref: SubscriptionRef.SubscriptionRef<T> | undefined;
 
 	const traceId = traceSignalCreate(name, initialValue);
 
 	const signalObj: SignalInternal<T> = {
 		get _ref() {
+			if (!ref) {
+				ref = Effect.runSync(SubscriptionRef.make(cached));
+			}
 			return ref;
 		},
 		get _dep() {
@@ -71,7 +79,9 @@ export function signal<T>(initialValue: T, name?: string): Signal<T> {
 				const prevValue = cached;
 				cached = newValue;
 				version.value++;
-				Effect.runSync(SubscriptionRef.set(ref, newValue));
+				if (ref) {
+					Effect.runSync(SubscriptionRef.set(ref, newValue));
+				}
 				dep.trigger();
 				traceSignalUpdate(traceId, prevValue, newValue);
 			}

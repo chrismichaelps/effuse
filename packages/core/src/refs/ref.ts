@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-import { Effect, SubscriptionRef, Predicate } from 'effect';
+import { Predicate } from 'effect';
 import type {
 	RefObject,
 	RefObjectInternal,
@@ -33,24 +33,30 @@ import type {
 export function createRef<T extends Element = Element>(
 	_options?: RefOptions
 ): RefObject<T> {
-	const internalRef = Effect.runSync(SubscriptionRef.make<T | null>(null));
+	// `current` is the framework's primary DOM access path, read inside event
+	// handlers, measurement code, and animation frames. The element lives in a
+	// plain closure variable: the SubscriptionRef this replaced was never
+	// exposed on RefObject or RefObjectInternal, and notification has always
+	// been served by the subscriber set below, so it carried cost but no
+	// behavior.
+	let current: T | null = null;
 	const subscribers = new Set<RefCallback<T>>();
 
 	const refObject: RefObjectInternal<T> = {
 		get current(): T | null {
-			return Effect.runSync(SubscriptionRef.get(internalRef));
+			return current;
 		},
 
 		subscribe(callback: RefCallback<T>): () => void {
 			subscribers.add(callback);
-			callback(this.current);
+			callback(current);
 			return () => {
 				subscribers.delete(callback);
 			};
 		},
 
 		_setCurrent(el: T | null): void {
-			Effect.runSync(SubscriptionRef.set(internalRef, el));
+			current = el;
 			for (const cb of subscribers) {
 				cb(el);
 			}
