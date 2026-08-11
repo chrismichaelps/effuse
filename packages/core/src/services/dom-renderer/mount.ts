@@ -59,6 +59,13 @@ import {
 } from './hydration-cursor.js';
 import { captureIdScope } from '../../hooks/useId.js';
 import {
+	createDOMElement,
+	getChildNamespace,
+	getDOMNamespace,
+	getElementNamespace,
+	type DOMNamespace,
+} from '../../render/attribute-name.js';
+import {
 	getErrorBoundaryController,
 	normalizeBoundaryError,
 	type ErrorBoundaryController,
@@ -571,7 +578,8 @@ const mountDynamicValue = (
 	onRender?: (nodes: Node[], anchor: Comment) => void,
 	componentScope?: ProvideScope,
 	hydrationCursor?: HydrationCursor,
-	errorBoundary?: RenderErrorBoundary
+	errorBoundary?: RenderErrorBoundary,
+	namespace: DOMNamespace = 'html'
 ): Effect.Effect<Node[], never, PropService | EventService> => {
 	const provideScope = componentScope ?? getCurrentProvideScope();
 	const runWithCapturedIdScope = captureIdScope();
@@ -645,7 +653,8 @@ const mountDynamicValue = (
 							value as EffuseChild,
 							childCleanups,
 							cursor,
-							errorBoundary
+							errorBoundary,
+							namespace
 						),
 						Effect.provide(PropServiceLive),
 						Effect.provide(EventServiceLive),
@@ -746,24 +755,26 @@ const mountChild = (
 	child: EffuseChild,
 	cleanups: CleanupFn[],
 	cursor?: HydrationCursor,
-	errorBoundary?: RenderErrorBoundary
+	errorBoundary?: RenderErrorBoundary,
+	namespace: DOMNamespace = 'html'
 ): Effect.Effect<Node[], never, PropService | EventService> => {
 	// While hydrating, every DOM decision must happen at execution time so
 	// siblings claim server nodes in document order. Suspending defers the
 	// eager branches below (text nodes, blueprint instantiation) accordingly.
 	if (cursor) {
 		return Effect.suspend(() =>
-			mountChildInner(child, cleanups, cursor, errorBoundary)
+			mountChildInner(child, cleanups, cursor, errorBoundary, namespace)
 		);
 	}
-	return mountChildInner(child, cleanups, undefined, errorBoundary);
+	return mountChildInner(child, cleanups, undefined, errorBoundary, namespace);
 };
 
 const mountChildInner = (
 	child: EffuseChild,
 	cleanups: CleanupFn[],
 	cursor: HydrationCursor | undefined,
-	errorBoundary: RenderErrorBoundary | undefined
+	errorBoundary: RenderErrorBoundary | undefined,
+	namespace: DOMNamespace
 ): Effect.Effect<Node[], never, PropService | EventService> => {
 	if (child == null) {
 		return Effect.succeed([]);
@@ -789,7 +800,8 @@ const mountChildInner = (
 			undefined,
 			undefined,
 			cursor,
-			errorBoundary
+			errorBoundary,
+			namespace
 		);
 	}
 
@@ -802,7 +814,8 @@ const mountChildInner = (
 			undefined,
 			undefined,
 			cursor,
-			errorBoundary
+			errorBoundary,
+			namespace
 		);
 	}
 
@@ -810,7 +823,7 @@ const mountChildInner = (
 		return pipe(
 			Effect.all(
 				child.map((c: EffuseChild) =>
-					mountChild(c, cleanups, cursor, errorBoundary)
+					mountChild(c, cleanups, cursor, errorBoundary, namespace)
 				)
 			),
 			Effect.map((results) => results.flat())
@@ -818,7 +831,7 @@ const mountChildInner = (
 	}
 
 	if (isEffuseNode(child)) {
-		return mountNode(child, cleanups, cursor, errorBoundary);
+		return mountNode(child, cleanups, cursor, errorBoundary, namespace);
 	}
 
 	return Effect.succeed([]);
@@ -828,7 +841,8 @@ const mountNode = (
 	node: EffuseNode,
 	cleanups: CleanupFn[],
 	cursor?: HydrationCursor,
-	errorBoundary?: RenderErrorBoundary
+	errorBoundary?: RenderErrorBoundary,
+	namespace: DOMNamespace = 'html'
 ): Effect.Effect<Node[], never, PropService | EventService> => {
 	switch (node._tag) {
 		case 'Text': {
@@ -841,6 +855,8 @@ const mountNode = (
 			const tag = node.tag;
 			const props = node.props;
 			const children = node.children;
+			const elementNamespace = getElementNamespace(namespace, tag);
+			const childNamespace = getChildNamespace(elementNamespace, tag);
 
 			return pipe(
 				Effect.Do,
@@ -848,8 +864,8 @@ const mountNode = (
 				Effect.bind('eventService', () => EventService),
 				Effect.flatMap(({ propService, eventService }) => {
 					const element = cursor
-						? claimElement(cursor, tag)
-						: document.createElement(tag);
+						? claimElement(cursor, tag, elementNamespace)
+						: createDOMElement(document, tag, elementNamespace);
 					const bindingCleanups: CleanupFn[] = [];
 
 					const propEffects: Effect.Effect<PropBindingResult>[] = [];
@@ -921,7 +937,13 @@ const mountNode = (
 							return pipe(
 								Effect.all(
 									children.map((c) =>
-										mountChild(c, cleanups, childCursor, errorBoundary)
+										mountChild(
+											c,
+											cleanups,
+											childCursor,
+											errorBoundary,
+											childNamespace
+										)
 									)
 								),
 								Effect.map((results) => {
@@ -944,7 +966,7 @@ const mountNode = (
 			return pipe(
 				Effect.all(
 					node.children.map((c) =>
-						mountChild(c, cleanups, cursor, errorBoundary)
+						mountChild(c, cleanups, cursor, errorBoundary, namespace)
 					)
 				),
 				Effect.map((results) => results.flat())
@@ -1005,12 +1027,18 @@ const mountNode = (
 									return;
 								}
 								const mountResult = Effect.runSync(
-									pipe(
-										Effect.all(
-											children.map((c) =>
-												mountChild(c, childCleanups, listCursor, childBoundary)
-											)
-										),
+										pipe(
+											Effect.all(
+												children.map((c) =>
+													mountChild(
+														c,
+														childCleanups,
+														listCursor,
+														childBoundary,
+														namespace
+													)
+												)
+											),
 										Effect.map((results) => results.flat()),
 										Effect.provide(PropServiceLive),
 										Effect.provide(EventServiceLive),
@@ -1151,7 +1179,8 @@ const mountNode = (
 				},
 				provideScope,
 				cursor,
-				errorBoundary
+				errorBoundary,
+				namespace
 			);
 		}
 		default: {
@@ -1194,7 +1223,13 @@ export const MountServiceLive = Layer.succeed(MountService, {
 			}),
 			Effect.flatMap(({ cleanups }) =>
 				pipe(
-					mountChild(child, cleanups),
+					mountChild(
+						child,
+						cleanups,
+						undefined,
+						undefined,
+						getDOMNamespace(container.namespaceURI)
+					),
 					Effect.map((nodes) => {
 						for (const nodeItem of nodes) {
 							container.appendChild(nodeItem);
@@ -1213,7 +1248,13 @@ export const MountServiceLive = Layer.succeed(MountService, {
 			})),
 			Effect.flatMap(({ cleanups, cursor }) =>
 				pipe(
-					mountChild(child, cleanups, cursor),
+					mountChild(
+						child,
+						cleanups,
+						cursor,
+						undefined,
+						getDOMNamespace(container.namespaceURI)
+					),
 					Effect.map((nodes) => {
 						// Whatever the client render never claimed was rendered by a
 						// stale or divergent server pass; it must not survive.

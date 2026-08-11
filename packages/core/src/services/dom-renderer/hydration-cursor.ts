@@ -23,6 +23,11 @@
  */
 
 import { isDebugEnabled } from '../../config/index.js';
+import {
+	createDOMElement,
+	getDOMNamespace,
+	type DOMNamespace,
+} from '../../render/attribute-name.js';
 
 /**
  * Position in the server-rendered DOM that the client renderer is currently
@@ -66,11 +71,16 @@ export const insertAtCursor = (cursor: HydrationCursor, node: Node): void => {
  * at the cursor and the stale server node is dropped with the rest of the
  * unclaimed siblings.
  */
-export const claimElement = (cursor: HydrationCursor, tag: string): Element => {
+export const claimElement = (
+	cursor: HydrationCursor,
+	tag: string,
+	namespace: DOMNamespace = 'html'
+): Element => {
 	const candidate = cursor.next;
 	if (
 		isElementNode(candidate) &&
-		candidate.tagName.toLowerCase() === tag.toLowerCase()
+		candidate.tagName.toLowerCase() === tag.toLowerCase() &&
+		getDOMNamespace(candidate.namespaceURI) === namespace
 	) {
 		advance(cursor, candidate);
 		return candidate;
@@ -79,7 +89,7 @@ export const claimElement = (cursor: HydrationCursor, tag: string): Element => {
 	warnMismatch(
 		`expected <${tag}>, server rendered ${describeNode(candidate)}. Rendering it on the client instead.`
 	);
-	const element = document.createElement(tag);
+	const element = createDOMElement(document, tag, namespace);
 	insertAtCursor(cursor, element);
 	return element;
 };
