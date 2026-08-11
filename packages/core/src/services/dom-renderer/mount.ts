@@ -883,6 +883,9 @@ const mountNode = (
 			let currentNodes: Node[] = [];
 			const listCleanups: CleanupFn[] = [];
 			let effectHandle: { stop: () => void } | null = null;
+			// The deferred mount below can outlive this node: cleanup may run
+			// before the microtask, leaving nothing for it to stop.
+			let active = true;
 
 			if (cursor) {
 				insertAtCursor(cursor, anchor);
@@ -890,6 +893,7 @@ const mountNode = (
 			let pendingCursor = cursor;
 
 			const runEffect = () => {
+				if (!active) return;
 				effectHandle = watchEffect(() => {
 					const children = node.children;
 					const listCursor = pendingCursor;
@@ -936,7 +940,9 @@ const mountNode = (
 						currentNodes = mountResult;
 						listCleanups.push(...childCleanups);
 					} catch {
-						// Error during list mounting - silently recover
+						// Whatever bound before the failure still has to be released;
+						// only the success path adopts these into `listCleanups`.
+						runCleanups(childCleanups);
 						currentNodes = [];
 					}
 				});
@@ -951,6 +957,7 @@ const mountNode = (
 			}
 
 			cleanups.push(() => {
+				active = false;
 				if (Predicate.isNotNullable(effectHandle)) {
 					effectHandle.stop();
 				}
