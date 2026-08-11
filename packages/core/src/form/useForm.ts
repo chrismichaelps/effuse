@@ -26,6 +26,7 @@ import { Predicate, Option, pipe } from 'effect';
 import { signal } from '../reactivity/signal.js';
 import { computed } from '../reactivity/computed.js';
 import { watchEffect } from '../effects/effect.js';
+import { getActiveLifecycle } from '../blueprint/lifecycle.js';
 import { validateForm, hasErrors } from './validation.js';
 import type {
 	FormOptions,
@@ -109,7 +110,7 @@ export function useForm<T extends Record<string, unknown>>(
 		const effectOptions =
 			debounceMs > 0 ? { debounce: { wait: debounceMs } } : {};
 
-		watchEffect(() => {
+		const validationEffect = watchEffect(() => {
 			const values = getValues();
 
 			const newErrors = validateForm(validators, values);
@@ -126,6 +127,8 @@ export function useForm<T extends Record<string, unknown>>(
 				errorsSignal.value = newErrors;
 			}
 		}, effectOptions);
+
+		getActiveLifecycle()?.onUnmount(() => validationEffect.stop());
 	}
 
 	const validate = (): boolean => {
