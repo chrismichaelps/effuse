@@ -47,6 +47,7 @@ export const useTimeout = defineHook<UseTimeoutConfig, UseTimeoutReturn>({
 		let timerId: ReturnType<typeof setTimeout> | null = null;
 		let deadline = 0;
 		let generation = 0;
+		let ownerDisposed = false;
 
 		traceTimeout('init', { 'timeout.delay': delay, 'timeout.immediate': immediate });
 
@@ -99,7 +100,7 @@ export const useTimeout = defineHook<UseTimeoutConfig, UseTimeoutReturn>({
 		};
 
 		const start = (): void => {
-			if (!isClient() || status.value === 'running') return;
+			if (ownerDisposed || !isClient() || status.value === 'running') return;
 			error.value = null;
 			const duration = status.value === 'paused' ? remaining.value : delay;
 			traceTimeout('start', { 'timeout.remaining': duration });
@@ -107,7 +108,7 @@ export const useTimeout = defineHook<UseTimeoutConfig, UseTimeoutReturn>({
 		};
 
 		const pause = (): void => {
-			if (status.value !== 'running') return;
+			if (ownerDisposed || status.value !== 'running') return;
 			const nextRemaining = Math.max(0, deadline - Date.now());
 			clearTimer();
 			remaining.value = nextRemaining;
@@ -116,6 +117,7 @@ export const useTimeout = defineHook<UseTimeoutConfig, UseTimeoutReturn>({
 		};
 
 		const cancel = (): void => {
+			if (ownerDisposed) return;
 			clearTimer();
 			remaining.value = delay;
 			status.value = 'idle';
@@ -124,6 +126,7 @@ export const useTimeout = defineHook<UseTimeoutConfig, UseTimeoutReturn>({
 		};
 
 		const restart = (): void => {
+			if (ownerDisposed) return;
 			clearTimer();
 			remaining.value = delay;
 			status.value = 'idle';
@@ -134,7 +137,13 @@ export const useTimeout = defineHook<UseTimeoutConfig, UseTimeoutReturn>({
 
 		ctx.onMount(() => {
 			if (immediate) start();
-			return clearTimer;
+			return () => {
+				ownerDisposed = true;
+				clearTimer();
+				remaining.value = delay;
+				status.value = 'idle';
+				error.value = null;
+			};
 		});
 
 		return {
