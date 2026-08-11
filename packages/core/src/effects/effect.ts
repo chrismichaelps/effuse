@@ -52,6 +52,7 @@ export function watchEffect(
 	let debounceTimeout: ReturnType<typeof setTimeout> | null = null;
 	let cleanupFns: CleanupFn[] = [];
 	let subscriptions: (() => void)[] = [];
+	let executionGeneration = 0;
 
 	function runCleanup(cleanup: CleanupFn): void {
 		try {
@@ -75,17 +76,17 @@ export function watchEffect(
 		subscriptions = [];
 	}
 
-	const onCleanup: OnCleanup = (cleanupFn: CleanupFn): void => {
-		if (!isActive) {
-			runCleanup(cleanupFn);
-			return;
-		}
-		cleanupFns.push(cleanupFn);
-	};
-
 	function execute(): void {
 		if (!isActive || isPaused) return;
 		isScheduled = false;
+		const generation = ++executionGeneration;
+		const onCleanup: OnCleanup = (cleanupFn: CleanupFn): void => {
+			if (!isActive || generation !== executionGeneration) {
+				runCleanup(cleanupFn);
+				return;
+			}
+			cleanupFns.push(cleanupFn);
+		};
 
 		runCleanups();
 		clearSubscriptions();
