@@ -52,7 +52,26 @@ function flushPendingEffects(): void {
 // Dependency tracker for reactive signals
 export class Dep {
 	version = 0;
+	/**
+	 * Set when this dep belongs to a computed, so a dependent can refresh it
+	 * during pull validation without a side table on the hot path.
+	 */
+	computedOwner: { validate: () => void } | undefined;
 	private subscribers = new Set<() => void>();
+	private observationListener: ((observed: boolean) => void) | undefined;
+
+	/**
+	 * Report the transitions between having no subscribers and having some.
+	 * A computed uses this to hold subscriptions on its own sources only while
+	 * something depends on it, instead of for the lifetime of those sources.
+	 */
+	onObservationChange(listener: (observed: boolean) => void): void {
+		this.observationListener = listener;
+	}
+
+	get subscriberCount(): number {
+		return this.subscribers.size;
+	}
 
 	track(): void {
 		if (TrackingPaused) return;
@@ -82,8 +101,16 @@ export class Dep {
 	}
 
 	subscribe(callback: () => void): () => void {
+		const wasObserved = this.subscribers.size > 0;
 		this.subscribers.add(callback);
-		return () => this.subscribers.delete(callback);
+		if (!wasObserved && this.subscribers.size > 0) {
+			this.observationListener?.(true);
+		}
+		return () => {
+			if (this.subscribers.delete(callback) && this.subscribers.size === 0) {
+				this.observationListener?.(false);
+			}
+		};
 	}
 
 	hasSubscribers(): boolean {
@@ -91,7 +118,11 @@ export class Dep {
 	}
 
 	clear(): void {
+		const wasObserved = this.subscribers.size > 0;
 		this.subscribers.clear();
+		if (wasObserved) {
+			this.observationListener?.(false);
+		}
 	}
 }
 
