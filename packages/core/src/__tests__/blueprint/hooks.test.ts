@@ -129,7 +129,7 @@ describe('composition memo helpers', () => {
 		expect(runs).toBe(1);
 	});
 
-	it('cannot resubscribe when a dirty memo is read after cleanup', () => {
+	it('freezes a disposed memo regardless of when the source changed', () => {
 		const lifecycle = createComponentLifecycleSync();
 		const source = signal(1);
 		let runs = 0;
@@ -141,12 +141,16 @@ describe('composition memo helpers', () => {
 		);
 
 		expect(memo.value).toBe(1);
+		// Changing before cleanup rather than after must not buy the memo an
+		// extra evaluation: a memo nothing observes holds no subscription, so
+		// there is no pending invalidation for disposal to flush.
 		source.value = 2;
 		lifecycle.runCleanup();
-		expect(memo.value).toBe(2);
+
+		expect(memo.value).toBe(1);
 		source.value = 3;
-		expect(memo.value).toBe(2);
-		expect(runs).toBe(2);
+		expect(memo.value).toBe(1);
+		expect(runs).toBe(1);
 	});
 
 	it('evaluates an unread disposed memo once without subscribing', () => {
