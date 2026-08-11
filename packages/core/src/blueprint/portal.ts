@@ -228,7 +228,13 @@ export const Portal = define<PortalProps>({
 				renderTarget.appendChild(container);
 			}
 
-			const cleanup = render(props.children, container);
+			let cleanup: () => void;
+			try {
+				cleanup = render(props.children, container);
+			} catch (error) {
+				container.remove();
+				throw error;
+			}
 			let disposed = false;
 			const dispose = (): void => {
 				if (disposed) return;
@@ -262,12 +268,19 @@ export const Portal = define<PortalProps>({
 			portalOwners.set(portalId, owner);
 
 			isMounted.value = true;
-			pipe(
-				Option.fromNullable(props.onMount),
-				Option.map((fn) => {
-					fn(targetElement);
-				})
-			);
+			try {
+				props.onMount?.(targetElement);
+			} catch (error) {
+				try {
+					dispose();
+				} catch (disposeError) {
+					throw new AggregateError(
+						[error, disposeError],
+						'Effuse portal mount and rollback failed.'
+					);
+				}
+				throw error;
+			}
 
 			return dispose;
 		});

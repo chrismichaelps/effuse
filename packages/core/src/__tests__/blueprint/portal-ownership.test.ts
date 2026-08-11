@@ -51,6 +51,7 @@ describe('Portal ownership (issue #507)', () => {
 	afterEach(async () => {
 		for (const app of mounted.splice(0).reverse()) await app.unmount();
 		document.body.innerHTML = '';
+		vi.restoreAllMocks();
 	});
 
 	it('transfers a key without allowing stale teardown to remove its successor', async () => {
@@ -179,5 +180,32 @@ describe('Portal ownership (issue #507)', () => {
 		expect(document.querySelector('#target [data-portal]')).toBeNull();
 		expect(onMount).not.toHaveBeenCalled();
 		expect(onUnmount).not.toHaveBeenCalled();
+	});
+
+	it('rolls back ownership when the portal onMount callback fails', async () => {
+		const failure = new Error('portal mount failed');
+		const onUnmount = vi.fn();
+		const reported = vi.spyOn(console, 'error').mockImplementation(() => {});
+		const app = await createApp(
+			portalApp({
+				target: '#target',
+				key: 'failing',
+				children: content('partial'),
+				onMount: () => {
+					throw failure;
+				},
+				onUnmount,
+			})
+		).mount('#app-1');
+		mounted.push(app);
+		await flushRenderer();
+
+		expect(document.querySelector('#target [data-portal]')).toBeNull();
+		expect(onUnmount).toHaveBeenCalledOnce();
+		expect(reported).toHaveBeenCalledOnce();
+
+		await app.unmount();
+		expect(onUnmount).toHaveBeenCalledOnce();
+		reported.mockRestore();
 	});
 });
