@@ -54,21 +54,31 @@ export const useResizeObserver = (
 	elementRef: () => Element | null | undefined
 ): ResizeObserverSignal => {
 	const size = signal<ResizeObserverResult>({ width: 0, height: 0 });
+	let acceptingEntries = false;
 
 	const resource = ownLifecycleResource(() => {
 		if (typeof ResizeObserver === 'undefined') return undefined;
 		const observer = new ResizeObserver((entries) => {
 			for (const entry of entries) {
+				if (!acceptingEntries) break;
 				const rect = entry.contentRect;
 				size.value = { width: rect.width, height: rect.height };
 			}
 		});
 
-		const el = elementRef();
-		if (el) {
-			observer.observe(el);
+		acceptingEntries = true;
+		try {
+			const el = elementRef();
+			if (el) observer.observe(el);
+		} catch (error) {
+			acceptingEntries = false;
+			observer.disconnect();
+			throw error;
 		}
-		return () => observer.disconnect();
+		return () => {
+			acceptingEntries = false;
+			observer.disconnect();
+		};
 	});
 
 	const value = readonly(size);

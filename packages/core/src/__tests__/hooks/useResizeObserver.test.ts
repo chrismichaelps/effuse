@@ -40,5 +40,29 @@ describe('useResizeObserver', () => {
 		size.stop();
 		size.stop();
 		expect(disconnect).toHaveBeenCalledOnce();
+
+		observerInstance.trigger([
+			{
+				contentRect: { width: 999, height: 999 },
+			} as ResizeObserverEntry,
+		]);
+		expect(size.value).toEqual({ width: 200, height: 100 });
+	});
+
+	it('disconnects when target resolution fails during setup', () => {
+		const disconnect = vi.fn();
+		class MockResizeObserver {
+			constructor(_callback: ResizeObserverCallback) {}
+			observe = vi.fn();
+			disconnect = disconnect;
+		}
+		vi.stubGlobal('ResizeObserver', MockResizeObserver);
+
+		expect(() =>
+			useResizeObserver(() => {
+				throw new Error('missing target');
+			})
+		).toThrow('missing target');
+		expect(disconnect).toHaveBeenCalledOnce();
 	});
 });

@@ -60,12 +60,14 @@ export const useIntersectionObserver = (
 		intersectionRatio: 0,
 		entry: null,
 	});
+	let acceptingEntries = false;
 
 	const resource = ownLifecycleResource(() => {
 		if (typeof IntersectionObserver === 'undefined') return undefined;
 		const observer = new IntersectionObserver(
 			(entries) => {
 				for (const entry of entries) {
+					if (!acceptingEntries) break;
 					result.value = {
 						isIntersecting: entry.isIntersecting,
 						intersectionRatio: entry.intersectionRatio,
@@ -76,11 +78,19 @@ export const useIntersectionObserver = (
 			options
 		);
 
-		const el = elementRef();
-		if (el) {
-			observer.observe(el);
+		acceptingEntries = true;
+		try {
+			const el = elementRef();
+			if (el) observer.observe(el);
+		} catch (error) {
+			acceptingEntries = false;
+			observer.disconnect();
+			throw error;
 		}
-		return () => observer.disconnect();
+		return () => {
+			acceptingEntries = false;
+			observer.disconnect();
+		};
 	});
 
 	const value = readonly(result);

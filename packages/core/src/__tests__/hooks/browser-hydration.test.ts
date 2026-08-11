@@ -150,9 +150,11 @@ describe('core browser hook hydration lifecycle', () => {
 		const observe = vi.fn();
 		const disconnect = vi.fn();
 		const constructor = vi.fn();
+		let notify: ResizeObserverCallback | undefined;
 		class MockResizeObserver {
 			constructor(_callback: ResizeObserverCallback) {
 				constructor();
+				notify = _callback;
 			}
 			observe = observe;
 			disconnect = disconnect;
@@ -160,7 +162,7 @@ describe('core browser hook hydration lifecycle', () => {
 		vi.stubGlobal('document', {});
 		vi.stubGlobal('ResizeObserver', MockResizeObserver);
 		let target: Element | undefined;
-		const { lifecycle } = setupComponentHook(() =>
+		const { hook, lifecycle } = setupComponentHook(() =>
 			useResizeObserver(() => target)
 		);
 
@@ -172,18 +174,25 @@ describe('core browser hook hydration lifecycle', () => {
 
 		lifecycle.runCleanup();
 		expect(disconnect).toHaveBeenCalledOnce();
+		notify?.(
+			[{ contentRect: { width: 10, height: 20 } } as ResizeObserverEntry],
+			{} as ResizeObserver
+		);
+		expect(hook.value).toEqual({ width: 0, height: 0 });
 	});
 
 	it('constructs and targets IntersectionObserver only after mount', () => {
 		const observe = vi.fn();
 		const disconnect = vi.fn();
 		const constructor = vi.fn();
+		let notify: IntersectionObserverCallback | undefined;
 		class MockIntersectionObserver {
 			constructor(
 				_callback: IntersectionObserverCallback,
 				_options?: IntersectionObserverInit
 			) {
 				constructor(_options);
+				notify = _callback;
 			}
 			observe = observe;
 			disconnect = disconnect;
@@ -191,7 +200,7 @@ describe('core browser hook hydration lifecycle', () => {
 		vi.stubGlobal('document', {});
 		vi.stubGlobal('IntersectionObserver', MockIntersectionObserver);
 		let target: Element | undefined;
-		const { lifecycle } = setupComponentHook(() =>
+		const { hook, lifecycle } = setupComponentHook(() =>
 			useIntersectionObserver(() => target, { threshold: 0.5 })
 		);
 
@@ -204,5 +213,16 @@ describe('core browser hook hydration lifecycle', () => {
 
 		lifecycle.runCleanup();
 		expect(disconnect).toHaveBeenCalledOnce();
+		notify?.(
+			[
+				{
+					isIntersecting: true,
+					intersectionRatio: 1,
+				} as IntersectionObserverEntry,
+			],
+			{} as IntersectionObserver
+		);
+		expect(hook.value.isIntersecting).toBe(false);
+		expect(hook.value.intersectionRatio).toBe(0);
 	});
 });
