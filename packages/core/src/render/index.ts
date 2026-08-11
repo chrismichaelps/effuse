@@ -60,6 +60,33 @@ export { el, fragment, toNode } from './element.js';
 
 export type CleanupFn = () => void;
 
+const containerCleanups = new WeakMap<Element, Set<CleanupFn>>();
+
+const registerContainerCleanup = (
+	container: Element,
+	cleanup: CleanupFn
+): CleanupFn => {
+	let cleanups = containerCleanups.get(container);
+	if (!cleanups) {
+		cleanups = new Set();
+		containerCleanups.set(container, cleanups);
+	}
+
+	let cleaned = false;
+	const registeredCleanup = (): void => {
+		if (cleaned) return;
+		cleaned = true;
+		try {
+			cleanup();
+		} finally {
+			cleanups.delete(registeredCleanup);
+			if (cleanups.size === 0) containerCleanups.delete(container);
+		}
+	};
+	cleanups.add(registeredCleanup);
+	return registeredCleanup;
+};
+
 const runRender = (
 	child: EffuseChild,
 	container: Element,
@@ -84,11 +111,11 @@ const runRender = (
 
 	runWithIdScope(() => Effect.runSync(program));
 
-	return () => {
+	return registerContainerCleanup(container, () => {
 		if (mountedResult) {
 			mountedResult.cleanup();
 		}
-	};
+	});
 };
 
 // Initialize reactive rendering
@@ -109,5 +136,24 @@ if (typeof globalThis !== 'undefined') {
 
 // Finalize and remove application from container
 export const unmount = (container: Element): void => {
-	container.innerHTML = '';
+	const failures: unknown[] = [];
+	const cleanups = containerCleanups.get(container);
+	if (cleanups) {
+		for (const cleanup of [...cleanups]) {
+			try {
+				cleanup();
+			} catch (error) {
+				failures.push(error);
+			}
+		}
+	}
+	container.replaceChildren();
+
+	if (failures.length === 1) throw failures[0];
+	if (failures.length > 1) {
+		throw new AggregateError(
+			failures,
+			`[Effuse] Unmount failed in ${String(failures.length)} roots.`
+		);
+	}
 };
