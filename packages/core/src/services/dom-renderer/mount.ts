@@ -58,6 +58,11 @@ import {
 	type HydrationCursor,
 } from './hydration-cursor.js';
 import { captureIdScope } from '../../hooks/useId.js';
+import {
+	getErrorBoundaryController,
+	normalizeBoundaryError,
+	type ErrorBoundaryController,
+} from '../../components/error-boundary-runtime.js';
 
 export interface MountedNode {
 	nodes: Node[];
@@ -97,6 +102,33 @@ interface BlueprintMountRecord {
 	readonly blueprint: Extract<EffuseNode, { _tag: 'Blueprint' }>;
 	readonly updateProps: (props: Record<string, unknown>) => void;
 }
+
+interface RenderErrorBoundary {
+	readonly controller: ErrorBoundaryController;
+	readonly parent: RenderErrorBoundary | undefined;
+	active: boolean;
+}
+
+const captureRenderError = (
+	boundary: RenderErrorBoundary | undefined,
+	error: unknown
+): boolean => {
+	if (!boundary) return false;
+	if (boundary.controller.hasError()) {
+		return captureRenderError(boundary.parent, error);
+	}
+
+	try {
+		boundary.controller.capture(
+			normalizeBoundaryError(error),
+			!boundary.active
+		);
+	} catch (captureError) {
+		return captureRenderError(boundary.parent, captureError);
+	}
+
+	return true;
+};
 
 const dynamicMountRecords = new WeakMap<Comment, DynamicMountRecord>();
 const blueprintMountRecords = new WeakMap<Comment, BlueprintMountRecord>();
@@ -538,7 +570,8 @@ const mountDynamicValue = (
 	cleanups: CleanupFn[],
 	onRender?: (nodes: Node[], anchor: Comment) => void,
 	componentScope?: ProvideScope,
-	hydrationCursor?: HydrationCursor
+	hydrationCursor?: HydrationCursor,
+	errorBoundary?: RenderErrorBoundary
 ): Effect.Effect<Node[], never, PropService | EventService> => {
 	const provideScope = componentScope ?? getCurrentProvideScope();
 	const runWithCapturedIdScope = captureIdScope();
@@ -608,7 +641,12 @@ const mountDynamicValue = (
 			try {
 				mountResult = Effect.runSync(
 					pipe(
-						mountChild(value as EffuseChild, childCleanups, cursor),
+						mountChild(
+							value as EffuseChild,
+							childCleanups,
+							cursor,
+							errorBoundary
+						),
 						Effect.provide(PropServiceLive),
 						Effect.provide(EventServiceLive),
 						mapEffuseErrors
@@ -621,6 +659,10 @@ const mountDynamicValue = (
 				}
 
 				runCleanups(childCleanups);
+				if (captureRenderError(errorBoundary, error)) {
+					setMountedNodes([]);
+					return;
+				}
 				const errorNode = createRenderErrorNode(error);
 				insertAfterAnchor(anchor, [errorNode]);
 				setMountedNodes([errorNode]);
@@ -648,6 +690,10 @@ const mountDynamicValue = (
 					} catch (error) {
 						clearMountedValue();
 						previousValue = undefined;
+						if (captureRenderError(errorBoundary, error)) {
+							setMountedNodes([]);
+							return;
+						}
 						const errorNode = createRenderErrorNode(error);
 						insertAfterAnchor(anchor, [errorNode]);
 						setMountedNodes([errorNode]);
@@ -699,21 +745,25 @@ const mountDynamicValue = (
 const mountChild = (
 	child: EffuseChild,
 	cleanups: CleanupFn[],
-	cursor?: HydrationCursor
+	cursor?: HydrationCursor,
+	errorBoundary?: RenderErrorBoundary
 ): Effect.Effect<Node[], never, PropService | EventService> => {
 	// While hydrating, every DOM decision must happen at execution time so
 	// siblings claim server nodes in document order. Suspending defers the
 	// eager branches below (text nodes, blueprint instantiation) accordingly.
 	if (cursor) {
-		return Effect.suspend(() => mountChildInner(child, cleanups, cursor));
+		return Effect.suspend(() =>
+			mountChildInner(child, cleanups, cursor, errorBoundary)
+		);
 	}
-	return mountChildInner(child, cleanups, undefined);
+	return mountChildInner(child, cleanups, undefined, errorBoundary);
 };
 
 const mountChildInner = (
 	child: EffuseChild,
 	cleanups: CleanupFn[],
-	cursor: HydrationCursor | undefined
+	cursor: HydrationCursor | undefined,
+	errorBoundary: RenderErrorBoundary | undefined
 ): Effect.Effect<Node[], never, PropService | EventService> => {
 	if (child == null) {
 		return Effect.succeed([]);
@@ -732,7 +782,15 @@ const mountChildInner = (
 
 	if (Predicate.isFunction(child)) {
 		const fn = child as () => unknown;
-		return mountDynamicValue('fn', fn, cleanups, undefined, undefined, cursor);
+		return mountDynamicValue(
+			'fn',
+			fn,
+			cleanups,
+			undefined,
+			undefined,
+			cursor,
+			errorBoundary
+		);
 	}
 
 	if (isSignal(child)) {
@@ -743,21 +801,24 @@ const mountChildInner = (
 			cleanups,
 			undefined,
 			undefined,
-			cursor
+			cursor,
+			errorBoundary
 		);
 	}
 
 	if (Array.isArray(child)) {
 		return pipe(
 			Effect.all(
-				child.map((c: EffuseChild) => mountChild(c, cleanups, cursor))
+				child.map((c: EffuseChild) =>
+					mountChild(c, cleanups, cursor, errorBoundary)
+				)
 			),
 			Effect.map((results) => results.flat())
 		);
 	}
 
 	if (isEffuseNode(child)) {
-		return mountNode(child, cleanups, cursor);
+		return mountNode(child, cleanups, cursor, errorBoundary);
 	}
 
 	return Effect.succeed([]);
@@ -766,7 +827,8 @@ const mountChildInner = (
 const mountNode = (
 	node: EffuseNode,
 	cleanups: CleanupFn[],
-	cursor?: HydrationCursor
+	cursor?: HydrationCursor,
+	errorBoundary?: RenderErrorBoundary
 ): Effect.Effect<Node[], never, PropService | EventService> => {
 	switch (node._tag) {
 		case 'Text': {
@@ -858,7 +920,9 @@ const mountNode = (
 
 							return pipe(
 								Effect.all(
-									children.map((c) => mountChild(c, cleanups, childCursor))
+									children.map((c) =>
+										mountChild(c, cleanups, childCursor, errorBoundary)
+									)
 								),
 								Effect.map((results) => {
 									if (childCursor) {
@@ -878,13 +942,21 @@ const mountNode = (
 		}
 		case 'Fragment': {
 			return pipe(
-				Effect.all(node.children.map((c) => mountChild(c, cleanups, cursor))),
+				Effect.all(
+					node.children.map((c) =>
+						mountChild(c, cleanups, cursor, errorBoundary)
+					)
+				),
 				Effect.map((results) => results.flat())
 			);
 		}
 		case 'List': {
 			const anchor = document.createComment('list');
 			const runWithCapturedIdScope = captureIdScope();
+			const controller = getErrorBoundaryController(node);
+			const ownedBoundary = controller
+				? { controller, parent: errorBoundary, active: false }
+				: undefined;
 			let currentNodes: Node[] = [];
 			const listCleanups: CleanupFn[] = [];
 			let effectHandle: { stop: () => void } | null = null;
@@ -901,7 +973,7 @@ const mountNode = (
 				if (!active) return;
 				effectHandle = watchEffect(() =>
 					runWithCapturedIdScope(() => {
-						const children = node.children;
+						let retryBoundary = true;
 						const listCursor = pendingCursor;
 						pendingCursor = undefined;
 
@@ -916,42 +988,78 @@ const mountNode = (
 							listCleanups.length = 0;
 						}
 
-						if (children.length === 0) {
-							currentNodes = [];
-							return;
-						}
+						while (retryBoundary) {
+							retryBoundary = false;
+							const childBoundary =
+								ownedBoundary && !ownedBoundary.controller.hasError()
+									? ownedBoundary
+									: errorBoundary;
+							if (ownedBoundary) {
+								ownedBoundary.active = childBoundary === ownedBoundary;
+							}
+							const childCleanups: CleanupFn[] = [];
+							try {
+								const children = node.children;
+								if (children.length === 0) {
+									currentNodes = [];
+									return;
+								}
+								const mountResult = Effect.runSync(
+									pipe(
+										Effect.all(
+											children.map((c) =>
+												mountChild(c, childCleanups, listCursor, childBoundary)
+											)
+										),
+										Effect.map((results) => results.flat()),
+										Effect.provide(PropServiceLive),
+										Effect.provide(EventServiceLive),
+										mapEffuseErrors
+									)
+								);
 
-						const childCleanups: CleanupFn[] = [];
-						try {
-							const mountResult = Effect.runSync(
-								pipe(
-									Effect.all(
-										children.map((c) =>
-											mountChild(c, childCleanups, listCursor)
-										)
-									),
-									Effect.map((results) => results.flat()),
-									Effect.provide(PropServiceLive),
-									Effect.provide(EventServiceLive),
-									mapEffuseErrors
-								)
-							);
+								if (
+									ownedBoundary &&
+									childBoundary === ownedBoundary &&
+									ownedBoundary.controller.hasError()
+								) {
+									runCleanups(childCleanups);
+									removeNodes(mountResult);
+									retryBoundary = true;
+									continue;
+								}
 
-							if (!listCursor) {
-								const insertPoint: Node | null = anchor.nextSibling;
-								for (const n of mountResult) {
-									if (anchor.parentNode) {
-										anchor.parentNode.insertBefore(n, insertPoint);
+								if (!listCursor) {
+									const insertPoint: Node | null = anchor.nextSibling;
+									for (const n of mountResult) {
+										if (anchor.parentNode) {
+											anchor.parentNode.insertBefore(n, insertPoint);
+										}
 									}
 								}
+								currentNodes = mountResult;
+								listCleanups.push(...childCleanups);
+							} catch (error) {
+								runCleanups(childCleanups);
+								currentNodes = [];
+								if (captureRenderError(childBoundary, error)) {
+									if (
+										ownedBoundary &&
+										childBoundary === ownedBoundary &&
+										ownedBoundary.controller.hasError()
+									) {
+										retryBoundary = true;
+										continue;
+									}
+									return;
+								}
+
+								const errorNode = createRenderErrorNode(error);
+								insertAfterAnchor(anchor, [errorNode]);
+								currentNodes = [errorNode];
+							} finally {
+								if (ownedBoundary) ownedBoundary.active = false;
 							}
-							currentNodes = mountResult;
-							listCleanups.push(...childCleanups);
-						} catch {
-							// Whatever bound before the failure still has to be released;
-							// only the success path adopts these into `listCleanups`.
-							runCleanups(childCleanups);
-							currentNodes = [];
 						}
 					})
 				);
@@ -1042,7 +1150,8 @@ const mountNode = (
 					cleanups.push(instanceCleanup);
 				},
 				provideScope,
-				cursor
+				cursor,
+				errorBoundary
 			);
 		}
 		default: {

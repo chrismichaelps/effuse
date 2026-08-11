@@ -48,6 +48,16 @@ import {
 import type { SSRRuntime } from './runtime.js';
 import type { ComponentLifecycle } from '../blueprint/lifecycle.js';
 import { runWithServerRenderContext } from '../render/render-context.js';
+import {
+	getErrorBoundaryController,
+	normalizeBoundaryError,
+	type ErrorBoundaryController,
+} from '../components/error-boundary-runtime.js';
+
+interface ServerErrorBoundary {
+	readonly controller: ErrorBoundaryController;
+	readonly parent: ServerErrorBoundary | undefined;
+}
 
 const runServerRender = <T>(ssrRuntime: SSRRuntime, render: () => T): T =>
 	runWithServerRenderContext(() =>
@@ -141,7 +151,10 @@ export const renderToFragment = (
 	return runServerRender(ssrRuntime, () => renderNodeToString(root));
 };
 
-const renderNodeToString = (node: unknown): string => {
+const renderNodeToString = (
+	node: unknown,
+	errorBoundary?: ServerErrorBoundary
+): string => {
 	if (node == null) {
 		return '';
 	}
@@ -158,21 +171,24 @@ const renderNodeToString = (node: unknown): string => {
 	}
 
 	if (isSignal(node)) {
-		return renderNodeToString((node as { value: unknown }).value);
+		return renderNodeToString(
+			(node as { value: unknown }).value,
+			errorBoundary
+		);
 	}
 
 	if (Array.isArray(node)) {
-		return renderChildren(node as readonly unknown[]);
+		return renderChildren(node as readonly unknown[], errorBoundary);
 	}
 
 	if (isEffuseNode(node)) {
-		return renderEffuseNode(node);
+		return renderEffuseNode(node, errorBoundary);
 	}
 
 	if (Predicate.isFunction(node)) {
 		try {
 			const result = (node as () => unknown)();
-			return renderNodeToString(result);
+			return renderNodeToString(result, errorBoundary);
 		} catch (err) {
 			if (isSuspendToken(err)) {
 				return '';
@@ -186,7 +202,7 @@ const renderNodeToString = (node: unknown): string => {
 		Predicate.hasProperty(node, '_tag') &&
 		node._tag === 'Blueprint'
 	) {
-		return renderBlueprint(node as BlueprintDef, {});
+		return renderBlueprint(node as BlueprintDef, {}, errorBoundary);
 	}
 
 	return '';
@@ -211,15 +227,21 @@ const SELF_CLOSING_TAGS = new Set([
 ]);
 
 /** Concatenates children without the intermediate array `map().join('')` builds. */
-const renderChildren = (children: readonly unknown[]): string => {
+const renderChildren = (
+	children: readonly unknown[],
+	errorBoundary?: ServerErrorBoundary
+): string => {
 	let html = '';
 	for (let index = 0; index < children.length; index += 1) {
-		html += renderNodeToString(children[index]);
+		html += renderNodeToString(children[index], errorBoundary);
 	}
 	return html;
 };
 
-const renderEffuseNode = (node: EffuseNode): string => {
+const renderEffuseNode = (
+	node: EffuseNode,
+	errorBoundary?: ServerErrorBoundary
+): string => {
 	// Direct dispatch on the tag. The combinator form allocated a fresh object
 	// of five closures for every node rendered, which dominated large documents.
 	switch (node._tag) {
@@ -234,13 +256,29 @@ const renderEffuseNode = (node: EffuseNode): string => {
 				return `<${tag}${attrStr}>`;
 			}
 
-			return `<${tag}${attrStr}>${renderChildren(node.children)}</${tag}>`;
+			return `<${tag}${attrStr}>${renderChildren(node.children, errorBoundary)}</${tag}>`;
 		}
 		case 'Blueprint':
-			return renderBlueprint(node.blueprint, node.props);
+			return renderBlueprint(node.blueprint, node.props, errorBoundary);
 		case 'Fragment':
-		case 'List':
-			return renderChildren(node.children);
+			return renderChildren(node.children, errorBoundary);
+		case 'List': {
+			const controller = getErrorBoundaryController(node);
+			if (!controller || controller.hasError()) {
+				return renderChildren(node.children, errorBoundary);
+			}
+
+			try {
+				return renderChildren(node.children, {
+					controller,
+					parent: errorBoundary,
+				});
+			} catch (error) {
+				if (isSuspendToken(error)) throw error;
+				controller.capture(normalizeBoundaryError(error), false);
+				return renderChildren(node.children, errorBoundary);
+			}
+		}
 		default:
 			return '';
 	}
@@ -248,7 +286,8 @@ const renderEffuseNode = (node: EffuseNode): string => {
 
 const renderBlueprint = (
 	def: BlueprintDef,
-	props: Record<string, unknown>
+	props: Record<string, unknown>,
+	errorBoundary?: ServerErrorBoundary
 ): string => {
 	const state = def.state ? def.state(props) : {};
 
@@ -274,9 +313,9 @@ const renderBlueprint = (
 		// and only corrected after hydration.
 		html = provideScope
 			? runWithProvideScope(provideScope, () =>
-					renderNodeToString(def.view(context))
+					renderNodeToString(def.view(context), errorBoundary)
 				)
-			: renderNodeToString(def.view(context));
+			: renderNodeToString(def.view(context), errorBoundary);
 	} catch (error) {
 		renderFailed = true;
 		renderError = error;
