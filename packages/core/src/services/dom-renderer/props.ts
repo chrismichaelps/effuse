@@ -29,7 +29,10 @@ import { watchEffect } from '../../effects/effect.js';
 import type { EffectHandle } from '../../types/index.js';
 import { applyRef, isRefCallback, isRefObject } from '../../refs/ref.js';
 import { applyDirective } from '../../refs/directive.js';
-import { normalizeDOMAttributeName } from '../../render/attribute-name.js';
+import {
+	getDOMNamespace,
+	normalizeDOMAttributeName,
+} from '../../render/attribute-name.js';
 
 export interface PropBindingResult {
 	cleanup: () => void;
@@ -100,7 +103,10 @@ const setElementProp = (
 		(element as HTMLInputElement).checked = Boolean(value);
 		return;
 	}
-	const attributeName = normalizeDOMAttributeName(key);
+	const attributeName = normalizeDOMAttributeName(
+		key,
+		getDOMNamespace(element.namespaceURI)
+	);
 
 	if (Predicate.isBoolean(value)) {
 		if (value) {
