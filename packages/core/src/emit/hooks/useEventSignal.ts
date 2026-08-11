@@ -24,6 +24,7 @@
 
 import { signal } from '../../reactivity/signal.js';
 import { watchEffect } from '../../effects/effect.js';
+import { getActiveLifecycle } from '../../blueprint/lifecycle.js';
 import type { Signal } from '../../types/index.js';
 import type {
 	EmitContextData,
@@ -59,11 +60,10 @@ export function useEventSignal<T extends EventMap, P>(
 
 	const resultSig = signal<P | undefined>(undefined);
 	let lastUpdateTime = 0;
-	let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 	let hasFired = false;
 	const source = sourceSig;
 
-	watchEffect(() => {
+	const effectHandle = watchEffect((onCleanup) => {
 		const value = source.value;
 		if (value === undefined) return;
 
@@ -79,17 +79,19 @@ export function useEventSignal<T extends EventMap, P>(
 		}
 
 		if (typeof options.debounce === 'number') {
-			if (debounceTimer) clearTimeout(debounceTimer);
-			debounceTimer = setTimeout(() => {
+			const timer = setTimeout(() => {
 				resultSig.value = value;
 				if (options.once) hasFired = true;
 			}, options.debounce);
+			onCleanup(() => clearTimeout(timer));
 			return;
 		}
 
 		resultSig.value = value;
 		if (options.once) hasFired = true;
 	});
+
+	getActiveLifecycle()?.onUnmount(() => effectHandle.stop());
 
 	return {
 		get value() {
