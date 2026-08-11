@@ -103,12 +103,16 @@ const createStorageHook = <T>(
 		}
 
 		const handler = (e: StorageEvent) => {
-			if (e.key === key && e.newValue !== null) {
-				try {
-					sig.value = deserialize(e.newValue);
-				} catch {
-					/* ignore deserialization errors from other tabs */
-				}
+			if (e.storageArea !== storage) return;
+			if (e.key !== null && e.key !== key) return;
+			if (e.newValue === null) {
+				sig.value = initialValue;
+				return;
+			}
+			try {
+				sig.value = deserialize(e.newValue);
+			} catch {
+				/* ignore deserialization errors from other tabs */
 			}
 		};
 
