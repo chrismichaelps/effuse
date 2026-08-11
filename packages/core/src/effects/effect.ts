@@ -29,6 +29,7 @@ import {
 	getTrackingPaused,
 	resumeTracking,
 	pauseTracking,
+	untrack,
 } from '../reactivity/dep.js';
 import type { Dep } from '../reactivity/dep.js';
 import { isSuspendToken } from '../suspense/Suspense.js';
@@ -54,7 +55,7 @@ export function watchEffect(
 
 	function runCleanup(cleanup: CleanupFn): void {
 		try {
-			cleanup();
+			untrack(cleanup);
 		} catch {
 			return;
 		}
@@ -95,10 +96,12 @@ export function watchEffect(
 		startTracking();
 
 		let trackedDeps: Dep[] | undefined;
+		let shouldSubscribe = false;
 		try {
 			const result = fn(onCleanup);
 
 			trackedDeps = stopTracking();
+			shouldSubscribe = true;
 
 			if (result instanceof Promise) {
 				executeAsync(result);
@@ -108,11 +111,13 @@ export function watchEffect(
 				trackedDeps = stopTracking();
 			}
 			if (isSuspendToken(err)) {
+				shouldSubscribe = true;
 				return;
 			}
+			runCleanups();
 			throw err;
 		} finally {
-			if (isActive && trackedDeps) {
+			if (isActive && shouldSubscribe && trackedDeps) {
 				for (const trackedDep of trackedDeps) {
 					const unsub = trackedDep.subscribe(scheduleRun);
 					subscriptions.push(unsub);
@@ -205,12 +210,9 @@ export function watchEffect(
 	};
 }
 
-// Execute effect once and stop
+// Execute once without leaking dependencies into an enclosing effect.
 export function effectOnce(fn: () => void): void {
-	const handle = watchEffect(() => {
-		fn();
-		handle.stop();
-	});
+	untrack(fn);
 }
 
 export { batch } from '../reactivity/dep.js';
