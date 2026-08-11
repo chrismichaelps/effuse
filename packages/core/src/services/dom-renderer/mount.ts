@@ -57,6 +57,7 @@ import {
 	insertAtCursor,
 	type HydrationCursor,
 } from './hydration-cursor.js';
+import { captureIdScope } from '../../hooks/useId.js';
 
 export interface MountedNode {
 	nodes: Node[];
@@ -540,6 +541,7 @@ const mountDynamicValue = (
 	hydrationCursor?: HydrationCursor
 ): Effect.Effect<Node[], never, PropService | EventService> => {
 	const provideScope = componentScope ?? getCurrentProvideScope();
+	const runWithCapturedIdScope = captureIdScope();
 	const anchor = document.createComment(label);
 
 	// The anchor has no server counterpart, so it is inserted at the cursor;
@@ -637,37 +639,39 @@ const mountDynamicValue = (
 
 	const runEffect = (): void => {
 		if (!active) return;
-		effectHandle = watchEffect(() => {
-			const update = (): void => {
-				let value: unknown;
-				try {
-					value = evaluate();
-				} catch (error) {
+		effectHandle = watchEffect(() =>
+			runWithCapturedIdScope(() => {
+				const update = (): void => {
+					let value: unknown;
+					try {
+						value = evaluate();
+					} catch (error) {
+						clearMountedValue();
+						previousValue = undefined;
+						const errorNode = createRenderErrorNode(error);
+						insertAfterAnchor(anchor, [errorNode]);
+						setMountedNodes([errorNode]);
+						return;
+					}
+
+					if (
+						patchMountedValue(previousValue, value as EffuseChild, currentNodes)
+					) {
+						previousValue = value as EffuseChild;
+						return;
+					}
+
 					clearMountedValue();
-					previousValue = undefined;
-					const errorNode = createRenderErrorNode(error);
-					insertAfterAnchor(anchor, [errorNode]);
-					setMountedNodes([errorNode]);
-					return;
+					mountResolvedValue(value);
+				};
+
+				if (provideScope) {
+					runWithProvideScope(provideScope, update);
+				} else {
+					update();
 				}
-
-				if (
-					patchMountedValue(previousValue, value as EffuseChild, currentNodes)
-				) {
-					previousValue = value as EffuseChild;
-					return;
-				}
-
-				clearMountedValue();
-				mountResolvedValue(value);
-			};
-
-			if (provideScope) {
-				runWithProvideScope(provideScope, update);
-			} else {
-				update();
-			}
-		});
+			})
+		);
 	};
 
 	// Hydration claims nodes in document order, so the first evaluation has to
@@ -880,6 +884,7 @@ const mountNode = (
 		}
 		case 'List': {
 			const anchor = document.createComment('list');
+			const runWithCapturedIdScope = captureIdScope();
 			let currentNodes: Node[] = [];
 			const listCleanups: CleanupFn[] = [];
 			let effectHandle: { stop: () => void } | null = null;
@@ -894,58 +899,62 @@ const mountNode = (
 
 			const runEffect = () => {
 				if (!active) return;
-				effectHandle = watchEffect(() => {
-					const children = node.children;
-					const listCursor = pendingCursor;
-					pendingCursor = undefined;
+				effectHandle = watchEffect(() =>
+					runWithCapturedIdScope(() => {
+						const children = node.children;
+						const listCursor = pendingCursor;
+						pendingCursor = undefined;
 
-					for (const n of currentNodes) {
-						if (Predicate.isNotNullable(n.parentNode)) {
-							n.parentNode.removeChild(n);
-						}
-					}
-					try {
-						runCleanups(listCleanups);
-					} finally {
-						listCleanups.length = 0;
-					}
-
-					if (children.length === 0) {
-						currentNodes = [];
-						return;
-					}
-
-					const childCleanups: CleanupFn[] = [];
-					try {
-						const mountResult = Effect.runSync(
-							pipe(
-								Effect.all(
-									children.map((c) => mountChild(c, childCleanups, listCursor))
-								),
-								Effect.map((results) => results.flat()),
-								Effect.provide(PropServiceLive),
-								Effect.provide(EventServiceLive),
-								mapEffuseErrors
-							)
-						);
-
-						if (!listCursor) {
-							const insertPoint: Node | null = anchor.nextSibling;
-							for (const n of mountResult) {
-								if (anchor.parentNode) {
-									anchor.parentNode.insertBefore(n, insertPoint);
-								}
+						for (const n of currentNodes) {
+							if (Predicate.isNotNullable(n.parentNode)) {
+								n.parentNode.removeChild(n);
 							}
 						}
-						currentNodes = mountResult;
-						listCleanups.push(...childCleanups);
-					} catch {
-						// Whatever bound before the failure still has to be released;
-						// only the success path adopts these into `listCleanups`.
-						runCleanups(childCleanups);
-						currentNodes = [];
-					}
-				});
+						try {
+							runCleanups(listCleanups);
+						} finally {
+							listCleanups.length = 0;
+						}
+
+						if (children.length === 0) {
+							currentNodes = [];
+							return;
+						}
+
+						const childCleanups: CleanupFn[] = [];
+						try {
+							const mountResult = Effect.runSync(
+								pipe(
+									Effect.all(
+										children.map((c) =>
+											mountChild(c, childCleanups, listCursor)
+										)
+									),
+									Effect.map((results) => results.flat()),
+									Effect.provide(PropServiceLive),
+									Effect.provide(EventServiceLive),
+									mapEffuseErrors
+								)
+							);
+
+							if (!listCursor) {
+								const insertPoint: Node | null = anchor.nextSibling;
+								for (const n of mountResult) {
+									if (anchor.parentNode) {
+										anchor.parentNode.insertBefore(n, insertPoint);
+									}
+								}
+							}
+							currentNodes = mountResult;
+							listCleanups.push(...childCleanups);
+						} catch {
+							// Whatever bound before the failure still has to be released;
+							// only the success path adopts these into `listCleanups`.
+							runCleanups(childCleanups);
+							currentNodes = [];
+						}
+					})
+				);
 			};
 
 			// Same ordering constraint as dynamic values: claims must land before
