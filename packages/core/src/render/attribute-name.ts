@@ -1,5 +1,8 @@
 export type DOMNamespace = 'html' | 'svg' | 'mathml';
 
+export const SVG_NAMESPACE_URI = 'http://www.w3.org/2000/svg';
+export const MATHML_NAMESPACE_URI = 'http://www.w3.org/1998/Math/MathML';
+
 const camelToKebab = (value: string): string =>
 	value.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
 
@@ -30,8 +33,8 @@ export const normalizeDOMAttributeName = (
 };
 
 export const getDOMNamespace = (namespaceURI: string | null): DOMNamespace => {
-	if (namespaceURI === 'http://www.w3.org/2000/svg') return 'svg';
-	if (namespaceURI === 'http://www.w3.org/1998/Math/MathML') return 'mathml';
+	if (namespaceURI === SVG_NAMESPACE_URI) return 'svg';
+	if (namespaceURI === MATHML_NAMESPACE_URI) return 'mathml';
 	return 'html';
 };
 
@@ -48,3 +51,15 @@ export const getChildNamespace = (
 	element: DOMNamespace,
 	tag: string
 ): DOMNamespace => (element === 'svg' && tag === 'foreignObject' ? 'html' : element);
+
+export const createDOMElement = (
+	ownerDocument: Document,
+	tag: string,
+	namespace: DOMNamespace
+): Element => {
+	if (namespace === 'html') return ownerDocument.createElement(tag);
+	return ownerDocument.createElementNS(
+		namespace === 'svg' ? SVG_NAMESPACE_URI : MATHML_NAMESPACE_URI,
+		tag
+	);
+};
