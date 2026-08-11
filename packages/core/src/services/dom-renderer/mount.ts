@@ -73,6 +73,7 @@ import {
 	normalizeBoundaryError,
 	type ErrorBoundaryController,
 } from '../../components/error-boundary-runtime.js';
+import { getNodeResourceDisposer } from '../../render/node-resource.js';
 
 export interface MountedNode {
 	nodes: Node[];
@@ -951,6 +952,7 @@ const mountNode = (
 		}
 		case 'List': {
 			const anchor = document.createComment('list');
+			const disposeResource = getNodeResourceDisposer(node);
 			const runWithCapturedIdScope = captureIdScope();
 			const controller = getErrorBoundaryController(node);
 			const ownedBoundary = controller
@@ -1089,6 +1091,7 @@ const mountNode = (
 					removeNodes(currentNodes);
 				}
 			});
+			if (disposeResource) cleanups.push(disposeResource);
 
 			return Effect.succeed([anchor]);
 		}

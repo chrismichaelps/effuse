@@ -59,6 +59,7 @@ import {
 	normalizeBoundaryError,
 	type ErrorBoundaryController,
 } from '../components/error-boundary-runtime.js';
+import { getNodeResourceDisposer } from '../render/node-resource.js';
 
 interface ServerErrorBoundary {
 	readonly controller: ErrorBoundaryController;
@@ -283,22 +284,54 @@ const renderEffuseNode = (
 		case 'Fragment':
 			return renderChildren(node.children, errorBoundary, namespace);
 		case 'List': {
-			const controller = getErrorBoundaryController(node);
-			if (!controller || controller.hasError()) {
-				return renderChildren(node.children, errorBoundary, namespace);
+			const disposeResource = getNodeResourceDisposer(node);
+			let html = '';
+			let renderFailed = false;
+			let renderError: unknown;
+			try {
+				const controller = getErrorBoundaryController(node);
+				if (!controller || controller.hasError()) {
+					html = renderChildren(node.children, errorBoundary, namespace);
+				} else {
+					try {
+						html = renderChildren(
+							node.children,
+							{ controller, parent: errorBoundary },
+							namespace
+						);
+					} catch (error) {
+						if (isSuspendToken(error)) throw error;
+						controller.capture(normalizeBoundaryError(error), false);
+						html = renderChildren(
+							node.children,
+							errorBoundary,
+							namespace
+						);
+					}
+				}
+			} catch (error) {
+				renderFailed = true;
+				renderError = error;
 			}
 
+			let cleanupFailed = false;
+			let cleanupError: unknown;
 			try {
-				return renderChildren(
-					node.children,
-					{ controller, parent: errorBoundary },
-					namespace
-				);
+				disposeResource?.();
 			} catch (error) {
-				if (isSuspendToken(error)) throw error;
-				controller.capture(normalizeBoundaryError(error), false);
-				return renderChildren(node.children, errorBoundary, namespace);
+				cleanupFailed = true;
+				cleanupError = error;
 			}
+
+			if (renderFailed && cleanupFailed) {
+				throw new AggregateError(
+					[renderError, cleanupError],
+					'[Effuse] Server render and node resource cleanup failed.'
+				);
+			}
+			if (renderFailed) throw renderError;
+			if (cleanupFailed) throw cleanupError;
+			return html;
 		}
 		default:
 			return '';
