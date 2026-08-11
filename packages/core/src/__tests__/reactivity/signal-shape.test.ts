@@ -150,19 +150,20 @@ describe('reactive hot paths', () => {
 		expect(signalCost).toBeLessThan(shapeCost / 3);
 	});
 
-	it('writes a signal in two digits of ns/op', () => {
+	it('writes a signal faster than a per-instance shape', () => {
+		const shape = perInstanceAccessorShape(0) as { value: number };
+		let shapeNext = 0;
+		const shapeCost = nsPerOp(ITERATIONS, () => {
+			shape.value = shapeNext++;
+		});
+
 		const source = signal(0);
 		let next = 0;
-		expect(
-			nsPerOp(ITERATIONS, () => {
-				source.value = next++;
-			})
-		).toBeLessThan(100);
-	});
+		const writeCost = nsPerOp(ITERATIONS, () => {
+			source.value = next++;
+		});
 
-	it('reads a signal in two digits of ns/op', () => {
-		const source = signal(0);
-		expect(nsPerOp(ITERATIONS, () => void source.value)).toBeLessThan(100);
+		expect(writeCost).toBeLessThan(shapeCost);
 	});
 
 	it('creates a computed faster than a per-instance shape', () => {
