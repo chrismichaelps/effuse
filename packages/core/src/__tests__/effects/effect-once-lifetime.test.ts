@@ -71,6 +71,28 @@ describe('effectOnce lifetime (issue #501)', () => {
 });
 
 describe('watchEffect failed setup lifetime (issue #501)', () => {
+	it('does not leak cleanup reads into an enclosing effect', () => {
+		const outerSource = signal(0);
+		const cleanupSource = signal(0);
+		const outerRun = vi.fn();
+		const child = watchEffect((onCleanup) => {
+			onCleanup(() => void cleanupSource.value);
+		});
+		const outer = watchEffect(() => {
+			outerRun();
+			void outerSource.value;
+			child.stop();
+		});
+
+		expect(subscriberCount(cleanupSource)).toBe(0);
+		cleanupSource.value++;
+		expect(outerRun).toHaveBeenCalledOnce();
+
+		outerSource.value++;
+		expect(outerRun).toHaveBeenCalledTimes(2);
+		outer.stop();
+	});
+
 	it('cleans resources and subscriptions after an initial synchronous failure', () => {
 		const source = signal(0);
 		const cleanup = vi.fn();

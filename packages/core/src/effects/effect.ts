@@ -55,7 +55,7 @@ export function watchEffect(
 
 	function runCleanup(cleanup: CleanupFn): void {
 		try {
-			cleanup();
+			untrack(cleanup);
 		} catch {
 			return;
 		}
