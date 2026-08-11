@@ -216,28 +216,37 @@ class ComputedCell<T> {
 	}
 }
 
-const computedCells = new WeakMap<object, ComputedCell<unknown>>();
+/**
+ * Prototype accessors for the same reason as `SignalCell`: defining them per
+ * instance forces a fresh hidden class for every computed created.
+ */
+class ComputedSignal<T> {
+	constructor(private readonly cell: ComputedCell<T>) {}
+
+	get value(): T {
+		return this.cell.value;
+	}
+
+	get _dep(): Dep {
+		return this.cell.dep;
+	}
+
+	/** Not enumerable surface; read only by `disposeComputed`. */
+	get _cell(): ComputedCell<T> {
+		return this.cell;
+	}
+}
 
 // Build computed signal
 export function computed<T>(getter: () => T): ReadonlySignal<T> {
-	const cell = new ComputedCell(getter);
-
-	const computedSignal = {
-		get value(): T {
-			return cell.value;
-		},
-		get _dep() {
-			return cell.dep;
-		},
-	};
-
-	computedCells.set(computedSignal, cell as ComputedCell<unknown>);
-	return computedSignal as ReadonlySignal<T>;
+	return new ComputedSignal(new ComputedCell(getter)) as ReadonlySignal<T>;
 }
 
 /** Stops dependency subscriptions owned by a computed signal. */
 export const disposeComputed = (source: ReadonlySignal<unknown>): void => {
-	computedCells.get(source as object)?.stop();
+	if (source instanceof ComputedSignal) {
+		source._cell.stop();
+	}
 };
 
 // Build writable computed signal

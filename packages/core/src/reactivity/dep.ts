@@ -57,7 +57,9 @@ export class Dep {
 	 * during pull validation without a side table on the hot path.
 	 */
 	computedOwner: { validate: () => void } | undefined;
-	private subscribers = new Set<() => void>();
+	// Allocated on first subscribe: most deps are read but never subscribed to,
+	// and the Set was the largest part of constructing one.
+	private subscribers: Set<() => void> | undefined;
 	private observationListener: ((observed: boolean) => void) | undefined;
 
 	/**
@@ -70,7 +72,7 @@ export class Dep {
 	}
 
 	get subscriberCount(): number {
-		return this.subscribers.size;
+		return this.subscribers?.size ?? 0;
 	}
 
 	track(): void {
@@ -85,12 +87,15 @@ export class Dep {
 	trigger(): void {
 		this.version++;
 		GlobalVersion++;
+		const subscribers = this.subscribers;
+		if (subscribers === undefined || subscribers.size === 0) return;
+
 		if (BatchDepth > 0 && BatchQueue) {
-			for (const sub of this.subscribers) {
+			for (const sub of subscribers) {
 				BatchQueue.add(sub);
 			}
 		} else {
-			for (const sub of this.subscribers) {
+			for (const sub of subscribers) {
 				pendingEffects.add(sub);
 			}
 
@@ -101,25 +106,26 @@ export class Dep {
 	}
 
 	subscribe(callback: () => void): () => void {
-		const wasObserved = this.subscribers.size > 0;
-		this.subscribers.add(callback);
-		if (!wasObserved && this.subscribers.size > 0) {
+		const subscribers = (this.subscribers ??= new Set());
+		const wasObserved = subscribers.size > 0;
+		subscribers.add(callback);
+		if (!wasObserved) {
 			this.observationListener?.(true);
 		}
 		return () => {
-			if (this.subscribers.delete(callback) && this.subscribers.size === 0) {
+			if (subscribers.delete(callback) && subscribers.size === 0) {
 				this.observationListener?.(false);
 			}
 		};
 	}
 
 	hasSubscribers(): boolean {
-		return this.subscribers.size > 0;
+		return this.subscribers !== undefined && this.subscribers.size > 0;
 	}
 
 	clear(): void {
-		const wasObserved = this.subscribers.size > 0;
-		this.subscribers.clear();
+		const wasObserved = this.hasSubscribers();
+		this.subscribers?.clear();
 		if (wasObserved) {
 			this.observationListener?.(false);
 		}
