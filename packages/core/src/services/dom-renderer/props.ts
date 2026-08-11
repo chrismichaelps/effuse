@@ -28,6 +28,7 @@ import { isSignal } from '../../reactivity/signal.js';
 import { watchEffect } from '../../effects/effect.js';
 import type { EffectHandle } from '../../types/index.js';
 import { applyRef, isRefCallback, isRefObject } from '../../refs/ref.js';
+import type { Ref } from '../../refs/types.js';
 import { applyDirective } from '../../refs/directive.js';
 import {
 	getDOMNamespace,
@@ -58,6 +59,36 @@ export class PropService extends Context.Tag('effuse/PropService')<
 	PropService,
 	PropServiceInterface
 >() {}
+
+const boundElementRefs = new WeakMap<Element, Ref>();
+
+const isRef = (value: unknown): value is Ref =>
+	isRefCallback(value) || isRefObject(value);
+
+const clearElementRef = (element: Element): void => {
+	const current = boundElementRefs.get(element);
+	if (current) {
+		boundElementRefs.delete(element);
+		applyRef(current, null);
+	}
+};
+
+export const patchElementRef = (element: Element, next: unknown): void => {
+	const current = boundElementRefs.get(element);
+	if (current === next) return;
+	clearElementRef(element);
+	if (isRef(next)) {
+		boundElementRefs.set(element, next);
+		try {
+			applyRef(next, element);
+		} catch (error) {
+			if (boundElementRefs.get(element) === next) {
+				boundElementRefs.delete(element);
+			}
+			throw error;
+		}
+	}
+};
 
 const setElementProp = (
 	element: Element,
@@ -190,14 +221,13 @@ export const PropServiceLive = Layer.succeed(PropService, {
 	bindProp: (element: Element, key: string, value: unknown) =>
 		Effect.sync(() => {
 			if (key === 'ref') {
-				if (isRefCallback(value) || isRefObject(value)) {
-					applyRef(value, element);
-					// Detaching on unmount keeps `ref.current` honest and lets the
-					// removed element be collected; without it a ref pins a detached
-					// node for as long as the ref itself is reachable.
-					return { cleanup: () => applyRef(value, null) };
+				if (isRef(value)) {
+					patchElementRef(element, value);
 				}
-				return { cleanup: () => {} };
+				// Detaching on unmount keeps `ref.current` honest and lets the
+				// removed element be collected; without it a ref pins a detached
+				// node for as long as the ref itself is reachable.
+				return { cleanup: () => clearElementRef(element) };
 			}
 			if (key.startsWith('use:')) {
 				const directiveName = key.slice(4);
