@@ -78,6 +78,7 @@ const useThrottleHook = defineHook<
 		let lastProcessedValue: unknown = sourceSignal.value;
 		let trailingValue: unknown = null;
 		let hasTrailingValue = false;
+		let ownerDisposed = false;
 
 		const clearCooldownTimeout = (): void => {
 			if (timeoutId !== null) {
@@ -85,8 +86,6 @@ const useThrottleHook = defineHook<
 				timeoutId = null;
 			}
 		};
-		ctx.scope.addFinalizer(clearCooldownTimeout);
-
 		const throttledValue = ctx.computed(() =>
 			getCurrentValue(internalState.value)
 		);
@@ -103,6 +102,7 @@ const useThrottleHook = defineHook<
 		};
 
 		const startCooldown = (): void => {
+			if (ownerDisposed) return;
 			timeoutId = setTimeout(() => {
 				traceThrottleCooldownEnd();
 				timeoutId = null;
@@ -126,8 +126,22 @@ const useThrottleHook = defineHook<
 			}, clampedInterval);
 		};
 
+		const dispose = (): void => {
+			if (ownerDisposed) return;
+			ownerDisposed = true;
+			clearCooldownTimeout();
+			hasTrailingValue = false;
+			trailingValue = null;
+			const currentValue = getCurrentValue(internalState.value);
+			lastProcessedValue = currentValue;
+			internalState.value = TS.Ready({ value: currentValue });
+		};
+
+		ctx.scope.addFinalizer(dispose);
+
 		ctx.onMount(() => {
 			const effect = ctx.watchEffect(() => {
+				if (ownerDisposed) return undefined;
 				const newValue = sourceSignal.value;
 
 				if (
@@ -167,7 +181,7 @@ const useThrottleHook = defineHook<
 
 			return () => {
 				effect.stop();
-				clearCooldownTimeout();
+				dispose();
 			};
 		});
 
