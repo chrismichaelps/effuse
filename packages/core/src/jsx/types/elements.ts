@@ -410,7 +410,7 @@ export type SummaryAttributes = HTMLAttributes;
 
 export type MenuAttributes = HTMLAttributes;
 
-export interface SVGAttributes<Target extends EventTarget = SVGSVGElement>
+export interface SVGAttributes<Target extends Element = SVGSVGElement>
 	extends HTMLAttributes<Target> {
 	viewBox?: string;
 	xmlns?: string;

@@ -95,6 +95,36 @@ describe('Refs', () => {
 
 			unsubscribe();
 		});
+
+		it('does not retain a subscriber whose immediate callback throws', () => {
+			const ref = createRef<HTMLDivElement>();
+			const callback = vi.fn(() => {
+				throw new Error('initial ref callback failed');
+			});
+
+			expect(() => ref.subscribe(callback)).toThrow(
+				'initial ref callback failed'
+			);
+			expect(() => applyRef(ref, document.createElement('div'))).not.toThrow();
+			expect(callback).toHaveBeenCalledOnce();
+		});
+
+		it('notifies a subscriber added during a transition exactly once', () => {
+			const ref = createRef<HTMLDivElement>();
+			const added = vi.fn();
+			const existing = vi.fn((element: HTMLDivElement | null) => {
+				if (element) ref.subscribe(added);
+			});
+			ref.subscribe(existing);
+			existing.mockClear();
+
+			const element = document.createElement('div');
+			applyRef(ref, element);
+
+			expect(existing).toHaveBeenCalledOnce();
+			expect(added).toHaveBeenCalledOnce();
+			expect(added).toHaveBeenLastCalledWith(element);
+		});
 	});
 
 	describe('isRefObject', () => {
