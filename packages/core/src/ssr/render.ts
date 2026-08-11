@@ -48,6 +48,7 @@ import {
 import type { SSRRuntime } from './runtime.js';
 import type { ComponentLifecycle } from '../blueprint/lifecycle.js';
 import { runWithServerRenderContext } from '../render/render-context.js';
+import { normalizeDOMAttributeName } from '../render/attribute-name.js';
 import {
 	getErrorBoundaryController,
 	normalizeBoundaryError,
@@ -411,14 +412,14 @@ const renderAttributes = (props: Record<string, unknown>): string => {
 		if (Predicate.isBoolean(actualValue)) {
 			if (actualValue) {
 				parts.push(
-					escapeAttrName(key === 'className' ? 'class' : camelToKebab(key))
+					escapeAttrName(camelToKebab(normalizeDOMAttributeName(key)))
 				);
 			}
 			continue;
 		}
 
 		const attrName = escapeAttrName(
-			key === 'className' ? 'class' : camelToKebab(key)
+			camelToKebab(normalizeDOMAttributeName(key))
 		);
 
 		if (key === 'style' && Predicate.isObject(actualValue)) {
