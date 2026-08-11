@@ -105,8 +105,18 @@ const setElementProp = (
 	}
 
 	if (key === 'style') {
+		const el = element as HTMLElement;
+		// The server writes a string style straight through as an attribute, so
+		// discarding it here left the element unstyled on any client render.
+		if (Predicate.isString(value)) {
+			el.style.cssText = value;
+			return;
+		}
+		if (value == null) {
+			el.removeAttribute('style');
+			return;
+		}
 		if (Predicate.isObject(value)) {
-			const el = element as HTMLElement;
 			const styles = value as Record<string, string | number>;
 			for (const [prop, val] of Object.entries(styles)) {
 				const cssProp = prop.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`);
