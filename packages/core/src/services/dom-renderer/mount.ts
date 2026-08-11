@@ -37,6 +37,8 @@ import {
 import {
 	EventService,
 	EventServiceLive,
+	clearElementEvents,
+	patchElementEvent,
 	type EventBindingResult,
 } from './events.js';
 import { instantiateBlueprint } from '../../blueprint/blueprint.js';
@@ -249,22 +251,6 @@ const isEventProp = (key: string): boolean =>
 	key[2] !== undefined &&
 	key[2] === key[2].toUpperCase();
 
-const arePropValuesPatchCompatible = (
-	key: string,
-	previous: unknown,
-	next: unknown
-): boolean => {
-	if (Object.is(previous, next)) return true;
-	if (
-		isEventProp(key) &&
-		Predicate.isFunction(previous) &&
-		Predicate.isFunction(next)
-	) {
-		return true;
-	}
-	return false;
-};
-
 const arePropsPatchCompatible = (
 	previous: Record<string, unknown> | null | undefined,
 	next: Record<string, unknown> | null | undefined
@@ -278,17 +264,8 @@ const arePropsPatchCompatible = (
 
 	for (const key of keys) {
 		if (key === 'children' || key === 'key' || key === 'ref') continue;
-		if (isEventProp(key)) {
-			if (
-				Predicate.isFunction(previousProps[key]) &&
-				Predicate.isFunction(nextProps[key])
-			) {
-				continue;
-			}
-		}
-		if (
-			!arePropValuesPatchCompatible(key, previousProps[key], nextProps[key])
-		) {
+		if (isEventProp(key)) continue;
+		if (!Object.is(previousProps[key], nextProps[key])) {
 			return false;
 		}
 	}
@@ -314,15 +291,7 @@ const patchEventProps = (
 		}
 
 		const eventName = key.slice(2).toLowerCase();
-		if (Predicate.isFunction(previousProps[key])) {
-			element.removeEventListener(
-				eventName,
-				previousProps[key] as EventListener
-			);
-		}
-		if (Predicate.isFunction(nextProps[key])) {
-			element.addEventListener(eventName, nextProps[key] as EventListener);
-		}
+		patchElementEvent(element, eventName, nextProps[key]);
 	}
 };
 
@@ -928,6 +897,7 @@ const mountNode = (
 							for (const result of results) {
 								bindingCleanups.push(result.cleanup);
 							}
+							bindingCleanups.push(() => clearElementEvents(element));
 							cleanups.push(() => {
 								runCleanups(bindingCleanups);
 							});
