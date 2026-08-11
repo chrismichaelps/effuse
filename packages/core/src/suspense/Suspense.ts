@@ -25,7 +25,6 @@
 import { Predicate } from 'effect';
 import { define } from '../blueprint/index.js';
 import { computed } from '../reactivity/index.js';
-import { watchEffect } from '../effects/index.js';
 import { CreateFragmentNode, type EffuseChild } from '../render/node.js';
 import {
 	EFFUSE_NODE,
@@ -102,12 +101,19 @@ interface SuspenseExposed {
 }
 
 export const Suspense = define<SuspenseProps, SuspenseExposed>({
-	script: ({ props, signal: createSignal }) => {
+	script: ({ props, signal: createSignal, watchEffect, onUnmount }) => {
 		const boundary = createBoundary();
 		const isPending = createSignal(true);
 		const shouldShowFallback = createSignal(true);
 		const resolvedChildren = createSignal<EffuseChild>(null);
 		const pendingTokens = new Map<string, SuspendToken>();
+		let active = true;
+
+		onUnmount(() => {
+			active = false;
+			pendingTokens.clear();
+			boundary.pendingResources.clear();
+		});
 
 		const currentContent = computed(() => {
 			if (shouldShowFallback.value) {
@@ -117,15 +123,18 @@ export const Suspense = define<SuspenseProps, SuspenseExposed>({
 		});
 
 		const handleSuspendToken = (token: SuspendToken) => {
+			if (!active) return;
 			if (pendingTokens.has(token.resourceId)) {
 				return;
 			}
 			pendingTokens.set(token.resourceId, token);
 			boundary.registerPending(token.resourceId, token.promise);
+			isPending.value = true;
 			shouldShowFallback.value = true;
 
 			token.promise
 				.then(() => {
+					if (!active) return;
 					pendingTokens.delete(token.resourceId);
 					boundary.unregisterPending(token.resourceId);
 					if (pendingTokens.size === 0) {
@@ -134,6 +143,7 @@ export const Suspense = define<SuspenseProps, SuspenseExposed>({
 					}
 				})
 				.catch(() => {
+					if (!active) return;
 					pendingTokens.delete(token.resourceId);
 					boundary.unregisterPending(token.resourceId);
 					if (pendingTokens.size === 0) {
@@ -147,6 +157,7 @@ export const Suspense = define<SuspenseProps, SuspenseExposed>({
 			children: EffuseChild | (() => EffuseChild),
 			_fallback: EffuseChild
 		): void => {
+			if (!active) return;
 			try {
 				let childToRender = children;
 				if (Array.isArray(children) && children.length === 1) {
@@ -156,6 +167,7 @@ export const Suspense = define<SuspenseProps, SuspenseExposed>({
 					? childToRender()
 					: childToRender;
 				resolvedChildren.value = rendered;
+				isPending.value = false;
 				shouldShowFallback.value = false;
 			} catch (error: unknown) {
 				if (isSuspendToken(error)) {
