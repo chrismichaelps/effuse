@@ -52,13 +52,17 @@ export function watchEffect(
 	let cleanupFns: CleanupFn[] = [];
 	let subscriptions: (() => void)[] = [];
 
+	function runCleanup(cleanup: CleanupFn): void {
+		try {
+			cleanup();
+		} catch {
+			return;
+		}
+	}
+
 	function runCleanups(): void {
 		for (const cleanup of cleanupFns) {
-			try {
-				cleanup();
-			} catch {
-				continue;
-			}
+			runCleanup(cleanup);
 		}
 		cleanupFns = [];
 	}
@@ -71,6 +75,10 @@ export function watchEffect(
 	}
 
 	const onCleanup: OnCleanup = (cleanupFn: CleanupFn): void => {
+		if (!isActive) {
+			runCleanup(cleanupFn);
+			return;
+		}
 		cleanupFns.push(cleanupFn);
 	};
 
@@ -104,7 +112,7 @@ export function watchEffect(
 			}
 			throw err;
 		} finally {
-			if (trackedDeps) {
+			if (isActive && trackedDeps) {
 				for (const trackedDep of trackedDeps) {
 					const unsub = trackedDep.subscribe(scheduleRun);
 					subscriptions.push(unsub);
