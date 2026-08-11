@@ -66,6 +66,7 @@ import {
 	getChildNamespace,
 	getDOMNamespace,
 	getElementNamespace,
+	normalizeDOMAttributeName,
 	type DOMNamespace,
 } from '../../render/attribute-name.js';
 import {
@@ -814,6 +815,60 @@ const mountChildInner = (
 	return Effect.succeed([]);
 };
 
+/**
+ * Attribute names the client render owns for `props`, using the same
+ * normalization the server used when it serialized them.
+ */
+const ownedAttributeNames = (
+	props: Record<string, unknown>,
+	namespace: DOMNamespace
+): Set<string> => {
+	const owned = new Set<string>();
+	for (const [key, value] of Object.entries(props)) {
+		if (key === 'children' || key === 'key' || key === 'ref') continue;
+		if (key.startsWith('use:')) continue;
+		// Handlers and refs never reach the DOM as attributes, and the server
+		// skips functions for the same reason.
+		if (key.startsWith('on') && Predicate.isFunction(value)) continue;
+		if (key === 'class' || key === 'className') {
+			owned.add('class');
+			continue;
+		}
+		owned.add(normalizeDOMAttributeName(key, namespace));
+	}
+	return owned;
+};
+
+/**
+ * Strips attributes the server wrote that this render does not declare.
+ *
+ * Adopting an element by tag keeps whatever the server put on it, so without
+ * this a `disabled` or `aria-hidden` from the server pass would outlive the
+ * state that produced it, and no later update would clear it: the client never
+ * owned the attribute. `dropUnclaimed` is the equivalent for child nodes.
+ */
+const reconcileClaimedAttributes = (
+	element: Element,
+	props: Record<string, unknown> | null | undefined,
+	namespace: DOMNamespace
+): void => {
+	const owned = props
+		? ownedAttributeNames(props, namespace)
+		: new Set<string>();
+
+	for (const name of element.getAttributeNames()) {
+		if (!owned.has(name)) {
+			element.removeAttribute(name);
+		}
+	}
+
+	// Style is rebuilt property by property, so a surviving server declaration
+	// would merge with the client's instead of replacing it.
+	if (owned.has('style')) {
+		element.removeAttribute('style');
+	}
+};
+
 const mountNode = (
 	node: EffuseNode,
 	cleanups: CleanupFn[],
@@ -843,6 +898,9 @@ const mountNode = (
 					const element = cursor
 						? claimElement(cursor, tag, elementNamespace)
 						: createDOMElement(document, tag, elementNamespace);
+					if (cursor) {
+						reconcileClaimedAttributes(element, props, elementNamespace);
+					}
 					const bindingCleanups: CleanupFn[] = [];
 
 					const propEffects: Effect.Effect<PropBindingResult>[] = [];
