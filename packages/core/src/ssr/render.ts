@@ -34,6 +34,7 @@ import { isSuspendToken } from '../suspense/Suspense.js';
 import type { HeadProps, RenderResult, ServerAppOptions } from './types.js';
 import { RenderError } from './errors.js';
 import { escapeHtml, escapeAttr, escapeAttrName } from './escape.js';
+import { normalizeClassValue } from '../render/class-value.js';
 import { headToHtml } from './head-registry.js';
 import { runWithSSRContext } from './use-head.js';
 import { serializeHydrationData, type HydrationData } from './hydration.js';
@@ -395,25 +396,6 @@ const renderBlueprint = (
 	if (renderFailed) throw renderError;
 	if (cleanupFailed) throw cleanupError;
 	return html ?? '';
-};
-
-const normalizeClassValue = (value: unknown): string => {
-	if (Predicate.isString(value)) {
-		return value;
-	}
-	if (Array.isArray(value)) {
-		return value
-			.map(normalizeClassValue)
-			.filter((part) => part !== '')
-			.join(' ');
-	}
-	if (Predicate.isObject(value)) {
-		return Object.entries(value as Record<string, unknown>)
-			.filter(([, enabled]) => Boolean(enabled))
-			.map(([name]) => name)
-			.join(' ');
-	}
-	return '';
 };
 
 const renderAttributes = (

@@ -34,6 +34,7 @@ import {
 	getDOMNamespace,
 	normalizeDOMAttributeName,
 } from '../../render/attribute-name.js';
+import { normalizeClassValue } from '../../render/class-value.js';
 
 export interface PropBindingResult {
 	cleanup: () => void;
@@ -96,11 +97,10 @@ const setElementProp = (
 	value: unknown
 ): void => {
 	if (key === 'class' || key === 'className') {
-		if (Predicate.isString(value)) {
-			element.className = value;
-		} else if (value == null) {
-			element.className = '';
-		}
+		// Shared with the server serializer so both sides flatten objects and
+		// arrays identically; handling only strings here silently dropped every
+		// conditional class on the client.
+		element.className = value == null ? '' : normalizeClassValue(value);
 		return;
 	}
 
