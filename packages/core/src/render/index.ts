@@ -29,6 +29,7 @@ import {
 	MountService,
 	type MountedNode,
 } from '../services/dom-renderer/index.js';
+import { runWithIdScope } from '../hooks/useId.js';
 
 export {
 	type EffuseChild,
@@ -81,7 +82,7 @@ const runRender = (
 		Effect.provide(DOMRendererLive)
 	);
 
-	Effect.runSync(program);
+	runWithIdScope(() => Effect.runSync(program));
 
 	return () => {
 		if (mountedResult) {
