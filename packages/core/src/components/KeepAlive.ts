@@ -26,6 +26,7 @@ import type { EffuseNode, EffuseChild } from '../render/node.js';
 import { createListNode } from '../render/node.js';
 import type { Signal } from '../types/index.js';
 import { signal } from '../reactivity/index.js';
+import { attachNodeResourceDisposer } from '../render/node-resource.js';
 import {
 	Cache,
 	Data,
@@ -135,13 +136,14 @@ export const KeepAlive = (props: KeepAliveProps): EffuseNode => {
 
 	const activeKey = signal<string | null>(null);
 	const listNode = createListNode([]) as KeepAliveNode;
+	const cleanup = attachNodeResourceDisposer(listNode, () => {
+		Effect.runSync(Scope.close(scope, Exit.void));
+	});
 
 	Object.assign(listNode, {
 		_cache: cache,
 		_activeKey: activeKey,
-		_cleanup: () => {
-			Effect.runSync(Scope.close(scope, Exit.void));
-		},
+		_cleanup: cleanup,
 	});
 
 	Object.defineProperty(listNode, 'children', {
