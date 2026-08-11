@@ -79,6 +79,10 @@ import type {
 	InsAttributes,
 } from './elements.js';
 
+type CustomElementAttributes = Omit<HTMLAttributes<Element>, 'ref'> & {
+	ref?: unknown;
+};
+
 export interface BaseIntrinsicElements {
 	// Document Metadata
 	html: HTMLAttributes<HTMLHtmlElement>;
@@ -304,5 +308,5 @@ export interface BaseIntrinsicElements {
 
 	slot: SlotAttributes;
 	template: TemplateAttributes;
-	[key: string]: HTMLAttributes<Element>;
+	[key: string]: CustomElementAttributes;
 }

@@ -40,7 +40,8 @@ export function createRef<T extends Element = Element>(
 	// been served by the subscriber set below, so it carried cost but no
 	// behavior.
 	let current: T | null = null;
-	const subscribers = new Set<RefCallback<T>>();
+	let notificationGeneration = 0;
+	const subscribers = new Map<RefCallback<T>, number>();
 
 	const refObject: RefObjectInternal<T> = {
 		get current(): T | null {
@@ -48,8 +49,8 @@ export function createRef<T extends Element = Element>(
 		},
 
 		subscribe(callback: RefCallback<T>): () => void {
-			subscribers.add(callback);
 			callback(current);
+			subscribers.set(callback, notificationGeneration);
 			return () => {
 				subscribers.delete(callback);
 			};
@@ -57,8 +58,9 @@ export function createRef<T extends Element = Element>(
 
 		_setCurrent(el: T | null): void {
 			current = el;
-			for (const cb of subscribers) {
-				cb(el);
+			const generation = ++notificationGeneration;
+			for (const [callback, subscribedAt] of subscribers) {
+				if (subscribedAt < generation) callback(el);
 			}
 		},
 	};
