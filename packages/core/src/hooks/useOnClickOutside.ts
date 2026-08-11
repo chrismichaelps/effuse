@@ -29,6 +29,29 @@ export interface ClickOutsideOptions {
 	exclude?: string;
 }
 
+const getEventPath = (event: MouseEvent): EventTarget[] => {
+	if (typeof event.composedPath === 'function') return event.composedPath();
+	return event.target ? [event.target] : [];
+};
+
+const pathMatchesSelector = (
+	path: readonly EventTarget[],
+	selector: string,
+	includeAncestors: boolean
+): boolean => {
+	try {
+		return path.some(
+			(target) =>
+				target instanceof Element &&
+				(includeAncestors
+					? target.closest(selector) !== null
+					: target.matches(selector))
+		);
+	} catch {
+		return true;
+	}
+};
+
 /**
  * Call `callback` when a click occurs outside of `element`.
  *
@@ -52,16 +75,15 @@ export const useOnClickOutside = (
 		const handler = (event: MouseEvent) => {
 			const el = elementRef();
 			if (!el) return;
+			const hasComposedPath = typeof event.composedPath === 'function';
+			const path = getEventPath(event);
 
-			if (options.exclude) {
-				const excluded = document.querySelector(options.exclude);
-				if (
-					excluded &&
-					event.target &&
-					excluded.contains(event.target as Node)
-				) {
-					return;
-				}
+			if (path.includes(el)) return;
+			if (
+				options.exclude &&
+				pathMatchesSelector(path, options.exclude, !hasComposedPath)
+			) {
+				return;
 			}
 
 			if (event.target && !el.contains(event.target as Node)) {
