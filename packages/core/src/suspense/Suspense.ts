@@ -64,20 +64,33 @@ const generateBoundaryId = (prefix: string): string =>
 const createBoundary = (): SuspenseContext => {
 	const id = generateBoundaryId(BOUNDARY_ID_PREFIX);
 	const pendingResources = new Map<string, Promise<void>>();
+	const removeSettledResource = (
+		resourceId: string,
+		promise: Promise<void>
+	): void => {
+		if (pendingResources.get(resourceId) === promise) {
+			pendingResources.delete(resourceId);
+		}
+	};
 
 	return {
 		id,
 		pendingResources,
 		registerPending: (resourceId: string, promise: Promise<void>) => {
 			pendingResources.set(resourceId, promise);
+			void promise.then(
+				() => removeSettledResource(resourceId, promise),
+				() => removeSettledResource(resourceId, promise)
+			);
 		},
 		unregisterPending: (resourceId: string) => {
 			pendingResources.delete(resourceId);
 		},
 		hasPending: () => pendingResources.size > 0,
 		waitForAll: async () => {
-			const promises = Array.from(pendingResources.values());
-			await Promise.all(promises);
+			while (pendingResources.size > 0) {
+				await Promise.all(Array.from(pendingResources.values()));
+			}
 		},
 	};
 };

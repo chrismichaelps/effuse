@@ -16,7 +16,14 @@ interface Deferred {
 
 interface SuspenseState {
 	readonly exposed: {
-		readonly boundary: { readonly pendingResources: Map<string, Promise<void>> };
+		readonly boundary: {
+			readonly pendingResources: Map<string, Promise<void>>;
+			readonly registerPending: (
+				resourceId: string,
+				promise: Promise<void>
+			) => void;
+			readonly waitForAll: () => Promise<void>;
+		};
 		readonly isPending: Signal<boolean>;
 		readonly shouldShowFallback: Signal<boolean>;
 		readonly resolvedChildren: Signal<EffuseChild>;
@@ -129,5 +136,75 @@ describe('Suspense lifecycle (issue #511)', () => {
 
 		expect(renders).toBe(1);
 		expect(state.exposed.boundary.pendingResources.size).toBe(0);
+	});
+});
+
+describe('Suspense boundary waiting (issue #513)', () => {
+	it('waits for resources registered while an active wait is settling', async () => {
+		const first = deferred();
+		const second = deferred();
+		const state = createState(() => 'ready');
+		const { boundary } = state.exposed;
+		boundary.registerPending('first', first.promise);
+
+		let settled = false;
+		const waiting = boundary.waitForAll().then(() => {
+			settled = true;
+		});
+		boundary.registerPending('second', second.promise);
+
+		first.resolve();
+		await flushPromises();
+		expect(settled).toBe(false);
+		expect(boundary.pendingResources.has('second')).toBe(true);
+
+		second.resolve();
+		await waiting;
+		expect(boundary.pendingResources.size).toBe(0);
+		state.lifecycle.runCleanup();
+	});
+
+	it('keeps a same-id replacement pending when the old promise settles', async () => {
+		const replaced = deferred();
+		const current = deferred();
+		const state = createState(() => 'ready');
+		const { boundary } = state.exposed;
+		boundary.registerPending('profile', replaced.promise);
+		boundary.registerPending('profile', current.promise);
+
+		replaced.resolve();
+		await flushPromises();
+		expect(boundary.pendingResources.get('profile')).toBe(current.promise);
+
+		let settled = false;
+		const waiting = boundary.waitForAll().then(() => {
+			settled = true;
+		});
+		await flushPromises();
+		expect(settled).toBe(false);
+
+		current.resolve();
+		await waiting;
+		expect(boundary.pendingResources.size).toBe(0);
+		state.lifecycle.runCleanup();
+	});
+
+	it('removes a rejected resource while preserving waitForAll rejection', async () => {
+		const gate = deferred();
+		const state = createState(() => 'ready');
+		const { boundary } = state.exposed;
+		boundary.registerPending('failed', gate.promise);
+		const waiting = boundary.waitForAll();
+
+		gate.reject(new Error('load failed'));
+		await expect(waiting).rejects.toThrow('load failed');
+		expect(boundary.pendingResources.size).toBe(0);
+		state.lifecycle.runCleanup();
+	});
+
+	it('resolves an empty boundary without scheduling pending work', async () => {
+		const state = createState(() => 'ready');
+		await expect(state.exposed.boundary.waitForAll()).resolves.toBeUndefined();
+		state.lifecycle.runCleanup();
 	});
 });
