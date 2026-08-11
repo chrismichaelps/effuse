@@ -31,6 +31,7 @@ import { type EffuseChild, type EffuseNode } from '../../render/node.js';
 import {
 	PropService,
 	PropServiceLive,
+	patchElementRef,
 	type PropBindingResult,
 } from './props.js';
 import {
@@ -541,7 +542,13 @@ const patchElementNode = (
 		return false;
 	}
 	patchEventProps(element, previous.props, next.props);
-	return patchElementChildren(element, previous.children, next.children);
+	if (!patchElementChildren(element, previous.children, next.children)) {
+		return false;
+	}
+	if (!Object.is(previous.props?.ref, next.props?.ref)) {
+		patchElementRef(element, next.props?.ref);
+	}
+	return true;
 };
 
 const patchMountedValue = (
