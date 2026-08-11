@@ -29,6 +29,7 @@ import { watchEffect } from '../../effects/effect.js';
 import type { EffectHandle } from '../../types/index.js';
 import { applyRef, isRefCallback, isRefObject } from '../../refs/ref.js';
 import { applyDirective } from '../../refs/directive.js';
+import { normalizeDOMAttributeName } from '../../render/attribute-name.js';
 
 export interface PropBindingResult {
 	cleanup: () => void;
@@ -99,20 +100,21 @@ const setElementProp = (
 		(element as HTMLInputElement).checked = Boolean(value);
 		return;
 	}
+	const attributeName = normalizeDOMAttributeName(key);
 
 	if (Predicate.isBoolean(value)) {
 		if (value) {
-			element.setAttribute(key, '');
+			element.setAttribute(attributeName, '');
 		} else {
-			element.removeAttribute(key);
+			element.removeAttribute(attributeName);
 		}
 		return;
 	}
 
 	if (value == null) {
-		element.removeAttribute(key);
+		element.removeAttribute(attributeName);
 	} else if (Predicate.isString(value) || Predicate.isNumber(value)) {
-		element.setAttribute(key, String(value));
+		element.setAttribute(attributeName, String(value));
 	}
 };
 
