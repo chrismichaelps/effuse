@@ -22,7 +22,11 @@
  * SOFTWARE.
  */
 
-import { parseRoutePattern, type RoutePattern } from './route-pattern.js';
+import {
+	normalizeMatchPathname,
+	parseRoutePattern,
+	type RoutePattern,
+} from './route-pattern.js';
 
 const EMPTY_NAMES: readonly string[] = [];
 
@@ -182,10 +186,7 @@ const decodeSegment = (value: string): string => {
 };
 
 const splitPath = (pathname: string): readonly string[] => {
-	const trimmed =
-		pathname.length > 1 && pathname.endsWith('/')
-			? pathname.slice(0, -1)
-			: pathname;
+	const trimmed = normalizeMatchPathname(pathname);
 	if (trimmed === '' || trimmed === '/') return [];
 	return trimmed.charCodeAt(0) === 47 /* '/' */
 		? trimmed.slice(1).split('/')
