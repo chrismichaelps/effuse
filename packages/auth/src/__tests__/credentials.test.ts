@@ -239,27 +239,70 @@ describe('user enumeration', () => {
 		expect(find).toHaveBeenCalledWith('real@example.com');
 	});
 
-	it('takes a comparable amount of time for both paths', async () => {
-		// Statistical rather than a single sample: one measurement on a shared CI
-		// runner proves nothing either way.
-		const measure = async (identifier: string): Promise<number> => {
-			const started = process.hrtime.bigint();
-			for (let i = 0; i < 6; i += 1) {
-				await h.provider.authenticate({
-					identifier,
-					password: 'wrong-password',
-					clientIp: `198.51.100.${String(i)}`,
-				});
-			}
-			return Number(process.hrtime.bigint() - started);
+	it('verifies against a stored hash of the same cost on both paths', async () => {
+		// The property is that the unknown path performs the same work as the
+		// known one. Asserting it on the work itself rather than on elapsed time
+		// keeps it deterministic: a wall-clock ratio measures the CPU the test
+		// happened to get, and a machine under load fails a correct
+		// implementation.
+		const verified: string[] = [];
+		const recording: PasswordHasher = {
+			hash: (password) => fastHasher.hash(password),
+			verify: (password, stored) => {
+				verified.push(stored);
+				return fastHasher.verify(password, stored);
+			},
+			needsRehash: (stored) => fastHasher.needsRehash(stored),
 		};
 
-		const unknown = await measure('nobody@example.com');
-		const known = await measure('real@example.com');
+		const instrumented = harness(recording);
+		await seed(instrumented.users, recording);
 
-		const ratio = Math.max(unknown, known) / Math.min(unknown, known);
-		// A genuine early return shows up as an order of magnitude, not 3x.
-		expect(ratio).toBeLessThan(3);
+		await instrumented.provider.authenticate({
+			identifier: 'nobody@example.com',
+			password: 'wrong-password',
+			clientIp: '198.51.100.1',
+		});
+		await instrumented.provider.authenticate({
+			identifier: 'real@example.com',
+			password: 'wrong-password',
+			clientIp: '198.51.100.2',
+		});
+
+		// One verification each: an early return on the miss would leave one.
+		expect(verified).toHaveLength(2);
+
+		// And both against a real stored hash. A dummy that is empty, constant,
+		// or cheaper than a genuine record would equalise the call count while
+		// leaving the timing difference the call count was standing in for.
+		const [unknownStored, knownStored] = verified;
+		// `algorithm$cost$blockSize$parallelism`, dropping the per-record salt and
+		// digest. Those differ by design; the cost parameters are what decide how
+		// long a verification takes.
+		const parameters = (stored: string): string =>
+			stored.split('$').slice(0, 4).join('$');
+
+		expect(unknownStored).not.toBe('');
+		expect(parameters(unknownStored ?? '')).toBe(parameters(knownStored ?? ''));
+	});
+
+	it('reuses one dummy hash rather than deriving it per attempt', async () => {
+		// Deriving it per miss would make the unknown path measurably more
+		// expensive than the known one, which is the same leak in reverse.
+		const hash = vi.fn(fastHasher.hash);
+		const instrumented = harness({ ...fastHasher, hash });
+		await seed(instrumented.users);
+		hash.mockClear();
+
+		for (let attempt = 0; attempt < 3; attempt += 1) {
+			await instrumented.provider.authenticate({
+				identifier: 'nobody@example.com',
+				password: 'wrong-password',
+				clientIp: `198.51.100.${String(attempt)}`,
+			});
+		}
+
+		expect(hash).toHaveBeenCalledTimes(1);
 	});
 });
 
