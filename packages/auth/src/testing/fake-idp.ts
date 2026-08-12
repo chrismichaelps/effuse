@@ -128,18 +128,45 @@ const base64url = (value: string | Buffer): string =>
 
 const DEFAULT_NOW = 1_700_000_000_000;
 
+interface TestKeys {
+	readonly publicKey: KeyObject;
+	readonly privateKey: KeyObject;
+	/** A key the provider never publishes, for forging attempts. */
+	readonly foreign: {
+		readonly publicKey: KeyObject;
+		readonly privateKey: KeyObject;
+	};
+}
+
+/**
+ * Generated once per process and shared by every fake IdP.
+ *
+ * RSA-2048 generation is a probabilistic prime search: measured here at 50ms to
+ * 369ms per pair on an idle machine, twice per IdP, once per test. That put the
+ * OAuth suites' entire runtime in key generation and left them one unlucky
+ * search away from a timeout under a loaded parallel run.
+ *
+ * Sharing is sound because the keys carry no per-instance meaning. No test
+ * compares two IdPs against each other, and `foreign` only has to differ from
+ * the signing key, which a shared pair satisfies just as well.
+ */
+let testKeys: TestKeys | undefined;
+
+const getTestKeys = (): TestKeys => {
+	testKeys ??= {
+		...generateKeyPairSync('rsa', { modulusLength: 2048 }),
+		foreign: generateKeyPairSync('rsa', { modulusLength: 2048 }),
+	};
+	return testKeys;
+};
+
 export const createFakeIdp = (options: FakeIdpOptions = {}): FakeIdp => {
 	const issuer = options.issuer ?? 'https://idp.example.com';
 	const audience = options.audience ?? 'client-id-123';
 	const keyId = options.keyId ?? 'test-key-1';
 	const now = options.now ?? (() => DEFAULT_NOW);
 
-	const { publicKey, privateKey } = generateKeyPairSync('rsa', {
-		modulusLength: 2048,
-	});
-
-	// A key the provider never publishes, for forging attempts.
-	const foreign = generateKeyPairSync('rsa', { modulusLength: 2048 });
+	const { publicKey, privateKey, foreign } = getTestKeys();
 
 	let jwksRequests = 0;
 	let tokenRequests = 0;
