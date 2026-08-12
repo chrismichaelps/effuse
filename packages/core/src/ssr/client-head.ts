@@ -24,62 +24,139 @@
 
 import type { HeadProps } from './types.js';
 
+/**
+ * Marks the tags this module owns. Reconciliation removes a managed tag the
+ * next head no longer declares, and leaves anything the application authored
+ * in its own markup untouched.
+ */
+const MANAGED = 'data-effuse-head';
+
+type MetaKey = { readonly attr: 'name' | 'property'; readonly key: string };
+
+/**
+ * Finds a head tag by attribute value.
+ *
+ * Deliberately not `querySelector`: the value is interpolated into a selector
+ * there, so a name carrying a quote or bracket threw and aborted the rest of
+ * the update. Head values come from application and CMS content, where that is
+ * ordinary rather than exotic.
+ */
+const findTag = (
+	tagName: 'meta' | 'link',
+	attr: string,
+	value: string
+): Element | undefined => {
+	for (const element of Array.from(document.head.children)) {
+		if (
+			element.tagName.toLowerCase() === tagName &&
+			element.getAttribute(attr) === value
+		) {
+			return element;
+		}
+	}
+	return undefined;
+};
+
+const applyMeta = (attr: 'name' | 'property', key: string, content: string): void => {
+	let meta = findTag('meta', attr, key);
+	if (!meta) {
+		meta = document.createElement('meta');
+		meta.setAttribute(attr, key);
+		document.head.appendChild(meta);
+	}
+	meta.setAttribute('content', content);
+	meta.setAttribute(MANAGED, '');
+};
+
+const applyLink = (rel: string, href: string): void => {
+	let link = findTag('link', 'rel', rel);
+	if (!link) {
+		link = document.createElement('link');
+		link.setAttribute('rel', rel);
+		document.head.appendChild(link);
+	}
+	link.setAttribute('href', href);
+	link.setAttribute(MANAGED, '');
+};
+
+/** Every meta tag the given head declares, in the order it declares them. */
+const declaredMeta = (head: HeadProps): Map<string, MetaKey & { content: string }> => {
+	const declared = new Map<string, MetaKey & { content: string }>();
+	const add = (attr: 'name' | 'property', key: string, content: string): void => {
+		declared.set(`${attr}:${key}`, { attr, key, content });
+	};
+
+	if (head.description) add('name', 'description', head.description);
+	if (head.themeColor) add('name', 'theme-color', head.themeColor);
+	if (head.robots) add('name', 'robots', head.robots);
+
+	if (head.og) {
+		for (const [key, value] of Object.entries(head.og)) {
+			if (value) add('property', `og:${key}`, value);
+		}
+	}
+	if (head.twitter) {
+		for (const [key, value] of Object.entries(head.twitter)) {
+			if (value) add('name', `twitter:${key}`, value);
+		}
+	}
+	if (head.meta) {
+		for (const tag of head.meta) {
+			if (tag.name) add('name', tag.name, tag.content);
+			else if (tag.property) add('property', tag.property, tag.content);
+		}
+	}
+
+	return declared;
+};
+
+/** Removes managed tags the new head no longer declares. */
+const pruneManaged = (
+	declaredMetaKeys: ReadonlySet<string>,
+	declaredLinkRels: ReadonlySet<string>
+): void => {
+	for (const element of Array.from(document.head.children)) {
+		if (!element.hasAttribute(MANAGED)) continue;
+
+		const tagName = element.tagName.toLowerCase();
+		if (tagName === 'meta') {
+			const name = element.getAttribute('name');
+			const property = element.getAttribute('property');
+			const key =
+				name !== null ? `name:${name}` : property !== null ? `property:${property}` : '';
+			if (!declaredMetaKeys.has(key)) element.remove();
+			continue;
+		}
+		if (tagName === 'link') {
+			const rel = element.getAttribute('rel');
+			if (rel === null || !declaredLinkRels.has(rel)) element.remove();
+		}
+	}
+};
+
 export const updateClientHead = (head: HeadProps): void => {
 	if (typeof document === 'undefined') return;
 
 	if (head.title) document.title = head.title;
-	if (head.description) {
-		updateMetaTag('name', 'description', head.description);
-	}
-	if (head.canonical) updateLinkTag('canonical', head.canonical);
-	if (head.themeColor) {
-		updateMetaTag('name', 'theme-color', head.themeColor);
-	}
-	if (head.robots) updateMetaTag('name', 'robots', head.robots);
 
-	if (head.og) {
-		for (const [key, value] of Object.entries(head.og)) {
-			if (value) updateMetaTag('property', `og:${key}`, value);
-		}
+	const meta = declaredMeta(head);
+	for (const { attr, key, content } of meta.values()) {
+		applyMeta(attr, key, content);
 	}
 
-	if (head.twitter) {
-		for (const [key, value] of Object.entries(head.twitter)) {
-			if (value) updateMetaTag('name', `twitter:${key}`, value);
-		}
+	const linkRels = new Set<string>();
+	if (head.canonical) {
+		applyLink('canonical', head.canonical);
+		linkRels.add('canonical');
 	}
-
-	if (head.meta) {
-		for (const tag of head.meta) {
-			if (tag.name) {
-				updateMetaTag('name', tag.name, tag.content);
-			} else if (tag.property) {
-				updateMetaTag('property', tag.property, tag.content);
+	if (head.link) {
+		for (const tag of head.link) {
+			if (tag.rel && tag.href) {
+				applyLink(tag.rel, tag.href);
+				linkRels.add(tag.rel);
 			}
 		}
 	}
-};
 
-const updateMetaTag = (
-	attr: 'name' | 'property',
-	name: string,
-	content: string
-): void => {
-	let meta = document.querySelector<HTMLMetaElement>(`meta[${attr}="${name}"]`);
-	if (!meta) {
-		meta = document.createElement('meta');
-		meta.setAttribute(attr, name);
-		document.head.appendChild(meta);
-	}
-	meta.content = content;
-};
-
-const updateLinkTag = (rel: string, href: string): void => {
-	let link = document.querySelector<HTMLLinkElement>(`link[rel="${rel}"]`);
-	if (!link) {
-		link = document.createElement('link');
-		link.rel = rel;
-		document.head.appendChild(link);
-	}
-	link.href = href;
+	pruneManaged(new Set(meta.keys()), linkRels);
 };
