@@ -1,9 +1,21 @@
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { createOAuthClient, type OAuthProvider } from '../server/oauth/flow.js';
 import { createRedirectValidator } from '../server/oauth/redirect.js';
 import { createFakeIdp, type FakeIdp } from '../testing/fake-idp.js';
 import { createMemoryAuthStorage } from '../testing/storage.js';
 import { createTestClock, type TestClock } from '../testing/index.js';
+
+/**
+ * Generating the fake IdP's RSA keys is a one-time cost of roughly 400ms that
+ * would otherwise land inside whichever test reaches `callback` first, against
+ * a 5s budget. `hookTimeout` is separate and larger, so warming here keeps the
+ * cost off any single test while leaving generation lazy for consumers of the
+ * testing kit.
+ */
+beforeAll(() => {
+	createFakeIdp();
+});
+
 
 const REDIRECT_URI = 'https://app.example.com/auth/callback';
 
