@@ -54,6 +54,7 @@ import {
 	getElementNamespace,
 	normalizeDOMAttributeName,
 	type DOMNamespace,
+	isInternalProp,
 } from '../render/attribute-name.js';
 import {
 	getErrorBoundaryController,
@@ -405,7 +406,7 @@ const renderAttributes = (
 	const parts: string[] = [];
 
 	for (const [key, value] of Object.entries(props)) {
-		if (key === 'children' || key.startsWith('_')) {
+		if (isInternalProp(key)) {
 			continue;
 		}
 

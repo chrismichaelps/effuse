@@ -66,6 +66,7 @@ import {
 	getChildNamespace,
 	getDOMNamespace,
 	getElementNamespace,
+	isInternalProp,
 	normalizeDOMAttributeName,
 	type DOMNamespace,
 } from '../../render/attribute-name.js';
@@ -825,7 +826,7 @@ const ownedAttributeNames = (
 ): Set<string> => {
 	const owned = new Set<string>();
 	for (const [key, value] of Object.entries(props)) {
-		if (key === 'children' || key === 'key' || key === 'ref') continue;
+		if (isInternalProp(key) || key === 'ref') continue;
 		if (key.startsWith('use:')) continue;
 		// Handlers and refs never reach the DOM as attributes, and the server
 		// skips functions for the same reason.
@@ -908,7 +909,7 @@ const mountNode = (
 
 					if (props) {
 						for (const [key, value] of Object.entries(props)) {
-							if (key === 'children' || key === 'key') continue;
+							if (isInternalProp(key)) continue;
 
 							if (key.startsWith('on') && Predicate.isFunction(value)) {
 								const eventName = key.slice(2).toLowerCase();
