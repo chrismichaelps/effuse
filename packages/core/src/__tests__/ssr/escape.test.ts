@@ -127,30 +127,68 @@ const nsPerOp = (iterations: number, fn: () => void): number => {
 	return Number(process.hrtime.bigint() - start) / iterations;
 };
 
-const PERF_ITERATIONS = 100_000;
+/**
+ * Best-of-N cost for two functions, sampled in alternation.
+ *
+ * A single timing carries the scheduler's noise into the assertion, and the
+ * workspace gate runs eleven projects at once. The minimum approximates the
+ * uncontended cost, so a spike has to hit every round of one function and
+ * spare the other to matter. Alternating keeps both under similar conditions.
+ */
+const compareCost = (
+	sample: string,
+	reference: (value: string) => string,
+	actual: (value: string) => string
+): { reference: number; actual: number } => {
+	let bestReference = Number.POSITIVE_INFINITY;
+	let bestActual = Number.POSITIVE_INFINITY;
+
+	for (let round = 0; round < PERF_ROUNDS; round += 1) {
+		bestReference = Math.min(
+			bestReference,
+			nsPerOp(PERF_ITERATIONS, () => void reference(sample))
+		);
+		bestActual = Math.min(
+			bestActual,
+			nsPerOp(PERF_ITERATIONS, () => void actual(sample))
+		);
+	}
+
+	return { reference: bestReference, actual: bestActual };
+};
+
+// Same total work as one 100k measurement, spread over rounds.
+const PERF_ITERATIONS = 20_000;
+const PERF_ROUNDS = 5;
 
 describe('escaping cost', () => {
 	it('escapes text faster than the chained reference', () => {
-		const sample = 'Some text with <escapes> & more, of a realistic length';
-		const reference = nsPerOp(PERF_ITERATIONS, () => void referenceHtml(sample));
-		const actual = nsPerOp(PERF_ITERATIONS, () => void escapeHtml(sample));
+		const cost = compareCost(
+			'Some text with <escapes> & more, of a realistic length',
+			referenceHtml,
+			escapeHtml
+		);
 
-		expect(actual).toBeLessThan(reference);
+		expect(cost.actual).toBeLessThan(cost.reference);
 	});
 
 	it('escapes an attribute value faster than the chained reference', () => {
-		const sample = 'Some "quoted" text & more, of a realistic length';
-		const reference = nsPerOp(PERF_ITERATIONS, () => void referenceAttr(sample));
-		const actual = nsPerOp(PERF_ITERATIONS, () => void escapeAttr(sample));
+		const cost = compareCost(
+			'Some "quoted" text & more, of a realistic length',
+			referenceAttr,
+			escapeAttr
+		);
 
-		expect(actual).toBeLessThan(reference);
+		expect(cost.actual).toBeLessThan(cost.reference);
 	});
 
 	it('returns a clean string without scanning it twice', () => {
-		const clean = 'a perfectly ordinary attribute value with nothing to escape';
-		const reference = nsPerOp(PERF_ITERATIONS, () => void referenceAttr(clean));
-		const actual = nsPerOp(PERF_ITERATIONS, () => void escapeAttr(clean));
+		const cost = compareCost(
+			'a perfectly ordinary attribute value with nothing to escape',
+			referenceAttr,
+			escapeAttr
+		);
 
-		expect(actual).toBeLessThan(reference);
+		expect(cost.actual).toBeLessThan(cost.reference);
 	});
 });
