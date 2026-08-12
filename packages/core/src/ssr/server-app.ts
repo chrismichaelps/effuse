@@ -233,7 +233,22 @@ export const createServerApp = (root: Component): ServerApp => {
 						} catch (error) {
 							controller.error(error);
 						} finally {
-							void runtime.dispose();
+							// Awaited, and its failure handled. `dispose` rethrows a
+							// failing layer cleanup by design, so discarding the promise
+							// left an unhandled rejection, which terminates the process on
+							// Node 15 and later. The response is already streamed and the
+							// controller closed, so this cannot reach the consumer;
+							// reporting it matches how a failing request disposer is
+							// handled in `request-scope.ts`.
+							try {
+								await runtime.dispose();
+							} catch (disposeError) {
+								// eslint-disable-next-line no-console
+								console.error(
+									'[effuse] SSR stream runtime disposal failed:',
+									disposeError
+								);
+							}
 						}
 					},
 				});
