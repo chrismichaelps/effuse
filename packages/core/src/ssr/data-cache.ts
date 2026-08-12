@@ -114,16 +114,28 @@ const DEFAULT_MAX_ENTRIES = 1000;
 /**
  * Stable argument serialisation. Object keys are sorted so `{a,b}` and `{b,a}`
  * produce one entry rather than two.
+ *
+ * Scalars and object keys are length-prefixed. Without that the encoding is not
+ * injective: `|`, `,` and `:` separate arguments, members and tags, and a
+ * string value may contain all three, so `['a|string:b', 'c']` and
+ * `['a', 'b|string:c']` serialised identically and the second call was served
+ * the first one's value. A length prefix cannot be forged from inside the
+ * value, which escaping alone does not guarantee.
  */
 const stableKey = (args: readonly unknown[]): string => {
 	const encode = (value: unknown): string => {
 		if (value === null) return 'null';
 		if (value === undefined) return 'undefined';
-		if (typeof value !== 'object') return `${typeof value}:${String(value)}`;
+		if (typeof value !== 'object') {
+			const text = String(value);
+			return `${typeof value}${String(text.length)}:${text}`;
+		}
 		if (Array.isArray(value)) return `[${value.map(encode).join(',')}]`;
 		const record = value as Record<string, unknown>;
 		const keys = Object.keys(record).sort();
-		return `{${keys.map((k) => `${k}:${encode(record[k])}`).join(',')}}`;
+		return `{${keys
+			.map((k) => `${String(k.length)}:${k}=${encode(record[k])}`)
+			.join(',')}}`;
 	};
 	return args.map(encode).join('|');
 };
