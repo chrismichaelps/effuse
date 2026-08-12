@@ -114,3 +114,43 @@ describe('escapeAttrName', () => {
 		}
 	});
 });
+
+/**
+ * Cost is compared against the chained-replace reference measured in the same
+ * process, so the assertion states the optimization directly and does not
+ * depend on the speed of the machine running it.
+ */
+const nsPerOp = (iterations: number, fn: () => void): number => {
+	for (let index = 0; index < iterations; index++) fn();
+	const start = process.hrtime.bigint();
+	for (let index = 0; index < iterations; index++) fn();
+	return Number(process.hrtime.bigint() - start) / iterations;
+};
+
+const PERF_ITERATIONS = 100_000;
+
+describe('escaping cost', () => {
+	it('escapes text faster than the chained reference', () => {
+		const sample = 'Some text with <escapes> & more, of a realistic length';
+		const reference = nsPerOp(PERF_ITERATIONS, () => void referenceHtml(sample));
+		const actual = nsPerOp(PERF_ITERATIONS, () => void escapeHtml(sample));
+
+		expect(actual).toBeLessThan(reference);
+	});
+
+	it('escapes an attribute value faster than the chained reference', () => {
+		const sample = 'Some "quoted" text & more, of a realistic length';
+		const reference = nsPerOp(PERF_ITERATIONS, () => void referenceAttr(sample));
+		const actual = nsPerOp(PERF_ITERATIONS, () => void escapeAttr(sample));
+
+		expect(actual).toBeLessThan(reference);
+	});
+
+	it('returns a clean string without scanning it twice', () => {
+		const clean = 'a perfectly ordinary attribute value with nothing to escape';
+		const reference = nsPerOp(PERF_ITERATIONS, () => void referenceAttr(clean));
+		const actual = nsPerOp(PERF_ITERATIONS, () => void escapeAttr(clean));
+
+		expect(actual).toBeLessThan(reference);
+	});
+});
