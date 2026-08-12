@@ -63,3 +63,18 @@ export const createDOMElement = (
 		tag
 	);
 };
+
+/**
+ * Props that never reach the DOM in any form.
+ *
+ * The server serializer and the client binder both consult this, for the same
+ * reason they share `normalizeDOMAttributeName`: each previously kept its own
+ * list and the two drifted, so `key` shipped as a server attribute while
+ * `_`-prefixed props leaked into client markup.
+ *
+ * Refs, `use:` directives, and `on*` handlers are deliberately absent. They are
+ * not attributes either, but each side does something different with them, so
+ * they stay where that routing lives.
+ */
+export const isInternalProp = (key: string): boolean =>
+	key === 'children' || key === 'key' || key.startsWith('_');
