@@ -25,6 +25,7 @@
 import { Array as Arr, Option, Predicate, Record as Rec, pipe } from 'effect';
 import { signal, isSignal } from '../reactivity/signal.js';
 import { isReactive } from '../reactivity/reactive.js';
+import { untrack } from '../reactivity/dep.js';
 import type {
 	EffectHandle,
 	WatchOptions,
@@ -85,11 +86,19 @@ const createCleanupRunner = (): {
 			return queue;
 		},
 		run: () => {
+			// Untracked, like `watchEffect`'s runner. `watch` calls this from
+			// inside the tracked callback, so a cleanup that reads a signal was
+			// adding it to the watch's dependencies: writing that signal re-ran
+			// the effect, and with `deep` it re-invoked the callback for a source
+			// that had not changed.
+			//
+			// Isolated per cleanup, so one that throws does not strand its peers
+			// or leave the queue un-cleared.
 			Arr.forEach(queue, (cleanup) => {
 				try {
-					cleanup();
+					untrack(cleanup);
 				} catch {
-					/* silent */
+					/* One cleanup's failure must not prevent the others. */
 				}
 			});
 			queue = [];
