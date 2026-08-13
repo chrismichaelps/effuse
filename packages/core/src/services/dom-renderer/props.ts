@@ -35,6 +35,7 @@ import {
 	normalizeDOMAttributeName,
 } from '../../render/attribute-name.js';
 import { normalizeClassValue } from '../../render/class-value.js';
+import { isEventHandlerName } from '../../render/event-prop.js';
 
 export interface PropBindingResult {
 	cleanup: () => void;
@@ -217,11 +218,7 @@ const bindFormControlImpl = (
 	};
 };
 
-const isEventHandler = (key: string): boolean => {
-	if (key.length <= 2 || !key.startsWith('on')) return false;
-	const thirdChar = key[2];
-	return thirdChar !== undefined && thirdChar === thirdChar.toUpperCase();
-};
+const isEventHandler = isEventHandlerName;
 
 const isCompilerGetter = (value: unknown): value is () => unknown => {
 	return Predicate.isFunction(value) && value.length === 0;
