@@ -60,7 +60,13 @@ export type NodeType = (typeof NodeTypes)[keyof typeof NodeTypes];
 
 export const DefaultSignalAccessors = ['.value'] as const;
 
-export const DefaultEventHandlerPrefixes = ['on', 'handle'] as const;
+/**
+ * `on` only, matching the runtime, which recognises no other prefix. Including
+ * `handle` here meant `handleThing={signal.value}` was skipped by the compiler
+ * and then applied as an ordinary prop by the runtime, so it never updated.
+ * The list stays configurable for projects that want the older behaviour.
+ */
+export const DefaultEventHandlerPrefixes = ['on'] as const;
 
 export const DefaultExtensions = ['.tsx', '.jsx'] as const;
 

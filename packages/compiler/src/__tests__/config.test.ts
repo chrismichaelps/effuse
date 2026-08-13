@@ -18,7 +18,9 @@ describe('config', () => {
 			expect(defaultConfig.extensions).toEqual(['.tsx', '.jsx']);
 			expect(defaultConfig.exclude).toEqual(['node_modules', 'dist']);
 			expect(defaultConfig.signalAccessors).toEqual(['.value']);
-			expect(defaultConfig.eventHandlerPrefixes).toEqual(['on', 'handle']);
+			// `on` only, matching the runtime. `handle` made the compiler skip props
+			// the runtime then applied as ordinary ones, so they never updated.
+			expect(defaultConfig.eventHandlerPrefixes).toEqual(['on']);
 		});
 	});
 

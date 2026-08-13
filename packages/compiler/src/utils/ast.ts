@@ -249,12 +249,24 @@ export const containsSignalAccess = (
 	return false;
 };
 
+/**
+ * Mirrors the runtime's rule in `@effuse/core`'s prop binder: a prefix alone is
+ * not enough, the next character must start a new word.
+ *
+ * Matching on the prefix alone made `once`, `online`, and `handler` look like
+ * event handlers here while the runtime treated them as ordinary props, so the
+ * compiler skipped wrapping them and they silently never updated. The two have
+ * to agree, since one decides whether a binding is reactive and the other
+ * decides how it is applied.
+ */
 export const isEventHandler = (
 	name: string,
 	prefixSet: Set<string>
 ): boolean => {
 	for (const prefix of prefixSet) {
-		if (name.startsWith(prefix)) {
+		if (!name.startsWith(prefix)) continue;
+		const boundary = name.charAt(prefix.length);
+		if (boundary !== '' && boundary === boundary.toUpperCase() && boundary !== boundary.toLowerCase()) {
 			return true;
 		}
 	}
