@@ -89,11 +89,32 @@ describe('useInfiniteQuery', () => {
 	});
 
 	it('tracks isFetchingNextPage during next page fetch', async () => {
+		// The in-flight window is held open explicitly rather than timed. Waiting
+		// a few milliseconds and hoping the fetch is still running asserts
+		// nothing on a loaded machine: timers fire late, so the fetch this is
+		// meant to observe mid-flight can already have settled.
+		const gates = new Map<number, () => void>();
+		const pending = new Map<number, Promise<void>>();
+		const gateFor = (page: number): Promise<void> => {
+			const existing = pending.get(page);
+			if (existing) return existing;
+			const gate = new Promise<void>((resolve) => {
+				gates.set(page, resolve);
+			});
+			pending.set(page, gate);
+			return gate;
+		};
+		const release = async (page: number): Promise<void> => {
+			gateFor(page);
+			gates.get(page)?.();
+			for (let index = 0; index < 8; index += 1) await Promise.resolve();
+		};
+
 		const client = createQueryClient();
 		const result = useInfiniteQuery({
 			queryKey: ['items'],
 			queryFn: async ({ pageParam }) => {
-				await new Promise((resolve) => setTimeout(resolve, 20));
+				await gateFor(pageParam as number);
 				return [{ id: pageParam }];
 			},
 			initialPageParam: 1,
@@ -102,16 +123,20 @@ describe('useInfiniteQuery', () => {
 			client,
 		});
 
-		await new Promise((resolve) => setTimeout(resolve, 30));
+		await release(1);
+		expect(result.data.value?.pages).toHaveLength(1);
 
 		const nextPromise = result.fetchNextPage();
-		await new Promise((resolve) => setTimeout(resolve, 5));
+		// Page two is provably unresolved: its gate has not been opened.
+		for (let index = 0; index < 8; index += 1) await Promise.resolve();
 		expect(result.isFetchingNextPage.value).toBe(true);
 		expect(result.isFetching.value).toBe(true);
 
+		await release(2);
 		await nextPromise;
 		expect(result.isFetchingNextPage.value).toBe(false);
 		expect(result.isFetching.value).toBe(false);
+		expect(result.data.value?.pages).toHaveLength(2);
 	});
 
 	it('fetches previous page and prepends to data', async () => {
