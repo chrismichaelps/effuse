@@ -15,11 +15,23 @@ import { defaultConfig } from '../config/index.js';
  * how it is applied, so a prop the runtime treats as ordinary must be wrapped
  * when it reads a signal. When the two disagreed, the prop rendered once and
  * never updated, with nothing reported.
+ *
+ * This is a hand-copy of `isEventHandlerName` in
+ * `packages/core/src/render/event-prop.ts` and has to track it. `packages/
+ * compiler` does not depend on `@effuse/core`, so the real predicate cannot be
+ * imported here. It went stale once already, after #583 tightened the runtime
+ * rule and this copy kept the old one — which the suite could not detect,
+ * because no name in the table exercised the difference. Any name whose
+ * boundary is not a letter belongs in the table for that reason.
  */
 const runtimeTreatsAsEvent = (name: string): boolean => {
 	if (name.length <= 2 || !name.startsWith('on')) return false;
 	const third = name[2];
-	return third !== undefined && third === third.toUpperCase();
+	if (third === undefined) return false;
+	// The boundary has to be an uppercase *letter*. `toUpperCase()` leaves
+	// digits, `-`, `_` and `$` unchanged, so omitting the second half of this
+	// treated `on-click` as an event named `-click`.
+	return third !== third.toLowerCase() && third === third.toUpperCase();
 };
 
 const config = { ...defaultConfig, enableCache: false };
@@ -48,6 +60,12 @@ const NAMES: readonly string[] = [
 	'id',
 	'data-value',
 	'aria-label',
+	// Non-letter boundaries. These are ordinary props: a hyphen, digit or
+	// underscore does not start a new word, though `toUpperCase()` leaves all
+	// three unchanged and a looser check accepted them.
+	'on-click',
+	'on1',
+	'on_foo',
 	// Genuine event handlers.
 	'onClick',
 	'onInput',
