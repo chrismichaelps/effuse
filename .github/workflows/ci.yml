@@ -52,3 +52,36 @@ jobs:
 
       - name: Test
         run: pnpm test
+
+  bun:
+    name: Bun adapter conformance
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+
+      # pnpm needs Node to install; the suite itself runs under Bun.
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Tracking latest is deliberate. The job exists to hold the adapter's
+      # published capability claims to account against the runtime it targets,
+      # and pinning would let a Bun-side regression pass unnoticed. It runs as
+      # its own job so a Bun failure never muddies the Node gate's signal.
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Bun adapter conformance
+        run: pnpm --filter @effuse/server test:bun
