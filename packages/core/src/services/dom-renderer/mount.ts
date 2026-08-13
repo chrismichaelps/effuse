@@ -76,6 +76,10 @@ import {
 	type ErrorBoundaryController,
 } from '../../components/error-boundary-runtime.js';
 import { getNodeResourceDisposer } from '../../render/node-resource.js';
+import {
+	eventNameFromProp,
+	isEventHandlerName,
+} from '../../render/event-prop.js';
 
 export interface MountedNode {
 	nodes: Node[];
@@ -248,11 +252,7 @@ const getNodeKey = (node: EffuseNode): string | number | undefined =>
 const isCommentNode = (node: Node | undefined): node is Comment =>
 	Predicate.isNotNullable(node) && node.nodeType === Node.COMMENT_NODE;
 
-const isEventProp = (key: string): boolean =>
-	key.length > 2 &&
-	key.startsWith('on') &&
-	key[2] !== undefined &&
-	key[2] === key[2].toUpperCase();
+const isEventProp = isEventHandlerName;
 
 const arePropsPatchCompatible = (
 	previous: Record<string, unknown> | null | undefined,
@@ -830,7 +830,7 @@ const ownedAttributeNames = (
 		if (key.startsWith('use:')) continue;
 		// Handlers and refs never reach the DOM as attributes, and the server
 		// skips functions for the same reason.
-		if (key.startsWith('on') && Predicate.isFunction(value)) continue;
+		if (isEventHandlerName(key) && Predicate.isFunction(value)) continue;
 		if (key === 'class' || key === 'className') {
 			owned.add('class');
 			continue;
@@ -911,8 +911,8 @@ const mountNode = (
 						for (const [key, value] of Object.entries(props)) {
 							if (isInternalProp(key)) continue;
 
-							if (key.startsWith('on') && Predicate.isFunction(value)) {
-								const eventName = key.slice(2).toLowerCase();
+							if (isEventHandlerName(key) && Predicate.isFunction(value)) {
+								const eventName = eventNameFromProp(key);
 								eventEffects.push(
 									eventService.bindEvent(
 										element,
