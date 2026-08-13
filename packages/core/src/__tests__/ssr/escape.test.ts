@@ -116,105 +116,69 @@ describe('escapeAttrName', () => {
 });
 
 /**
- * Cost is compared against the chained-replace reference measured in the same
- * process, so the assertion states the optimization directly and does not
- * depend on the speed of the machine running it.
+ * Counts entries into `String.prototype.replace` while `run` executes.
+ *
+ * This replaced a wall-clock comparison against the chained-`replace`
+ * reference. That assertion flaked three times under the parallel workspace
+ * gate — as a single measurement, then a best-of-five minimum, then a paired
+ * majority — and was eventually skipped on CI to stop it blocking merges,
+ * which left it running only where it still flaked.
+ *
+ * The property worth defending is not "faster by some margin", it is "does not
+ * walk the string once per character class". Asserting the strategy is
+ * deterministic, runs everywhere including CI, and states the optimisation
+ * more tightly: reverting to the chained form fails immediately rather than
+ * probabilistically.
  */
-const nsPerOp = (iterations: number, fn: () => void): number => {
-	for (let index = 0; index < iterations; index++) fn();
-	const start = process.hrtime.bigint();
-	for (let index = 0; index < iterations; index++) fn();
-	return Number(process.hrtime.bigint() - start) / iterations;
-};
+const replaceCalls = (run: () => void): number => {
+	const original = String.prototype.replace;
+	let calls = 0;
+	String.prototype.replace = function (
+		this: string,
+		...args: unknown[]
+	): string {
+		calls += 1;
+		return (
+			original as unknown as (...values: unknown[]) => string
+		).apply(this, args);
+	} as typeof String.prototype.replace;
 
-const PERF_ITERATIONS = 20_000;
-const PERF_ROUNDS = 9;
-/** Two implementations of equal cost split the rounds, so this still fails. */
-const PERF_REQUIRED_WINS = 7;
-
-/**
- * Compares two implementations by paired measurement, alternating which runs
- * first so neither gains from being measured second.
- */
-const winsMajority = (
-	sample: string,
-	reference: (value: string) => string,
-	actual: (value: string) => string
-): { wins: number; rounds: number } => {
-	for (let index = 0; index < PERF_ITERATIONS; index += 1) {
-		reference(sample);
-		actual(sample);
+	try {
+		run();
+	} finally {
+		String.prototype.replace = original;
 	}
 
-	let wins = 0;
-	for (let round = 0; round < PERF_ROUNDS; round += 1) {
-		let referenceCost: number;
-		let actualCost: number;
-		if (round % 2 === 0) {
-			referenceCost = nsPerOp(PERF_ITERATIONS, () => void reference(sample));
-			actualCost = nsPerOp(PERF_ITERATIONS, () => void actual(sample));
-		} else {
-			actualCost = nsPerOp(PERF_ITERATIONS, () => void actual(sample));
-			referenceCost = nsPerOp(PERF_ITERATIONS, () => void reference(sample));
-		}
-		if (actualCost < referenceCost) wins += 1;
-	}
-
-	return { wins, rounds: PERF_ROUNDS };
+	return calls;
 };
 
-/**
- * Cost comparisons do not gate CI.
- *
- * The margins are real but modest, measured on an idle machine over nine
- * alternating rounds:
- *
- *   text, against a 3-replace reference   1.59x   9/9 rounds
- *   attribute, against a 5-replace ref    1.75x   9/9 rounds
- *   clean string, nothing to escape       3.87x   9/9 rounds
- *
- * On the shared runner the scheduling noise is the size of a 1.6x margin: the
- * text case has failed the gate three times, at one sample, at min-of-5, and at
- * 7-of-9 alternating rounds, while passing every local run. Two of those
- * failures blocked unrelated pull requests.
- *
- * A threshold loose enough to survive that contention no longer discriminates,
- * and allocation is not observable from JavaScript, so there is no structural
- * stand-in. Keeping the comparison local preserves the check where it means
- * something rather than leaving a blocking test that fails for reasons
- * unrelated to the code under review. The correctness tests above, which are
- * the ones that must gate a merge, are unaffected.
- */
-const measuresCost = !process.env['CI'];
+describe('escaping strategy', () => {
+	it('escapes text without a chained replace', () => {
+		const sample = 'Some text with <escapes> & more, of a realistic length';
 
-describe.runIf(measuresCost)('escaping cost', () => {
-	it('escapes text faster than the chained reference', () => {
-		const outcome = winsMajority(
-			'Some text with <escapes> & more, of a realistic length',
-			referenceHtml,
-			escapeHtml
-		);
-
-		expect(outcome.wins).toBeGreaterThanOrEqual(PERF_REQUIRED_WINS);
+		expect(replaceCalls(() => void escapeHtml(sample))).toBe(0);
 	});
 
-	it('escapes an attribute value faster than the chained reference', () => {
-		const outcome = winsMajority(
-			'Some "quoted" text & more, of a realistic length',
-			referenceAttr,
-			escapeAttr
-		);
+	it('escapes an attribute value without a chained replace', () => {
+		const sample = 'Some "quoted" text & more, of a realistic length';
 
-		expect(outcome.wins).toBeGreaterThanOrEqual(PERF_REQUIRED_WINS);
+		expect(replaceCalls(() => void escapeAttr(sample))).toBe(0);
 	});
 
 	it('returns a clean string without scanning it twice', () => {
-		const outcome = winsMajority(
-			'a perfectly ordinary attribute value with nothing to escape',
-			referenceAttr,
-			escapeAttr
-		);
+		const clean = 'a perfectly ordinary attribute value with nothing to escape';
 
-		expect(outcome.wins).toBeGreaterThanOrEqual(PERF_REQUIRED_WINS);
+		expect(replaceCalls(() => void escapeAttr(clean))).toBe(0);
+		expect(replaceCalls(() => void escapeHtml(clean))).toBe(0);
+	});
+
+	it('leaves attribute names on the chained form deliberately', () => {
+		// Names come from a fixed vocabulary and effectively always clear the
+		// fast path, so the slow branch is not worth reimplementing the
+		// whitespace class by character code. Pinned so the exemption stays a
+		// decision rather than drift.
+		expect(
+			replaceCalls(() => void escapeAttrName('data-x y'))
+		).toBeGreaterThan(0);
 	});
 });
