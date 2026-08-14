@@ -27,6 +27,8 @@ import { createListNode } from '../render/node.js';
 import type { Signal } from '../types/index.js';
 import { signal, getSignalDep } from '../reactivity/index.js';
 import { Data, Option, Either, pipe, Predicate } from 'effect';
+import { isServerRendering } from '../render/render-context.js';
+import { attachNodeResourceDisposer } from '../render/node-resource.js';
 
 type AwaitState<T> = Data.TaggedEnum<{
 	Pending: object;
@@ -92,14 +94,18 @@ export const Await = <T>(props: AwaitProps<T>): EffuseNode => {
 
 	const state = signal<AwaitState<T>>(AwaitState.Pending() as AwaitState<T>);
 	let currentPromiseId = 0;
+	let activated = false;
+	let disposed = false;
+	let unsubscribePromise: (() => void) | undefined;
 
 	const startFetch = (promise: Promise<T>): void => {
+		if (disposed) return;
 		const promiseId = ++currentPromiseId;
 
 		state.value = AwaitState.Pending() as AwaitState<T>;
 
 		void promiseToEither(promise).then((result) => {
-			if (promiseId !== currentPromiseId) return;
+			if (disposed || promiseId !== currentPromiseId) return;
 
 			state.value = pipe(
 				result,
@@ -121,31 +127,46 @@ export const Await = <T>(props: AwaitProps<T>): EffuseNode => {
 		return promiseInput;
 	};
 
-	if (!defer) {
-		startFetch(getPromise());
-	}
-
-	if (isSignalLike<Promise<T>>(promiseInput)) {
-		const dep = getSignalDep(promiseInput);
-		if (dep) {
-			dep.subscribe(() => {
-				startFetch(promiseInput.value);
-			});
+	const activate = (startAutomatic: boolean): void => {
+		if (activated || disposed) return;
+		activated = true;
+		if (isSignalLike<Promise<T>>(promiseInput)) {
+			const dep = getSignalDep(promiseInput);
+			if (dep) {
+				unsubscribePromise = dep.subscribe(() => {
+					startFetch(promiseInput.value);
+				});
+			}
 		}
-	}
+		if (startAutomatic && !defer) startFetch(getPromise());
+	};
+
+	const start = (): void => {
+		if (disposed || isServerRendering()) return;
+		activate(false);
+		startFetch(getPromise());
+	};
 
 	const listNode = createListNode([]) as ReturnType<typeof createListNode> & {
 		_start: () => void;
 		_refresh: () => void;
 	};
 
-	listNode._start = () => startFetch(getPromise());
-	listNode._refresh = () => startFetch(getPromise());
+	listNode._start = start;
+	listNode._refresh = start;
+	attachNodeResourceDisposer(listNode, () => {
+		disposed = true;
+		unsubscribePromise?.();
+		unsubscribePromise = undefined;
+	});
 
 	Object.defineProperty(listNode, 'children', {
 		enumerable: true,
 		configurable: true,
 		get() {
+			if (isServerRendering()) return optionToArray(resolveChild(pending));
+			if (disposed) return [];
+			activate(true);
 			return pipe(
 				state.value,
 				AwaitState.$match({

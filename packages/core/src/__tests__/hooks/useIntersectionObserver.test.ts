@@ -49,5 +49,35 @@ describe('useIntersectionObserver', () => {
 		result.stop();
 		result.stop();
 		expect(disconnect).toHaveBeenCalledOnce();
+
+		observerInstance.trigger([
+			{
+				isIntersecting: false,
+				intersectionRatio: 0,
+			} as IntersectionObserverEntry,
+		]);
+		expect(result.value.isIntersecting).toBe(true);
+		expect(result.value.intersectionRatio).toBe(0.75);
+		expect(result.value.entry).toBe(entry);
+	});
+
+	it('disconnects when target resolution fails during setup', () => {
+		const disconnect = vi.fn();
+		class MockIntersectionObserver {
+			constructor(
+				_callback: IntersectionObserverCallback,
+				_options?: IntersectionObserverInit
+			) {}
+			observe = vi.fn();
+			disconnect = disconnect;
+		}
+		vi.stubGlobal('IntersectionObserver', MockIntersectionObserver);
+
+		expect(() =>
+			useIntersectionObserver(() => {
+				throw new Error('missing target');
+			})
+		).toThrow('missing target');
+		expect(disconnect).toHaveBeenCalledOnce();
 	});
 });

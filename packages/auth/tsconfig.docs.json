@@ -1,0 +1,17 @@
+{
+	"extends": "./tsconfig.json",
+	"compilerOptions": {
+		"baseUrl": ".",
+		"declaration": false,
+		"declarationMap": false,
+		"noEmit": true,
+		"rootDir": ".",
+		"paths": {
+			"@effuse/auth": ["./src/index.ts"],
+			"@effuse/auth/server": ["./src/server/index.ts"],
+			"@effuse/server": ["../server/dist/index.d.ts"]
+		}
+	},
+	"include": ["docs/snippets/**/*.ts"],
+	"exclude": ["dist", "node_modules"]
+}

@@ -59,6 +59,35 @@ export const runBenchmark = ({
 	return { name, samples, iterations, ...summarize(timings) };
 };
 
+export const runAsyncBenchmark = async ({
+	name,
+	operation,
+	warmup = 2,
+	samples = 10,
+	iterations = 10,
+	now = () => performance.now(),
+}) => {
+	assertPositiveInteger(warmup, 'warmup');
+	assertPositiveInteger(samples, 'samples');
+	assertPositiveInteger(iterations, 'iterations');
+
+	for (let index = 0; index < warmup * iterations; index++) {
+		sink = await operation();
+	}
+
+	const timings = [];
+	for (let sample = 0; sample < samples; sample++) {
+		const startedAt = now();
+		for (let index = 0; index < iterations; index++) {
+			sink = await operation();
+		}
+		const durationMs = now() - startedAt;
+		timings.push((durationMs * 1_000_000) / iterations);
+	}
+
+	return { name, samples, iterations, ...summarize(timings) };
+};
+
 export const evaluateBudgets = (results, budgets) => {
 	const failures = [];
 	for (const result of results) {

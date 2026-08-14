@@ -26,6 +26,8 @@ import { Effect, Predicate, SubscriptionRef } from 'effect';
 import type { Signal, ReadonlySignal } from '../types/index.js';
 import { Dep } from './dep.js';
 import {
+	isSignalTracingEnabled,
+	nextSignalTraceId,
 	traceSignalCreate,
 	traceSignalUpdate,
 } from '../layers/tracing/signals.js';
@@ -39,46 +41,89 @@ interface SignalInternal<T> extends Signal<T> {
 	readonly _traceId: string;
 }
 
+/**
+ * Signals are the most frequently allocated object in the framework, so the
+ * accessors live on a prototype rather than on each instance. Defining
+ * accessor properties per object forces a fresh hidden class per signal; a
+ * shared prototype lets every instance carry plain fields of one shape.
+ *
+ * `_ref`, `_version`, and `_traceId` are internal surface that nothing in the
+ * framework reads, so each is derived on first request instead of being built
+ * for every signal that will never be asked for it.
+ */
+class SignalCell<T> {
+	private cached: T;
+	private readonly dep = new Dep();
+	private readonly traceName: string | undefined;
+	private versionCount = 0;
+	private versionBox: { value: number } | undefined;
+	private traceId: string | undefined;
+	private ref: SubscriptionRef.SubscriptionRef<T> | undefined;
+
+	constructor(initialValue: T, name: string | undefined) {
+		this.cached = initialValue;
+		this.traceName = name;
+
+		if (isSignalTracingEnabled()) {
+			traceSignalCreate(this._traceId, initialValue);
+		}
+	}
+
+	get value(): T {
+		this.dep.track();
+		return this.cached;
+	}
+
+	set value(newValue: T) {
+		if (Object.is(this.cached, newValue)) return;
+
+		const prevValue = this.cached;
+		this.cached = newValue;
+		this.versionCount++;
+		if (this.ref) {
+			Effect.runSync(SubscriptionRef.set(this.ref, newValue));
+		}
+		this.dep.trigger();
+		if (isSignalTracingEnabled()) {
+			traceSignalUpdate(this._traceId, prevValue, newValue);
+		}
+	}
+
+	get _dep(): Dep {
+		return this.dep;
+	}
+
+	get _ref(): SubscriptionRef.SubscriptionRef<T> {
+		this.ref ??= Effect.runSync(SubscriptionRef.make(this.cached));
+		return this.ref;
+	}
+
+	/** Live view over the write counter, kept stable across reads. */
+	get _version(): { value: number } {
+		if (!this.versionBox) {
+			const box = {} as { value: number };
+			Object.defineProperty(box, 'value', {
+				get: (): number => this.versionCount,
+				set: (next: number): void => {
+					this.versionCount = next;
+				},
+				enumerable: true,
+				configurable: true,
+			});
+			this.versionBox = box;
+		}
+		return this.versionBox;
+	}
+
+	get _traceId(): string {
+		this.traceId ??= nextSignalTraceId(this.traceName);
+		return this.traceId;
+	}
+}
+
 // Initialize reactive signal
 export function signal<T>(initialValue: T, name?: string): Signal<T> {
-	const refEffect = SubscriptionRef.make(initialValue);
-	const ref = Effect.runSync(refEffect);
-	const dep = new Dep();
-	const version = { value: 0 };
-	let cached = initialValue;
-
-	const traceId = traceSignalCreate(name, initialValue);
-
-	const signalObj: SignalInternal<T> = {
-		get _ref() {
-			return ref;
-		},
-		get _dep() {
-			return dep;
-		},
-		get _version() {
-			return version;
-		},
-		get _traceId() {
-			return traceId;
-		},
-		get value(): T {
-			dep.track();
-			return cached;
-		},
-		set value(newValue: T) {
-			if (!Object.is(cached, newValue)) {
-				const prevValue = cached;
-				cached = newValue;
-				version.value++;
-				Effect.runSync(SubscriptionRef.set(ref, newValue));
-				dep.trigger();
-				traceSignalUpdate(traceId, prevValue, newValue);
-			}
-		},
-	};
-
-	return signalObj;
+	return new SignalCell(initialValue, name) as unknown as Signal<T>;
 }
 
 // Build readonly signal view

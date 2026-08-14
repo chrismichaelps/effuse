@@ -28,6 +28,7 @@ import type { Signal } from '../types/index.js';
 import { signal } from '../reactivity/index.js';
 import { Data, Option, Predicate } from 'effect';
 import { isServerRendering } from '../render/render-context.js';
+import { attachNodeResourceDisposer } from '../render/node-resource.js';
 
 export class DeferredError extends Data.TaggedError('DeferredError')<{
 	readonly timeout: number;
@@ -44,13 +45,25 @@ type DeferredCache = {
 	ready: Signal<boolean>;
 	child: Option.Option<EffuseChild>;
 	timerId: ReturnType<typeof setTimeout> | null;
+	generation: number;
+	disposed: boolean;
 };
 
 const createCache = (): DeferredCache => ({
 	ready: signal<boolean>(false),
 	child: Option.none(),
 	timerId: null,
+	generation: 0,
+	disposed: false,
 });
+
+const cancelPending = (cache: DeferredCache): void => {
+	cache.generation += 1;
+	if (Predicate.isNotNullable(cache.timerId)) {
+		clearTimeout(cache.timerId);
+		cache.timerId = null;
+	}
+};
 
 const resolveFallback = (
 	fallback: EffuseChild | (() => EffuseChild) | undefined
@@ -80,6 +93,11 @@ export const Deferred = (props: DeferredProps): EffuseNode => {
 
 	listNode._cache = cache;
 	listNode._mounted = false;
+	attachNodeResourceDisposer(listNode, () => {
+		cache.disposed = true;
+		cancelPending(cache);
+		cache.child = Option.none();
+	});
 
 	Object.defineProperty(listNode, 'children', {
 		enumerable: true,
@@ -88,17 +106,21 @@ export const Deferred = (props: DeferredProps): EffuseNode => {
 			if (isServerRendering()) {
 				return [props.children];
 			}
+			if (cache.disposed) return [];
 
 			if (!listNode._mounted) {
 				listNode._mounted = true;
 				cache.child = Option.some(props.children);
+				const generation = cache.generation;
 
 				if (timeout <= DEFAULT_TIMEOUT_MS) {
 					queueMicrotask(() => {
+						if (cache.disposed || generation !== cache.generation) return;
 						cache.ready.value = true;
 					});
 				} else {
 					cache.timerId = setTimeout(() => {
+						if (cache.disposed || generation !== cache.generation) return;
 						cache.ready.value = true;
 						cache.timerId = null;
 					}, timeout);
@@ -129,12 +151,7 @@ export const useDeferredState = (
 		const nodeCache = cacheNode._cache;
 		return {
 			ready: nodeCache.ready,
-			cancel: () => {
-				if (Predicate.isNotNullable(nodeCache.timerId)) {
-					clearTimeout(nodeCache.timerId);
-					nodeCache.timerId = null;
-				}
-			},
+			cancel: () => cancelPending(nodeCache),
 		};
 	}
 

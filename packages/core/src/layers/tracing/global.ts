@@ -28,18 +28,32 @@ import { createRuntimeContext } from '../../context/runtime-context.js';
 let globalTracingService: TracingServiceApi | null = null;
 const tracingRuntimeContext = createRuntimeContext<TracingServiceApi>();
 
+/**
+ * Latched once any tracing service is installed. Resolving a service walks the
+ * runtime context, which is real work to do per signal created and per signal
+ * written; applications that never enable tracing answer with one boolean.
+ */
+let tracingEverInstalled = false;
+
 export const setGlobalTracing = (service: TracingServiceApi): void => {
+	tracingEverInstalled = true;
 	globalTracingService = service;
 };
 
+export const hasTracing = (): boolean => tracingEverInstalled;
+
 export const getGlobalTracing = (): TracingServiceApi | null => {
+	if (!tracingEverInstalled) return null;
 	return tracingRuntimeContext.current() ?? globalTracingService;
 };
 
 export const runWithTracing = <T>(
 	service: TracingServiceApi,
 	fn: () => T
-): T => tracingRuntimeContext.run(service, fn);
+): T => {
+	tracingEverInstalled = true;
+	return tracingRuntimeContext.run(service, fn);
+};
 
 export const clearGlobalTracing = (): void => {
 	globalTracingService = null;

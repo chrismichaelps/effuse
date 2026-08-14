@@ -74,8 +74,33 @@ export const renderToNamedPortal = (
 	return createPortal(content, outlet);
 };
 
-const portalCleanups = new Map<string, () => void>();
+interface PortalOwner {
+	readonly target: Element | ShadowRoot;
+	readonly dispose: () => void;
+}
+
+const portalOwners = new Map<string, PortalOwner>();
 let portalIdCounter = 0;
+
+const throwDisposalFailures = (failures: unknown[]): void => {
+	if (failures.length === 1) throw failures[0];
+	if (failures.length > 1) {
+		throw new AggregateError(failures, 'Effuse portal disposal failed.');
+	}
+};
+
+const disposePortalOwnersInTarget = (target: Element | ShadowRoot): void => {
+	const failures: unknown[] = [];
+	for (const owner of [...portalOwners.values()]) {
+		if (owner.target !== target) continue;
+		try {
+			owner.dispose();
+		} catch (error) {
+			failures.push(error);
+		}
+	}
+	throwDisposalFailures(failures);
+};
 
 export type PortalInsertMode = 'append' | 'prepend' | 'replace';
 
@@ -152,12 +177,7 @@ export const Portal = define<PortalProps>({
 				})
 			);
 
-			pipe(
-				Option.fromNullable(portalCleanups.get(portalId)),
-				Option.map((cleanup) => {
-					cleanup();
-				})
-			);
+			portalOwners.get(portalId)?.dispose();
 
 			let renderTarget: Element | ShadowRoot = targetElement;
 			if (props.useShadow) {
@@ -201,35 +221,68 @@ export const Portal = define<PortalProps>({
 			if (insertMode === 'prepend') {
 				renderTarget.insertBefore(container, renderTarget.firstChild);
 			} else if (insertMode === 'replace') {
+				disposePortalOwnersInTarget(renderTarget);
 				(renderTarget as Element).innerHTML = '';
 				renderTarget.appendChild(container);
 			} else {
 				renderTarget.appendChild(container);
 			}
 
-			const cleanup = render(props.children, container);
-			portalCleanups.set(portalId, cleanup);
+			let cleanup: () => void;
+			try {
+				cleanup = render(props.children, container);
+			} catch (error) {
+				container.remove();
+				throw error;
+			}
+			let disposed = false;
+			const dispose = (): void => {
+				if (disposed) return;
+				disposed = true;
+				const failures: unknown[] = [];
+				try {
+					cleanup();
+				} catch (error) {
+					failures.push(error);
+				}
+				try {
+					container.remove();
+				} catch (error) {
+					failures.push(error);
+				}
+				if (portalOwners.get(portalId) === owner) {
+					portalOwners.delete(portalId);
+				}
+				isMounted.value = false;
+				try {
+					props.onUnmount?.();
+				} catch (error) {
+					failures.push(error);
+				}
+				throwDisposalFailures(failures);
+			};
+			const owner: PortalOwner = {
+				target: renderTarget,
+				dispose,
+			};
+			portalOwners.set(portalId, owner);
 
 			isMounted.value = true;
-			pipe(
-				Option.fromNullable(props.onMount),
-				Option.map((fn) => {
-					fn(targetElement);
-				})
-			);
+			try {
+				props.onMount?.(targetElement);
+			} catch (error) {
+				try {
+					dispose();
+				} catch (disposeError) {
+					throw new AggregateError(
+						[error, disposeError],
+						'Effuse portal mount and rollback failed.'
+					);
+				}
+				throw error;
+			}
 
-			return () => {
-				cleanup();
-				container.remove();
-				portalCleanups.delete(portalId);
-				isMounted.value = false;
-				pipe(
-					Option.fromNullable(props.onUnmount),
-					Option.map((fn) => {
-						fn();
-					})
-				);
-			};
+			return dispose;
 		});
 
 		return { isMounted };

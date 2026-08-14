@@ -31,11 +31,14 @@ import { type EffuseChild, type EffuseNode } from '../../render/node.js';
 import {
 	PropService,
 	PropServiceLive,
+	patchElementRef,
 	type PropBindingResult,
 } from './props.js';
 import {
 	EventService,
 	EventServiceLive,
+	clearElementEvents,
+	patchElementEvent,
 	type EventBindingResult,
 } from './events.js';
 import { instantiateBlueprint } from '../../blueprint/blueprint.js';
@@ -57,6 +60,26 @@ import {
 	insertAtCursor,
 	type HydrationCursor,
 } from './hydration-cursor.js';
+import { captureIdScope } from '../../hooks/useId.js';
+import {
+	createDOMElement,
+	getChildNamespace,
+	getDOMNamespace,
+	getElementNamespace,
+	isInternalProp,
+	normalizeDOMAttributeName,
+	type DOMNamespace,
+} from '../../render/attribute-name.js';
+import {
+	getErrorBoundaryController,
+	normalizeBoundaryError,
+	type ErrorBoundaryController,
+} from '../../components/error-boundary-runtime.js';
+import { getNodeResourceDisposer } from '../../render/node-resource.js';
+import {
+	eventNameFromProp,
+	isEventHandlerName,
+} from '../../render/event-prop.js';
 
 export interface MountedNode {
 	nodes: Node[];
@@ -96,6 +119,33 @@ interface BlueprintMountRecord {
 	readonly blueprint: Extract<EffuseNode, { _tag: 'Blueprint' }>;
 	readonly updateProps: (props: Record<string, unknown>) => void;
 }
+
+interface RenderErrorBoundary {
+	readonly controller: ErrorBoundaryController;
+	readonly parent: RenderErrorBoundary | undefined;
+	active: boolean;
+}
+
+const captureRenderError = (
+	boundary: RenderErrorBoundary | undefined,
+	error: unknown
+): boolean => {
+	if (!boundary) return false;
+	if (boundary.controller.hasError()) {
+		return captureRenderError(boundary.parent, error);
+	}
+
+	try {
+		boundary.controller.capture(
+			normalizeBoundaryError(error),
+			!boundary.active
+		);
+	} catch (captureError) {
+		return captureRenderError(boundary.parent, captureError);
+	}
+
+	return true;
+};
 
 const dynamicMountRecords = new WeakMap<Comment, DynamicMountRecord>();
 const blueprintMountRecords = new WeakMap<Comment, BlueprintMountRecord>();
@@ -202,27 +252,7 @@ const getNodeKey = (node: EffuseNode): string | number | undefined =>
 const isCommentNode = (node: Node | undefined): node is Comment =>
 	Predicate.isNotNullable(node) && node.nodeType === Node.COMMENT_NODE;
 
-const isEventProp = (key: string): boolean =>
-	key.length > 2 &&
-	key.startsWith('on') &&
-	key[2] !== undefined &&
-	key[2] === key[2].toUpperCase();
-
-const arePropValuesPatchCompatible = (
-	key: string,
-	previous: unknown,
-	next: unknown
-): boolean => {
-	if (Object.is(previous, next)) return true;
-	if (
-		isEventProp(key) &&
-		Predicate.isFunction(previous) &&
-		Predicate.isFunction(next)
-	) {
-		return true;
-	}
-	return false;
-};
+const isEventProp = isEventHandlerName;
 
 const arePropsPatchCompatible = (
 	previous: Record<string, unknown> | null | undefined,
@@ -237,17 +267,8 @@ const arePropsPatchCompatible = (
 
 	for (const key of keys) {
 		if (key === 'children' || key === 'key' || key === 'ref') continue;
-		if (isEventProp(key)) {
-			if (
-				Predicate.isFunction(previousProps[key]) &&
-				Predicate.isFunction(nextProps[key])
-			) {
-				continue;
-			}
-		}
-		if (
-			!arePropValuesPatchCompatible(key, previousProps[key], nextProps[key])
-		) {
+		if (isEventProp(key)) continue;
+		if (!Object.is(previousProps[key], nextProps[key])) {
 			return false;
 		}
 	}
@@ -273,15 +294,7 @@ const patchEventProps = (
 		}
 
 		const eventName = key.slice(2).toLowerCase();
-		if (Predicate.isFunction(previousProps[key])) {
-			element.removeEventListener(
-				eventName,
-				previousProps[key] as EventListener
-			);
-		}
-		if (Predicate.isFunction(nextProps[key])) {
-			element.addEventListener(eventName, nextProps[key] as EventListener);
-		}
+		patchElementEvent(element, eventName, nextProps[key]);
 	}
 };
 
@@ -501,7 +514,13 @@ const patchElementNode = (
 		return false;
 	}
 	patchEventProps(element, previous.props, next.props);
-	return patchElementChildren(element, previous.children, next.children);
+	if (!patchElementChildren(element, previous.children, next.children)) {
+		return false;
+	}
+	if (!Object.is(previous.props?.ref, next.props?.ref)) {
+		patchElementRef(element, next.props?.ref);
+	}
+	return true;
 };
 
 const patchMountedValue = (
@@ -537,9 +556,12 @@ const mountDynamicValue = (
 	cleanups: CleanupFn[],
 	onRender?: (nodes: Node[], anchor: Comment) => void,
 	componentScope?: ProvideScope,
-	hydrationCursor?: HydrationCursor
+	hydrationCursor?: HydrationCursor,
+	errorBoundary?: RenderErrorBoundary,
+	namespace: DOMNamespace = 'html'
 ): Effect.Effect<Node[], never, PropService | EventService> => {
 	const provideScope = componentScope ?? getCurrentProvideScope();
+	const runWithCapturedIdScope = captureIdScope();
 	const anchor = document.createComment(label);
 
 	// The anchor has no server counterpart, so it is inserted at the cursor;
@@ -606,7 +628,13 @@ const mountDynamicValue = (
 			try {
 				mountResult = Effect.runSync(
 					pipe(
-						mountChild(value as EffuseChild, childCleanups, cursor),
+						mountChild(
+							value as EffuseChild,
+							childCleanups,
+							cursor,
+							errorBoundary,
+							namespace
+						),
 						Effect.provide(PropServiceLive),
 						Effect.provide(EventServiceLive),
 						mapEffuseErrors
@@ -619,6 +647,10 @@ const mountDynamicValue = (
 				}
 
 				runCleanups(childCleanups);
+				if (captureRenderError(errorBoundary, error)) {
+					setMountedNodes([]);
+					return;
+				}
 				const errorNode = createRenderErrorNode(error);
 				insertAfterAnchor(anchor, [errorNode]);
 				setMountedNodes([errorNode]);
@@ -637,37 +669,43 @@ const mountDynamicValue = (
 
 	const runEffect = (): void => {
 		if (!active) return;
-		effectHandle = watchEffect(() => {
-			const update = (): void => {
-				let value: unknown;
-				try {
-					value = evaluate();
-				} catch (error) {
+		effectHandle = watchEffect(() =>
+			runWithCapturedIdScope(() => {
+				const update = (): void => {
+					let value: unknown;
+					try {
+						value = evaluate();
+					} catch (error) {
+						clearMountedValue();
+						previousValue = undefined;
+						if (captureRenderError(errorBoundary, error)) {
+							setMountedNodes([]);
+							return;
+						}
+						const errorNode = createRenderErrorNode(error);
+						insertAfterAnchor(anchor, [errorNode]);
+						setMountedNodes([errorNode]);
+						return;
+					}
+
+					if (
+						patchMountedValue(previousValue, value as EffuseChild, currentNodes)
+					) {
+						previousValue = value as EffuseChild;
+						return;
+					}
+
 					clearMountedValue();
-					previousValue = undefined;
-					const errorNode = createRenderErrorNode(error);
-					insertAfterAnchor(anchor, [errorNode]);
-					setMountedNodes([errorNode]);
-					return;
+					mountResolvedValue(value);
+				};
+
+				if (provideScope) {
+					runWithProvideScope(provideScope, update);
+				} else {
+					update();
 				}
-
-				if (
-					patchMountedValue(previousValue, value as EffuseChild, currentNodes)
-				) {
-					previousValue = value as EffuseChild;
-					return;
-				}
-
-				clearMountedValue();
-				mountResolvedValue(value);
-			};
-
-			if (provideScope) {
-				runWithProvideScope(provideScope, update);
-			} else {
-				update();
-			}
-		});
+			})
+		);
 	};
 
 	// Hydration claims nodes in document order, so the first evaluation has to
@@ -695,21 +733,27 @@ const mountDynamicValue = (
 const mountChild = (
 	child: EffuseChild,
 	cleanups: CleanupFn[],
-	cursor?: HydrationCursor
+	cursor?: HydrationCursor,
+	errorBoundary?: RenderErrorBoundary,
+	namespace: DOMNamespace = 'html'
 ): Effect.Effect<Node[], never, PropService | EventService> => {
 	// While hydrating, every DOM decision must happen at execution time so
 	// siblings claim server nodes in document order. Suspending defers the
 	// eager branches below (text nodes, blueprint instantiation) accordingly.
 	if (cursor) {
-		return Effect.suspend(() => mountChildInner(child, cleanups, cursor));
+		return Effect.suspend(() =>
+			mountChildInner(child, cleanups, cursor, errorBoundary, namespace)
+		);
 	}
-	return mountChildInner(child, cleanups, undefined);
+	return mountChildInner(child, cleanups, undefined, errorBoundary, namespace);
 };
 
 const mountChildInner = (
 	child: EffuseChild,
 	cleanups: CleanupFn[],
-	cursor: HydrationCursor | undefined
+	cursor: HydrationCursor | undefined,
+	errorBoundary: RenderErrorBoundary | undefined,
+	namespace: DOMNamespace
 ): Effect.Effect<Node[], never, PropService | EventService> => {
 	if (child == null) {
 		return Effect.succeed([]);
@@ -728,7 +772,16 @@ const mountChildInner = (
 
 	if (Predicate.isFunction(child)) {
 		const fn = child as () => unknown;
-		return mountDynamicValue('fn', fn, cleanups, undefined, undefined, cursor);
+		return mountDynamicValue(
+			'fn',
+			fn,
+			cleanups,
+			undefined,
+			undefined,
+			cursor,
+			errorBoundary,
+			namespace
+		);
 	}
 
 	if (isSignal(child)) {
@@ -739,30 +792,90 @@ const mountChildInner = (
 			cleanups,
 			undefined,
 			undefined,
-			cursor
+			cursor,
+			errorBoundary,
+			namespace
 		);
 	}
 
 	if (Array.isArray(child)) {
 		return pipe(
 			Effect.all(
-				child.map((c: EffuseChild) => mountChild(c, cleanups, cursor))
+				child.map((c: EffuseChild) =>
+					mountChild(c, cleanups, cursor, errorBoundary, namespace)
+				)
 			),
 			Effect.map((results) => results.flat())
 		);
 	}
 
 	if (isEffuseNode(child)) {
-		return mountNode(child, cleanups, cursor);
+		return mountNode(child, cleanups, cursor, errorBoundary, namespace);
 	}
 
 	return Effect.succeed([]);
 };
 
+/**
+ * Attribute names the client render owns for `props`, using the same
+ * normalization the server used when it serialized them.
+ */
+const ownedAttributeNames = (
+	props: Record<string, unknown>,
+	namespace: DOMNamespace
+): Set<string> => {
+	const owned = new Set<string>();
+	for (const [key, value] of Object.entries(props)) {
+		if (isInternalProp(key) || key === 'ref') continue;
+		if (key.startsWith('use:')) continue;
+		// Handlers and refs never reach the DOM as attributes, and the server
+		// skips functions for the same reason.
+		if (isEventHandlerName(key) && Predicate.isFunction(value)) continue;
+		if (key === 'class' || key === 'className') {
+			owned.add('class');
+			continue;
+		}
+		owned.add(normalizeDOMAttributeName(key, namespace));
+	}
+	return owned;
+};
+
+/**
+ * Strips attributes the server wrote that this render does not declare.
+ *
+ * Adopting an element by tag keeps whatever the server put on it, so without
+ * this a `disabled` or `aria-hidden` from the server pass would outlive the
+ * state that produced it, and no later update would clear it: the client never
+ * owned the attribute. `dropUnclaimed` is the equivalent for child nodes.
+ */
+const reconcileClaimedAttributes = (
+	element: Element,
+	props: Record<string, unknown> | null | undefined,
+	namespace: DOMNamespace
+): void => {
+	const owned = props
+		? ownedAttributeNames(props, namespace)
+		: new Set<string>();
+
+	for (const name of element.getAttributeNames()) {
+		if (!owned.has(name)) {
+			element.removeAttribute(name);
+		}
+	}
+
+	// Style is rebuilt property by property, so a surviving server declaration
+	// would merge with the client's instead of replacing it.
+	if (owned.has('style')) {
+		element.removeAttribute('style');
+	}
+};
+
 const mountNode = (
 	node: EffuseNode,
 	cleanups: CleanupFn[],
-	cursor?: HydrationCursor
+	cursor?: HydrationCursor,
+	errorBoundary?: RenderErrorBoundary,
+	namespace: DOMNamespace = 'html'
 ): Effect.Effect<Node[], never, PropService | EventService> => {
 	switch (node._tag) {
 		case 'Text': {
@@ -775,6 +888,8 @@ const mountNode = (
 			const tag = node.tag;
 			const props = node.props;
 			const children = node.children;
+			const elementNamespace = getElementNamespace(namespace, tag);
+			const childNamespace = getChildNamespace(elementNamespace, tag);
 
 			return pipe(
 				Effect.Do,
@@ -782,8 +897,11 @@ const mountNode = (
 				Effect.bind('eventService', () => EventService),
 				Effect.flatMap(({ propService, eventService }) => {
 					const element = cursor
-						? claimElement(cursor, tag)
-						: document.createElement(tag);
+						? claimElement(cursor, tag, elementNamespace)
+						: createDOMElement(document, tag, elementNamespace);
+					if (cursor) {
+						reconcileClaimedAttributes(element, props, elementNamespace);
+					}
 					const bindingCleanups: CleanupFn[] = [];
 
 					const propEffects: Effect.Effect<PropBindingResult>[] = [];
@@ -791,10 +909,10 @@ const mountNode = (
 
 					if (props) {
 						for (const [key, value] of Object.entries(props)) {
-							if (key === 'children' || key === 'key') continue;
+							if (isInternalProp(key)) continue;
 
-							if (key.startsWith('on') && Predicate.isFunction(value)) {
-								const eventName = key.slice(2).toLowerCase();
+							if (isEventHandlerName(key) && Predicate.isFunction(value)) {
+								const eventName = eventNameFromProp(key);
 								eventEffects.push(
 									eventService.bindEvent(
 										element,
@@ -839,6 +957,7 @@ const mountNode = (
 							for (const result of results) {
 								bindingCleanups.push(result.cleanup);
 							}
+							bindingCleanups.push(() => clearElementEvents(element));
 							cleanups.push(() => {
 								runCleanups(bindingCleanups);
 							});
@@ -854,7 +973,15 @@ const mountNode = (
 
 							return pipe(
 								Effect.all(
-									children.map((c) => mountChild(c, cleanups, childCursor))
+									children.map((c) =>
+										mountChild(
+											c,
+											cleanups,
+											childCursor,
+											errorBoundary,
+											childNamespace
+										)
+									)
 								),
 								Effect.map((results) => {
 									if (childCursor) {
@@ -874,15 +1001,28 @@ const mountNode = (
 		}
 		case 'Fragment': {
 			return pipe(
-				Effect.all(node.children.map((c) => mountChild(c, cleanups, cursor))),
+				Effect.all(
+					node.children.map((c) =>
+						mountChild(c, cleanups, cursor, errorBoundary, namespace)
+					)
+				),
 				Effect.map((results) => results.flat())
 			);
 		}
 		case 'List': {
 			const anchor = document.createComment('list');
+			const disposeResource = getNodeResourceDisposer(node);
+			const runWithCapturedIdScope = captureIdScope();
+			const controller = getErrorBoundaryController(node);
+			const ownedBoundary = controller
+				? { controller, parent: errorBoundary, active: false }
+				: undefined;
 			let currentNodes: Node[] = [];
 			const listCleanups: CleanupFn[] = [];
 			let effectHandle: { stop: () => void } | null = null;
+			// The deferred mount below can outlive this node: cleanup may run
+			// before the microtask, leaving nothing for it to stop.
+			let active = true;
 
 			if (cursor) {
 				insertAtCursor(cursor, anchor);
@@ -890,56 +1030,105 @@ const mountNode = (
 			let pendingCursor = cursor;
 
 			const runEffect = () => {
-				effectHandle = watchEffect(() => {
-					const children = node.children;
-					const listCursor = pendingCursor;
-					pendingCursor = undefined;
+				if (!active) return;
+				effectHandle = watchEffect(() =>
+					runWithCapturedIdScope(() => {
+						let retryBoundary = true;
+						const listCursor = pendingCursor;
+						pendingCursor = undefined;
 
-					for (const n of currentNodes) {
-						if (Predicate.isNotNullable(n.parentNode)) {
-							n.parentNode.removeChild(n);
-						}
-					}
-					try {
-						runCleanups(listCleanups);
-					} finally {
-						listCleanups.length = 0;
-					}
-
-					if (children.length === 0) {
-						currentNodes = [];
-						return;
-					}
-
-					const childCleanups: CleanupFn[] = [];
-					try {
-						const mountResult = Effect.runSync(
-							pipe(
-								Effect.all(
-									children.map((c) => mountChild(c, childCleanups, listCursor))
-								),
-								Effect.map((results) => results.flat()),
-								Effect.provide(PropServiceLive),
-								Effect.provide(EventServiceLive),
-								mapEffuseErrors
-							)
-						);
-
-						if (!listCursor) {
-							const insertPoint: Node | null = anchor.nextSibling;
-							for (const n of mountResult) {
-								if (anchor.parentNode) {
-									anchor.parentNode.insertBefore(n, insertPoint);
-								}
+						for (const n of currentNodes) {
+							if (Predicate.isNotNullable(n.parentNode)) {
+								n.parentNode.removeChild(n);
 							}
 						}
-						currentNodes = mountResult;
-						listCleanups.push(...childCleanups);
-					} catch {
-						// Error during list mounting - silently recover
-						currentNodes = [];
-					}
-				});
+						try {
+							runCleanups(listCleanups);
+						} finally {
+							listCleanups.length = 0;
+						}
+
+						while (retryBoundary) {
+							retryBoundary = false;
+							const childBoundary =
+								ownedBoundary && !ownedBoundary.controller.hasError()
+									? ownedBoundary
+									: errorBoundary;
+							if (ownedBoundary) {
+								ownedBoundary.active = childBoundary === ownedBoundary;
+							}
+							const childCleanups: CleanupFn[] = [];
+							try {
+								const children = node.children;
+								if (children.length === 0) {
+									currentNodes = [];
+									return;
+								}
+								const mountResult = Effect.runSync(
+										pipe(
+											Effect.all(
+												children.map((c) =>
+													mountChild(
+														c,
+														childCleanups,
+														listCursor,
+														childBoundary,
+														namespace
+													)
+												)
+											),
+										Effect.map((results) => results.flat()),
+										Effect.provide(PropServiceLive),
+										Effect.provide(EventServiceLive),
+										mapEffuseErrors
+									)
+								);
+
+								if (
+									ownedBoundary &&
+									childBoundary === ownedBoundary &&
+									ownedBoundary.controller.hasError()
+								) {
+									runCleanups(childCleanups);
+									removeNodes(mountResult);
+									retryBoundary = true;
+									continue;
+								}
+
+								if (!listCursor) {
+									const insertPoint: Node | null = anchor.nextSibling;
+									for (const n of mountResult) {
+										if (anchor.parentNode) {
+											anchor.parentNode.insertBefore(n, insertPoint);
+										}
+									}
+								}
+								currentNodes = mountResult;
+								listCleanups.push(...childCleanups);
+							} catch (error) {
+								runCleanups(childCleanups);
+								currentNodes = [];
+								if (captureRenderError(childBoundary, error)) {
+									if (
+										ownedBoundary &&
+										childBoundary === ownedBoundary &&
+										ownedBoundary.controller.hasError()
+									) {
+										retryBoundary = true;
+										continue;
+									}
+									return;
+								}
+
+								const errorNode = createRenderErrorNode(error);
+								insertAfterAnchor(anchor, [errorNode]);
+								currentNodes = [errorNode];
+							} finally {
+								if (ownedBoundary) ownedBoundary.active = false;
+							}
+						}
+					})
+				);
 			};
 
 			// Same ordering constraint as dynamic values: claims must land before
@@ -951,6 +1140,7 @@ const mountNode = (
 			}
 
 			cleanups.push(() => {
+				active = false;
 				if (Predicate.isNotNullable(effectHandle)) {
 					effectHandle.stop();
 				}
@@ -960,6 +1150,7 @@ const mountNode = (
 					removeNodes(currentNodes);
 				}
 			});
+			if (disposeResource) cleanups.push(disposeResource);
 
 			return Effect.succeed([anchor]);
 		}
@@ -1026,7 +1217,9 @@ const mountNode = (
 					cleanups.push(instanceCleanup);
 				},
 				provideScope,
-				cursor
+				cursor,
+				errorBoundary,
+				namespace
 			);
 		}
 		default: {
@@ -1069,7 +1262,13 @@ export const MountServiceLive = Layer.succeed(MountService, {
 			}),
 			Effect.flatMap(({ cleanups }) =>
 				pipe(
-					mountChild(child, cleanups),
+					mountChild(
+						child,
+						cleanups,
+						undefined,
+						undefined,
+						getDOMNamespace(container.namespaceURI)
+					),
 					Effect.map((nodes) => {
 						for (const nodeItem of nodes) {
 							container.appendChild(nodeItem);
@@ -1088,7 +1287,13 @@ export const MountServiceLive = Layer.succeed(MountService, {
 			})),
 			Effect.flatMap(({ cleanups, cursor }) =>
 				pipe(
-					mountChild(child, cleanups, cursor),
+					mountChild(
+						child,
+						cleanups,
+						cursor,
+						undefined,
+						getDOMNamespace(container.namespaceURI)
+					),
 					Effect.map((nodes) => {
 						// Whatever the client render never claimed was rendered by a
 						// stale or divergent server pass; it must not survive.

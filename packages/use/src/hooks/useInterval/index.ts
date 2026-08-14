@@ -96,6 +96,7 @@ export const useInterval = defineHook<UseIntervalConfig, UseIntervalReturn>({
 		const internalState = ctx.signal<IntervalState>(IS.Stopped());
 
 		let intervalId: ReturnType<typeof setInterval> | null = null;
+		let ownerDisposed = false;
 
 		const count = ctx.computed(() => getCount(internalState.value));
 		const status = ctx.computed(() => getStatus(internalState.value));
@@ -111,7 +112,7 @@ export const useInterval = defineHook<UseIntervalConfig, UseIntervalReturn>({
 		};
 
 		const start = (): void => {
-			if (!isClient()) return;
+			if (ownerDisposed || !isClient()) return;
 			clearCurrentInterval();
 
 			const currentCount = isPaused(internalState.value)
@@ -127,13 +128,14 @@ export const useInterval = defineHook<UseIntervalConfig, UseIntervalReturn>({
 					const newCount = getCount(state) + 1;
 					traceIntervalTick(newCount);
 					callback();
+					if (ownerDisposed) return;
 					internalState.value = IS.Running({ count: newCount });
 				}
 			}, clampedDelay);
 		};
 
 		const pause = (): void => {
-			if (!isRunning(internalState.value)) return;
+			if (ownerDisposed || !isRunning(internalState.value)) return;
 			traceIntervalPause();
 			clearCurrentInterval();
 			const currentCount = getCount(internalState.value);
@@ -141,6 +143,7 @@ export const useInterval = defineHook<UseIntervalConfig, UseIntervalReturn>({
 		};
 
 		const stop = (): void => {
+			if (ownerDisposed) return;
 			traceIntervalStop();
 			clearCurrentInterval();
 			internalState.value = IS.Stopped();
@@ -148,7 +151,11 @@ export const useInterval = defineHook<UseIntervalConfig, UseIntervalReturn>({
 
 		ctx.onMount(() => {
 			if (immediate) start();
-			return clearCurrentInterval;
+			return () => {
+				ownerDisposed = true;
+				clearCurrentInterval();
+				internalState.value = IS.Stopped();
+			};
 		});
 
 		return {

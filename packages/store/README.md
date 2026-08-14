@@ -3,8 +3,15 @@
 </p>
 
 <p align="center">
-  A functional state management system built on Effect-ts. It offers typed, robust global state handling designed to scale with your application's logic.
+  Typed application state, actions, persistence, and request scopes for Effuse.
 </p>
+
+# `@effuse/store`
+
+Store owns named state containers, derived state, actions, selectors,
+middleware, development inspection, and cancellable concurrency policies.
+Application code uses Effuse signals and store contracts without an additional
+runtime API.
 
 ## Install
 
@@ -30,6 +37,19 @@ session.getSnapshot(); // { userId: 'user-42' }
 
 Stores created at application root remain globally available through
 `getStore(name)`.
+
+## Public Surface
+
+| Area        | APIs                                                                   |
+| ----------- | ---------------------------------------------------------------------- |
+| Stores      | `createStore`, `getStore`, `hasStore`, `removeStore`                   |
+| Scopes      | `withScope`, `createScope`, `runInScope`, `getCurrentScope`            |
+| Composition | `composeStores`, `defineSlice`, `deriveFrom`, `createSelector`         |
+| Concurrency | `useConcurrency`, `createCancellableAction`, `withAbortSignal`         |
+| Operations  | validation, serialization, hydration, middleware, and devtools helpers |
+
+Create stores at an intentional ownership boundary. Global stores are suitable
+for browser application state; request data belongs in a transient scope.
 
 ## Server request isolation
 

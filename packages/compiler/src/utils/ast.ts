@@ -23,7 +23,11 @@
  */
 
 import type * as t from '@babel/types';
+import { VISITOR_KEYS } from '@babel/types';
 import { NodeTypes } from '../constants/index.js';
+
+const isNode = (value: unknown): value is t.Node =>
+	typeof value === 'object' && value !== null && 'type' in value;
 
 export interface NodeAnalysis {
 	readonly containsSignal: boolean;
@@ -68,193 +72,63 @@ export const containsSignalAccess = (
 		return true;
 	}
 
-	const nodeType = node.type;
-
-	if (
-		nodeType === NodeTypes.MEMBER_EXPRESSION ||
-		nodeType === NodeTypes.OPTIONAL_MEMBER_EXPRESSION
-	) {
-		const memberNode = node as t.MemberExpression | t.OptionalMemberExpression;
-		return (
-			containsSignalAccess(memberNode.object, accessorSet, visited) ||
-			containsSignalAccess(memberNode.property, accessorSet, visited)
-		);
-	}
-
-	if (
-		nodeType === NodeTypes.BINARY_EXPRESSION ||
-		nodeType === NodeTypes.LOGICAL_EXPRESSION
-	) {
-		const binaryNode = node as t.BinaryExpression | t.LogicalExpression;
-		return (
-			containsSignalAccess(binaryNode.left, accessorSet, visited) ||
-			containsSignalAccess(binaryNode.right, accessorSet, visited)
-		);
-	}
-
-	if (nodeType === NodeTypes.CONDITIONAL_EXPRESSION) {
-		const condNode = node as t.ConditionalExpression;
-		return (
-			containsSignalAccess(condNode.test, accessorSet, visited) ||
-			containsSignalAccess(condNode.consequent, accessorSet, visited) ||
-			containsSignalAccess(condNode.alternate, accessorSet, visited)
-		);
-	}
-
-	if (nodeType === NodeTypes.UNARY_EXPRESSION) {
-		const unaryNode = node as t.UnaryExpression;
-		return containsSignalAccess(unaryNode.argument, accessorSet, visited);
-	}
-
-	if (
-		nodeType === NodeTypes.CALL_EXPRESSION ||
-		nodeType === NodeTypes.OPTIONAL_CALL_EXPRESSION
-	) {
-		const callNode = node as t.CallExpression | t.OptionalCallExpression;
-		if (containsSignalAccess(callNode.callee, accessorSet, visited)) {
-			return true;
-		}
-		for (let i = 0; i < callNode.arguments.length; i++) {
-			if (containsSignalAccess(callNode.arguments[i], accessorSet, visited)) {
-				return true;
-			}
-		}
+	// A nested element owns its own reactivity. Descending into it would report
+	// a signal for the enclosing expression as well and bind the same source
+	// twice.
+	if (node.type.startsWith('JSX')) {
 		return false;
 	}
 
-	if (nodeType === NodeTypes.TEMPLATE_LITERAL) {
-		const templateNode = node as t.TemplateLiteral;
-		for (let i = 0; i < templateNode.expressions.length; i++) {
-			if (
-				containsSignalAccess(templateNode.expressions[i], accessorSet, visited)
-			) {
-				return true;
-			}
-		}
-		return false;
-	}
+	// Walk whatever children this node has, rather than matching against a list
+	// of node types. The list was the defect: a type nobody enumerated returned
+	// `false`, and a `false` here means the binding is never wrapped, so it
+	// silently stopped updating. Block bodies, object spreads, and object
+	// methods were all missing that way. Failing open is the wrong direction for
+	// a question whose answer decides whether a binding is reactive at all.
+	const childKeys = VISITOR_KEYS[node.type] ?? [];
 
-	if (nodeType === NodeTypes.ARRAY_EXPRESSION) {
-		const arrayNode = node as t.ArrayExpression;
-		for (let i = 0; i < arrayNode.elements.length; i++) {
-			const elem = arrayNode.elements[i];
-			if (elem !== null && containsSignalAccess(elem, accessorSet, visited)) {
-				return true;
-			}
-		}
-		return false;
-	}
+	for (const key of childKeys) {
+		const child = (node as unknown as Record<string, unknown>)[key];
+		if (child === null || child === undefined) continue;
 
-	if (nodeType === NodeTypes.OBJECT_EXPRESSION) {
-		const objNode = node as t.ObjectExpression;
-		for (let i = 0; i < objNode.properties.length; i++) {
-			const prop = objNode.properties[i];
-			if (prop.type === NodeTypes.OBJECT_PROPERTY) {
-				const objProp = prop as t.ObjectProperty;
+		if (Array.isArray(child)) {
+			for (const item of child) {
 				if (
-					containsSignalAccess(objProp.key, accessorSet, visited) ||
-					containsSignalAccess(objProp.value, accessorSet, visited)
+					isNode(item) &&
+					containsSignalAccess(item, accessorSet, visited)
 				) {
 					return true;
 				}
 			}
+			continue;
 		}
-		return false;
-	}
 
-	if (
-		nodeType === NodeTypes.ARROW_FUNCTION_EXPRESSION ||
-		nodeType === NodeTypes.FUNCTION_EXPRESSION
-	) {
-		const funcNode = node as t.ArrowFunctionExpression | t.FunctionExpression;
-		return containsSignalAccess(funcNode.body, accessorSet, visited);
-	}
-
-	if (nodeType === NodeTypes.ASSIGNMENT_EXPRESSION) {
-		const assignNode = node as t.AssignmentExpression;
-		return (
-			containsSignalAccess(assignNode.left, accessorSet, visited) ||
-			containsSignalAccess(assignNode.right, accessorSet, visited)
-		);
-	}
-
-	if (nodeType === NodeTypes.UPDATE_EXPRESSION) {
-		return containsSignalAccess(
-			(node as t.UpdateExpression).argument,
-			accessorSet,
-			visited
-		);
-	}
-
-	if (
-		nodeType === NodeTypes.TS_AS_EXPRESSION ||
-		nodeType === NodeTypes.TS_SATISFIES_EXPRESSION ||
-		nodeType === NodeTypes.TS_NON_NULL_EXPRESSION ||
-		nodeType === NodeTypes.PARENTHESIZED_EXPRESSION
-	) {
-		return containsSignalAccess(
-			(node as t.TSAsExpression | t.TSSatisfiesExpression | t.TSNonNullExpression | t.ParenthesizedExpression).expression,
-			accessorSet,
-			visited
-		);
-	}
-
-	if (nodeType === NodeTypes.AWAIT_EXPRESSION) {
-		return containsSignalAccess(
-			(node as t.AwaitExpression).argument,
-			accessorSet,
-			visited
-		);
-	}
-
-	if (nodeType === NodeTypes.NEW_EXPRESSION) {
-		const newNode = node as t.NewExpression;
-		if (containsSignalAccess(newNode.callee, accessorSet, visited)) {
+		if (isNode(child) && containsSignalAccess(child, accessorSet, visited)) {
 			return true;
 		}
-		for (let i = 0; i < newNode.arguments.length; i++) {
-			if (containsSignalAccess(newNode.arguments[i], accessorSet, visited)) {
-				return true;
-			}
-		}
-		return false;
-	}
-
-	if (nodeType === NodeTypes.SEQUENCE_EXPRESSION) {
-		const seqNode = node as t.SequenceExpression;
-		for (let i = 0; i < seqNode.expressions.length; i++) {
-			if (containsSignalAccess(seqNode.expressions[i], accessorSet, visited)) {
-				return true;
-			}
-		}
-		return false;
-	}
-
-	if (nodeType === NodeTypes.SPREAD_ELEMENT) {
-		return containsSignalAccess(
-			(node as t.SpreadElement).argument,
-			accessorSet,
-			visited
-		);
-	}
-
-	if (nodeType === NodeTypes.TAGGED_TEMPLATE_EXPRESSION) {
-		const taggedNode = node as t.TaggedTemplateExpression;
-		if (containsSignalAccess(taggedNode.tag, accessorSet, visited)) {
-			return true;
-		}
-		return containsSignalAccess(taggedNode.quasi, accessorSet, visited);
 	}
 
 	return false;
 };
 
+/**
+ * Mirrors the runtime's rule in `@effuse/core`'s prop binder: a prefix alone is
+ * not enough, the next character must start a new word.
+ *
+ * Matching on the prefix alone made `once`, `online`, and `handler` look like
+ * event handlers here while the runtime treated them as ordinary props, so the
+ * compiler skipped wrapping them and they silently never updated. The two have
+ * to agree, since one decides whether a binding is reactive and the other
+ * decides how it is applied.
+ */
 export const isEventHandler = (
 	name: string,
 	prefixSet: Set<string>
 ): boolean => {
 	for (const prefix of prefixSet) {
-		if (name.startsWith(prefix)) {
+		if (!name.startsWith(prefix)) continue;
+		const boundary = name.charAt(prefix.length);
+		if (boundary !== '' && boundary === boundary.toUpperCase() && boundary !== boundary.toLowerCase()) {
 			return true;
 		}
 	}

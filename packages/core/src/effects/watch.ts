@@ -25,6 +25,7 @@
 import { Array as Arr, Option, Predicate, Record as Rec, pipe } from 'effect';
 import { signal, isSignal } from '../reactivity/signal.js';
 import { isReactive } from '../reactivity/reactive.js';
+import { untrack } from '../reactivity/dep.js';
 import type {
 	EffectHandle,
 	WatchOptions,
@@ -85,11 +86,19 @@ const createCleanupRunner = (): {
 			return queue;
 		},
 		run: () => {
+			// Untracked, like `watchEffect`'s runner. `watch` calls this from
+			// inside the tracked callback, so a cleanup that reads a signal was
+			// adding it to the watch's dependencies: writing that signal re-ran
+			// the effect, and with `deep` it re-invoked the callback for a source
+			// that had not changed.
+			//
+			// Isolated per cleanup, so one that throws does not strand its peers
+			// or leave the queue un-cleared.
 			Arr.forEach(queue, (cleanup) => {
 				try {
-					cleanup();
+					untrack(cleanup);
 				} catch {
-					/* silent */
+					/* One cleanup's failure must not prevent the others. */
 				}
 			});
 			queue = [];
@@ -102,7 +111,14 @@ const createCleanupRunner = (): {
 
 const handleAsyncResult = (result: void | Promise<void>): void => {
 	if (result instanceof Promise) {
-		void result;
+		// `void result` discarded the promise without attaching anything, so a
+		// rejecting callback became an unhandled rejection — which terminates
+		// the process on Node by default, taking an SSR server with it.
+		//
+		// Contained rather than reported, matching `watchEffect`, which routes
+		// async work through `Effect.catchAll`. The two primitives should agree
+		// on what happens to a failing async callback.
+		void result.catch(() => undefined);
 	}
 };
 
@@ -118,6 +134,8 @@ export function watch<T>(
 	const immediate = getImmediateOption(options);
 	const once = getOnceOption(options);
 	const getter = createGetter(source, deep);
+	let handle: EffectHandle | undefined = undefined;
+	let stopRequested = false;
 
 	const effectHandle = watchEffect(
 		() => {
@@ -129,6 +147,10 @@ export function watch<T>(
 				if (immediate) {
 					cleanup.run();
 					handleAsyncResult(callback(newValue, undefined, cleanup.register));
+					if (once) {
+						if (handle) handle.stop();
+						else stopRequested = true;
+					}
 				}
 				return;
 			}
@@ -137,16 +159,16 @@ export function watch<T>(
 				cleanup.run();
 				handleAsyncResult(callback(newValue, oldValue, cleanup.register));
 				oldValue = deep ? deepClone(newValue) : newValue;
-			}
-
-			if (once) {
-				handle.stop();
+				if (once) {
+					if (handle) handle.stop();
+					else stopRequested = true;
+				}
 			}
 		},
 		{ ...options, immediate: true }
 	);
 
-	const handle: EffectHandle = {
+	handle = {
 		stop: () => {
 			cleanup.run();
 			effectHandle.stop();
@@ -154,6 +176,7 @@ export function watch<T>(
 		pause: effectHandle.pause,
 		resume: effectHandle.resume,
 	};
+	if (stopRequested) handle.stop();
 	return handle;
 }
 
@@ -225,6 +248,8 @@ export const watchMultiple = <T extends readonly WatchSource<unknown>[]>(
 	let oldValues: unknown[] = [];
 	let hasRun = false;
 	const cleanup = createCleanupRunner();
+	let handle: EffectHandle | undefined = undefined;
+	let stopRequested = false;
 
 	const effectHandle = watchEffect(
 		() => {
@@ -242,6 +267,10 @@ export const watchMultiple = <T extends readonly WatchSource<unknown>[]>(
 							cleanup.register
 						)
 					);
+					if (once) {
+						if (handle) handle.stop();
+						else stopRequested = true;
+					}
 				}
 				return;
 			}
@@ -257,16 +286,16 @@ export const watchMultiple = <T extends readonly WatchSource<unknown>[]>(
 					callback(newValues as never, oldValues as never, cleanup.register)
 				);
 				oldValues = Arr.map(newValues, (v) => (deep ? deepClone(v) : v));
-			}
-
-			if (once) {
-				handle.stop();
+				if (once) {
+					if (handle) handle.stop();
+					else stopRequested = true;
+				}
 			}
 		},
 		{ ...options, immediate: true }
 	);
 
-	const handle: EffectHandle = {
+	handle = {
 		stop: () => {
 			cleanup.run();
 			effectHandle.stop();
@@ -274,5 +303,6 @@ export const watchMultiple = <T extends readonly WatchSource<unknown>[]>(
 		pause: effectHandle.pause,
 		resume: effectHandle.resume,
 	};
+	if (stopRequested) handle.stop();
 	return handle;
 };

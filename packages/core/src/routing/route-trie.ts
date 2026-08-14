@@ -22,7 +22,13 @@
  * SOFTWARE.
  */
 
-import { parseRoutePattern, type RoutePattern } from './route-pattern.js';
+import {
+	normalizeMatchPathname,
+	parseRoutePattern,
+	type RoutePattern,
+} from './route-pattern.js';
+
+const EMPTY_NAMES: readonly string[] = [];
 
 /**
  * Prefix-tree (radix) router.
@@ -42,16 +48,23 @@ import { parseRoutePattern, type RoutePattern } from './route-pattern.js';
 interface TrieNode<Value> {
 	/** Static children keyed by exact segment text, for O(1) descent. */
 	staticChildren: Map<string, TrieNode<Value>> | undefined;
-	/** Single-segment parameter branch and the name it binds. */
+	/**
+	 * Single-segment parameter branch. The branch is shared by every route
+	 * passing through this position, so it carries no name: a parameter's
+	 * position belongs to the edge, its name belongs to the route.
+	 */
 	paramChild: TrieNode<Value> | undefined;
-	paramName: string;
 	/** Catch-all branch consuming every remaining segment. */
 	catchAllName: string | undefined;
 	catchAllValue: Value | undefined;
 	catchAllOrder: number;
+	/** Parameter names of the catch-all route, in the order it declared them. */
+	catchAllParamNames: readonly string[];
 	/** Payload when a route terminates at this node. */
 	value: Value | undefined;
 	hasValue: boolean;
+	/** Parameter names of the route terminating here, in declaration order. */
+	paramNames: readonly string[];
 	/** Insertion index, so equally specific duplicates keep declaration order. */
 	order: number;
 }
@@ -75,12 +88,13 @@ export interface RouteTrieMatch<Value> {
 const createNode = <Value>(): TrieNode<Value> => ({
 	staticChildren: undefined,
 	paramChild: undefined,
-	paramName: '',
 	catchAllName: undefined,
 	catchAllValue: undefined,
 	catchAllOrder: Number.MAX_SAFE_INTEGER,
+	catchAllParamNames: EMPTY_NAMES,
 	value: undefined,
 	hasValue: false,
+	paramNames: EMPTY_NAMES,
 	order: Number.MAX_SAFE_INTEGER,
 });
 
@@ -113,6 +127,7 @@ export const createRouteTrie = <Value>(
 
 		let node = root;
 		let terminated = false;
+		const paramNames: string[] = [];
 
 		for (const segment of pattern.urlSegments) {
 			if (segment.kind === 'static') {
@@ -135,15 +150,14 @@ export const createRouteTrie = <Value>(
 					node.catchAllName = segment.name;
 					node.catchAllValue = entry.value;
 					node.catchAllOrder = index;
+					node.catchAllParamNames = [...paramNames];
 				}
 				terminated = true;
 				break;
 			}
 
-			if (!node.paramChild) {
-				node.paramChild = createNode<Value>();
-				node.paramName = segment.name;
-			}
+			node.paramChild ??= createNode<Value>();
+			paramNames.push(segment.name);
 			node = node.paramChild;
 		}
 
@@ -153,6 +167,7 @@ export const createRouteTrie = <Value>(
 		if (!node.hasValue || index < node.order) {
 			node.value = entry.value;
 			node.hasValue = true;
+			node.paramNames = paramNames;
 			node.order = index;
 		}
 	});
@@ -171,28 +186,29 @@ const decodeSegment = (value: string): string => {
 };
 
 const splitPath = (pathname: string): readonly string[] => {
-	const trimmed =
-		pathname.length > 1 && pathname.endsWith('/')
-			? pathname.slice(0, -1)
-			: pathname;
+	const trimmed = normalizeMatchPathname(pathname);
 	if (trimmed === '' || trimmed === '/') return [];
 	return trimmed.charCodeAt(0) === 47 /* '/' */
 		? trimmed.slice(1).split('/')
 		: trimmed.split('/');
 };
 
-/** A bound parameter recorded while descending; paired name and value. */
-interface Binding {
-	readonly name: string;
-	readonly value: string;
-}
-
+/**
+ * Positional parameter values gathered during descent. Names are applied only
+ * once a route terminates, from that route's own declaration.
+ */
 const toParams = (
-	bindings: readonly Binding[],
-	catchAll?: Binding
+	values: readonly string[],
+	names: readonly string[],
+	catchAll?: { readonly name: string; readonly value: string }
 ): Record<string, string> => {
 	const params: Record<string, string> = {};
-	for (const binding of bindings) params[binding.name] = binding.value;
+	const shared = Math.min(values.length, names.length);
+	for (let index = 0; index < shared; index += 1) {
+		const name = names[index];
+		const value = values[index];
+		if (name !== undefined && value !== undefined) params[name] = value;
+	}
 	if (catchAll) params[catchAll.name] = catchAll.value;
 	return params;
 };
@@ -210,11 +226,14 @@ export const matchRouteTrie = <Value>(
 	const visit = (
 		node: TrieNode<Value>,
 		index: number,
-		bindings: readonly Binding[]
+		values: readonly string[]
 	): RouteTrieMatch<Value> | null => {
 		if (index === segments.length) {
 			if (node.hasValue && node.value !== undefined) {
-				return { value: node.value, params: toParams(bindings) };
+				return {
+					value: node.value,
+					params: toParams(values, node.paramNames),
+				};
 			}
 			return null;
 		}
@@ -225,7 +244,7 @@ export const matchRouteTrie = <Value>(
 		// Static first: most specific, and an O(1) Map hit.
 		const staticChild = node.staticChildren?.get(segment);
 		if (staticChild) {
-			const found = visit(staticChild, index + 1, bindings);
+			const found = visit(staticChild, index + 1, values);
 			if (found) return found;
 		}
 
@@ -233,8 +252,8 @@ export const matchRouteTrie = <Value>(
 		const paramChild = node.paramChild;
 		if (paramChild) {
 			const found = visit(paramChild, index + 1, [
-				...bindings,
-				{ name: node.paramName, value: decodeSegment(segment) },
+				...values,
+				decodeSegment(segment),
 			]);
 			if (found) return found;
 		}
@@ -244,7 +263,7 @@ export const matchRouteTrie = <Value>(
 			const rest = segments.slice(index).map(decodeSegment).join('/');
 			return {
 				value: node.catchAllValue,
-				params: toParams(bindings, {
+				params: toParams(values, node.catchAllParamNames, {
 					name: node.catchAllName,
 					value: rest,
 				}),
@@ -254,7 +273,7 @@ export const matchRouteTrie = <Value>(
 		return null;
 	};
 
-	return visit(trie.root, 0, EMPTY_BINDINGS);
+	return visit(trie.root, 0, EMPTY_VALUES);
 };
 
-const EMPTY_BINDINGS: readonly Binding[] = [];
+const EMPTY_VALUES: readonly string[] = [];

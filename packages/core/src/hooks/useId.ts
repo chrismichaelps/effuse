@@ -35,6 +35,12 @@ let standaloneIdCounter = 0;
 export const runWithIdScope = <T>(fn: () => T): T =>
 	idScopeStorage.run({ counter: 0 }, fn);
 
+/** Captures the current render owner's ID sequence for deferred renderer work. */
+export const captureIdScope = (): (<T>(fn: () => T) => T) => {
+	const scope = idScopeStorage.getStore();
+	return scope ? (fn) => idScopeStorage.run(scope, fn) : (fn) => fn();
+};
+
 /**
  * Generate a stable unique ID for accessibility attributes and SSR hydration.
  *

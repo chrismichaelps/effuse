@@ -21,7 +21,11 @@ describe('useLocalStorage', () => {
 	beforeEach(() => {
 		mockStorage = createMockStorage();
 		vi.stubGlobal('localStorage', mockStorage);
-		vi.stubGlobal('window', { localStorage: mockStorage, addEventListener: vi.fn(), removeEventListener: vi.fn() });
+		vi.stubGlobal('window', {
+			localStorage: mockStorage,
+			addEventListener: vi.fn(),
+			removeEventListener: vi.fn(),
+		});
 	});
 
 	it('should read initial value when storage is empty', () => {
@@ -67,7 +71,11 @@ describe('useLocalStorage', () => {
 		)?.[1];
 
 		expect(handler).toBeDefined();
-		handler({ key: 'sync-key', newValue: JSON.stringify('b') } as StorageEvent);
+		handler({
+			key: 'sync-key',
+			newValue: JSON.stringify('b'),
+			storageArea: mockStorage,
+		} as StorageEvent);
 
 		expect(value.value).toBe('b');
 	});
@@ -79,8 +87,76 @@ describe('useLocalStorage', () => {
 			(call) => call[0] === 'storage'
 		)?.[1];
 
-		handler({ key: 'other-key', newValue: JSON.stringify('b') } as StorageEvent);
+		handler({
+			key: 'other-key',
+			newValue: JSON.stringify('b'),
+			storageArea: mockStorage,
+		} as StorageEvent);
 		expect(value.value).toBe('a');
+	});
+
+	it('resets to the initial value when the key is removed or storage is cleared', () => {
+		const { value } = useLocalStorage('sync-key', 'fallback');
+		const handler = (
+			window.addEventListener as ReturnType<typeof vi.fn>
+		).mock.calls.find((call) => call[0] === 'storage')?.[1];
+
+		handler({
+			key: 'sync-key',
+			newValue: JSON.stringify('stored'),
+			storageArea: mockStorage,
+		} as StorageEvent);
+		expect(value.value).toBe('stored');
+
+		handler({
+			key: 'sync-key',
+			newValue: null,
+			storageArea: mockStorage,
+		} as StorageEvent);
+		expect(value.value).toBe('fallback');
+
+		handler({
+			key: 'sync-key',
+			newValue: JSON.stringify('stored-again'),
+			storageArea: mockStorage,
+		} as StorageEvent);
+		expect(value.value).toBe('stored-again');
+
+		handler({
+			key: null,
+			newValue: null,
+			storageArea: mockStorage,
+		} as StorageEvent);
+		expect(value.value).toBe('fallback');
+	});
+
+	it('ignores matching keys from another storage area', () => {
+		const otherStorage = createMockStorage();
+		const { value } = useLocalStorage('shared-key', 'local');
+		const handler = (
+			window.addEventListener as ReturnType<typeof vi.fn>
+		).mock.calls.find((call) => call[0] === 'storage')?.[1];
+
+		handler({
+			key: 'shared-key',
+			newValue: JSON.stringify('session'),
+			storageArea: otherStorage,
+		} as StorageEvent);
+		expect(value.value).toBe('local');
+	});
+
+	it('preserves the current value when cross-context data is malformed', () => {
+		const { value } = useLocalStorage('sync-key', { valid: true });
+		const handler = (
+			window.addEventListener as ReturnType<typeof vi.fn>
+		).mock.calls.find((call) => call[0] === 'storage')?.[1];
+
+		handler({
+			key: 'sync-key',
+			newValue: '{invalid',
+			storageArea: mockStorage,
+		} as StorageEvent);
+		expect(value.value).toEqual({ valid: true });
 	});
 
 	it('should expose idempotent cleanup for standalone ownership', () => {
@@ -102,7 +178,11 @@ describe('useSessionStorage', () => {
 	beforeEach(() => {
 		mockStorage = createMockStorage();
 		vi.stubGlobal('sessionStorage', mockStorage);
-		vi.stubGlobal('window', { sessionStorage: mockStorage, addEventListener: vi.fn(), removeEventListener: vi.fn() });
+		vi.stubGlobal('window', {
+			sessionStorage: mockStorage,
+			addEventListener: vi.fn(),
+			removeEventListener: vi.fn(),
+		});
 	});
 
 	it('should read and write to sessionStorage', () => {
@@ -111,5 +191,48 @@ describe('useSessionStorage', () => {
 		setValue(20);
 		expect(mockStorage.getItem('sess-key')).toBe(JSON.stringify(20));
 		expect(value.value).toBe(20);
+	});
+});
+
+describe('storage area isolation', () => {
+	it('keeps local and session hooks with the same key isolated', () => {
+		const localStorage = createMockStorage();
+		const sessionStorage = createMockStorage();
+		const listeners: Array<(event: StorageEvent) => void> = [];
+		vi.stubGlobal('window', {
+			localStorage,
+			sessionStorage,
+			addEventListener: vi.fn(
+				(type: string, listener: (event: StorageEvent) => void) => {
+					if (type === 'storage') listeners.push(listener);
+				}
+			),
+			removeEventListener: vi.fn(),
+		});
+
+		const local = useLocalStorage('shared', 'local');
+		const session = useSessionStorage('shared', 'session');
+		for (const listener of listeners) {
+			listener({
+				key: 'shared',
+				newValue: JSON.stringify('local-update'),
+				storageArea: localStorage,
+			} as StorageEvent);
+		}
+
+		expect(local.value.value).toBe('local-update');
+		expect(session.value.value).toBe('session');
+		local.dispose();
+		session.dispose();
+	});
+
+	it('remains safe when window storage is unavailable', () => {
+		vi.stubGlobal('window', undefined);
+		const result = useLocalStorage('server-key', 'fallback');
+
+		expect(result.value.value).toBe('fallback');
+		expect(() => result.setValue('updated')).not.toThrow();
+		expect(result.value.value).toBe('updated');
+		expect(() => result.dispose()).not.toThrow();
 	});
 });

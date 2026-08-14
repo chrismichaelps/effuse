@@ -61,20 +61,42 @@ export const createReactiveProps = <P extends object>(
 	const formatKey = (key: string | symbol): string =>
 		typeof key === 'symbol' ? String(key) : `"${key}"`;
 
+	/**
+	 * Which props are actually present, tracked apart from the signal map.
+	 *
+	 * A signal has to outlive the prop it carries: an effect that read an absent
+	 * prop needs something to depend on so a later addition can notify it, and a
+	 * removal has to travel to subscribers, which deleting a map entry cannot do.
+	 * Presence is therefore its own question, and the one `has`, `ownKeys`, and
+	 * `getOwnPropertyDescriptor` answer.
+	 */
+	const present = new Set<string | symbol>();
+
+	/** The signal for `key`, created on first access even if the prop is absent. */
+	const signalFor = (key: string | symbol): Signal<unknown> => {
+		let sig = signals.get(key);
+		if (sig === undefined) {
+			sig = signal<unknown>(undefined);
+			signals.set(key, sig);
+		}
+		return sig;
+	};
+
 	for (const key of enumerableKeys(initialProps)) {
 		signals.set(key, signal(readValue(initialProps, key)));
+		present.add(key);
 	}
 
 	const proxy = new Proxy({} as P, {
 		get(_, key: string | symbol) {
-			const sig = signals.get(key);
-			if (sig === undefined && options.warnOnMissing === true) {
+			if (!present.has(key) && options.warnOnMissing === true) {
 				devWarn(
 					`Accessed missing prop ${formatKey(key)}. ` +
 						`Did you forget to pass it, or is this a typo?`
 				);
 			}
-			return sig !== undefined ? sig.value : undefined;
+			// Tracked even when absent, so adding the prop later notifies.
+			return signalFor(key).value;
 		},
 		set(_, key: string | symbol) {
 			devWarn(
@@ -84,13 +106,13 @@ export const createReactiveProps = <P extends object>(
 			return true;
 		},
 		has(_, key: string | symbol) {
-			return signals.has(key);
+			return present.has(key);
 		},
 		ownKeys() {
-			return Array.from(signals.keys());
+			return Array.from(present);
 		},
 		getOwnPropertyDescriptor(_, key: string | symbol) {
-			if (signals.has(key)) {
+			if (present.has(key)) {
 				return {
 					enumerable: true,
 					configurable: true,
@@ -102,19 +124,16 @@ export const createReactiveProps = <P extends object>(
 
 	const update = (newProps: P): void => {
 		const newKeys = new Set(enumerableKeys(newProps));
-		for (const key of signals.keys()) {
+		for (const key of [...present]) {
 			if (!newKeys.has(key)) {
-				signals.delete(key);
+				present.delete(key);
+				// Cleared rather than dropped, so observers hear about it.
+				signalFor(key).value = undefined;
 			}
 		}
 		for (const key of newKeys) {
-			const value = readValue(newProps, key);
-			const existing = signals.get(key);
-			if (existing) {
-				(existing as Signal<unknown>).value = value;
-			} else {
-				signals.set(key, signal(value));
-			}
+			present.add(key);
+			signalFor(key).value = readValue(newProps, key);
 		}
 	};
 

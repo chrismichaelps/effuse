@@ -24,6 +24,7 @@
 
 import type { AriaAttributes } from './aria.js';
 import type { DOMAttributes } from './events.js';
+import type { Ref } from '../../refs/types.js';
 import type {
 	TextDirection,
 	ContentEditable,
@@ -34,19 +35,11 @@ import type {
 	PopoverTargetAction,
 } from './unions.js';
 
-export interface HTMLAttributes<Target extends EventTarget = HTMLElement>
+export interface HTMLAttributes<Target extends Element = HTMLElement>
 	extends AriaAttributes,
 		DOMAttributes<Target> {
 	key?: string | number | undefined;
-	ref?:
-		| ((el: Element) => void)
-		| {
-				readonly current: Element | null;
-				readonly subscribe?: (
-					callback: (el: Element | null) => void
-				) => () => void;
-		  }
-		| undefined;
+	ref?: Ref<Target> | undefined;
 	[key: `use:${string}`]: unknown;
 	id?: string | (() => string);
 

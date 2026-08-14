@@ -22,6 +22,8 @@ lib-cov
 # Coverage directory used by tools like istanbul
 coverage
 *.lcov
+**/reports/mutation/
+**/.stryker-tmp/
 
 # nyc test coverage
 .nyc_output
@@ -130,3 +132,5 @@ FMCF-MASTER-SEED.md
 
 # Ignore internal docs
 docs
+!packages/auth/docs/
+!packages/auth/docs/**

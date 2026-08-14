@@ -42,6 +42,59 @@ export class EventService extends Context.Tag('effuse/EventService')<
 	EventServiceInterface
 >() {}
 
+interface BoundEvent {
+	readonly handler: EventListener;
+	readonly options: AddEventListenerOptions | undefined;
+}
+
+const boundElementEvents = new WeakMap<Element, Map<string, BoundEvent>>();
+
+const clearElementEvent = (element: Element, eventName: string): void => {
+	const events = boundElementEvents.get(element);
+	const current = events?.get(eventName);
+	if (!events || !current) return;
+	events.delete(eventName);
+	if (events.size === 0) boundElementEvents.delete(element);
+	element.removeEventListener(eventName, current.handler, current.options);
+};
+
+export const clearElementEvents = (element: Element): void => {
+	const events = boundElementEvents.get(element);
+	if (!events) return;
+	boundElementEvents.delete(element);
+	for (const [eventName, current] of events) {
+		element.removeEventListener(eventName, current.handler, current.options);
+	}
+};
+
+export const patchElementEvent = (
+	element: Element,
+	eventName: string,
+	next: unknown,
+	options?: AddEventListenerOptions
+): void => {
+	const events = boundElementEvents.get(element);
+	const current = events?.get(eventName);
+	if (
+		current &&
+		current.handler === next &&
+		(options === undefined || current.options === options)
+	) {
+		return;
+	}
+	clearElementEvent(element, eventName);
+	if (typeof next !== 'function') return;
+
+	const nextOptions = options ?? current?.options;
+	element.addEventListener(eventName, next as EventListener, nextOptions);
+	const nextEvents = boundElementEvents.get(element) ?? new Map();
+	nextEvents.set(eventName, {
+		handler: next as EventListener,
+		options: nextOptions,
+	});
+	boundElementEvents.set(element, nextEvents);
+};
+
 export const EventServiceLive = Layer.succeed(EventService, {
 	bindEvent: (
 		element: Element,
@@ -50,11 +103,9 @@ export const EventServiceLive = Layer.succeed(EventService, {
 		options?: AddEventListenerOptions
 	) =>
 		Effect.sync(() => {
-			element.addEventListener(eventName, handler, options);
+			patchElementEvent(element, eventName, handler, options);
 			return {
-				cleanup: () => {
-					element.removeEventListener(eventName, handler, options);
-				},
+				cleanup: () => clearElementEvent(element, eventName),
 			};
 		}),
 });

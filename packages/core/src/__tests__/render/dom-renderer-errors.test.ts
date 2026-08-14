@@ -11,6 +11,7 @@ import { define } from '../../blueprint/define.js';
 import {
 	CreateBlueprintNode,
 	CreateElementNode,
+	CreateListNode,
 	EFFUSE_NODE,
 	type EffuseChild,
 } from '../../render/node.js';
@@ -98,5 +99,27 @@ describe('DOM renderer error diagnostics', () => {
 		const error = document.querySelector('[data-effuse-render-error]');
 		expect(error).not.toBeNull();
 		expect(error?.textContent).toContain('broken function child');
+	});
+
+	it('renders diagnostics when a list child fails without a boundary', async () => {
+		const App = define({
+			script: () => ({}),
+			template: () =>
+				CreateListNode({
+					[EFFUSE_NODE]: true,
+					children: [
+						() => {
+							throw new Error('broken list child');
+						},
+					],
+				}),
+		});
+
+		mounted = await createApp(App).mount('#app');
+		await flushRenderer();
+
+		const error = document.querySelector('[data-effuse-render-error]');
+		expect(error).not.toBeNull();
+		expect(error?.textContent).toContain('broken list child');
 	});
 });

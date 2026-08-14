@@ -294,6 +294,19 @@ const decodeRouteValue = (value: string): string => {
 	}
 };
 
+/**
+ * Strips a single trailing slash, leaving the root path alone.
+ *
+ * Shared with the trie matcher so both server matchers resolve a path the same
+ * way. They disagreed otherwise: the trie normalized and the compiled regex is
+ * anchored, so `/about/` matched or 404'd depending on which matcher a given
+ * route table happened to select.
+ */
+export const normalizeMatchPathname = (pathname: string): string =>
+	pathname.length > 1 && pathname.endsWith('/')
+		? pathname.slice(0, -1)
+		: pathname;
+
 export const matchRoutePattern = (
 	input: string | RoutePattern | CompiledRoutePattern,
 	pathname: string
@@ -302,7 +315,7 @@ export const matchRoutePattern = (
 		typeof input === 'object' && input !== null && 'regex' in input
 			? (input as CompiledRoutePattern)
 			: compileRoutePattern(input as string | RoutePattern);
-	const match = pathname.match(compiled.regex);
+	const match = normalizeMatchPathname(pathname).match(compiled.regex);
 	if (!match) return null;
 	return Object.fromEntries(
 		compiled.paramNames.map((name, index) => [

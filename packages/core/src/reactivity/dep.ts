@@ -52,7 +52,28 @@ function flushPendingEffects(): void {
 // Dependency tracker for reactive signals
 export class Dep {
 	version = 0;
-	private subscribers = new Set<() => void>();
+	/**
+	 * Set when this dep belongs to a computed, so a dependent can refresh it
+	 * during pull validation without a side table on the hot path.
+	 */
+	computedOwner: { validate: () => void } | undefined;
+	// Allocated on first subscribe: most deps are read but never subscribed to,
+	// and the Set was the largest part of constructing one.
+	private subscribers: Set<() => void> | undefined;
+	private observationListener: ((observed: boolean) => void) | undefined;
+
+	/**
+	 * Report the transitions between having no subscribers and having some.
+	 * A computed uses this to hold subscriptions on its own sources only while
+	 * something depends on it, instead of for the lifetime of those sources.
+	 */
+	onObservationChange(listener: (observed: boolean) => void): void {
+		this.observationListener = listener;
+	}
+
+	get subscriberCount(): number {
+		return this.subscribers?.size ?? 0;
+	}
 
 	track(): void {
 		if (TrackingPaused) return;
@@ -66,12 +87,15 @@ export class Dep {
 	trigger(): void {
 		this.version++;
 		GlobalVersion++;
+		const subscribers = this.subscribers;
+		if (subscribers === undefined || subscribers.size === 0) return;
+
 		if (BatchDepth > 0 && BatchQueue) {
-			for (const sub of this.subscribers) {
+			for (const sub of subscribers) {
 				BatchQueue.add(sub);
 			}
 		} else {
-			for (const sub of this.subscribers) {
+			for (const sub of subscribers) {
 				pendingEffects.add(sub);
 			}
 
@@ -82,16 +106,29 @@ export class Dep {
 	}
 
 	subscribe(callback: () => void): () => void {
-		this.subscribers.add(callback);
-		return () => this.subscribers.delete(callback);
+		const subscribers = (this.subscribers ??= new Set());
+		const wasObserved = subscribers.size > 0;
+		subscribers.add(callback);
+		if (!wasObserved) {
+			this.observationListener?.(true);
+		}
+		return () => {
+			if (subscribers.delete(callback) && subscribers.size === 0) {
+				this.observationListener?.(false);
+			}
+		};
 	}
 
 	hasSubscribers(): boolean {
-		return this.subscribers.size > 0;
+		return this.subscribers !== undefined && this.subscribers.size > 0;
 	}
 
 	clear(): void {
-		this.subscribers.clear();
+		const wasObserved = this.hasSubscribers();
+		this.subscribers?.clear();
+		if (wasObserved) {
+			this.observationListener?.(false);
+		}
 	}
 }
 

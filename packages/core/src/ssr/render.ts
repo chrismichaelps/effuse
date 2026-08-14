@@ -34,6 +34,7 @@ import { isSuspendToken } from '../suspense/Suspense.js';
 import type { HeadProps, RenderResult, ServerAppOptions } from './types.js';
 import { RenderError } from './errors.js';
 import { escapeHtml, escapeAttr, escapeAttrName } from './escape.js';
+import { normalizeClassValue } from '../render/class-value.js';
 import { headToHtml } from './head-registry.js';
 import { runWithSSRContext } from './use-head.js';
 import { serializeHydrationData, type HydrationData } from './hydration.js';
@@ -48,6 +49,24 @@ import {
 import type { SSRRuntime } from './runtime.js';
 import type { ComponentLifecycle } from '../blueprint/lifecycle.js';
 import { runWithServerRenderContext } from '../render/render-context.js';
+import {
+	getChildNamespace,
+	getElementNamespace,
+	normalizeDOMAttributeName,
+	type DOMNamespace,
+	isInternalProp,
+} from '../render/attribute-name.js';
+import {
+	getErrorBoundaryController,
+	normalizeBoundaryError,
+	type ErrorBoundaryController,
+} from '../components/error-boundary-runtime.js';
+import { getNodeResourceDisposer } from '../render/node-resource.js';
+
+interface ServerErrorBoundary {
+	readonly controller: ErrorBoundaryController;
+	readonly parent: ServerErrorBoundary | undefined;
+}
 
 const runServerRender = <T>(ssrRuntime: SSRRuntime, render: () => T): T =>
 	runWithServerRenderContext(() =>
@@ -141,7 +160,11 @@ export const renderToFragment = (
 	return runServerRender(ssrRuntime, () => renderNodeToString(root));
 };
 
-const renderNodeToString = (node: unknown): string => {
+const renderNodeToString = (
+	node: unknown,
+	errorBoundary?: ServerErrorBoundary,
+	namespace: DOMNamespace = 'html'
+): string => {
 	if (node == null) {
 		return '';
 	}
@@ -158,21 +181,25 @@ const renderNodeToString = (node: unknown): string => {
 	}
 
 	if (isSignal(node)) {
-		return renderNodeToString((node as { value: unknown }).value);
+		return renderNodeToString(
+			(node as { value: unknown }).value,
+			errorBoundary,
+			namespace
+		);
 	}
 
 	if (Array.isArray(node)) {
-		return renderChildren(node as readonly unknown[]);
+		return renderChildren(node as readonly unknown[], errorBoundary, namespace);
 	}
 
 	if (isEffuseNode(node)) {
-		return renderEffuseNode(node);
+		return renderEffuseNode(node, errorBoundary, namespace);
 	}
 
 	if (Predicate.isFunction(node)) {
 		try {
 			const result = (node as () => unknown)();
-			return renderNodeToString(result);
+			return renderNodeToString(result, errorBoundary, namespace);
 		} catch (err) {
 			if (isSuspendToken(err)) {
 				return '';
@@ -186,7 +213,7 @@ const renderNodeToString = (node: unknown): string => {
 		Predicate.hasProperty(node, '_tag') &&
 		node._tag === 'Blueprint'
 	) {
-		return renderBlueprint(node as BlueprintDef, {});
+		return renderBlueprint(node as BlueprintDef, {}, errorBoundary, namespace);
 	}
 
 	return '';
@@ -211,15 +238,23 @@ const SELF_CLOSING_TAGS = new Set([
 ]);
 
 /** Concatenates children without the intermediate array `map().join('')` builds. */
-const renderChildren = (children: readonly unknown[]): string => {
+const renderChildren = (
+	children: readonly unknown[],
+	errorBoundary?: ServerErrorBoundary,
+	namespace: DOMNamespace = 'html'
+): string => {
 	let html = '';
 	for (let index = 0; index < children.length; index += 1) {
-		html += renderNodeToString(children[index]);
+		html += renderNodeToString(children[index], errorBoundary, namespace);
 	}
 	return html;
 };
 
-const renderEffuseNode = (node: EffuseNode): string => {
+const renderEffuseNode = (
+	node: EffuseNode,
+	errorBoundary?: ServerErrorBoundary,
+	namespace: DOMNamespace = 'html'
+): string => {
 	// Direct dispatch on the tag. The combinator form allocated a fresh object
 	// of five closures for every node rendered, which dominated large documents.
 	switch (node._tag) {
@@ -227,20 +262,79 @@ const renderEffuseNode = (node: EffuseNode): string => {
 			return escapeHtml(node.text);
 		case 'Element': {
 			const tag = node.tag;
-			const attrs = renderAttributes(node.props ?? {});
+			const elementNamespace = getElementNamespace(namespace, tag);
+			const attrs = renderAttributes(node.props ?? {}, elementNamespace);
 			const attrStr = attrs ? ` ${attrs}` : '';
 
 			if (SELF_CLOSING_TAGS.has(tag)) {
 				return `<${tag}${attrStr}>`;
 			}
 
-			return `<${tag}${attrStr}>${renderChildren(node.children)}</${tag}>`;
+			return `<${tag}${attrStr}>${renderChildren(
+				node.children,
+				errorBoundary,
+				getChildNamespace(elementNamespace, tag)
+			)}</${tag}>`;
 		}
 		case 'Blueprint':
-			return renderBlueprint(node.blueprint, node.props);
+			return renderBlueprint(
+				node.blueprint,
+				node.props,
+				errorBoundary,
+				namespace
+			);
 		case 'Fragment':
-		case 'List':
-			return renderChildren(node.children);
+			return renderChildren(node.children, errorBoundary, namespace);
+		case 'List': {
+			const disposeResource = getNodeResourceDisposer(node);
+			let html = '';
+			let renderFailed = false;
+			let renderError: unknown;
+			try {
+				const controller = getErrorBoundaryController(node);
+				if (!controller || controller.hasError()) {
+					html = renderChildren(node.children, errorBoundary, namespace);
+				} else {
+					try {
+						html = renderChildren(
+							node.children,
+							{ controller, parent: errorBoundary },
+							namespace
+						);
+					} catch (error) {
+						if (isSuspendToken(error)) throw error;
+						controller.capture(normalizeBoundaryError(error), false);
+						html = renderChildren(
+							node.children,
+							errorBoundary,
+							namespace
+						);
+					}
+				}
+			} catch (error) {
+				renderFailed = true;
+				renderError = error;
+			}
+
+			let cleanupFailed = false;
+			let cleanupError: unknown;
+			try {
+				disposeResource?.();
+			} catch (error) {
+				cleanupFailed = true;
+				cleanupError = error;
+			}
+
+			if (renderFailed && cleanupFailed) {
+				throw new AggregateError(
+					[renderError, cleanupError],
+					'[Effuse] Server render and node resource cleanup failed.'
+				);
+			}
+			if (renderFailed) throw renderError;
+			if (cleanupFailed) throw cleanupError;
+			return html;
+		}
 		default:
 			return '';
 	}
@@ -248,7 +342,9 @@ const renderEffuseNode = (node: EffuseNode): string => {
 
 const renderBlueprint = (
 	def: BlueprintDef,
-	props: Record<string, unknown>
+	props: Record<string, unknown>,
+	errorBoundary?: ServerErrorBoundary,
+	namespace: DOMNamespace = 'html'
 ): string => {
 	const state = def.state ? def.state(props) : {};
 
@@ -274,9 +370,9 @@ const renderBlueprint = (
 		// and only corrected after hydration.
 		html = provideScope
 			? runWithProvideScope(provideScope, () =>
-					renderNodeToString(def.view(context))
+					renderNodeToString(def.view(context), errorBoundary, namespace)
 				)
-			: renderNodeToString(def.view(context));
+			: renderNodeToString(def.view(context), errorBoundary, namespace);
 	} catch (error) {
 		renderFailed = true;
 		renderError = error;
@@ -303,30 +399,14 @@ const renderBlueprint = (
 	return html ?? '';
 };
 
-const normalizeClassValue = (value: unknown): string => {
-	if (Predicate.isString(value)) {
-		return value;
-	}
-	if (Array.isArray(value)) {
-		return value
-			.map(normalizeClassValue)
-			.filter((part) => part !== '')
-			.join(' ');
-	}
-	if (Predicate.isObject(value)) {
-		return Object.entries(value as Record<string, unknown>)
-			.filter(([, enabled]) => Boolean(enabled))
-			.map(([name]) => name)
-			.join(' ');
-	}
-	return '';
-};
-
-const renderAttributes = (props: Record<string, unknown>): string => {
+const renderAttributes = (
+	props: Record<string, unknown>,
+	namespace: DOMNamespace
+): string => {
 	const parts: string[] = [];
 
 	for (const [key, value] of Object.entries(props)) {
-		if (key === 'children' || key.startsWith('_')) {
+		if (isInternalProp(key)) {
 			continue;
 		}
 
@@ -372,15 +452,13 @@ const renderAttributes = (props: Record<string, unknown>): string => {
 		if (Predicate.isBoolean(actualValue)) {
 			if (actualValue) {
 				parts.push(
-					escapeAttrName(key === 'className' ? 'class' : camelToKebab(key))
+					escapeAttrName(normalizeDOMAttributeName(key, namespace))
 				);
 			}
 			continue;
 		}
 
-		const attrName = escapeAttrName(
-			key === 'className' ? 'class' : camelToKebab(key)
-		);
+		const attrName = escapeAttrName(normalizeDOMAttributeName(key, namespace));
 
 		if (key === 'style' && Predicate.isObject(actualValue)) {
 			const styleStr = Object.entries(

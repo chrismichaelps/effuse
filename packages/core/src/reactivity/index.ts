@@ -42,6 +42,35 @@ export {
 export { computed, writableComputed } from './computed.js';
 
 export {
+	asyncComputed,
+	type AsyncComputed,
+	type AsyncComputedOptions,
+	type AsyncLoadContext,
+	type RetryPolicy,
+} from './async-computed.js';
+
+export {
+	clearHydratedAsyncState,
+	createAsyncCollector,
+	getAsyncCollector,
+	hydrateAsyncState,
+	runWithAsyncCollector,
+	type AsyncCollector,
+	type AsyncCollectorSettleOptions,
+	type CollectableAsyncComputed,
+} from './async-hydration.js';
+
+export {
+	optimistic,
+	type CommitContext,
+	type MutationHandle,
+	type MutationStatus,
+	type OptimisticOptions,
+	type OptimisticQueue,
+	type PendingMutation,
+} from './optimistic.js';
+
+export {
 	readonly,
 	isReadonly,
 	shallowReadonly,

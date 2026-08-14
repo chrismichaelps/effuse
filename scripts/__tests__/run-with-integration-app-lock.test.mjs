@@ -4,7 +4,12 @@ import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parseCommand } from '../run-with-integration-app-lock.mjs';
+import {
+	parseCommand,
+	resolvePackageManagerCommand,
+	runWithIntegrationAppLock,
+} from '../run-with-integration-app-lock.mjs';
+import { runWorkspaceTests } from '../run-workspace-tests.mjs';
 import { test } from 'node:test';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -56,6 +61,117 @@ test('parseCommand requires a command after the separator', () => {
 	assert.throws(() => parseCommand(['--']), /Usage:/);
 });
 
+test('pnpm lifecycle commands reuse the pinned pnpm and Node executables', () => {
+	assert.deepEqual(
+		resolvePackageManagerCommand({
+			args: ['-r', 'test'],
+			command: 'pnpm',
+			env: {
+				npm_config_user_agent: 'pnpm/10.32.1 npm/? node/v24.15.0',
+				npm_execpath: '/package manager/bin/pnpm.cjs',
+				npm_node_execpath: '/node runtime/bin/node',
+			},
+			nodeExecPath: '/fallback/node',
+		}),
+		{
+			args: ['/package manager/bin/pnpm.cjs', '-r', 'test'],
+			command: '/node runtime/bin/node',
+		}
+	);
+});
+
+test('pinned pnpm execution falls back to the current Node executable', () => {
+	assert.deepEqual(
+		resolvePackageManagerCommand({
+			args: ['build'],
+			command: 'pnpm',
+			env: {
+				npm_config_user_agent: 'pnpm/10.32.1',
+				npm_execpath: '/pinned/pnpm.cjs',
+			},
+			nodeExecPath: '/current/node',
+		}),
+		{
+			args: ['/pinned/pnpm.cjs', 'build'],
+			command: '/current/node',
+		}
+	);
+});
+
+test('command resolution ignores generic and untrusted lifecycle commands', () => {
+	const pnpmLifecycle = {
+		npm_config_user_agent: 'pnpm/10.32.1',
+		npm_execpath: '/pinned/pnpm.cjs',
+		npm_node_execpath: '/pinned/node',
+	};
+
+	assert.deepEqual(
+		resolvePackageManagerCommand({
+			args: ['--version'],
+			command: 'node',
+			env: pnpmLifecycle,
+		}),
+		{ args: ['--version'], command: 'node' }
+	);
+	assert.deepEqual(
+		resolvePackageManagerCommand({
+			args: ['test'],
+			command: 'pnpm',
+			env: {
+				npm_config_user_agent: 'npm/11.0.0',
+				npm_execpath: '/untrusted/npm-cli.js',
+			},
+		}),
+		{ args: ['test'], command: 'pnpm' }
+	);
+	assert.deepEqual(
+		resolvePackageManagerCommand({
+			args: ['test'],
+			command: 'pnpm',
+			env: { npm_config_user_agent: 'pnpm/10.32.1' },
+		}),
+		{ args: ['test'], command: 'pnpm' }
+	);
+});
+
+test('lock runner forwards the resolved pnpm command without string joining', async () => {
+	const { lockDir, root } = await createTempLockDir();
+	const calls = [];
+
+	try {
+		await runWithIntegrationAppLock({
+			args: ['--filter', '@effuse/core', 'test'],
+			command: 'pnpm',
+			env: {
+				npm_config_user_agent: 'pnpm/10.32.1',
+				npm_execpath: '/package manager/pnpm.cjs',
+				npm_node_execpath: '/node runtime/node',
+			},
+			lockDir,
+			repoRoot: root,
+			run: (...callArgs) => {
+				calls.push(callArgs);
+			},
+		});
+
+		assert.deepEqual(calls, [
+			[
+				'/node runtime/node',
+				[
+					'/package manager/pnpm.cjs',
+					'--filter',
+					'@effuse/core',
+					'test',
+				],
+				root,
+			],
+		]);
+		await assert.rejects(stat(lockDir), { code: 'ENOENT' });
+	} finally {
+		await rm(root, { force: true, recursive: true });
+	}
+});
+
 test('root generated-output gates use the shared lock', async () => {
 	const packageJson = JSON.parse(
 		await readFile(join(repoRoot, 'package.json'), 'utf8')
@@ -63,12 +179,28 @@ test('root generated-output gates use the shared lock', async () => {
 	const lockedPrefix =
 		'node scripts/run-with-integration-app-lock.mjs -- ';
 
-	for (const script of ['build', 'lint', 'test', 'typecheck']) {
+	for (const script of ['build', 'lint', 'typecheck']) {
 		assert.ok(
 			packageJson.scripts[script].startsWith(lockedPrefix),
 			`Expected root ${script} to use the generated-output lock.`
 		);
 	}
+	assert.equal(
+		packageJson.scripts.lint,
+		'node scripts/run-with-integration-app-lock.mjs -- pnpm -r lint'
+	);
+	assert.equal(
+		packageJson.scripts['lint:packages'],
+		'node scripts/run-with-integration-app-lock.mjs -- pnpm -r lint'
+	);
+	assert.equal(
+		packageJson.scripts.test,
+		'node scripts/run-workspace-tests.mjs'
+	);
+	assert.equal(
+		packageJson.scripts['test:workspace'],
+		'node scripts/run-workspace-tests.mjs'
+	);
 	assert.equal(
 		packageJson.scripts['check:app'],
 		'node scripts/check-integration-app.mjs'
@@ -77,6 +209,67 @@ test('root generated-output gates use the shared lock', async () => {
 		packageJson.scripts['check:app:bun'],
 		'node scripts/check-integration-app.mjs --runner=bun'
 	);
+});
+
+test('workspace tests reuse one pinned pnpm process in strict order', async () => {
+	const { lockDir, root } = await createTempLockDir();
+	const calls = [];
+
+	try {
+		await runWorkspaceTests({
+			env: {
+				npm_config_user_agent: 'pnpm/10.32.1',
+				npm_execpath: '/package manager/pnpm.cjs',
+				npm_node_execpath: '/node runtime/node',
+			},
+			lockDir,
+			repoRoot: root,
+			run: (...args) => {
+				calls.push(args);
+			},
+		});
+
+		assert.deepEqual(calls, [
+			[
+				'/node runtime/node',
+				['/package manager/pnpm.cjs', 'test:scripts'],
+				root,
+			],
+			['/node runtime/node', ['/package manager/pnpm.cjs', '-r', 'test'], root],
+		]);
+		await assert.rejects(stat(lockDir), { code: 'ENOENT' });
+	} finally {
+		await rm(root, { force: true, recursive: true });
+	}
+});
+
+test('workspace tests stop after a script-test failure and release the lock', async () => {
+	const { lockDir, root } = await createTempLockDir();
+	let calls = 0;
+
+	try {
+		await assert.rejects(
+			runWorkspaceTests({
+				env: {
+					npm_config_user_agent: 'pnpm/10.32.1',
+					npm_execpath: '/pinned/pnpm.cjs',
+					npm_node_execpath: '/pinned/node',
+				},
+				lockDir,
+				repoRoot: root,
+				run: async () => {
+					calls += 1;
+					throw new Error('script tests failed');
+				},
+			}),
+			/script tests failed/
+		);
+
+		assert.equal(calls, 1);
+		await assert.rejects(stat(lockDir), { code: 'ENOENT' });
+	} finally {
+		await rm(root, { force: true, recursive: true });
+	}
 });
 
 test('run-with-integration-app-lock forwards successful commands', async () => {

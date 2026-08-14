@@ -26,6 +26,8 @@ import type { EffuseNode, EffuseChild } from '../render/node.js';
 import { createListNode } from '../render/node.js';
 import { signal, type Signal } from '../reactivity/signal.js';
 import { Option, Predicate } from 'effect';
+import { attachErrorBoundaryController } from './error-boundary-runtime.js';
+import { attachNodeResourceDisposer } from '../render/node-resource.js';
 
 export interface ErrorBoundaryProps {
 	fallback: EffuseChild | ((error: Error, reset: () => void) => EffuseChild);
@@ -34,21 +36,40 @@ export interface ErrorBoundaryProps {
 }
 
 type ErrorState = {
-	error: Signal<Option.Option<Error>>;
+	error: Option.Option<Error>;
+	revision: Signal<number>;
+	notificationScheduled: boolean;
+	disposed: boolean;
 };
 
 const createErrorState = (): ErrorState => ({
-	error: signal<Option.Option<Error>>(Option.none()),
+	error: Option.none(),
+	revision: signal(0),
+	notificationScheduled: false,
+	disposed: false,
 });
 
-const getError = (state: ErrorState): Option.Option<Error> => state.error.value;
+const getError = (state: ErrorState): Option.Option<Error> => {
+	void state.revision.value;
+	return state.error;
+};
 
-const setError = (state: ErrorState, error: Error): void => {
-	state.error.value = Option.some(error);
+const setError = (state: ErrorState, error: Error, notify: boolean): void => {
+	state.error = Option.some(error);
+	if (!notify || state.notificationScheduled) return;
+
+	state.notificationScheduled = true;
+	queueMicrotask(() => {
+		if (state.disposed) return;
+		state.notificationScheduled = false;
+		state.revision.value++;
+	});
 };
 
 const clearError = (state: ErrorState): void => {
-	state.error.value = Option.none();
+	if (state.disposed) return;
+	state.error = Option.none();
+	state.revision.value++;
 };
 
 const renderFallback = (
@@ -62,19 +83,22 @@ export const ErrorBoundary = (props: ErrorBoundaryProps): EffuseNode => {
 	const { fallback, children, onError } = props;
 	const state = createErrorState();
 
-	const listNode = createListNode([]) as ReturnType<typeof createListNode> & {
-		_state: ErrorState;
-		capture: (error: Error) => void;
-	};
-
-	listNode._state = state;
-
-	listNode.capture = (error: Error) => {
-		setError(state, error);
-		if (Predicate.isNotNullable(onError)) {
-			onError(error);
-		}
-	};
+	const listNode = createListNode([]);
+	attachErrorBoundaryController(listNode, {
+		hasError: () => Option.isSome(state.error),
+		capture: (error, notify) => {
+			if (state.disposed) return;
+			if (Predicate.isNotNullable(onError)) {
+				onError(error);
+			}
+			setError(state, error, notify);
+		},
+	});
+	attachNodeResourceDisposer(listNode, () => {
+		state.disposed = true;
+		state.notificationScheduled = false;
+		state.error = Option.none();
+	});
 
 	const reset = () => {
 		clearError(state);
@@ -84,6 +108,7 @@ export const ErrorBoundary = (props: ErrorBoundaryProps): EffuseNode => {
 		enumerable: true,
 		configurable: true,
 		get() {
+			if (state.disposed) return [];
 			const errorOpt = getError(state);
 
 			if (Option.isNone(errorOpt)) {

@@ -29,6 +29,7 @@ import {
 	getTrackingPaused,
 	resumeTracking,
 	pauseTracking,
+	untrack,
 } from '../reactivity/dep.js';
 import type { Dep } from '../reactivity/dep.js';
 import { isSuspendToken } from '../suspense/Suspense.js';
@@ -51,14 +52,19 @@ export function watchEffect(
 	let debounceTimeout: ReturnType<typeof setTimeout> | null = null;
 	let cleanupFns: CleanupFn[] = [];
 	let subscriptions: (() => void)[] = [];
+	let executionGeneration = 0;
+
+	function runCleanup(cleanup: CleanupFn): void {
+		try {
+			untrack(cleanup);
+		} catch {
+			return;
+		}
+	}
 
 	function runCleanups(): void {
 		for (const cleanup of cleanupFns) {
-			try {
-				cleanup();
-			} catch {
-				continue;
-			}
+			runCleanup(cleanup);
 		}
 		cleanupFns = [];
 	}
@@ -70,13 +76,17 @@ export function watchEffect(
 		subscriptions = [];
 	}
 
-	const onCleanup: OnCleanup = (cleanupFn: CleanupFn): void => {
-		cleanupFns.push(cleanupFn);
-	};
-
 	function execute(): void {
 		if (!isActive || isPaused) return;
 		isScheduled = false;
+		const generation = ++executionGeneration;
+		const onCleanup: OnCleanup = (cleanupFn: CleanupFn): void => {
+			if (!isActive || generation !== executionGeneration) {
+				runCleanup(cleanupFn);
+				return;
+			}
+			cleanupFns.push(cleanupFn);
+		};
 
 		runCleanups();
 		clearSubscriptions();
@@ -87,10 +97,12 @@ export function watchEffect(
 		startTracking();
 
 		let trackedDeps: Dep[] | undefined;
+		let shouldSubscribe = false;
 		try {
 			const result = fn(onCleanup);
 
 			trackedDeps = stopTracking();
+			shouldSubscribe = true;
 
 			if (result instanceof Promise) {
 				executeAsync(result);
@@ -100,11 +112,13 @@ export function watchEffect(
 				trackedDeps = stopTracking();
 			}
 			if (isSuspendToken(err)) {
+				shouldSubscribe = true;
 				return;
 			}
+			runCleanups();
 			throw err;
 		} finally {
-			if (trackedDeps) {
+			if (isActive && shouldSubscribe && trackedDeps) {
 				for (const trackedDep of trackedDeps) {
 					const unsub = trackedDep.subscribe(scheduleRun);
 					subscriptions.push(unsub);
@@ -197,12 +211,9 @@ export function watchEffect(
 	};
 }
 
-// Execute effect once and stop
+// Execute once without leaking dependencies into an enclosing effect.
 export function effectOnce(fn: () => void): void {
-	const handle = watchEffect(() => {
-		fn();
-		handle.stop();
-	});
+	untrack(fn);
 }
 
 export { batch } from '../reactivity/dep.js';

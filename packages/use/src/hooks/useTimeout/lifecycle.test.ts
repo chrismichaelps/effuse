@@ -24,9 +24,10 @@ describe('useTimeout lifecycle ownership', () => {
 
 	it('cannot invoke its callback after component unmount', async () => {
 		const callback = vi.fn();
+		let timeout: ReturnType<typeof useTimeout> | undefined;
 		const App = define({
 			script: () => {
-				useTimeout({ callback, delay: 100 });
+				timeout = useTimeout({ callback, delay: 100 });
 				return {};
 			},
 			template: () =>
@@ -45,5 +46,33 @@ describe('useTimeout lifecycle ownership', () => {
 
 		expect(callback).not.toHaveBeenCalled();
 		expect(vi.getTimerCount()).toBe(0);
+		expect(timeout?.status.value).toBe('idle');
+		expect(timeout?.remaining.value).toBe(100);
+
+		timeout?.restart();
+		vi.advanceTimersByTime(200);
+		expect(callback).not.toHaveBeenCalled();
+		expect(vi.getTimerCount()).toBe(0);
+		expect(timeout?.status.value).toBe('idle');
+	});
+
+	it('does not start a non-immediate timeout after owner teardown', async () => {
+		const callback = vi.fn();
+		let timeout: ReturnType<typeof useTimeout> | undefined;
+		const App = define({
+			script: () => {
+				timeout = useTimeout({ callback, delay: 100, immediate: false });
+				return {};
+			},
+			template: () => null,
+		});
+		const mounted = await createApp(App).mount('#app');
+		await mounted.unmount();
+
+		timeout?.start();
+		vi.advanceTimersByTime(200);
+		expect(callback).not.toHaveBeenCalled();
+		expect(vi.getTimerCount()).toBe(0);
+		expect(timeout?.status.value).toBe('idle');
 	});
 });

@@ -28,7 +28,14 @@ import { isSignal } from '../../reactivity/signal.js';
 import { watchEffect } from '../../effects/effect.js';
 import type { EffectHandle } from '../../types/index.js';
 import { applyRef, isRefCallback, isRefObject } from '../../refs/ref.js';
+import type { Ref } from '../../refs/types.js';
 import { applyDirective } from '../../refs/directive.js';
+import {
+	getDOMNamespace,
+	normalizeDOMAttributeName,
+} from '../../render/attribute-name.js';
+import { normalizeClassValue } from '../../render/class-value.js';
+import { isEventHandlerName } from '../../render/event-prop.js';
 
 export interface PropBindingResult {
 	cleanup: () => void;
@@ -55,23 +62,62 @@ export class PropService extends Context.Tag('effuse/PropService')<
 	PropServiceInterface
 >() {}
 
+const boundElementRefs = new WeakMap<Element, Ref>();
+
+const isRef = (value: unknown): value is Ref =>
+	isRefCallback(value) || isRefObject(value);
+
+const clearElementRef = (element: Element): void => {
+	const current = boundElementRefs.get(element);
+	if (current) {
+		boundElementRefs.delete(element);
+		applyRef(current, null);
+	}
+};
+
+export const patchElementRef = (element: Element, next: unknown): void => {
+	const current = boundElementRefs.get(element);
+	if (current === next) return;
+	clearElementRef(element);
+	if (isRef(next)) {
+		boundElementRefs.set(element, next);
+		try {
+			applyRef(next, element);
+		} catch (error) {
+			if (boundElementRefs.get(element) === next) {
+				boundElementRefs.delete(element);
+			}
+			throw error;
+		}
+	}
+};
+
 const setElementProp = (
 	element: Element,
 	key: string,
 	value: unknown
 ): void => {
 	if (key === 'class' || key === 'className') {
-		if (Predicate.isString(value)) {
-			element.className = value;
-		} else if (value == null) {
-			element.className = '';
-		}
+		// Shared with the server serializer so both sides flatten objects and
+		// arrays identically; handling only strings here silently dropped every
+		// conditional class on the client.
+		element.className = value == null ? '' : normalizeClassValue(value);
 		return;
 	}
 
 	if (key === 'style') {
+		const el = element as HTMLElement;
+		// The server writes a string style straight through as an attribute, so
+		// discarding it here left the element unstyled on any client render.
+		if (Predicate.isString(value)) {
+			el.style.cssText = value;
+			return;
+		}
+		if (value == null) {
+			el.removeAttribute('style');
+			return;
+		}
 		if (Predicate.isObject(value)) {
-			const el = element as HTMLElement;
 			const styles = value as Record<string, string | number>;
 			for (const [prop, val] of Object.entries(styles)) {
 				const cssProp = prop.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`);
@@ -99,20 +145,24 @@ const setElementProp = (
 		(element as HTMLInputElement).checked = Boolean(value);
 		return;
 	}
+	const attributeName = normalizeDOMAttributeName(
+		key,
+		getDOMNamespace(element.namespaceURI)
+	);
 
 	if (Predicate.isBoolean(value)) {
 		if (value) {
-			element.setAttribute(key, '');
+			element.setAttribute(attributeName, '');
 		} else {
-			element.removeAttribute(key);
+			element.removeAttribute(attributeName);
 		}
 		return;
 	}
 
 	if (value == null) {
-		element.removeAttribute(key);
+		element.removeAttribute(attributeName);
 	} else if (Predicate.isString(value) || Predicate.isNumber(value)) {
-		element.setAttribute(key, String(value));
+		element.setAttribute(attributeName, String(value));
 	}
 };
 
@@ -168,11 +218,7 @@ const bindFormControlImpl = (
 	};
 };
 
-const isEventHandler = (key: string): boolean => {
-	if (key.length <= 2 || !key.startsWith('on')) return false;
-	const thirdChar = key[2];
-	return thirdChar !== undefined && thirdChar === thirdChar.toUpperCase();
-};
+const isEventHandler = isEventHandlerName;
 
 const isCompilerGetter = (value: unknown): value is () => unknown => {
 	return Predicate.isFunction(value) && value.length === 0;
@@ -182,12 +228,13 @@ export const PropServiceLive = Layer.succeed(PropService, {
 	bindProp: (element: Element, key: string, value: unknown) =>
 		Effect.sync(() => {
 			if (key === 'ref') {
-				if (isRefCallback(value) || isRefObject(value)) {
-					applyRef(value, element);
-				} else if (Predicate.isFunction(value)) {
-					(value as (el: Element) => void)(element);
+				if (isRef(value)) {
+					patchElementRef(element, value);
 				}
-				return { cleanup: () => {} };
+				// Detaching on unmount keeps `ref.current` honest and lets the
+				// removed element be collected; without it a ref pins a detached
+				// node for as long as the ref itself is reachable.
+				return { cleanup: () => clearElementRef(element) };
 			}
 			if (key.startsWith('use:')) {
 				const directiveName = key.slice(4);

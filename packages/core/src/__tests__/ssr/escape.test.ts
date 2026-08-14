@@ -114,3 +114,71 @@ describe('escapeAttrName', () => {
 		}
 	});
 });
+
+/**
+ * Counts entries into `String.prototype.replace` while `run` executes.
+ *
+ * This replaced a wall-clock comparison against the chained-`replace`
+ * reference. That assertion flaked three times under the parallel workspace
+ * gate — as a single measurement, then a best-of-five minimum, then a paired
+ * majority — and was eventually skipped on CI to stop it blocking merges,
+ * which left it running only where it still flaked.
+ *
+ * The property worth defending is not "faster by some margin", it is "does not
+ * walk the string once per character class". Asserting the strategy is
+ * deterministic, runs everywhere including CI, and states the optimisation
+ * more tightly: reverting to the chained form fails immediately rather than
+ * probabilistically.
+ */
+const replaceCalls = (run: () => void): number => {
+	const original = String.prototype.replace;
+	let calls = 0;
+	String.prototype.replace = function (
+		this: string,
+		...args: unknown[]
+	): string {
+		calls += 1;
+		return (
+			original as unknown as (...values: unknown[]) => string
+		).apply(this, args);
+	} as typeof String.prototype.replace;
+
+	try {
+		run();
+	} finally {
+		String.prototype.replace = original;
+	}
+
+	return calls;
+};
+
+describe('escaping strategy', () => {
+	it('escapes text without a chained replace', () => {
+		const sample = 'Some text with <escapes> & more, of a realistic length';
+
+		expect(replaceCalls(() => void escapeHtml(sample))).toBe(0);
+	});
+
+	it('escapes an attribute value without a chained replace', () => {
+		const sample = 'Some "quoted" text & more, of a realistic length';
+
+		expect(replaceCalls(() => void escapeAttr(sample))).toBe(0);
+	});
+
+	it('returns a clean string without scanning it twice', () => {
+		const clean = 'a perfectly ordinary attribute value with nothing to escape';
+
+		expect(replaceCalls(() => void escapeAttr(clean))).toBe(0);
+		expect(replaceCalls(() => void escapeHtml(clean))).toBe(0);
+	});
+
+	it('leaves attribute names on the chained form deliberately', () => {
+		// Names come from a fixed vocabulary and effectively always clear the
+		// fast path, so the slow branch is not worth reimplementing the
+		// whitespace class by character code. Pinned so the exemption stays a
+		// decision rather than drift.
+		expect(
+			replaceCalls(() => void escapeAttrName('data-x y'))
+		).toBeGreaterThan(0);
+	});
+});

@@ -6,35 +6,43 @@
   Lifecycle-owned reactive hooks for Effuse applications.
 </p>
 
+# `@effuse/use`
+
+The package provides browser capability, scheduling, storage, and async hooks
+whose resources follow Effuse component lifecycle.
+
 ## Install
 
 ```bash
 pnpm add @effuse/use
 ```
 
-Effect is an internal implementation detail. Application code imports Effuse
-signals, tagged states, and errors without learning or installing Effect APIs.
+Application code imports Effuse signals, tagged states, and errors without
+learning or installing a second runtime API.
 
 ## Hooks
 
-| Group | Hooks |
-| --- | --- |
-| Browser state | `useWindowSize`, `useMediaQuery`, `useOnline`, `useDocumentVisibility`, `usePreferredColorScheme` |
-| Browser capabilities | `useLocalStorage`, `useClipboard`, `useEventListener` |
-| Scheduling | `useInterval`, `useTimeout`, `useDebounce`, `useThrottle` |
-| Async work | `useAsyncTask` |
+| Group                | Hooks                                                                                             |
+| -------------------- | ------------------------------------------------------------------------------------------------- |
+| Browser state        | `useWindowSize`, `useMediaQuery`, `useOnline`, `useDocumentVisibility`, `usePreferredColorScheme` |
+| Browser capabilities | `useLocalStorage`, `useClipboard`, `useEventListener`                                             |
+| Scheduling           | `useInterval`, `useTimeout`, `useDebounce`, `useThrottle`                                         |
+| Async work           | `useAsyncTask`                                                                                    |
+
+Hook result states and errors are exported from this package, so consumers use
+one Effuse-owned contract for async, storage, listener, and network state.
 
 ```ts
 import { useMediaQuery, useOnline } from '@effuse/use';
 
 export const script = () => {
-  const viewport = useMediaQuery({
-    query: '(min-width: 64rem)',
-    initialValue: false,
-  });
-  const network = useOnline({ initialValue: true });
+	const viewport = useMediaQuery({
+		query: '(min-width: 64rem)',
+		initialValue: false,
+	});
+	const network = useOnline({ initialValue: true });
 
-  return { viewport, network };
+	return { viewport, network };
 };
 ```
 
@@ -52,12 +60,12 @@ Configure fallbacks from request data when it is available:
 
 ```ts
 const viewport = useWindowSize({
-  initialWidth: 1280,
-  initialHeight: 720,
+	initialWidth: 1280,
+	initialHeight: 720,
 });
 
 const colorScheme = usePreferredColorScheme({
-  ssrScheme: 'dark',
+	ssrScheme: 'dark',
 });
 ```
 

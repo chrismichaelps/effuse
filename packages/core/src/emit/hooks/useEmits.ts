@@ -25,6 +25,7 @@
 import { Option, pipe } from 'effect';
 import { signal } from '../../reactivity/signal.js';
 import { batch } from '../../reactivity/dep.js';
+import { getActiveLifecycle } from '../../blueprint/lifecycle.js';
 import type {
 	EmitContextData,
 	EmitFn,
@@ -56,6 +57,11 @@ export function useEmits<T extends EventMap>(
 		signals: new Map(),
 	};
 
+	// Only a component-owned emitter is revoked on teardown. A standalone
+	// emitter has no lifecycle to bound it, so it stays live for its owner.
+	const lifecycle = getActiveLifecycle();
+	let disposed = false;
+
 	if (initialHandlers) {
 		for (const [event, handler] of Object.entries(initialHandlers)) {
 			if (handler) {
@@ -71,6 +77,8 @@ export function useEmits<T extends EventMap>(
 	}
 
 	const emit = <K extends keyof T & string>(event: K, payload: T[K]): void => {
+		if (disposed) return;
+
 		batch(() => {
 			const handlers = ctx.handlers.get(event);
 			if (handlers) {
@@ -102,6 +110,8 @@ export function useEmits<T extends EventMap>(
 	): Promise<void> => {
 		return new Promise((resolve) => {
 			queueMicrotask(() => {
+				// The promise still settles after teardown; only the delivery is
+				// dropped, so awaiting callers are never left hanging.
 				emit(event, payload);
 				resolve();
 			});
@@ -112,6 +122,8 @@ export function useEmits<T extends EventMap>(
 		event: K,
 		handler: EmitHandler<T[K]>
 	): (() => void) => {
+		if (disposed) return () => {};
+
 		let handlersSet = ctx.handlers.get(event);
 		if (!handlersSet) {
 			handlersSet = new Set();
@@ -139,6 +151,12 @@ export function useEmits<T extends EventMap>(
 			traceEmitUnsubscribe(event);
 		}
 	};
+
+	lifecycle?.onUnmount(() => {
+		disposed = true;
+		ctx.handlers.clear();
+		ctx.signals.clear();
+	});
 
 	return { emit, emitAsync, on, off, context: ctx };
 }

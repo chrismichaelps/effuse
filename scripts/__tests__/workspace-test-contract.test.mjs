@@ -59,6 +59,7 @@ test('every tested public package participates in the workspace gate', async () 
 	}
 
 	assert.deepEqual(publicPackages.sort(), [
+		'@effuse/auth',
 		'@effuse/cli',
 		'@effuse/compiler',
 		'@effuse/core',
@@ -75,6 +76,9 @@ test('every tested public package participates in the workspace gate', async () 
 test('the root test command delegates to recursive package tests', async () => {
 	const manifest = await readJson(join(repoRoot, 'package.json'));
 
-	assert.match(manifest.scripts?.test ?? '', /pnpm test:workspace/u);
-	assert.match(manifest.scripts?.['test:workspace'] ?? '', /pnpm -r test/u);
+	assert.equal(manifest.scripts?.test, 'node scripts/run-workspace-tests.mjs');
+	assert.equal(
+		manifest.scripts?.['test:workspace'],
+		'node scripts/run-workspace-tests.mjs'
+	);
 });

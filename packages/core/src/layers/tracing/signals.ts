@@ -23,22 +23,33 @@
  */
 
 import { Predicate } from 'effect';
-import { getGlobalTracing } from './global.js';
+import { getGlobalTracing, hasTracing } from './global.js';
 
 let signalCounter = 0;
+
+/**
+ * Checked before building a trace id so the identifier string is allocated
+ * only when someone is listening, rather than once per signal created.
+ */
+export const isSignalTracingEnabled = (): boolean => {
+	if (!hasTracing()) return false;
+	const tracing = getGlobalTracing();
+	return (
+		Predicate.isNotNullable(tracing) && tracing.isCategoryEnabled('signals')
+	);
+};
+
+export const nextSignalTraceId = (name: string | undefined): string =>
+	name ?? `signal_${String(++signalCounter)}`;
 
 export const traceSignalCreate = (
 	name: string | undefined,
 	initialValue: unknown
 ): string => {
-	const tracing = getGlobalTracing();
-	const signalId = name ?? `signal_${String(++signalCounter)}`;
+	const signalId = nextSignalTraceId(name);
 
-	if (
-		Predicate.isNotNullable(tracing) &&
-		tracing.isCategoryEnabled('signals')
-	) {
-		tracing.log('signals', 'create', signalId, {
+	if (isSignalTracingEnabled()) {
+		getGlobalTracing()?.log('signals', 'create', signalId, {
 			initial: initialValue,
 		});
 	}

@@ -71,6 +71,7 @@ const useDebounceHook = defineHook<
 
 		let timeoutId: ReturnType<typeof setTimeout> | null = null;
 		let lastSourceValue: unknown = sourceSignal.value;
+		let ownerDisposed = false;
 
 		const clearPendingTimeout = (): void => {
 			if (timeoutId !== null) {
@@ -88,6 +89,7 @@ const useDebounceHook = defineHook<
 		let isCancelled = false;
 
 		const cancel = (): void => {
+			if (ownerDisposed) return;
 			traceDebounceCancel();
 			isCancelled = true;
 			clearPendingTimeout();
@@ -97,6 +99,7 @@ const useDebounceHook = defineHook<
 		};
 
 		const flush = (): void => {
+			if (ownerDisposed) return;
 			traceDebounceFlush();
 			clearPendingTimeout();
 			const state = internalState.value;
@@ -106,8 +109,20 @@ const useDebounceHook = defineHook<
 			}
 		};
 
+		const dispose = (): void => {
+			if (ownerDisposed) return;
+			ownerDisposed = true;
+			clearPendingTimeout();
+			const currentValue = getCurrentValue(internalState.value);
+			lastSourceValue = currentValue;
+			internalState.value = DS.Idle({ value: currentValue });
+		};
+
+		ctx.scope.addFinalizer(dispose);
+
 		ctx.onMount(() => {
 			const effect = ctx.watchEffect(() => {
+				if (ownerDisposed) return undefined;
 				const newValue = sourceSignal.value;
 
 				if (isCancelled) {
@@ -144,7 +159,7 @@ const useDebounceHook = defineHook<
 
 			return () => {
 				effect.stop();
-				clearPendingTimeout();
+				dispose();
 			};
 		});
 
