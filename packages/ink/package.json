@@ -1,6 +1,6 @@
 {
 	"name": "@effuse/ink",
-	"version": "1.2.3",
+	"version": "1.2.4",
 	"description": "A reactive Markdown renderer for Effuse. It allows you to render Markdown content and embed interactive components directly within your text.",
 	"author": "Chris M. Pérez",
 	"license": "MIT",
@@ -50,7 +50,7 @@
 		"node": ">=22.14.0"
 	},
 	"peerDependencies": {
-		"@effuse/core": "2.0.3"
+		"@effuse/core": "2.1.0"
 	},
 	"dependencies": {
 		"effect": "^3.21.5"
@@ -59,7 +59,7 @@
 		"@effect/eslint-plugin": "^0.3.2",
 		"@eslint/js": "^9.39.4",
 		"@types/node": "^25.5.0",
-		"@effuse/core": "2.0.3",
+		"@effuse/core": "2.1.0",
 		"eslint": "^10.0.3",
 		"tsup": "^8.5.1",
 		"typescript": "^5.9.3",

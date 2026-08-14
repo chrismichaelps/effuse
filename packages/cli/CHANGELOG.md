@@ -1,3 +1,24 @@
+## @effuse/cli [1.0.4](https://github.com/chrismichaelps/effuse/compare/@effuse/cli@1.0.3...@effuse/cli@1.0.4) (2026-08-14)
+
+### Bug Fixes
+
+* **cli:** own generated registry specifiers in dev SSR ([#476](https://github.com/chrismichaelps/effuse/issues/476)) ([af3c8ac](https://github.com/chrismichaelps/effuse/commit/af3c8ac613b9c8fe1377f70f7f485f2302680ae5)), closes [#474](https://github.com/chrismichaelps/effuse/issues/474)
+* **cli:** typecheck single-kind server registries refs [#473](https://github.com/chrismichaelps/effuse/issues/473) ([427cba2](https://github.com/chrismichaelps/effuse/commit/427cba2890f845d447341f10dbc44e89165a39fb))
+
+### Documentation
+
+* **packages:** strengthen ecosystem references refs [#598](https://github.com/chrismichaelps/effuse/issues/598) ([#600](https://github.com/chrismichaelps/effuse/issues/600)) ([d0db27e](https://github.com/chrismichaelps/effuse/commit/d0db27efcca337be2aa99584b97454913b11577e))
+
+### Tests
+
+* **cli:** isolate registry typecheck fixture refs [#473](https://github.com/chrismichaelps/effuse/issues/473) ([eb2c19e](https://github.com/chrismichaelps/effuse/commit/eb2c19e3be939d406b46be2de6cc73320de2a86a))
+
+
+### Dependencies
+
+* **@effuse/server:** upgraded to 1.0.4
+* **@effuse/core:** upgraded to 2.1.0
+
 ## @effuse/cli [1.0.3](https://github.com/chrismichaelps/effuse/compare/@effuse/cli@1.0.2...@effuse/cli@1.0.3) (2026-07-29)
 
 

@@ -1,3 +1,14 @@
+## @effuse/ink [1.2.4](https://github.com/chrismichaelps/effuse/compare/@effuse/ink@1.2.3...@effuse/ink@1.2.4) (2026-08-14)
+
+### Documentation
+
+* **packages:** strengthen ecosystem references refs [#598](https://github.com/chrismichaelps/effuse/issues/598) ([#600](https://github.com/chrismichaelps/effuse/issues/600)) ([d0db27e](https://github.com/chrismichaelps/effuse/commit/d0db27efcca337be2aa99584b97454913b11577e))
+
+
+### Dependencies
+
+* **@effuse/core:** upgraded to 2.1.0
+
 ## @effuse/ink [1.2.3](https://github.com/chrismichaelps/effuse/compare/@effuse/ink@1.2.2...@effuse/ink@1.2.3) (2026-07-29)
 
 
