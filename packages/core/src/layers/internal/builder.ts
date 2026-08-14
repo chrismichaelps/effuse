@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-import { Effect, Fiber, Predicate } from 'effect';
+import { Cause, Effect, Exit, Fiber, Predicate } from 'effect';
 import type {
 	AnyResolvedLayer,
 	SetupContext,
@@ -278,6 +278,59 @@ export interface BuildMetrics {
 	readonly maxParallelism: number;
 }
 
+const cleanupBuildResults = async (
+	results: readonly LayerBuildResult[]
+): Promise<unknown[]> => {
+	const failures: unknown[] = [];
+	for (let index = results.length - 1; index >= 0; index -= 1) {
+		const cleanup = results[index]?.cleanup;
+		if (!cleanup) continue;
+		try {
+			await cleanup();
+		} catch (error) {
+			failures.push(error);
+		}
+	}
+	return failures;
+};
+
+const failBuildAfterRollback = (
+	results: readonly LayerBuildResult[],
+	causes: readonly Cause.Cause<unknown>[]
+): Effect.Effect<never, unknown> =>
+	Effect.gen(function* () {
+		const cleanupFailures = yield* Effect.promise(() =>
+			cleanupBuildResults(results)
+		);
+		if (causes.length === 1 && cleanupFailures.length === 0) {
+			return yield* Effect.failCause(causes[0] as Cause.Cause<unknown>);
+		}
+
+		const setupFailures = causes.map(Cause.squash);
+		return yield* Effect.fail(
+			new AggregateError(
+				[...setupFailures, ...cleanupFailures],
+				`[Effuse] Layer initialization failed with ${String(setupFailures.length)} setup and ${String(cleanupFailures.length)} rollback errors.`
+			)
+		);
+	});
+
+const appendLayerExits = (
+	results: LayerBuildResult[],
+	exits: readonly Exit.Exit<LayerBuildResult, unknown>[]
+): Effect.Effect<void, unknown> =>
+	Effect.gen(function* () {
+		const causes: Cause.Cause<unknown>[] = [];
+		for (const exit of exits) {
+			if (Exit.isSuccess(exit)) results.push(exit.value);
+			else causes.push(exit.cause);
+		}
+
+		if (causes.length > 0) {
+			yield* failBuildAfterRollback(results, causes);
+		}
+	});
+
 export const buildAllLayersEffect = (
 	layers: readonly AnyResolvedLayer[]
 ): Effect.Effect<
@@ -298,8 +351,10 @@ export const buildAllLayersEffect = (
 			if (level.layers.length === 1) {
 				const singleLayer = level.layers[0];
 				if (singleLayer) {
-					const result = yield* buildLayerEffect(singleLayer, layers);
-					results.push(result);
+					const exit = yield* Effect.exit(
+						buildLayerEffect(singleLayer, layers)
+					);
+					yield* appendLayerExits(results, [exit]);
 				}
 			} else if (level.layers.length > 1) {
 				const fibers = yield* Effect.all(
@@ -312,45 +367,46 @@ export const buildAllLayersEffect = (
 					PropsService | RegistryService | TracingService
 				>;
 
-				const levelResults = yield* Fiber.joinAll(fibers);
-				results.push(...levelResults);
+				const exits = yield* Effect.all(fibers.map(Fiber.await));
+				yield* appendLayerExits(results, exits);
 			}
 		}
 
-		const onReadyCallbacks = results.flatMap((r) =>
-			r.onReady ? [r.onReady] : []
+		const onReadyCallbacks = results.flatMap((result) =>
+			result.onReady
+				? [{ callback: result.onReady, layer: result.layer.name }]
+				: []
 		);
 
 		if (onReadyCallbacks.length > 0) {
-			yield* Effect.all(
-				onReadyCallbacks.map((cb, index) =>
-					Effect.tryPromise({
-						try: () => Promise.resolve(cb()),
-						catch: (error: unknown) =>
-							new LayerSetupError({
-								layerName: results[index]?.layer.name ?? 'unknown',
-								phase: 'onReady',
-								cause: error,
-							}),
-					})
+			const exits = yield* Effect.all(
+				onReadyCallbacks.map(({ callback, layer }) =>
+					Effect.exit(
+						Effect.tryPromise({
+							try: () => Promise.resolve(callback()),
+							catch: (error: unknown) =>
+								new LayerSetupError({
+									layerName: layer,
+									phase: 'onReady',
+									cause: error,
+								}),
+						})
+					)
 				),
 				{ concurrency: 'unbounded' }
 			);
+			const causes = exits.flatMap((exit) =>
+				Exit.isFailure(exit) ? [exit.cause] : []
+			);
+			if (causes.length > 0) {
+				yield* failBuildAfterRollback(results, causes);
+			}
 		}
 
 		const aggregatedCleanup: CleanupFn | undefined =
 			results.length > 0
 				? async () => {
-						const failures: unknown[] = [];
-						for (const { cleanup } of results.slice().reverse()) {
-							if (cleanup) {
-								try {
-									await cleanup();
-								} catch (error) {
-									failures.push(error);
-								}
-							}
-						}
+						const failures = await cleanupBuildResults(results);
 						if (failures.length === 1) throw failures[0];
 						if (failures.length > 1) {
 							throw new AggregateError(
