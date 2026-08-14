@@ -44,7 +44,7 @@ export interface LayerRegistry {
 	hasService: (key: string) => boolean;
 }
 
-const createLayerRegistry = (): LayerRegistry => {
+export const createLayerRegistry = (): LayerRegistry => {
 	const layers = new Map<string, AnyResolvedLayer>();
 	const components = new Map<string, Component>();
 	const services = new Map<string, unknown>();

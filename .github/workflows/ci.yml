@@ -53,6 +53,9 @@ jobs:
       - name: Test
         run: pnpm test
 
+      - name: SSR performance budgets
+        run: node scripts/performance/ssr-runtime.mjs --check
+
   bun:
     name: Bun adapter conformance
     runs-on: ubuntu-latest
@@ -85,3 +88,9 @@ jobs:
 
       - name: Bun adapter conformance
         run: pnpm --filter @effuse/server test:bun
+
+      - name: Build Core benchmark artifact
+        run: pnpm --filter @effuse/core build
+
+      - name: Bun SSR performance budgets
+        run: bun scripts/performance/ssr-runtime.mjs --check

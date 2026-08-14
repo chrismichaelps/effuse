@@ -18,6 +18,27 @@ test('quality CI protects dev and main promotions', async () => {
 	assert.match(workflow, /push:\n\s+branches:\n\s+- dev\n\s+- main/u);
 });
 
+test('quality CI enforces SSR budgets on Node and Bun', async () => {
+	const workflow = await readWorkflow('ci.yml');
+	const bunBuildPosition = workflow.lastIndexOf(
+		'pnpm --filter @effuse/core build'
+	);
+	const bunBudgetPosition = workflow.indexOf(
+		'bun scripts/performance/ssr-runtime.mjs --check'
+	);
+
+	assert.match(
+		workflow,
+		/^\s+run: node scripts\/performance\/ssr-runtime\.mjs --check$/mu
+	);
+	assert.match(
+		workflow,
+		/^\s+run: bun scripts\/performance\/ssr-runtime\.mjs --check$/mu
+	);
+	assert.ok(bunBuildPosition >= 0);
+	assert.ok(bunBudgetPosition > bunBuildPosition);
+});
+
 test('publication waits for every quality boundary', async () => {
 	const workflow = await readWorkflow('release.yml');
 	const commands = [
