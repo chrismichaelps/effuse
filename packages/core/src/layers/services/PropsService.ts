@@ -32,7 +32,7 @@ export interface PropsRegistry {
 	has: (layerName: string) => boolean;
 }
 
-const createPropsRegistry = (): PropsRegistry => {
+export const createPropsRegistry = (): PropsRegistry => {
 	const props = new Map<string, LayerProps>();
 
 	return {

@@ -26,8 +26,14 @@ import { Effect, Layer, ManagedRuntime, Predicate } from 'effect';
 import type { AnyResolvedLayer, CleanupFn } from '../layers/types.js';
 import type { LayerInputSource } from '../layers/api/defineLayer.js';
 import type { HeadProps } from './types.js';
-import { PropsService } from '../layers/services/PropsService.js';
-import { RegistryService } from '../layers/services/RegistryService.js';
+import {
+	createPropsRegistry,
+	PropsService,
+} from '../layers/services/PropsService.js';
+import {
+	createLayerRegistry,
+	RegistryService,
+} from '../layers/services/RegistryService.js';
 import { buildAllLayersEffect } from '../layers/internal/builder.js';
 import {
 	getGlobalLayerContextStore,
@@ -39,6 +45,7 @@ import {
 } from '../layers/context.js';
 import {
 	TracingServiceLive,
+	createTracingService,
 	type TracingServiceApi,
 } from '../layers/tracing/index.js';
 import { TracingService } from '../layers/tracing/index.js';
@@ -63,6 +70,54 @@ export interface SSRRuntimeOptions {
 	/** Whether to run layer setup() functions. Defaults to true. */
 	readonly runSetup?: boolean;
 }
+
+const createLayerlessRuntime = (
+	layers: readonly AnyResolvedLayer[],
+	headStack: HeadProps[],
+	state: Map<string, unknown>,
+	previousLayerContextStore: LayerContextStore | undefined,
+	hasExistingLayerContext: boolean
+): SSRRuntime => {
+	const propsRegistry = createPropsRegistry();
+	const layerRegistry = createLayerRegistry();
+	const tracingService = createTracingService();
+	layerRegistry.registerService('tracing', tracingService);
+
+	const layerContextStore: LayerContextStore = {
+		propsRegistry,
+		layerRegistry,
+		layers,
+	};
+	if (!hasExistingLayerContext) {
+		restoreGlobalLayerContext(layerContextStore);
+	}
+
+	let disposePromise: Promise<void> | undefined;
+	const dispose = (): Promise<void> => {
+		disposePromise ??= Promise.resolve().then(() => {
+			markLayerContextStoreDisposed(layerContextStore);
+			if (getGlobalLayerContextStore() === layerContextStore) {
+				restoreGlobalLayerContext(
+					isLayerContextStoreActive(previousLayerContextStore)
+						? previousLayerContextStore
+						: undefined
+				);
+			}
+		});
+		return disposePromise;
+	};
+
+	return {
+		layers,
+		headStack,
+		state,
+		run: <T>(fn: () => T): T =>
+			runWithLayerContext(layerContextStore, () =>
+				runWithTracing(tracingService, fn)
+			),
+		dispose,
+	};
+};
 
 /**
  * Creates a per-request SSR runtime scoped to a single render pass.
@@ -91,6 +146,16 @@ export const createSSRRuntime = async (
 		if (layer.head) {
 			headStack.push(layer.head);
 		}
+	}
+
+	if (runSetup && layers.length === 0) {
+		return createLayerlessRuntime(
+			layers,
+			headStack,
+			state,
+			previousLayerContextStore,
+			hasExistingLayerContext
+		);
 	}
 
 	const tracingLayer = TracingServiceLive({});

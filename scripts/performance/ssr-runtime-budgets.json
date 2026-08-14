@@ -1,6 +1,6 @@
 {
 	"warm": {
-		"ssr.runtime-lifecycle": { "medianNs": 10000000, "p95Ns": 30000000 },
+		"ssr.runtime-lifecycle": { "medianNs": 250000, "p95Ns": 1000000 },
 		"ssr.full-render": { "medianNs": 10000000, "p95Ns": 30000000 },
 		"ssr.handler": { "medianNs": 15000000, "p95Ns": 40000000 }
 	},

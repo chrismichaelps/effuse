@@ -10,6 +10,7 @@ import { signal } from '../../reactivity/signal.js';
 import {
 	clearGlobalLayerContext,
 	getGlobalLayerContextStore,
+	getLayerContextStore,
 	getLayerService,
 	isLayerRuntimeReady,
 } from '../../layers/context.js';
@@ -273,6 +274,50 @@ describe('SSRRuntime', () => {
 				]);
 			} finally {
 				await Promise.all([first.dispose(), second.dispose()]);
+			}
+		});
+
+		it('should isolate layerless registries across concurrent async runtimes', async () => {
+			const first = await createSSRRuntime([]);
+			const second = await createSSRRuntime([]);
+			const firstRegistry = first.run(
+				() => getLayerContextStore()?.layerRegistry
+			);
+			const secondRegistry = second.run(
+				() => getLayerContextStore()?.layerRegistry
+			);
+
+			try {
+				expect(firstRegistry).toBeDefined();
+				expect(secondRegistry).toBeDefined();
+				expect(firstRegistry).not.toBe(secondRegistry);
+				expect(first.run(() => getLayerService('tracing'))).toBeTruthy();
+				expect(second.run(() => getLayerService('tracing'))).toBeTruthy();
+
+				const observations = await Promise.all([
+					first.run(async () => {
+						getLayerContextStore()?.layerRegistry?.registerService(
+							'request',
+							'first'
+						);
+						await Promise.resolve();
+						return getLayerService('request');
+					}),
+					second.run(async () => {
+						getLayerContextStore()?.layerRegistry?.registerService(
+							'request',
+							'second'
+						);
+						await Promise.resolve();
+						return getLayerService('request');
+					}),
+				]);
+
+				expect(observations).toEqual(['first', 'second']);
+			} finally {
+				const firstDisposal = first.dispose();
+				expect(first.dispose()).toBe(firstDisposal);
+				await Promise.all([firstDisposal, second.dispose()]);
 			}
 		});
 
