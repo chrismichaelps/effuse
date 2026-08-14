@@ -21,6 +21,25 @@ export const parseCommand = (argv) => {
 	return { args, command };
 };
 
+export const resolvePackageManagerCommand = ({
+	args,
+	command,
+	env = process.env,
+	nodeExecPath = process.execPath,
+}) => {
+	const isPnpmLifecycle = env.npm_config_user_agent?.startsWith('pnpm/');
+	const pnpmExecPath = env.npm_execpath;
+
+	if (command !== 'pnpm' || !isPnpmLifecycle || !pnpmExecPath) {
+		return { args, command };
+	}
+
+	return {
+		args: [pnpmExecPath, ...args],
+		command: env.npm_node_execpath || nodeExecPath,
+	};
+};
+
 export const runCommand = (command, args, cwd) =>
 	new Promise((resolveCommand, rejectCommand) => {
 		const child = spawn(command, args, {
@@ -45,13 +64,23 @@ export const runCommand = (command, args, cwd) =>
 export const runWithIntegrationAppLock = async ({
 	args,
 	command,
+	env = process.env,
 	lockDir,
+	nodeExecPath = process.execPath,
 	repoRoot = defaultRepoRoot,
 	run = runCommand,
-}) =>
-	withIntegrationAppLock({ lockDir, repoRoot }, async () => {
-		await run(command, args, repoRoot);
+}) => {
+	const resolvedCommand = resolvePackageManagerCommand({
+		args,
+		command,
+		env,
+		nodeExecPath,
 	});
+
+	return withIntegrationAppLock({ lockDir, repoRoot }, async () => {
+		await run(resolvedCommand.command, resolvedCommand.args, repoRoot);
+	});
+};
 
 if (fileURLToPath(import.meta.url) === process.argv[1]) {
 	try {
