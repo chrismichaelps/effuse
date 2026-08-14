@@ -43,7 +43,7 @@ importers:
         version: 4.4.3
     devDependencies:
       '@effuse/core':
-        specifier: 2.0.3
+        specifier: 2.1.0
         version: link:../core
       '@eslint/js':
         specifier: ^9.39.4
@@ -82,10 +82,10 @@ importers:
         specifier: ^0.106.0
         version: 0.106.0(@effect/cluster@0.58.1(@effect/platform@0.96.0(effect@3.22.0))(@effect/rpc@0.75.0(@effect/platform@0.96.0(effect@3.22.0))(effect@3.22.0))(@effect/sql@0.51.0(@effect/experimental@0.60.0(@effect/platform@0.96.0(effect@3.22.0))(effect@3.22.0))(@effect/platform@0.96.0(effect@3.22.0))(effect@3.22.0))(@effect/workflow@0.18.0(@effect/experimental@0.60.0(@effect/platform@0.96.0(effect@3.22.0))(effect@3.22.0))(@effect/platform@0.96.0(effect@3.22.0))(@effect/rpc@0.75.0(@effect/platform@0.96.0(effect@3.22.0))(effect@3.22.0))(effect@3.22.0))(effect@3.22.0))(@effect/platform@0.96.0(effect@3.22.0))(@effect/rpc@0.75.0(@effect/platform@0.96.0(effect@3.22.0))(effect@3.22.0))(@effect/sql@0.51.0(@effect/experimental@0.60.0(@effect/platform@0.96.0(effect@3.22.0))(effect@3.22.0))(@effect/platform@0.96.0(effect@3.22.0))(effect@3.22.0))(effect@3.22.0)
       '@effuse/core':
-        specifier: 2.0.3
+        specifier: 2.1.0
         version: link:../core
       '@effuse/server':
-        specifier: 1.0.3
+        specifier: 1.0.4
         version: link:../server
       cac:
         specifier: ^6.7.14
@@ -224,7 +224,7 @@ importers:
         specifier: ^0.3.2
         version: 0.3.2
       '@effuse/core':
-        specifier: 2.0.3
+        specifier: 2.1.0
         version: link:../core
       '@eslint/js':
         specifier: ^9.39.4
@@ -258,7 +258,7 @@ importers:
         specifier: ^0.3.2
         version: 0.3.2
       '@effuse/core':
-        specifier: 2.0.3
+        specifier: 2.1.0
         version: link:../core
       '@eslint/js':
         specifier: ^9.39.4
@@ -292,7 +292,7 @@ importers:
         specifier: ^0.3.2
         version: 0.3.2
       '@effuse/core':
-        specifier: 2.0.3
+        specifier: 2.1.0
         version: link:../core
       '@eslint/js':
         specifier: ^9.39.4
@@ -326,7 +326,7 @@ importers:
         specifier: ^0.3.2
         version: 0.3.2
       '@effuse/core':
-        specifier: 2.0.3
+        specifier: 2.1.0
         version: link:../core
       '@eslint/js':
         specifier: ^9.39.4
@@ -357,7 +357,7 @@ importers:
         version: 3.22.0
     devDependencies:
       '@effuse/core':
-        specifier: 2.0.3
+        specifier: 2.1.0
         version: link:../core
       '@eslint/js':
         specifier: ^9.39.4
@@ -428,7 +428,7 @@ importers:
         specifier: ^0.3.2
         version: 0.3.2
       '@effuse/core':
-        specifier: 2.0.3
+        specifier: 2.1.0
         version: link:../core
       '@eslint/js':
         specifier: ^9.39.4
