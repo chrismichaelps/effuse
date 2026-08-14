@@ -797,6 +797,144 @@ describe('SSR handler', () => {
 			expect(events[0]!.error).not.toHaveProperty('stack');
 		});
 
+		it('should emit a successful trace after runtime cleanup', async () => {
+			let clock = 10;
+			const now = vi.spyOn(performance, 'now').mockImplementation(() => clock);
+			const order: string[] = [];
+			const events: ServerTraceEvent[] = [];
+			const ApiLayer = defineLayer({
+				name: 'trace-cleanup-order',
+				setup: () => {
+					clock += 10;
+					return () => {
+						clock += 15;
+						order.push('cleanup');
+					};
+				},
+				server: {
+					api: {
+						'/api/cleanup-order': () => ({ ok: true }),
+					},
+				},
+			});
+			const handler = createHandler({
+				root: createRoot() as any,
+				layers: [ApiLayer],
+				onServerTrace: (event) => {
+					order.push('trace');
+					events.push(event);
+				},
+			});
+
+			try {
+				const response = await handler(
+					new Request('http://localhost:3000/api/cleanup-order')
+				);
+
+				expect(response.status).toBe(200);
+				expect(order).toEqual(['cleanup', 'trace']);
+				expect(events).toHaveLength(1);
+				expect(events[0]).toMatchObject({
+					durationMs: 25,
+					ok: true,
+					status: 200,
+				});
+			} finally {
+				now.mockRestore();
+			}
+		});
+
+		it('should trace runtime cleanup failures as the final 500 outcome', async () => {
+			const order: string[] = [];
+			const events: ServerTraceEvent[] = [];
+			const onError = vi.fn();
+			let cleanupCalls = 0;
+			const ApiLayer = defineLayer({
+				name: 'trace-cleanup-failure',
+				setup: () => () => {
+					cleanupCalls += 1;
+					order.push('cleanup');
+					throw new Error('cleanup failed');
+				},
+				server: {
+					api: {
+						'/api/cleanup-failure': () => ({ ok: true }),
+					},
+				},
+			});
+			const handler = createHandler({
+				root: createRoot() as any,
+				layers: [ApiLayer],
+				onError,
+				onServerTrace: (event) => {
+					order.push('trace');
+					events.push(event);
+				},
+			});
+
+			const response = await handler(
+				new Request('http://localhost:3000/api/cleanup-failure')
+			);
+
+			expect(response.status).toBe(500);
+			expect(cleanupCalls).toBe(1);
+			expect(order).toEqual(['cleanup', 'trace']);
+			expect(onError).toHaveBeenCalledOnce();
+			expect(events).toHaveLength(1);
+			expect(events[0]).toMatchObject({
+				error: { message: 'cleanup failed' },
+				ok: false,
+				status: 500,
+				target: '/api/cleanup-failure',
+			});
+		});
+
+		it('should preserve route and cleanup failures in one final outcome', async () => {
+			const events: ServerTraceEvent[] = [];
+			const onError = vi.fn();
+			const ApiLayer = defineLayer({
+				name: 'trace-combined-failure',
+				setup: () => () => {
+					throw new Error('cleanup failed');
+				},
+				server: {
+					api: {
+						'/api/combined-failure': () => {
+							throw new Error('route failed');
+						},
+					},
+				},
+			});
+			const handler = createHandler({
+				root: createRoot() as any,
+				layers: [ApiLayer],
+				onError,
+				onServerTrace: (event) => events.push(event),
+			});
+
+			const response = await handler(
+				new Request('http://localhost:3000/api/combined-failure')
+			);
+
+			expect(response.status).toBe(500);
+			expect(onError).toHaveBeenCalledOnce();
+			const failure = onError.mock.calls[0][0];
+			expect(failure).toBeInstanceOf(AggregateError);
+			expect(
+				(failure as AggregateError).errors.map((error) => String(error))
+			).toEqual(['Error: route failed', 'Error: cleanup failed']);
+			expect(events).toHaveLength(1);
+			expect(events[0]).toMatchObject({
+				error: {
+					message: '[Effuse] Server route execution and cleanup failed.',
+					name: 'AggregateError',
+				},
+				ok: false,
+				status: 500,
+				target: '/api/combined-failure',
+			});
+		});
+
 		it('should isolate server trace hook failures', async () => {
 			const onTraceError = vi.fn();
 			const ApiLayer = defineLayer({
