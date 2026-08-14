@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
 import assert from 'node:assert/strict';
+import { Context, Effect, Layer } from 'effect';
 
 const root = resolve(import.meta.dirname, '..');
 const require = createRequire(import.meta.url);
@@ -55,6 +56,47 @@ const clientEsm = await loadEsm('client');
 const rootCjs = require(resolve(root, 'dist/index.cjs'));
 const serverCjs = require(resolve(root, 'dist/server.cjs'));
 const clientCjs = require(resolve(root, 'dist/client.cjs'));
+
+for (const extension of ['js', 'cjs']) {
+	const source = await readFile(
+		resolve(root, `dist/index.${extension}`),
+		'utf8'
+	);
+	assert.doesNotMatch(
+		source,
+		/\bfrom ["']effect(?:\/[^"']*)?["']|\brequire\(["']effect(?:\/[^"']*)?["']\)/,
+		`index.${extension} must not cold-load Effect as an external dependency`
+	);
+}
+
+const nodeEntryBytes = Buffer.byteLength(
+	await readFile(resolve(root, 'dist/index.js'))
+);
+assert.ok(
+	nodeEntryBytes <= 1_700_000,
+	`index.js exceeds its 1.7 MB uncompressed budget (${nodeEntryBytes} bytes)`
+);
+
+const browserEntryBytes = Buffer.byteLength(
+	await readFile(resolve(root, 'dist/client.js'))
+);
+assert.ok(
+	browserEntryBytes <= 310_000,
+	`client.js exceeds its 310 kB uncompressed budget (${browserEntryBytes} bytes)`
+);
+
+const InteropLayer = rootEsm.defineLayer({
+	name: 'package-entry-effect-interop',
+	provides: { service: () => ({ value: 42 }) },
+});
+const externalEffectContext = await Effect.runPromise(
+	Effect.scoped(Layer.build(InteropLayer.effectLayer))
+);
+assert.deepEqual(
+	Context.get(externalEffectContext, InteropLayer.tags.service),
+	{ value: 42 },
+	'bundled layers must interoperate with the separately installed Effect runtime'
+);
 
 for (const name of clientExports) {
 	assert.equal(typeof clientEsm[name], 'function', `client ESM omits ${name}`);

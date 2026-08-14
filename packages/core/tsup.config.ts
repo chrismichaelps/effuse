@@ -25,8 +25,32 @@
 import { defineConfig } from 'tsup';
 import { baseConfig } from '../../tsup.config';
 
-export default defineConfig({
+const sharedConfig = {
 	...baseConfig,
-	entry: ['src/index.ts', 'src/client.ts', 'src/jsx-runtime.ts'],
+	clean: false,
+	dts: false,
 	splitting: false,
-});
+};
+
+export default defineConfig([
+	{
+		...sharedConfig,
+		entry: ['src/index.ts'],
+		noExternal: [/^effect(?:\/.*)?$/],
+		esbuildOptions(options) {
+			// Retain stack-trace mappings without duplicating source text in the
+			// Node-only maps. Effuse source is already included in the package.
+			options.sourcesContent = false;
+		},
+	},
+	{
+		...sharedConfig,
+		entry: ['src/client.ts', 'src/jsx-runtime.ts'],
+	},
+	{
+		...sharedConfig,
+		entry: ['src/index.ts', 'src/client.ts', 'src/jsx-runtime.ts'],
+		dts: { only: true },
+		sourcemap: false,
+	},
+]);

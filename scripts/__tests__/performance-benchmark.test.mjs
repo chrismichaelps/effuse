@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
 	evaluateBudgets,
 	percentile,
+	runAsyncBenchmark,
 	runBenchmark,
 	summarize,
 } from '../performance/benchmark.mjs';
@@ -27,6 +28,30 @@ test('runs warmup separately and reports nanoseconds per operation', () => {
 	const result = runBenchmark({
 		name: 'deterministic',
 		operation: () => ++calls,
+		warmup: 2,
+		samples: 3,
+		iterations: 4,
+		now: () => (time += 2),
+	});
+
+	assert.equal(calls, 20);
+	assert.equal(result.medianNs, 500_000);
+	assert.equal(result.p95Ns, 500_000);
+});
+
+test('measures asynchronous operations without overlapping them', async () => {
+	let calls = 0;
+	let active = 0;
+	let time = 0;
+	const result = await runAsyncBenchmark({
+		name: 'async-deterministic',
+		operation: async () => {
+			active++;
+			assert.equal(active, 1);
+			await Promise.resolve();
+			active--;
+			return ++calls;
+		},
 		warmup: 2,
 		samples: 3,
 		iterations: 4,

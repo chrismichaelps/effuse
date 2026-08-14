@@ -22,6 +22,24 @@ Pass `--json` directly to `route-pattern.mjs` for a machine-readable report, or
 `--quick` for local harness checks. The package scripts run the full sample set
 and enforce `route-pattern-budgets.json`.
 
+## SSR Runtime Benchmark
+
+Measure fresh-process startup plus warm runtime creation, full rendering, and
+request handling with Node or Bun:
+
+```sh
+pnpm bench:ssr
+pnpm bench:ssr:bun
+```
+
+The cold worker starts a new runtime for every sample, so module initialization
+is not hidden by the import cache. The Node entry bundles Effuse's internal
+Effect runtime to avoid loading its broad barrel at startup; the browser entry
+remains separate and has an uncompressed build budget enforced by the core
+package-entry check. Node source maps retain mappings but omit embedded source
+text to keep the published package proportionate; Effuse's `src` directory
+remains part of the package for debugging.
+
 ## Method
 
 - Build the production core entry before measuring.
