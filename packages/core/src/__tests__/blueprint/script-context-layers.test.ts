@@ -569,7 +569,7 @@ describe('ScriptContext - layers accessor', () => {
 			expect(captured[1].newVal).toBe(1);
 		});
 
-		it('should support once option', async () => {
+		it('should count an immediate callback toward once', async () => {
 			const { context } = createScriptContext({});
 			const count = signal(0);
 			const calls: number[] = [];
@@ -590,7 +590,7 @@ describe('ScriptContext - layers accessor', () => {
 			count.value = 2;
 			await new Promise((r) => setTimeout(r, 10));
 
-			expect(calls.length).toBe(2);
+			expect(calls).toEqual([0]);
 		});
 
 		it('should provide onCleanup to callback', async () => {
