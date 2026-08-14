@@ -8,8 +8,14 @@
 			"medianNs": 5000,
 			"p95Ns": 15000,
 			"relativeTo": "ssr.static-bypass",
-			"maxMedianRatio": 1.2,
+			"maxMedianRatio": 1.3,
 			"maxP95Ratio": 3
+		},
+		"ssr.app-static-bypass": {
+			"medianNs": 10000,
+			"p95Ns": 30000,
+			"relativeTo": "ssr.ui-layer-static-bypass",
+			"maxMedianRatio": 1.5
 		}
 	},
 	"cold": {

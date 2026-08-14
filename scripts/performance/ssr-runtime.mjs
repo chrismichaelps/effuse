@@ -5,6 +5,7 @@ import {
 	CreateElementNode,
 	CreateTextNode,
 	EFFUSE_NODE,
+	createApp,
 	createHandler,
 	createServerApp,
 	createSSRRuntime,
@@ -52,13 +53,18 @@ const Root = define({
 });
 const serverApp = createServerApp(Root);
 const handler = createHandler({ root: Root });
+const uiLayers = Array.from({ length: 10 }, (_, index) =>
+	defineLayer({ name: `ssr-benchmark-ui-layer-${index}` })
+);
 const uiLayerHandler = createHandler({
 	root: Root,
-	layers: [defineLayer({ name: 'ssr-benchmark-ui-layer' })],
+	layers: uiLayers,
 });
+const effuseApp = await createApp(Root).useLayers(uiLayers);
 const staticRequest = new Request('http://localhost/benchmark.js');
 
 await uiLayerHandler(staticRequest);
+await effuseApp.handleRequest(staticRequest);
 
 const cases = [
 	{
@@ -88,6 +94,11 @@ const cases = [
 		name: 'ssr.ui-layer-static-bypass',
 		iterations: quick ? 100 : 1_000,
 		operation: () => uiLayerHandler(staticRequest),
+	},
+	{
+		name: 'ssr.app-static-bypass',
+		iterations: quick ? 100 : 1_000,
+		operation: () => effuseApp.handleRequest(staticRequest),
 	},
 ];
 const results = [];
