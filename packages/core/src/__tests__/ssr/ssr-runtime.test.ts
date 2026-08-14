@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { createSSRRuntime } from '../../ssr/runtime.js';
 import {
 	defineLayer,
@@ -130,7 +130,8 @@ describe('SSRRuntime', () => {
 			const appRuntime = await createLayerRuntime(
 				resolveLayerDefinitions([AppLayer])
 			);
-			let ssrRuntime: Awaited<ReturnType<typeof createSSRRuntime>> | null = null;
+			let ssrRuntime: Awaited<ReturnType<typeof createSSRRuntime>> | null =
+				null;
 
 			try {
 				expect(isLayerRuntimeReady()).toBe(true);
@@ -415,6 +416,116 @@ describe('SSRRuntime', () => {
 				'Layer "session" is registered more than once'
 			);
 			expect(setupCalled).toBe(false);
+		});
+
+		it('rolls back initialized dependency layers when later setup fails', async () => {
+			const calls: string[] = [];
+			const FirstLayer = defineLayer({
+				name: 'rollback-first',
+				setup: () => () => {
+					calls.push('first');
+				},
+			});
+			const SecondLayer = defineLayer({
+				name: 'rollback-second',
+				dependencies: ['rollback-first'] as const,
+				setup: () => () => {
+					calls.push('second');
+				},
+			});
+			const FailingLayer = defineLayer({
+				name: 'rollback-failing',
+				dependencies: ['rollback-second'] as const,
+				setup: () => {
+					throw new Error('serial setup failed');
+				},
+			});
+
+			await expect(
+				createSSRRuntime([FirstLayer, SecondLayer, FailingLayer])
+			).rejects.toThrow(
+				'[Effuse] Layer "rollback-failing" failed during setup'
+			);
+			expect(calls).toEqual(['second', 'first']);
+			expect(getGlobalLayerContextStore()).toBeUndefined();
+			expect(getGlobalTracing()).toBeNull();
+		});
+
+		it('rolls back successful parallel siblings when one setup fails', async () => {
+			const cleanup = vi.fn();
+			const SuccessfulLayer = defineLayer({
+				name: 'parallel-success',
+				setup: () => cleanup,
+			});
+			const FailingLayer = defineLayer({
+				name: 'parallel-failure',
+				setup: () => {
+					throw new Error('parallel setup failed');
+				},
+			});
+
+			await expect(
+				createSSRRuntime([SuccessfulLayer, FailingLayer])
+			).rejects.toThrow(
+				'[Effuse] Layer "parallel-failure" failed during setup'
+			);
+			expect(cleanup).toHaveBeenCalledOnce();
+			expect(getGlobalLayerContextStore()).toBeUndefined();
+		});
+
+		it('rolls back every initialized layer when onReady fails', async () => {
+			const calls: string[] = [];
+			const FirstLayer = defineLayer({
+				name: 'ready-first',
+				setup: () => () => {
+					calls.push('first');
+				},
+			});
+			const FailingLayer = defineLayer({
+				name: 'ready-failing',
+				setup: () => () => {
+					calls.push('failing');
+				},
+				onReady: () => {
+					throw new Error('ready failed');
+				},
+			});
+
+			await expect(
+				createSSRRuntime([FirstLayer, FailingLayer])
+			).rejects.toThrow('[Effuse] Layer "ready-failing" failed during onReady');
+			expect(calls).toEqual(['failing', 'first']);
+			expect(getGlobalLayerContextStore()).toBeUndefined();
+		});
+
+		it('preserves setup and rollback failures together', async () => {
+			const setupFailure = new Error('setup failed');
+			const rollbackFailure = new Error('rollback failed');
+			const InitializedLayer = defineLayer({
+				name: 'aggregate-initialized',
+				setup: () => () => {
+					throw rollbackFailure;
+				},
+			});
+			const FailingLayer = defineLayer({
+				name: 'aggregate-failing',
+				dependencies: ['aggregate-initialized'] as const,
+				setup: () => {
+					throw setupFailure;
+				},
+			});
+
+			const failure = await createSSRRuntime([
+				InitializedLayer,
+				FailingLayer,
+			]).catch((error: unknown) => error);
+
+			expect(failure).toMatchObject({
+				message:
+					'[Effuse] Layer initialization failed with 1 setup and 1 rollback errors.',
+				name: '(FiberFailure) AggregateError',
+			});
+			expect(getGlobalLayerContextStore()).toBeUndefined();
 		});
 	});
 });

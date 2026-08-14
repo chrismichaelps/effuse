@@ -218,4 +218,97 @@ describe('buildLayerEffect', () => {
 			}
 		}
 	});
+
+	it('preserves setup and rollback failures when layer initialization aborts', async () => {
+		const setupFailure = new Error('setup failed');
+		const rollbackFailure = new Error('rollback failed');
+		const InitializedLayer = defineLayer({
+			name: 'rollback-source',
+			setup: () => () => {
+				throw rollbackFailure;
+			},
+		});
+		const FailingLayer = defineLayer({
+			name: 'rollback-target',
+			dependencies: ['rollback-source'] as const,
+			setup: () => {
+				throw setupFailure;
+			},
+		});
+
+		const result = await runTest(
+			Effect.provide(
+				buildAllLayersEffect(
+					resolveLayerDefinitions([InitializedLayer, FailingLayer])
+				),
+				testLayer
+			)
+		);
+
+		expect(Exit.isFailure(result)).toBe(true);
+		if (Exit.isFailure(result)) {
+			const errorOption = Cause.failureOption(result.cause);
+			expect(Option.isSome(errorOption)).toBe(true);
+			if (Option.isSome(errorOption)) {
+				const aggregate = errorOption.value as AggregateError;
+				expect(aggregate).toBeInstanceOf(AggregateError);
+				expect(aggregate.message).toBe(
+					'[Effuse] Layer initialization failed with 1 setup and 1 rollback errors.'
+				);
+				expect(aggregate.errors).toHaveLength(2);
+				expect(aggregate.errors[0]).toMatchObject({
+					cause: setupFailure,
+					layerName: 'rollback-target',
+					phase: 'setup',
+				});
+				expect(aggregate.errors[1]).toBe(rollbackFailure);
+			}
+		}
+	});
+
+	it('preserves every failure from a parallel topology level', async () => {
+		const FirstLayer = defineLayer({
+			name: 'parallel-first',
+			setup: () => {
+				throw new Error('first failed');
+			},
+		});
+		const SecondLayer = defineLayer({
+			name: 'parallel-second',
+			setup: () => {
+				throw new Error('second failed');
+			},
+		});
+
+		const result = await runTest(
+			Effect.provide(
+				buildAllLayersEffect(
+					resolveLayerDefinitions([FirstLayer, SecondLayer])
+				),
+				testLayer
+			)
+		);
+
+		expect(Exit.isFailure(result)).toBe(true);
+		if (Exit.isFailure(result)) {
+			const errorOption = Cause.failureOption(result.cause);
+			expect(Option.isSome(errorOption)).toBe(true);
+			if (Option.isSome(errorOption)) {
+				const aggregate = errorOption.value as AggregateError;
+				expect(aggregate).toBeInstanceOf(AggregateError);
+				expect(aggregate.message).toBe(
+					'[Effuse] Layer initialization failed with 2 setup and 0 rollback errors.'
+				);
+				expect(aggregate.errors).toHaveLength(2);
+				expect(aggregate.errors[0]).toMatchObject({
+					layerName: 'parallel-first',
+					phase: 'setup',
+				});
+				expect(aggregate.errors[1]).toMatchObject({
+					layerName: 'parallel-second',
+					phase: 'setup',
+				});
+			}
+		}
+	});
 });

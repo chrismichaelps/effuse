@@ -105,34 +105,84 @@ export const createSSRRuntime = async (
 		layerRegistry: null,
 		layers: [],
 	};
-
-	if (runSetup) {
-		runtimeTracingService = await managedRuntime.runPromise(TracingService);
-		const tracingService = runtimeTracingService;
-		const runEffect = Effect.gen(function* () {
-			const layerRegistry = yield* RegistryService;
-
-			layerRegistry.registerService('tracing', tracingService);
-
-			return yield* buildAllLayersEffect(layers);
-		});
-
-		const buildResult = await runWithTracing(tracingService, () =>
-			managedRuntime.runPromise(runEffect)
-		);
-
-		aggregatedCleanup = buildResult.cleanup;
-
-		const initContextEffect = Effect.gen(function* () {
-			const propsRegistry = yield* PropsService;
-			const layerRegistry = yield* RegistryService;
-			layerContextStore = { propsRegistry, layerRegistry, layers };
-			if (!hasExistingLayerContext) {
-				restoreGlobalLayerContext(layerContextStore);
+	const dispose = (): Promise<void> => {
+		const disposeRuntime = async (): Promise<void> => {
+			const failures: unknown[] = [];
+			markLayerContextStoreDisposed(layerContextStore);
+			if (getGlobalLayerContextStore() === layerContextStore) {
+				restoreGlobalLayerContext(
+					isLayerContextStoreActive(previousLayerContextStore)
+						? previousLayerContextStore
+						: undefined
+				);
 			}
-		});
 
-		await managedRuntime.runPromise(initContextEffect);
+			if (Predicate.isFunction(aggregatedCleanup)) {
+				try {
+					await aggregatedCleanup();
+				} catch (error) {
+					failures.push(error);
+				}
+			}
+
+			try {
+				await managedRuntime.dispose();
+			} catch (error) {
+				failures.push(error);
+			}
+			if (failures.length === 1) throw failures[0];
+			if (failures.length > 1) {
+				throw new AggregateError(
+					failures,
+					`[Effuse] SSR layer runtime cleanup failed in ${String(failures.length)} resources.`
+				);
+			}
+		};
+		disposePromise ??= runtimeTracingService
+			? runWithTracing(runtimeTracingService, disposeRuntime)
+			: disposeRuntime();
+		return disposePromise;
+	};
+
+	try {
+		if (runSetup) {
+			runtimeTracingService = await managedRuntime.runPromise(TracingService);
+			const tracingService = runtimeTracingService;
+			const runEffect = Effect.gen(function* () {
+				const layerRegistry = yield* RegistryService;
+
+				layerRegistry.registerService('tracing', tracingService);
+
+				return yield* buildAllLayersEffect(layers);
+			});
+
+			const buildResult = await runWithTracing(tracingService, () =>
+				managedRuntime.runPromise(runEffect)
+			);
+
+			aggregatedCleanup = buildResult.cleanup;
+
+			const initContextEffect = Effect.gen(function* () {
+				const propsRegistry = yield* PropsService;
+				const layerRegistry = yield* RegistryService;
+				layerContextStore = { propsRegistry, layerRegistry, layers };
+				if (!hasExistingLayerContext) {
+					restoreGlobalLayerContext(layerContextStore);
+				}
+			});
+
+			await managedRuntime.runPromise(initContextEffect);
+		}
+	} catch (error) {
+		try {
+			await dispose();
+		} catch (disposeError) {
+			throw new AggregateError(
+				[error, disposeError],
+				'[Effuse] SSR layer runtime initialization and rollback failed.'
+			);
+		}
+		throw error;
 	}
 
 	return {
@@ -141,48 +191,9 @@ export const createSSRRuntime = async (
 		state,
 		run: <T>(fn: () => T): T => {
 			return runWithLayerContext(layerContextStore, () =>
-				runtimeTracingService
-					? runWithTracing(runtimeTracingService, fn)
-					: fn()
+				runtimeTracingService ? runWithTracing(runtimeTracingService, fn) : fn()
 			);
 		},
-		dispose: () => {
-			const disposeRuntime = async (): Promise<void> => {
-				const failures: unknown[] = [];
-				markLayerContextStoreDisposed(layerContextStore);
-				if (getGlobalLayerContextStore() === layerContextStore) {
-					restoreGlobalLayerContext(
-						isLayerContextStoreActive(previousLayerContextStore)
-							? previousLayerContextStore
-							: undefined
-					);
-				}
-
-				if (Predicate.isFunction(aggregatedCleanup)) {
-					try {
-						await aggregatedCleanup();
-					} catch (error) {
-						failures.push(error);
-					}
-				}
-
-				try {
-					await managedRuntime.dispose();
-				} catch (error) {
-					failures.push(error);
-				}
-				if (failures.length === 1) throw failures[0];
-				if (failures.length > 1) {
-					throw new AggregateError(
-						failures,
-						`[Effuse] SSR layer runtime cleanup failed in ${failures.length} resources.`
-					);
-				}
-			};
-			disposePromise ??= runtimeTracingService
-				? runWithTracing(runtimeTracingService, disposeRuntime)
-				: disposeRuntime();
-			return disposePromise;
-		},
+		dispose,
 	};
 };
