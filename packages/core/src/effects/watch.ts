@@ -134,6 +134,8 @@ export function watch<T>(
 	const immediate = getImmediateOption(options);
 	const once = getOnceOption(options);
 	const getter = createGetter(source, deep);
+	let handle: EffectHandle | undefined = undefined;
+	let stopRequested = false;
 
 	const effectHandle = watchEffect(
 		() => {
@@ -145,6 +147,10 @@ export function watch<T>(
 				if (immediate) {
 					cleanup.run();
 					handleAsyncResult(callback(newValue, undefined, cleanup.register));
+					if (once) {
+						if (handle) handle.stop();
+						else stopRequested = true;
+					}
 				}
 				return;
 			}
@@ -153,16 +159,16 @@ export function watch<T>(
 				cleanup.run();
 				handleAsyncResult(callback(newValue, oldValue, cleanup.register));
 				oldValue = deep ? deepClone(newValue) : newValue;
-			}
-
-			if (once) {
-				handle.stop();
+				if (once) {
+					if (handle) handle.stop();
+					else stopRequested = true;
+				}
 			}
 		},
 		{ ...options, immediate: true }
 	);
 
-	const handle: EffectHandle = {
+	handle = {
 		stop: () => {
 			cleanup.run();
 			effectHandle.stop();
@@ -170,6 +176,7 @@ export function watch<T>(
 		pause: effectHandle.pause,
 		resume: effectHandle.resume,
 	};
+	if (stopRequested) handle.stop();
 	return handle;
 }
 
@@ -241,6 +248,8 @@ export const watchMultiple = <T extends readonly WatchSource<unknown>[]>(
 	let oldValues: unknown[] = [];
 	let hasRun = false;
 	const cleanup = createCleanupRunner();
+	let handle: EffectHandle | undefined = undefined;
+	let stopRequested = false;
 
 	const effectHandle = watchEffect(
 		() => {
@@ -258,6 +267,10 @@ export const watchMultiple = <T extends readonly WatchSource<unknown>[]>(
 							cleanup.register
 						)
 					);
+					if (once) {
+						if (handle) handle.stop();
+						else stopRequested = true;
+					}
 				}
 				return;
 			}
@@ -273,16 +286,16 @@ export const watchMultiple = <T extends readonly WatchSource<unknown>[]>(
 					callback(newValues as never, oldValues as never, cleanup.register)
 				);
 				oldValues = Arr.map(newValues, (v) => (deep ? deepClone(v) : v));
-			}
-
-			if (once) {
-				handle.stop();
+				if (once) {
+					if (handle) handle.stop();
+					else stopRequested = true;
+				}
 			}
 		},
 		{ ...options, immediate: true }
 	);
 
-	const handle: EffectHandle = {
+	handle = {
 		stop: () => {
 			cleanup.run();
 			effectHandle.stop();
@@ -290,5 +303,6 @@ export const watchMultiple = <T extends readonly WatchSource<unknown>[]>(
 		pause: effectHandle.pause,
 		resume: effectHandle.resume,
 	};
+	if (stopRequested) handle.stop();
 	return handle;
 };
