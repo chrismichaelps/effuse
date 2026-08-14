@@ -13,6 +13,7 @@ import {
 	rmSync,
 	writeFileSync,
 } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
@@ -24,6 +25,8 @@ const FIXTURE_DIR = resolve(REPO_ROOT, '.cli-e2e-test-tmp');
 const CLI_BIN = resolve(PACKAGE_ROOT, 'dist/bin.cjs');
 const TEST_PORT = 3456;
 const SERVER_URL = `http://127.0.0.1:${TEST_PORT}`;
+const PRODUCTION_PORT = 3457;
+const PRODUCTION_URL = `http://127.0.0.1:${PRODUCTION_PORT}`;
 
 const cliExists = existsSync(CLI_BIN);
 
@@ -231,6 +234,50 @@ const startDevServer = async (): Promise<DevServerHandle> => {
 	throw new Error(`Timed out waiting for Effuse dev server.\n${output}`);
 };
 
+const startProductionServer = async (): Promise<DevServerHandle> => {
+	const child = spawn(
+		process.execPath,
+		[resolve(FIXTURE_DIR, 'dist/server/server.js')],
+		{
+			cwd: tmpdir(),
+			env: {
+				...process.env,
+				HOST: '127.0.0.1',
+				PORT: String(PRODUCTION_PORT),
+			},
+		}
+	);
+
+	let output = '';
+	child.stdout.on('data', (chunk) => {
+		output += String(chunk);
+	});
+	child.stderr.on('data', (chunk) => {
+		output += String(chunk);
+	});
+
+	const deadline = Date.now() + 10_000;
+	while (Date.now() < deadline) {
+		if (child.exitCode !== null) {
+			throw new Error(`Effuse production server exited early.\n${output}`);
+		}
+
+		try {
+			const response = await httpGet(`${PRODUCTION_URL}/health`, 250);
+			if (response.status === 200) {
+				return { process: child, logs: () => output };
+			}
+		} catch {
+			// Server is still starting.
+		}
+
+		await sleep(100);
+	}
+
+	child.kill('SIGKILL');
+	throw new Error(`Timed out waiting for Effuse production server.\n${output}`);
+};
+
 const stopDevServer = async (
 	server: DevServerHandle | undefined
 ): Promise<void> => {
@@ -247,6 +294,7 @@ const stopDevServer = async (
 
 describe.skipIf(!cliExists)('E2E: Effuse CLI binary', () => {
 	let devServer: DevServerHandle | undefined;
+	let productionServer: DevServerHandle | undefined;
 
 	beforeEach(() => {
 		writeFixtureApp();
@@ -254,7 +302,9 @@ describe.skipIf(!cliExists)('E2E: Effuse CLI binary', () => {
 
 	afterEach(async () => {
 		await stopDevServer(devServer);
+		await stopDevServer(productionServer);
 		devServer = undefined;
+		productionServer = undefined;
 		cleanupFixtureApp();
 	});
 
@@ -267,9 +317,19 @@ describe.skipIf(!cliExists)('E2E: Effuse CLI binary', () => {
 		const serverFiles = listFiles(resolve(FIXTURE_DIR, 'dist/server'));
 
 		expect(clientFiles.some((file) => file.endsWith('.js'))).toBe(true);
-		expect(clientFiles.some((file) => file.endsWith('manifest.json'))).toBe(true);
+		expect(clientFiles.some((file) => file.endsWith('manifest.json'))).toBe(
+			true
+		);
 		expect(serverFiles.some((file) => file.endsWith('.js'))).toBe(true);
 		expect(existsSync(resolve(FIXTURE_DIR, 'ecosystem.config.js'))).toBe(true);
+
+		productionServer = await startProductionServer();
+		const clientScript = clientFiles.find((file) => file.endsWith('.js'));
+		expect(clientScript).toBeTruthy();
+		const asset = await httpGet(`${PRODUCTION_URL}/${clientScript!}`);
+		expect(asset.status, productionServer.logs()).toBe(200);
+		expect(asset.headers.get('content-type')).toContain('text/javascript');
+		expect(asset.body).toContain('Effuse CLI Client Ready');
 	}, 60_000);
 
 	it('should serve HTML through the real dev server binary', async () => {
