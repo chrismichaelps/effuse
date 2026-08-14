@@ -76,3 +76,13 @@ const html = await withI18n(i18n, () => renderApplication());
 - `useTranslation` exposes reactive translation helpers to components.
 - `defineTranslations` preserves literal keys for type inference.
 - `t`, `setLocale`, and `getLocale` access the current bound instance.
+
+## Production Boundaries
+
+- Negotiate and validate the request locale before creating the SSR instance.
+- Load only trusted translation data; interpolation is not a substitute for
+  HTML sanitization when rendering rich content.
+- Treat `LocaleLoadError` as recoverable application state and retain the
+  previous locale when loading fails.
+- Keep browser persistence disabled in request-scoped instances. The
+  application-wide instance owns browser detection and persisted preferences.
