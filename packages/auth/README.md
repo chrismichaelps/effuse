@@ -1,36 +1,22 @@
+<p align="center">
+  <img src="../../public/logo/logo.svg" alt="Effuse" width="150px" />
+</p>
+
 # `@effuse/auth`
 
 Authentication for Effuse. One typed session, swappable ports with conformance
 suites, and named mitigations with tests behind each of them.
 
-> **Status:** foundation, session engine, credentials, OAuth/OIDC,
-> single-flight token refresh, authorization policies, and client/SSR hydration
-> are implemented on the current development branch. Start with the complete
-> [secure setup](./docs/getting-started.md), see the
-> [NextAuth migration guide](./docs/migrating-from-nextauth.md), and read
-> [SECURITY.md](./SECURITY.md) before deploying.
+The package includes the session engine, credentials, OAuth/OIDC, single-flight
+token refresh, authorization policies, and client/SSR hydration. Start with the
+complete [secure setup](./docs/getting-started.md), see the
+[NextAuth migration guide](./docs/migrating-from-nextauth.md), and read
+[SECURITY.md](./SECURITY.md) before deploying.
 
-## Why this exists
+## Design Contract
 
-The prevailing option in this space has a set of problems that configuration
-cannot fix. Its own issue tracker makes the case — the highest-reaction open
-issues are all one root cause:
-
-| Reactions | Issue                                                       |
-| --------- | ----------------------------------------------------------- |
-| 64        | Tokens rotation does not persist the new token              |
-| 49        | `useSession` only gets the session after manually reloading |
-| 27        | Cannot modify JWT to refresh `access_token`                 |
-| 26        | `signOut` does not reload client-side `useSession` state    |
-| 24        | Session data inconsistency on initial login                 |
-| 12        | Race condition with cookie-altering requests                |
-
-Adding one field to a session there means implementing a `jwt` callback,
-implementing a `session` callback, and module-augmenting three interfaces in a
-separate declaration file. Four edits, none of which the compiler links to the
-others.
-
-Here it is one:
+Define claims once. The same declaration drives static inference, runtime
+decoding, and client-exposure rules:
 
 ```ts
 import { claim, defineAuth } from '@effuse/auth';
@@ -45,10 +31,8 @@ export const config = defineAuth({
 });
 ```
 
-That single declaration produces the static type, the runtime decoder, and the
-rule for what may be sent to the client. There is no `declare module` anywhere in
-this package's intended usage — if a type cannot be inferred from `defineAuth`,
-that is a bug.
+Application code does not need module augmentation or a second runtime API. If
+a claim cannot be inferred from `defineAuth`, treat that as a package defect.
 
 `defineAuth` is also the eager configuration boundary. It rejects every signing
 secret shorter than 32 characters, duplicate rotation entries, unsafe cookie
@@ -150,7 +134,10 @@ const oauth = createOAuthClient({
 
 // Plain OAuth providers are explicit and remain entirely server-side.
 const githubOAuth = createOAuthClient({
-	provider: github({ clientId: githubClientId, clientSecret: githubClientSecret }),
+	provider: github({
+		clientId: githubClientId,
+		clientSecret: githubClientSecret,
+	}),
 	redirectUri: 'https://app.example.com/auth/github/callback',
 	storage,
 	clock: { now: () => Date.now() },
@@ -538,14 +525,16 @@ scope keeps the command practical for pull requests; broader security and
 protocol behavior remains covered by the full regression, adversarial,
 conformance, and lifecycle suites.
 
-## Not yet implemented
+## Responsibility Boundaries
 
-Tracked, not hidden:
-
-- Automatic account linking — `emailVerified` is reported; the decision is the application's
-
-Client session state is presentational only and must never be an enforcement
-point.
+- Account linking is an application policy. Effuse reports `emailVerified` but
+  never links identities automatically from an unverified email.
+- Client session state is presentational only. Authorization is enforced from a
+  server-resolved session or policy decision.
+- Production deployments provide durable session, rate-limit, and lock ports;
+  memory adapters are intended for development and deterministic tests.
+- Cookie mutations returned by request resolution must be applied to the final
+  response, including rotation and sign-out paths.
 
 ## Security
 
