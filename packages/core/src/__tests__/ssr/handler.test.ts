@@ -722,6 +722,81 @@ describe('SSR handler', () => {
 			expect(events[0]!.durationMs).toBeGreaterThanOrEqual(0);
 		});
 
+		it('should include layer runtime setup in server trace duration', async () => {
+			let clock = 10;
+			const now = vi.spyOn(performance, 'now').mockImplementation(() => clock);
+			const events: ServerTraceEvent[] = [];
+			const ApiLayer = defineLayer({
+				name: 'trace-setup-duration',
+				setup: () => {
+					clock += 25;
+				},
+				server: {
+					api: {
+						'/api/setup-duration': () => ({ ok: true }),
+					},
+				},
+			});
+			const handler = createHandler({
+				root: createRoot() as any,
+				layers: [ApiLayer],
+				onServerTrace: (event) => events.push(event),
+			});
+
+			try {
+				const response = await handler(
+					new Request('http://localhost:3000/api/setup-duration')
+				);
+
+				expect(response.status).toBe(200);
+				expect(events).toHaveLength(1);
+				expect(events[0]!.durationMs).toBe(25);
+			} finally {
+				now.mockRestore();
+			}
+		});
+
+		it('should trace layer runtime setup failures exactly once', async () => {
+			const events: ServerTraceEvent[] = [];
+			const onError = vi.fn();
+			const ApiLayer = defineLayer({
+				name: 'trace-setup-failure',
+				setup: () => {
+					throw new Error('setup failed');
+				},
+				server: {
+					api: {
+						'/api/setup-failure': () => ({ ok: true }),
+					},
+				},
+			});
+			const handler = createHandler({
+				root: createRoot() as any,
+				layers: [ApiLayer],
+				onError,
+				onServerTrace: (event) => events.push(event),
+			});
+
+			const response = await handler(
+				new Request('http://localhost:3000/api/setup-failure')
+			);
+
+			expect(response.status).toBe(500);
+			expect(onError).toHaveBeenCalledOnce();
+			expect(events).toHaveLength(1);
+			expect(events[0]).toMatchObject({
+				error: {
+					message: expect.stringContaining('setup failed'),
+				},
+				kind: 'api',
+				layer: 'trace-setup-failure',
+				ok: false,
+				status: 500,
+				target: '/api/setup-failure',
+			});
+			expect(events[0]!.error).not.toHaveProperty('stack');
+		});
+
 		it('should isolate server trace hook failures', async () => {
 			const onTraceError = vi.fn();
 			const ApiLayer = defineLayer({

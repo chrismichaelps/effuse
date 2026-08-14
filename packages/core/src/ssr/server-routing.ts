@@ -37,7 +37,7 @@ import {
 	resolveLayerDefinitions,
 	type LayerInputSource,
 } from '../layers/api/defineLayer.js';
-import { createSSRRuntime } from './runtime.js';
+import { createSSRRuntime, type SSRRuntime } from './runtime.js';
 import { createRequestScope, type RequestScope } from './request-scope.js';
 import type { AnyServerRequestContract } from './request-contract.js';
 import type { AnyServerValidator } from './validation.js';
@@ -815,7 +815,8 @@ export const handleLayerServerRequest = async (
 ): Promise<Response | null> => {
 	const data = getCompiledRouterData(source);
 	const layers = data.layers;
-	const match = findActionHandler(request, data) ?? findApiHandler(request, data);
+	const match =
+		findActionHandler(request, data) ?? findApiHandler(request, data);
 	if (!match) {
 		return null;
 	}
@@ -874,19 +875,28 @@ const dispatchMatched = async (
 	observability?: ServerObservabilityHooks,
 	requestScope?: Pick<RequestScope, 'locals' | 'defer'>
 ): Promise<Response> => {
-	const runtime = await createSSRRuntime(layers, { runSetup: true });
 	const ownsScope = requestScope === undefined;
-	const scope: RequestScope = requestScope
-		? { ...requestScope, runDisposers: async () => undefined }
-		: createRequestScope();
 	const startedAt = performance.now();
 	const timestamp = Date.now();
+	let runtime: SSRRuntime | undefined;
+	let scope: RequestScope | undefined;
 
 	try {
-		return await runtime.run(async () => {
-			const ctx = createContext(request, runtime.layers, match.params, scope);
+		const activeRuntime = await createSSRRuntime(layers, { runSetup: true });
+		runtime = activeRuntime;
+		const activeScope: RequestScope = requestScope
+			? { ...requestScope, runDisposers: async () => undefined }
+			: createRequestScope();
+		scope = activeScope;
+		return await activeRuntime.run(async () => {
+			const ctx = createContext(
+				request,
+				activeRuntime.layers,
+				match.params,
+				activeScope
+			);
 			const middleware = collectServerMiddleware(
-				runtime.layers,
+				activeRuntime.layers,
 				match.layer,
 				match.middleware
 			);
@@ -944,11 +954,14 @@ const dispatchMatched = async (
 		createErrorTrace(500);
 		throw error;
 	} finally {
-		// Run request-scoped disposers inside the runtime scope so they can still
-		// reach scoped services, before the runtime itself is torn down.
-		if (ownsScope) {
-			await runtime.run(() => scope.runDisposers());
+		if (runtime) {
+			// Run request-scoped disposers inside the runtime scope so they can still
+			// reach scoped services, before the runtime itself is torn down.
+			const activeScope = scope;
+			if (ownsScope && activeScope) {
+				await runtime.run(() => activeScope.runDisposers());
+			}
+			await runtime.dispose();
 		}
-		await runtime.dispose();
 	}
 };
