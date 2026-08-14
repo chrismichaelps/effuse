@@ -9,6 +9,7 @@ import {
 	resolvePackageManagerCommand,
 	runWithIntegrationAppLock,
 } from '../run-with-integration-app-lock.mjs';
+import { runWorkspaceTests } from '../run-workspace-tests.mjs';
 import { test } from 'node:test';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -178,12 +179,28 @@ test('root generated-output gates use the shared lock', async () => {
 	const lockedPrefix =
 		'node scripts/run-with-integration-app-lock.mjs -- ';
 
-	for (const script of ['build', 'lint', 'test', 'typecheck']) {
+	for (const script of ['build', 'lint', 'typecheck']) {
 		assert.ok(
 			packageJson.scripts[script].startsWith(lockedPrefix),
 			`Expected root ${script} to use the generated-output lock.`
 		);
 	}
+	assert.equal(
+		packageJson.scripts.lint,
+		'node scripts/run-with-integration-app-lock.mjs -- pnpm -r lint'
+	);
+	assert.equal(
+		packageJson.scripts['lint:packages'],
+		'node scripts/run-with-integration-app-lock.mjs -- pnpm -r lint'
+	);
+	assert.equal(
+		packageJson.scripts.test,
+		'node scripts/run-workspace-tests.mjs'
+	);
+	assert.equal(
+		packageJson.scripts['test:workspace'],
+		'node scripts/run-workspace-tests.mjs'
+	);
 	assert.equal(
 		packageJson.scripts['check:app'],
 		'node scripts/check-integration-app.mjs'
@@ -192,6 +209,67 @@ test('root generated-output gates use the shared lock', async () => {
 		packageJson.scripts['check:app:bun'],
 		'node scripts/check-integration-app.mjs --runner=bun'
 	);
+});
+
+test('workspace tests reuse one pinned pnpm process in strict order', async () => {
+	const { lockDir, root } = await createTempLockDir();
+	const calls = [];
+
+	try {
+		await runWorkspaceTests({
+			env: {
+				npm_config_user_agent: 'pnpm/10.32.1',
+				npm_execpath: '/package manager/pnpm.cjs',
+				npm_node_execpath: '/node runtime/node',
+			},
+			lockDir,
+			repoRoot: root,
+			run: (...args) => {
+				calls.push(args);
+			},
+		});
+
+		assert.deepEqual(calls, [
+			[
+				'/node runtime/node',
+				['/package manager/pnpm.cjs', 'test:scripts'],
+				root,
+			],
+			['/node runtime/node', ['/package manager/pnpm.cjs', '-r', 'test'], root],
+		]);
+		await assert.rejects(stat(lockDir), { code: 'ENOENT' });
+	} finally {
+		await rm(root, { force: true, recursive: true });
+	}
+});
+
+test('workspace tests stop after a script-test failure and release the lock', async () => {
+	const { lockDir, root } = await createTempLockDir();
+	let calls = 0;
+
+	try {
+		await assert.rejects(
+			runWorkspaceTests({
+				env: {
+					npm_config_user_agent: 'pnpm/10.32.1',
+					npm_execpath: '/pinned/pnpm.cjs',
+					npm_node_execpath: '/pinned/node',
+				},
+				lockDir,
+				repoRoot: root,
+				run: async () => {
+					calls += 1;
+					throw new Error('script tests failed');
+				},
+			}),
+			/script tests failed/
+		);
+
+		assert.equal(calls, 1);
+		await assert.rejects(stat(lockDir), { code: 'ENOENT' });
+	} finally {
+		await rm(root, { force: true, recursive: true });
+	}
 });
 
 test('run-with-integration-app-lock forwards successful commands', async () => {
