@@ -391,7 +391,7 @@ importers:
         specifier: ^0.3.2
         version: 0.3.2
       '@effuse/core':
-        specifier: 2.0.3
+        specifier: 2.1.0
         version: link:../core
       '@eslint/js':
         specifier: ^9.26.0

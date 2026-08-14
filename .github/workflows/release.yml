@@ -50,3 +50,10 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: pnpm exec multi-semantic-release --sequential-init
+
+      - name: Synchronize released dependency versions
+        run: |
+          pnpm install --lockfile-only
+          git add pnpm-lock.yaml
+          git diff --cached --quiet || git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -m "chore(release): synchronize lockfile [skip ci]"
+          git push
