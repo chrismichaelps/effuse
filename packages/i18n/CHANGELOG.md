@@ -1,3 +1,14 @@
+## @effuse/i18n [1.1.4](https://github.com/chrismichaelps/effuse/compare/@effuse/i18n@1.1.3...@effuse/i18n@1.1.4) (2026-08-14)
+
+### Documentation
+
+* **packages:** strengthen ecosystem references refs [#598](https://github.com/chrismichaelps/effuse/issues/598) ([#600](https://github.com/chrismichaelps/effuse/issues/600)) ([d0db27e](https://github.com/chrismichaelps/effuse/commit/d0db27efcca337be2aa99584b97454913b11577e))
+
+
+### Dependencies
+
+* **@effuse/core:** upgraded to 2.1.0
+
 ## @effuse/i18n [1.1.3](https://github.com/chrismichaelps/effuse/compare/@effuse/i18n@1.1.2...@effuse/i18n@1.1.3) (2026-07-29)
 
 

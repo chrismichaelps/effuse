@@ -57,15 +57,93 @@ test('publication binds the scoped npm secret through setup-node', async () => {
 	assert.doesNotMatch(workflow, /^\s+id-token:/mu);
 });
 
+test('publication synchronizes the lockfile after dependency releases', async () => {
+	const workflow = await readWorkflow('release.yml');
+	const releasePosition = workflow.indexOf(
+		'pnpm exec multi-semantic-release --sequential-init'
+	);
+	const lockfilePosition = workflow.indexOf('pnpm install --lockfile-only');
+
+	assert.ok(releasePosition >= 0);
+	assert.ok(lockfilePosition > releasePosition);
+	assert.match(workflow, /git add pnpm-lock\.yaml/u);
+	assert.match(
+		workflow,
+		/git diff --cached --quiet \|\| git -c user\.name="github-actions\[bot\]" -c user\.email="41898282\+github-actions\[bot\]@users\.noreply\.github\.com" commit -m "chore\(release\): synchronize lockfile \[skip ci\]"/u
+	);
+	assert.match(workflow, /^\s+git push$/mu);
+});
+
 test('publication does not replay release activity across historical issues', async () => {
 	const config = await readReleaseConfig();
 	const githubPlugin = config.plugins.find(
-		(plugin) => Array.isArray(plugin) && plugin[0] === '@semantic-release/github'
+		(plugin) =>
+			Array.isArray(plugin) && plugin[0] === '@semantic-release/github'
 	);
 
-	assert.ok(githubPlugin, 'GitHub release plugin must be configured explicitly');
+	assert.ok(
+		githubPlugin,
+		'GitHub release plugin must be configured explicitly'
+	);
 	assert.equal(githubPlugin[1]?.successComment, false);
 	assert.equal(githubPlugin[1]?.releasedLabels, false);
+});
+
+test('release commit arguments stay bounded independently of generated notes', async () => {
+	const config = await readReleaseConfig();
+	const changelogPlugin = config.plugins.find(
+		(plugin) =>
+			Array.isArray(plugin) && plugin[0] === '@semantic-release/changelog'
+	);
+	const gitPlugin = config.plugins.find(
+		(plugin) => Array.isArray(plugin) && plugin[0] === '@semantic-release/git'
+	);
+	const githubPlugin = config.plugins.find(
+		(plugin) =>
+			Array.isArray(plugin) && plugin[0] === '@semantic-release/github'
+	);
+
+	assert.ok(changelogPlugin, 'full release notes must remain in changelogs');
+	assert.ok(githubPlugin, 'full release notes must remain in GitHub releases');
+	assert.ok(gitPlugin, 'release metadata must be committed');
+	assert.ok(
+		gitPlugin[1]?.assets?.includes('pnpm-lock.yaml'),
+		'release commits must include lockfile changes'
+	);
+	assert.equal(
+		gitPlugin[1]?.message,
+		'chore(release): ${nextRelease.version} [skip ci]'
+	);
+	assert.doesNotMatch(gitPlugin[1]?.message ?? '', /nextRelease\.notes/u);
+});
+
+test('every public package extends the root release policy', async () => {
+	const packagesRoot = new URL('packages/', `file://${repoRoot}/`);
+	const packageDirectories = (
+		await readdir(packagesRoot, { withFileTypes: true })
+	).filter((entry) => entry.isDirectory());
+
+	for (const directory of packageDirectories) {
+		const manifest = JSON.parse(
+			await readFile(
+				new URL(`${directory.name}/package.json`, packagesRoot),
+				'utf8'
+			)
+		);
+		if (manifest.private === true) continue;
+
+		const releaseConfig = JSON.parse(
+			await readFile(
+				new URL(`${directory.name}/.releaserc.json`, packagesRoot),
+				'utf8'
+			)
+		);
+		assert.equal(
+			releaseConfig.extends,
+			'../../.releaserc.json',
+			`${manifest.name} must extend the root release policy`
+		);
+	}
 });
 
 test('every public package identifies the trusted GitHub repository', async () => {

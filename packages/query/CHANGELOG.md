@@ -1,3 +1,18 @@
+## @effuse/query [2.0.4](https://github.com/chrismichaelps/effuse/compare/@effuse/query@2.0.3...@effuse/query@2.0.4) (2026-08-14)
+
+### Documentation
+
+* **packages:** strengthen ecosystem references refs [#598](https://github.com/chrismichaelps/effuse/issues/598) ([#600](https://github.com/chrismichaelps/effuse/issues/600)) ([d0db27e](https://github.com/chrismichaelps/effuse/commit/d0db27efcca337be2aa99584b97454913b11577e))
+
+### Tests
+
+* **query:** hold the in-flight window open instead of timing it ([#587](https://github.com/chrismichaelps/effuse/issues/587)) ([101c528](https://github.com/chrismichaelps/effuse/commit/101c52880f9a888f9d15f71cd4a8d512c2dd3a2e)), closes [#583](https://github.com/chrismichaelps/effuse/issues/583) [#584](https://github.com/chrismichaelps/effuse/issues/584) [#586](https://github.com/chrismichaelps/effuse/issues/586)
+
+
+### Dependencies
+
+* **@effuse/core:** upgraded to 2.1.0
+
 ## @effuse/query [2.0.3](https://github.com/chrismichaelps/effuse/compare/@effuse/query@2.0.2...@effuse/query@2.0.3) (2026-07-29)
 
 
