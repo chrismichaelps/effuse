@@ -1,3 +1,18 @@
+## @effuse/compiler [1.0.6](https://github.com/chrismichaelps/effuse/compare/@effuse/compiler@1.0.5...@effuse/compiler@1.0.6) (2026-08-14)
+
+### Bug Fixes
+
+* **compiler:** detect signal access by walking children, not a type list ([#580](https://github.com/chrismichaelps/effuse/issues/580)) ([1579ab4](https://github.com/chrismichaelps/effuse/commit/1579ab462aa8be6af3947bfb0e9ad34f8e2fe8e2)), closes [#579](https://github.com/chrismichaelps/effuse/issues/579)
+* **compiler:** stop treating on* and handle* props as event handlers ([#575](https://github.com/chrismichaelps/effuse/issues/575)) ([0137a9c](https://github.com/chrismichaelps/effuse/commit/0137a9c5cf05cdb59bab89957ed92804ba790f0a)), closes [#574](https://github.com/chrismichaelps/effuse/issues/574)
+
+### Documentation
+
+* **packages:** strengthen ecosystem references refs [#598](https://github.com/chrismichaelps/effuse/issues/598) ([#600](https://github.com/chrismichaelps/effuse/issues/600)) ([d0db27e](https://github.com/chrismichaelps/effuse/commit/d0db27efcca337be2aa99584b97454913b11577e))
+
+### Tests
+
+* **compiler:** refresh the runtime-agreement replica and cover its gap ([#585](https://github.com/chrismichaelps/effuse/issues/585)) ([404ce06](https://github.com/chrismichaelps/effuse/commit/404ce0617d748340cd806b62808e76f84e3d4bca)), closes [#583](https://github.com/chrismichaelps/effuse/issues/583) [#584](https://github.com/chrismichaelps/effuse/issues/584)
+
 ## @effuse/compiler [1.0.5](https://github.com/chrismichaelps/effuse/compare/@effuse/compiler@1.0.4...@effuse/compiler@1.0.5) (2026-07-26)
 
 ### Bug Fixes
