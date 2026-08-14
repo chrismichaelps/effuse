@@ -4,7 +4,11 @@ import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parseCommand } from '../run-with-integration-app-lock.mjs';
+import {
+	parseCommand,
+	resolvePackageManagerCommand,
+	runWithIntegrationAppLock,
+} from '../run-with-integration-app-lock.mjs';
 import { test } from 'node:test';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -54,6 +58,117 @@ test('parseCommand requires a command after the separator', () => {
 		command: 'node',
 	});
 	assert.throws(() => parseCommand(['--']), /Usage:/);
+});
+
+test('pnpm lifecycle commands reuse the pinned pnpm and Node executables', () => {
+	assert.deepEqual(
+		resolvePackageManagerCommand({
+			args: ['-r', 'test'],
+			command: 'pnpm',
+			env: {
+				npm_config_user_agent: 'pnpm/10.32.1 npm/? node/v24.15.0',
+				npm_execpath: '/package manager/bin/pnpm.cjs',
+				npm_node_execpath: '/node runtime/bin/node',
+			},
+			nodeExecPath: '/fallback/node',
+		}),
+		{
+			args: ['/package manager/bin/pnpm.cjs', '-r', 'test'],
+			command: '/node runtime/bin/node',
+		}
+	);
+});
+
+test('pinned pnpm execution falls back to the current Node executable', () => {
+	assert.deepEqual(
+		resolvePackageManagerCommand({
+			args: ['build'],
+			command: 'pnpm',
+			env: {
+				npm_config_user_agent: 'pnpm/10.32.1',
+				npm_execpath: '/pinned/pnpm.cjs',
+			},
+			nodeExecPath: '/current/node',
+		}),
+		{
+			args: ['/pinned/pnpm.cjs', 'build'],
+			command: '/current/node',
+		}
+	);
+});
+
+test('command resolution ignores generic and untrusted lifecycle commands', () => {
+	const pnpmLifecycle = {
+		npm_config_user_agent: 'pnpm/10.32.1',
+		npm_execpath: '/pinned/pnpm.cjs',
+		npm_node_execpath: '/pinned/node',
+	};
+
+	assert.deepEqual(
+		resolvePackageManagerCommand({
+			args: ['--version'],
+			command: 'node',
+			env: pnpmLifecycle,
+		}),
+		{ args: ['--version'], command: 'node' }
+	);
+	assert.deepEqual(
+		resolvePackageManagerCommand({
+			args: ['test'],
+			command: 'pnpm',
+			env: {
+				npm_config_user_agent: 'npm/11.0.0',
+				npm_execpath: '/untrusted/npm-cli.js',
+			},
+		}),
+		{ args: ['test'], command: 'pnpm' }
+	);
+	assert.deepEqual(
+		resolvePackageManagerCommand({
+			args: ['test'],
+			command: 'pnpm',
+			env: { npm_config_user_agent: 'pnpm/10.32.1' },
+		}),
+		{ args: ['test'], command: 'pnpm' }
+	);
+});
+
+test('lock runner forwards the resolved pnpm command without string joining', async () => {
+	const { lockDir, root } = await createTempLockDir();
+	const calls = [];
+
+	try {
+		await runWithIntegrationAppLock({
+			args: ['--filter', '@effuse/core', 'test'],
+			command: 'pnpm',
+			env: {
+				npm_config_user_agent: 'pnpm/10.32.1',
+				npm_execpath: '/package manager/pnpm.cjs',
+				npm_node_execpath: '/node runtime/node',
+			},
+			lockDir,
+			repoRoot: root,
+			run: (...callArgs) => {
+				calls.push(callArgs);
+			},
+		});
+
+		assert.deepEqual(calls, [
+			[
+				'/node runtime/node',
+				[
+					'/package manager/pnpm.cjs',
+					'--filter',
+					'@effuse/core',
+					'test',
+				],
+				root,
+			],
+		]);
+		await assert.rejects(stat(lockDir), { code: 'ENOENT' });
+	} finally {
+		await rm(root, { force: true, recursive: true });
+	}
 });
 
 test('root generated-output gates use the shared lock', async () => {
