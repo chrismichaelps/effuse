@@ -18,6 +18,8 @@
 		"build": "node scripts/run-with-integration-app-lock.mjs -- pnpm -r --workspace-concurrency=1 build && node scripts/check-ssr-entries.mjs",
 		"bench:routes": "pnpm --filter @effuse/core build && node scripts/performance/route-pattern.mjs --check",
 		"bench:routes:bun": "pnpm --filter @effuse/core build && bun scripts/performance/route-pattern.mjs --check",
+		"bench:ssr": "pnpm --filter @effuse/core build && node scripts/performance/ssr-runtime.mjs --check",
+		"bench:ssr:bun": "pnpm --filter @effuse/core build && bun scripts/performance/ssr-runtime.mjs --check",
 		"check:app": "node scripts/check-integration-app.mjs",
 		"check:app:bun": "node scripts/check-integration-app.mjs --runner=bun",
 		"check:node": "node scripts/check-node-version.mjs",
