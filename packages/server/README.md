@@ -14,13 +14,25 @@ An Effuse app produces a single Web-standard fetch handler (`(request: Request) 
 pnpm add @effuse/server
 ```
 
+## Entrypoints
+
+| Import                | Purpose                                                            |
+| --------------------- | ------------------------------------------------------------------ |
+| `@effuse/server`      | Portable contract, memory storage, helpers, and conformance suite. |
+| `@effuse/server/node` | Node HTTP adapter.                                                 |
+| `@effuse/server/bun`  | Bun server adapter.                                                |
+
+Adapter modules are server-only and must not be imported by browser entries.
+
 ## Usage
 
 ```ts
 import { createNodeServer } from '@effuse/server/node';
 import { handleRequest } from './entry-server.js'; // your Effuse fetch handler
 
-const server = createNodeServer(handleRequest, { maxBodyBytes: 5 * 1024 * 1024 });
+const server = createNodeServer(handleRequest, {
+	maxBodyBytes: 5 * 1024 * 1024,
+});
 const { url } = await server.listen({ port: 3000 });
 console.log(`Listening on ${url}`);
 
@@ -41,15 +53,26 @@ await server.listen({ port: 3000 });
 
 Every adapter implements the same [`EffuseServer`](./src/contract.ts) surface:
 
-| Member | Purpose |
-| --- | --- |
-| `listen(options?)` | Bind host/port (`port: 0` = ephemeral). Resolves the bound address. |
-| `fetch(request)` | Invoke the handler in-process, with no socket — for tests, SSR, and health checks. |
-| `close(options?)` | Stop accepting, drain in-flight requests within `timeoutMs`, then force-close. |
-| `address` | The bound `{ host, port, url }`, or `null` before `listen`. |
-| `runtime` | `'node'` or `'bun'`. |
+| Member             | Purpose                                                                            |
+| ------------------ | ---------------------------------------------------------------------------------- |
+| `listen(options?)` | Bind host/port (`port: 0` = ephemeral). Resolves the bound address.                |
+| `fetch(request)`   | Invoke the handler in-process, with no socket — for tests, SSR, and health checks. |
+| `close(options?)`  | Stop accepting, drain in-flight requests within `timeoutMs`, then force-close.     |
+| `address`          | The bound `{ host, port, url }`, or `null` before `listen`.                        |
+| `runtime`          | `'node'` or `'bun'`.                                                               |
 
 `ServerOptions` covers `maxBodyBytes` (oversize bodies get a stable `413`, never buffered past the limit) and `onError` (invoked before the `500` envelope when a handler throws).
+
+## Production Operation
+
+- Set an explicit request-body limit appropriate for the application.
+- Apply process signal handling and await `close()` during deployment shutdown.
+- Use `fetch(request)` for deterministic in-process probes without opening a
+  second socket.
+- Surface `onError` to structured logging while keeping the public `500`
+  response free of internal error details.
+- Put proxy trust, TLS termination, connection limits, and abuse controls at the
+  deployment boundary appropriate to the selected runtime.
 
 ## Runtime compatibility
 

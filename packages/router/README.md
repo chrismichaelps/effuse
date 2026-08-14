@@ -3,8 +3,14 @@
 </p>
 
 <p align="center">
-  A simple, type-safe router for Single Page Applications (SPA). It manages URL state and navigation seamlessly for Effuse applications.
+  Type-safe browser navigation and request-isolated routing for Effuse.
 </p>
+
+# `@effuse/router`
+
+The router owns route matching, browser and memory history, navigation guards,
+lazy route components, links, route views, and the router state exposed through
+Effuse's script context.
 
 ## Install
 
@@ -20,14 +26,27 @@ Install one router for the lifetime of the browser application.
 import { createRouter, createWebHistory, installRouter } from '@effuse/router';
 
 const router = createRouter({
-  history: createWebHistory(),
-  routes,
+	history: createWebHistory(),
+	routes,
 });
 
 const installed = installRouter(router);
 ```
 
 Call `installed.cleanup()` when the application itself is disposed.
+
+## Public Surface
+
+| Area        | APIs                                                           |
+| ----------- | -------------------------------------------------------------- |
+| Runtime     | `createRouter`, `installRouter`, `runWithRouter`               |
+| History     | `createWebHistory`, `createHashHistory`, `createMemoryHistory` |
+| Components  | `RouterView`, `Link`, `RouterLink`                             |
+| Composition | `useRouter`, `useRoute`, `navigateTo`, `onRouteChange`         |
+| Loading     | `lazyRoute`, `lazyRouteComponent`                              |
+
+Navigation guards may redirect, cancel, or allow navigation. Keep guard side
+effects cancellable and avoid storing request-specific decisions globally.
 
 ## Server request isolation
 
@@ -37,18 +56,18 @@ context then resolve the same request-owned router across asynchronous work.
 
 ```ts
 import {
-  createMemoryHistory,
-  createRouter,
-  runWithRouter,
+	createMemoryHistory,
+	createRouter,
+	runWithRouter,
 } from '@effuse/router';
 
 export const renderRequest = (url: string) => {
-  const router = createRouter({
-    history: createMemoryHistory(url),
-    routes,
-  });
+	const router = createRouter({
+		history: createMemoryHistory(url),
+		routes,
+	});
 
-  return runWithRouter(router, () => renderApplication(url));
+	return runWithRouter(router, () => renderApplication(url));
 };
 ```
 
