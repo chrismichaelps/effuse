@@ -5,7 +5,7 @@ import {
 	parseQuery,
 	createRequestContext,
 } from '../../ssr/handler.js';
-import { defineLayer } from '../../layers/api/defineLayer.js';
+import { defineLayer, type LayerInput } from '../../layers/api/defineLayer.js';
 import { LayerNameCollisionError } from '../../layers/errors.js';
 import { clearGlobalLayerContext } from '../../layers/context.js';
 import { clearGlobalTracing } from '../../layers/tracing/index.js';
@@ -30,8 +30,62 @@ const createRootComponent = (): Component => {
 	}) as Component;
 };
 
+const createTrackedLayerRecord = (
+	entries: Readonly<Record<string, LayerInput>> = {}
+) => {
+	let enumerations = 0;
+	const layers = new Proxy(entries, {
+		ownKeys(target) {
+			enumerations += 1;
+			return Reflect.ownKeys(target);
+		},
+	});
+	return { layers, enumerations: () => enumerations };
+};
+
 describe('SSR handler', () => {
 	describe('createHandler', () => {
+		it('should not compile or dispatch an empty server layer source', async () => {
+			const tracked = createTrackedLayerRecord();
+			const buffered = createHandler({
+				root: createRoot() as any,
+				layers: tracked.layers,
+			});
+			const streaming = createStreamingHandler({
+				root: createRoot() as any,
+				layers: tracked.layers,
+			});
+
+			expect(tracked.enumerations()).toBe(2);
+			expect(
+				(await buffered(new Request('http://localhost/app.js'))).status
+			).toBe(404);
+			expect(
+				(await streaming(new Request('http://localhost/app.js'))).status
+			).toBe(404);
+			expect(tracked.enumerations()).toBe(2);
+		});
+
+		it('should classify UI-only layers once before bypassing server dispatch', async () => {
+			const tracked = createTrackedLayerRecord({
+				ui: defineLayer({ name: 'ui-only-handler-layer' }),
+			});
+			const handler = createHandler({
+				root: createRoot() as any,
+				layers: tracked.layers,
+			});
+
+			expect(tracked.enumerations()).toBe(1);
+			expect(
+				(await handler(new Request('http://localhost/first.js'))).status
+			).toBe(404);
+			expect(tracked.enumerations()).toBe(2);
+			expect(
+				(await handler(new Request('http://localhost/second.js'))).status
+			).toBe(404);
+			expect(tracked.enumerations()).toBe(2);
+		});
+
 		it('should return 200 with HTML for a valid route', async () => {
 			const handler = createHandler({
 				root: createRoot() as any,

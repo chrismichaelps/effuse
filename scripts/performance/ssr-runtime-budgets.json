@@ -2,7 +2,15 @@
 	"warm": {
 		"ssr.runtime-lifecycle": { "medianNs": 250000, "p95Ns": 1000000 },
 		"ssr.full-render": { "medianNs": 10000000, "p95Ns": 30000000 },
-		"ssr.handler": { "medianNs": 15000000, "p95Ns": 40000000 }
+		"ssr.handler": { "medianNs": 15000000, "p95Ns": 40000000 },
+		"ssr.static-bypass": { "medianNs": 5000, "p95Ns": 15000 },
+		"ssr.ui-layer-static-bypass": {
+			"medianNs": 5000,
+			"p95Ns": 15000,
+			"relativeTo": "ssr.static-bypass",
+			"maxMedianRatio": 1.2,
+			"maxP95Ratio": 3
+		}
 	},
 	"cold": {
 		"node": { "medianMs": 350, "p95Ms": 750 },
