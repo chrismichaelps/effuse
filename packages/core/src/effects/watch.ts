@@ -111,7 +111,14 @@ const createCleanupRunner = (): {
 
 const handleAsyncResult = (result: void | Promise<void>): void => {
 	if (result instanceof Promise) {
-		void result;
+		// `void result` discarded the promise without attaching anything, so a
+		// rejecting callback became an unhandled rejection — which terminates
+		// the process on Node by default, taking an SSR server with it.
+		//
+		// Contained rather than reported, matching `watchEffect`, which routes
+		// async work through `Effect.catchAll`. The two primitives should agree
+		// on what happens to a failing async callback.
+		void result.catch(() => undefined);
 	}
 };
 
