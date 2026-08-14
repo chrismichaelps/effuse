@@ -44,7 +44,39 @@ export type {
 	AppOptions,
 };
 
+type RequestHandler = ReturnType<typeof createStreamingHandler>;
+
+const snapshotServerOptions = (options: ServerAppOptions): ServerAppOptions =>
+	Object.fromEntries(
+		Object.entries(options).filter(([, value]) => value !== undefined)
+	) as ServerAppOptions;
+
+const serverOptionsEqual = (
+	left: ServerAppOptions | undefined,
+	right: ServerAppOptions
+): boolean => {
+	if (!left) return false;
+	const leftEntries = Object.entries(left);
+	const rightEntries = Object.entries(right).filter(
+		([, value]) => value !== undefined
+	);
+	if (leftEntries.length !== rightEntries.length) return false;
+	return rightEntries.every(([key, value]) =>
+		Object.is(left[key as keyof ServerAppOptions], value)
+	);
+};
+
 export class EffuseApp extends BaseEffuseApp {
+	private requestHandler: RequestHandler | undefined;
+	private requestHandlerOptions: ServerAppOptions | undefined;
+
+	override async useLayers(layers: AppLayerSource): Promise<this> {
+		await super.useLayers(layers);
+		this.requestHandler = undefined;
+		this.requestHandlerOptions = undefined;
+		return this;
+	}
+
 	/**
 	 * Render the app to a full HTML string for SSR.
 	 *
@@ -83,16 +115,20 @@ export class EffuseApp extends BaseEffuseApp {
 	 * Handle a Fetch API request with layer-owned API routes/actions first,
 	 * then stream the app shell as SSR fallback.
 	 */
-	async handleRequest(
+	handleRequest(
 		request: Request,
 		options: ServerAppOptions = {}
 	): Promise<Response> {
-		const handler = createStreamingHandler({
-			root: this.rootComponent,
-			layers: this.layers,
-			options,
-		});
-		return handler(request);
+		if (!serverOptionsEqual(this.requestHandlerOptions, options)) {
+			const optionsSnapshot = snapshotServerOptions(options);
+			this.requestHandler = createStreamingHandler({
+				root: this.rootComponent,
+				layers: this.layers,
+				options: optionsSnapshot,
+			});
+			this.requestHandlerOptions = optionsSnapshot;
+		}
+		return this.requestHandler!(request);
 	}
 
 	/**
