@@ -9,6 +9,7 @@ import {
 	createServerApp,
 	createSSRRuntime,
 	define,
+	defineLayer,
 } from '../../packages/core/dist/server.js';
 import {
 	evaluateBudgets,
@@ -51,6 +52,13 @@ const Root = define({
 });
 const serverApp = createServerApp(Root);
 const handler = createHandler({ root: Root });
+const uiLayerHandler = createHandler({
+	root: Root,
+	layers: [defineLayer({ name: 'ssr-benchmark-ui-layer' })],
+});
+const staticRequest = new Request('http://localhost/benchmark.js');
+
+await uiLayerHandler(staticRequest);
 
 const cases = [
 	{
@@ -70,6 +78,16 @@ const cases = [
 			const response = await handler(new Request('http://localhost/benchmark'));
 			return response.text();
 		},
+	},
+	{
+		name: 'ssr.static-bypass',
+		iterations: quick ? 100 : 1_000,
+		operation: () => handler(staticRequest),
+	},
+	{
+		name: 'ssr.ui-layer-static-bypass',
+		iterations: quick ? 100 : 1_000,
+		operation: () => uiLayerHandler(staticRequest),
 	},
 ];
 const results = [];

@@ -23,7 +23,10 @@
  */
 
 import type { Component } from '../render/node.js';
-import type { LayerInputSource } from '../layers/api/defineLayer.js';
+import {
+	layerInputSourceToList,
+	type LayerInputSource,
+} from '../layers/api/defineLayer.js';
 import type { RequestContext, ServerAppOptions } from './types.js';
 import type { ServerTraceEvent } from './observability.js';
 import { createServerApp } from './server-app.js';
@@ -51,12 +54,36 @@ export interface HandlerConfig {
 	onServerTraceError?: (error: unknown, event: ServerTraceEvent) => void;
 }
 
-export const createHandler = (config: HandlerConfig) => {
+type LayerServerDispatcher = (
+	request: Request,
+	hooks: Pick<HandlerConfig, 'onServerTrace' | 'onServerTraceError'>
+) => Promise<Response | null> | null;
+
+const createLayerServerDispatcher = (
+	layers: LayerInputSource
+): LayerServerDispatcher | undefined => {
+	if (layerInputSourceToList(layers).length === 0) return undefined;
+
 	let serverRouter: CompiledLayerServerRouter | undefined;
-	const getServerRouter = (): CompiledLayerServerRouter =>
-		(serverRouter ??= compileLayerServerRouter(config.layers ?? []));
+	let hasServerHandlers: boolean | undefined;
+	return (request, hooks) => {
+		if (hasServerHandlers === false) return null;
+		serverRouter ??= compileLayerServerRouter(layers);
+		hasServerHandlers ??=
+			serverRouter.routeCount > 0 || serverRouter.actionCount > 0;
+		if (!hasServerHandlers) return null;
+		return handleLayerServerRequest(request, serverRouter, {
+			onTrace: hooks.onServerTrace,
+			onTraceError: hooks.onServerTraceError,
+		});
+	};
+};
+
+export const createHandler = (config: HandlerConfig) => {
+	const layers = config.layers ?? [];
+	const dispatchServerRequest = createLayerServerDispatcher(layers);
 	const serverApp = createServerApp(config.root)
-		.useLayers(config.layers ?? [])
+		.useLayers(layers)
 		.configure(config.options ?? {});
 
 	return async (request: Request): Promise<Response> => {
@@ -67,16 +94,10 @@ export const createHandler = (config: HandlerConfig) => {
 			const url = new URL(req.url);
 			const pathname = url.pathname;
 
-			const serverResponse = await handleLayerServerRequest(
-				req,
-				getServerRouter(),
-				{
-					onTrace: config.onServerTrace,
-					onTraceError: config.onServerTraceError,
-				}
-			);
-			if (serverResponse) {
-				return serverResponse;
+			const serverDispatch = dispatchServerRequest?.(req, config);
+			if (serverDispatch) {
+				const serverResponse = await serverDispatch;
+				if (serverResponse) return serverResponse;
 			}
 
 			if (shouldSkip(pathname)) {
@@ -151,11 +172,10 @@ export const createHandler = (config: HandlerConfig) => {
  * Use this when TTFB is critical (e.g., large pages, slow data fetching).
  */
 export const createStreamingHandler = (config: HandlerConfig) => {
-	let serverRouter: CompiledLayerServerRouter | undefined;
-	const getServerRouter = (): CompiledLayerServerRouter =>
-		(serverRouter ??= compileLayerServerRouter(config.layers ?? []));
+	const layers = config.layers ?? [];
+	const dispatchServerRequest = createLayerServerDispatcher(layers);
 	const serverApp = createServerApp(config.root)
-		.useLayers(config.layers ?? [])
+		.useLayers(layers)
 		.configure(config.options ?? {});
 
 	return async (request: Request): Promise<Response> => {
@@ -166,16 +186,10 @@ export const createStreamingHandler = (config: HandlerConfig) => {
 			const url = new URL(req.url);
 			const pathname = url.pathname;
 
-			const serverResponse = await handleLayerServerRequest(
-				req,
-				getServerRouter(),
-				{
-					onTrace: config.onServerTrace,
-					onTraceError: config.onServerTraceError,
-				}
-			);
-			if (serverResponse) {
-				return serverResponse;
+			const serverDispatch = dispatchServerRequest?.(req, config);
+			if (serverDispatch) {
+				const serverResponse = await serverDispatch;
+				if (serverResponse) return serverResponse;
 			}
 
 			if (shouldSkip(pathname)) {
