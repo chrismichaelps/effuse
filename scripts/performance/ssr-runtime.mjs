@@ -80,8 +80,19 @@ const cases = [
 	},
 	{
 		name: 'ssr.handler',
+		iterations: quick ? 20 : 100,
 		operation: async () => {
 			const response = await handler(new Request('http://localhost/benchmark'));
+			return response.text();
+		},
+	},
+	{
+		name: 'ssr.ui-layer-handler',
+		iterations: quick ? 20 : 100,
+		operation: async () => {
+			const response = await uiLayerHandler(
+				new Request('http://localhost/benchmark')
+			);
 			return response.text();
 		},
 	},

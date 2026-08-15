@@ -34,7 +34,10 @@ import {
 	createLayerRegistry,
 	RegistryService,
 } from '../layers/services/RegistryService.js';
-import { buildAllLayersEffect } from '../layers/internal/builder.js';
+import {
+	buildAllLayersEffect,
+	registerLayerMetadata,
+} from '../layers/internal/builder.js';
 import {
 	getGlobalLayerContextStore,
 	isLayerContextStoreActive,
@@ -71,7 +74,7 @@ export interface SSRRuntimeOptions {
 	readonly runSetup?: boolean;
 }
 
-const createLayerlessRuntime = (
+const createLightweightRuntime = (
 	layers: readonly AnyResolvedLayer[],
 	headStack: HeadProps[],
 	state: Map<string, unknown>,
@@ -82,6 +85,9 @@ const createLayerlessRuntime = (
 	const layerRegistry = createLayerRegistry();
 	const tracingService = createTracingService();
 	layerRegistry.registerService('tracing', tracingService);
+	for (const layer of layers) {
+		registerLayerMetadata(layer, propsRegistry, layerRegistry);
+	}
 
 	const layerContextStore: LayerContextStore = {
 		propsRegistry,
@@ -119,6 +125,14 @@ const createLayerlessRuntime = (
 	};
 };
 
+const hasManagedRuntimeWork = (layer: AnyResolvedLayer): boolean =>
+	Object.keys(layer.provides ?? {}).length > 0 ||
+	Object.keys(layer.services ?? {}).length > 0 ||
+	Predicate.isFunction(layer.setup) ||
+	Predicate.isFunction(layer.onMount) ||
+	Predicate.isFunction(layer.onUnmount) ||
+	Predicate.isFunction(layer.onReady);
+
 /**
  * Creates a per-request SSR runtime scoped to a single render pass.
  *
@@ -148,8 +162,8 @@ export const createSSRRuntime = async (
 		}
 	}
 
-	if (runSetup && layers.length === 0) {
-		return createLayerlessRuntime(
+	if (!runSetup || !layers.some(hasManagedRuntimeWork)) {
+		return createLightweightRuntime(
 			layers,
 			headStack,
 			state,
