@@ -6,7 +6,10 @@ import {
 	createRequestContext,
 } from '../../ssr/handler.js';
 import { defineLayer, type LayerInput } from '../../layers/api/defineLayer.js';
-import { LayerNameCollisionError } from '../../layers/errors.js';
+import {
+	DependencyNotFoundError,
+	LayerNameCollisionError,
+} from '../../layers/errors.js';
 import { clearGlobalLayerContext } from '../../layers/context.js';
 import { clearGlobalTracing } from '../../layers/tracing/index.js';
 import { CreateTextNode, type Component } from '../../render/node.js';
@@ -295,6 +298,30 @@ describe('SSR handler', () => {
 			expect(String(onError.mock.calls[0][0])).toContain(
 				'Layer "duplicate-handler" is registered more than once'
 			);
+		});
+
+		it('should return 500 instead of hanging on a missing dependency', async () => {
+			const onError = vi.fn();
+			const ApiLayer = defineLayer({
+				name: 'blocked-handler',
+				dependencies: ['missing-handler-dependency'] as const,
+				server: {
+					api: { '/api/blocked': () => ({ ok: true }) },
+				},
+			});
+			const handler = createHandler({
+				root: createRootComponent(),
+				layers: [ApiLayer],
+				onError,
+			});
+
+			const response = await handler(
+				new Request('http://localhost:3000/api/blocked')
+			);
+
+			expect(response.status).toBe(500);
+			expect(onError).toHaveBeenCalledOnce();
+			expect(onError.mock.calls[0][0]).toBeInstanceOf(DependencyNotFoundError);
 		});
 
 		it('should pass route params and query to layer API handlers', async () => {
