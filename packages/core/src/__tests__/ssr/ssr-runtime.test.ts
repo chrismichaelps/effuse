@@ -4,7 +4,10 @@ import {
 	defineLayer,
 	resolveLayerDefinitions,
 } from '../../layers/api/defineLayer.js';
-import { LayerNameCollisionError } from '../../layers/errors.js';
+import {
+	DependencyNotFoundError,
+	LayerNameCollisionError,
+} from '../../layers/errors.js';
 import { createLayerRuntime } from '../../layers/internal/runtime.js';
 import { signal } from '../../reactivity/signal.js';
 import {
@@ -461,6 +464,29 @@ describe('SSRRuntime', () => {
 				'Layer "session" is registered more than once'
 			);
 			expect(setupCalled).toBe(false);
+		});
+
+		it('should reject missing dependencies before SSR setup runs', async () => {
+			let setupCalled = false;
+			const FeatureLayer = defineLayer({
+				name: 'missing-dependency-feature',
+				dependencies: ['missing-base'] as const,
+				setup: () => {
+					setupCalled = true;
+				},
+			});
+
+			await expect(createSSRRuntime([FeatureLayer])).rejects.toMatchObject({
+				_tag: 'DependencyNotFoundError',
+				layerName: 'missing-dependency-feature',
+				dependencyName: 'missing-base',
+			});
+			await expect(createSSRRuntime([FeatureLayer])).rejects.toBeInstanceOf(
+				DependencyNotFoundError
+			);
+			expect(setupCalled).toBe(false);
+			expect(getGlobalLayerContextStore()).toBeUndefined();
+			expect(getGlobalTracing()).toBeNull();
 		});
 
 		it('rolls back initialized dependency layers when later setup fails', async () => {

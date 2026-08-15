@@ -24,7 +24,7 @@
 
 import { Effect, Option, Predicate } from 'effect';
 import type { AnyResolvedLayer } from '../types.js';
-import { CircularDependencyError } from '../errors.js';
+import { CircularDependencyError, DependencyNotFoundError } from '../errors.js';
 import { getLayerDependencyNames } from '../utils/dependencies.js';
 
 export interface TopologyLevel {
@@ -33,6 +33,25 @@ export interface TopologyLevel {
 }
 
 type LayerMap = Map<string, AnyResolvedLayer>;
+
+const validateDependencies = (
+	layers: readonly AnyResolvedLayer[]
+): Effect.Effect<void, DependencyNotFoundError> =>
+	Effect.gen(function* () {
+		const names = new Set(layers.map((layer) => layer.name));
+		for (const layer of layers) {
+			for (const dependencyName of getLayerDependencyNames(layer)) {
+				if (!names.has(dependencyName)) {
+					return yield* Effect.fail(
+						new DependencyNotFoundError({
+							layerName: layer.name,
+							dependencyName,
+						})
+					);
+				}
+			}
+		}
+	});
 
 const enum NodeState {
 	Unvisited = 0,
@@ -151,8 +170,12 @@ const buildLevelsFromLayers = (
 
 export const buildTopologyLevels = (
 	layers: readonly AnyResolvedLayer[]
-): Effect.Effect<readonly TopologyLevel[], CircularDependencyError> =>
+): Effect.Effect<
+	readonly TopologyLevel[],
+	CircularDependencyError | DependencyNotFoundError
+> =>
 	Effect.gen(function* () {
+		yield* validateDependencies(layers);
 		yield* detectCircularDependencies(layers);
 		return buildLevelsFromLayers(layers);
 	});

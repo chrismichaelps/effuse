@@ -6,7 +6,10 @@ import {
 	resolveLayerDefinitions,
 	type LayerServicesFrom,
 } from '../../layers/api/defineLayer.js';
-import { LayerNameCollisionError } from '../../layers/errors.js';
+import {
+	DependencyNotFoundError,
+	LayerNameCollisionError,
+} from '../../layers/errors.js';
 import type { CompiledLayer } from '../../layers/api/index.js';
 import type {
 	LayerProvides,
@@ -399,6 +402,31 @@ describe('resolveLayerDefinitions', () => {
 
 		expect(() => resolveLayerDefinitions([shared, feature])).toThrow(
 			LayerNameCollisionError
+		);
+	});
+
+	it('should reject the first missing dependency deterministically', () => {
+		const feature = defineLayer({
+			name: 'feature',
+			dependencies: ['auth', 'config'] as const,
+		});
+
+		const failure = (() => {
+			try {
+				resolveLayerDefinitions([feature]);
+			} catch (error) {
+				return error;
+			}
+			return undefined;
+		})();
+
+		expect(failure).toBeInstanceOf(DependencyNotFoundError);
+		expect(failure).toMatchObject({
+			layerName: 'feature',
+			dependencyName: 'auth',
+		});
+		expect(String(failure)).toContain(
+			'Layer "auth" not found as dependency of "feature"'
 		);
 	});
 });
