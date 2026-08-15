@@ -10,6 +10,7 @@ import {
 } from '../../layers/errors.js';
 import { createLayerRuntime } from '../../layers/internal/runtime.js';
 import { signal } from '../../reactivity/signal.js';
+import type { Component } from '../../render/node.js';
 import {
 	clearGlobalLayerContext,
 	getGlobalLayerContextStore,
@@ -45,6 +46,33 @@ describe('SSRRuntime', () => {
 			expect(runtime.headStack).toBeInstanceOf(Array);
 			expect(runtime.state).toBeInstanceOf(Map);
 			expect(runtime.run(() => isLayerRuntimeReady())).toBe(true);
+
+			await runtime.dispose();
+		});
+
+		it('should register passive layer metadata without managed setup', async () => {
+			const count = signal(2);
+			const deriveProps = vi.fn(() => ({ count }));
+			const Header = vi.fn() as unknown as Component;
+			const PassiveLayer = defineLayer({
+				name: 'passive-metadata',
+				store: { seed: 2 },
+				deriveProps,
+				components: { Header },
+			});
+
+			const runtime = await createSSRRuntime([PassiveLayer]);
+			const context = runtime.run(() => getLayerContextStore());
+
+			expect(deriveProps).toHaveBeenCalledOnce();
+			expect(context?.layerRegistry?.getLayer('passive-metadata')).toBe(
+				runtime.layers[0]
+			);
+			expect(context?.propsRegistry?.get('passive-metadata')).toEqual({
+				count,
+			});
+			expect(context?.layerRegistry?.getComponent('Header')).toBe(Header);
+			expect(runtime.run(() => getLayerService('tracing'))).toBeTruthy();
 
 			await runtime.dispose();
 		});
@@ -227,9 +255,12 @@ describe('SSRRuntime', () => {
 
 		it('should skip setup when runSetup is false', async () => {
 			let setupCalled = false;
+			const serviceFactory = vi.fn(() => ({ enabled: true }));
 
 			const TestLayer = defineLayer({
 				name: 'no-setup',
+				props: { count: signal(1) },
+				services: { feature: serviceFactory },
 				setup: () => {
 					setupCalled = true;
 					return () => {};
@@ -241,6 +272,13 @@ describe('SSRRuntime', () => {
 			});
 
 			expect(setupCalled).toBe(false);
+			expect(serviceFactory).not.toHaveBeenCalled();
+			expect(
+				runtime.run(() =>
+					getLayerContextStore()?.propsRegistry?.has('no-setup')
+				)
+			).toBe(true);
+			expect(runtime.run(() => getLayerService('feature'))).toBeUndefined();
 
 			await runtime.dispose();
 		});

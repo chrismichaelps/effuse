@@ -50,10 +50,24 @@ import {
 import { buildTopologyLevels, getMaxParallelism } from './topology.js';
 import { getLayerDependencyNames } from '../utils/dependencies.js';
 
-const resolveLayerProps = (layer: AnyResolvedLayer): LayerProps =>
+export const resolveLayerProps = (layer: AnyResolvedLayer): LayerProps =>
 	layer.deriveProps
 		? layer.deriveProps(layer.store)
 		: (layer.props ?? ({} as LayerProps));
+
+export const registerLayerMetadata = (
+	layer: AnyResolvedLayer,
+	propsRegistry: PropsRegistry,
+	registry: LayerRegistry
+): void => {
+	registry.registerLayer(layer);
+	propsRegistry.set(layer.name, resolveLayerProps(layer));
+	if (layer.components) {
+		for (const [name, component] of Object.entries(layer.components)) {
+			registry.registerComponent(name, component as Component);
+		}
+	}
+};
 
 export const createSetupContext = (
 	layer: AnyResolvedLayer,
@@ -134,15 +148,7 @@ export const buildLayerEffect = (
 			const propsRegistry = yield* PropsService;
 			const registry = yield* RegistryService;
 
-			registry.registerLayer(layer);
-
-			propsRegistry.set(layer.name, resolveLayerProps(layer));
-
-			if (layer.components) {
-				for (const [name, component] of Object.entries(layer.components)) {
-					registry.registerComponent(name, component as Component);
-				}
-			}
+			registerLayerMetadata(layer, propsRegistry, registry);
 
 			if (layer.provides) {
 				for (const [key, factory] of Object.entries(layer.provides)) {
