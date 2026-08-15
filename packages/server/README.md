@@ -18,7 +18,7 @@ pnpm add @effuse/server
 
 | Import                | Purpose                                                            |
 | --------------------- | ------------------------------------------------------------------ |
-| `@effuse/server`      | Portable contract, memory storage, helpers, and conformance suite. |
+| `@effuse/server`      | Portable contract, storage, server helpers, and conformance suite. |
 | `@effuse/server/node` | Node HTTP adapter.                                                 |
 | `@effuse/server/bun`  | Bun server adapter.                                                |
 
@@ -48,6 +48,27 @@ import { createBunServer } from '@effuse/server/bun';
 const server = createBunServer(handleRequest);
 await server.listen({ port: 3000 });
 ```
+
+Effuse CLI production builds wire the generated listener to `dist/client`
+automatically. Custom listeners can serve an immutable client build with the
+same runtime adapter:
+
+```ts
+import { createNodeServer, withStaticFiles } from '@effuse/server/node';
+import { handleRequest } from './entry-server.js';
+
+const handler = withStaticFiles(handleRequest, {
+	root: new URL('../client/', import.meta.url),
+});
+const server = createNodeServer(handler);
+await server.listen({ port: 3000 });
+```
+
+`withStaticFiles` handles `GET` and `HEAD`, validators, content types, and
+immutable caching for hashed `/assets/` files. Missing files and application
+routes fall through to the wrapped handler. `/api` and `/_effuse` remain
+reserved for server routes and actions. File resolution is contained to the
+configured real path, including when symbolic links are present.
 
 ## The contract
 

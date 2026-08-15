@@ -40,6 +40,11 @@ export { createNodeServer, nodeAdapter } from './node/index.js';
 export { toWebRequest, writeWebResponse } from './node/convert.js';
 export { createBunServer, bunAdapter } from './bun/index.js';
 
+export {
+	withStaticFiles,
+	type StaticFileOptions,
+} from './internal/static-files.js';
+
 export { adapterCapabilities, getCapabilities } from './capabilities.js';
 
 export { runConformance, type ConformanceHarness } from './conformance.js';

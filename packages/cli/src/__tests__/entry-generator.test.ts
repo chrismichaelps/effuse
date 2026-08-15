@@ -114,12 +114,17 @@ describe('EntryGenerator', () => {
 			const content = readFileSync(resolve(tempDir, bootstrap), 'utf-8');
 
 			expect(content).toContain(
-				"import { createNodeServer } from '@effuse/server/node'"
+				"import { createNodeServer, withStaticFiles } from '@effuse/server/node'"
 			);
 			expect(content).toContain(
 				"import { handleRequest } from './entry-server.ts'"
 			);
-			expect(content).toContain('createNodeServer(handleRequest)');
+			expect(content).toContain(
+				"const clientRoot = new URL('../client/', import.meta.url)"
+			);
+			expect(content).toContain(
+				'createNodeServer(withStaticFiles(handleRequest, { root: clientRoot }))'
+			);
 			expect(content).toContain('server.listen({ port, host })');
 			expect(content).toContain('server\n\t\t.close()');
 			expect(content).toContain("process.on('SIGTERM'");
@@ -137,9 +142,11 @@ describe('EntryGenerator', () => {
 			const content = readFileSync(resolve(tempDir, bootstrap), 'utf-8');
 
 			expect(content).toContain(
-				"import { createBunServer } from '@effuse/server/bun'"
+				"import { createBunServer, withStaticFiles } from '@effuse/server/bun'"
 			);
-			expect(content).toContain('createBunServer(handleRequest)');
+			expect(content).toContain(
+				'createBunServer(withStaticFiles(handleRequest, { root: clientRoot }))'
+			);
 		});
 
 		it('should compute a relative import for a user server entry', () => {

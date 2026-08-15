@@ -34,7 +34,15 @@ import {
 	type ServerOptions,
 } from '../contract.js';
 import { withBodyLimit } from '../internal/body-limit.js';
-import { internalErrorResponse, shuttingDownResponse } from '../internal/envelopes.js';
+import {
+	internalErrorResponse,
+	shuttingDownResponse,
+} from '../internal/envelopes.js';
+
+export {
+	withStaticFiles,
+	type StaticFileOptions,
+} from '../internal/static-files.js';
 
 const DEFAULT_HOST = '127.0.0.1';
 
@@ -90,7 +98,9 @@ export const createBunServer = (
 		}
 	};
 
-	const listen = (listenOptions: ListenOptions = {}): Promise<ServerAddress> => {
+	const listen = (
+		listenOptions: ListenOptions = {}
+	): Promise<ServerAddress> => {
 		if (listenOptions.signal?.aborted) {
 			return Promise.reject(
 				new Error('[effuse-server] listen aborted before binding')
