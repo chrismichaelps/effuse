@@ -23,7 +23,6 @@
  */
 
 import type {
-	RetryOptions,
 	DebounceOptions,
 	EffectOptions,
 	WatchOptions,
@@ -33,7 +32,7 @@ export type CleanupFn = () => void;
 
 export type OnCleanup = (cleanupFn: CleanupFn) => void;
 
-export type { RetryOptions, DebounceOptions, EffectOptions, WatchOptions };
+export type { DebounceOptions, EffectOptions, WatchOptions };
 
 export interface EffectHandle {
 	readonly stop: () => void;

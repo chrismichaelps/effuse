@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-import { Effect, Schedule, Duration, Fiber } from 'effect';
+import { Effect, Fiber } from 'effect';
 import {
 	startTracking,
 	stopTracking,
@@ -131,35 +131,20 @@ export function watchEffect(
 		}
 	}
 
+	/**
+	 * Contains a rejection from an async callback so it cannot become an
+	 * unhandled rejection, which terminates the process on Node.
+	 *
+	 * This used to wrap the promise in `Effect.retry` and `Effect.timeout` for
+	 * the `retry` and `timeout` options. Neither did anything: the promise
+	 * arrives already created, so retrying re-awaited a settled value instead of
+	 * re-invoking the callback, and a timeout cannot cancel a promise, so the
+	 * work ran to completion with its result discarded. Both options were
+	 * removed rather than left promising behaviour they did not have.
+	 */
 	function executeAsync(promise: Promise<void>): void {
-		let effectProgram: Effect.Effect<void, unknown> = Effect.promise(
-			() => promise
-		);
-
-		if (options.retry) {
-			const { times = 3, delay = 1000, strategy = 'constant' } = options.retry;
-			const baseSchedule =
-				strategy === 'exponential'
-					? Schedule.exponential(Duration.millis(delay))
-					: Schedule.fixed(Duration.millis(delay));
-
-			const limitedSchedule = Schedule.compose(
-				baseSchedule,
-				Schedule.recurs(times)
-			);
-
-			effectProgram = Effect.retry(effectProgram, limitedSchedule);
-		}
-
-		if (options.timeout) {
-			effectProgram = Effect.timeout(
-				effectProgram,
-				Duration.millis(options.timeout)
-			);
-		}
-
 		const fiber = Effect.runFork(
-			Effect.catchAll(effectProgram, () => Effect.void)
+			Effect.catchAll(Effect.promise(() => promise), () => Effect.void)
 		);
 		currentFiber = fiber;
 	}

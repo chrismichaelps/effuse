@@ -24,14 +24,6 @@
 
 import { Schema } from 'effect';
 
-export const RetryOptionsSchema = Schema.Struct({
-	times: Schema.optional(Schema.Number),
-	delay: Schema.optional(Schema.Number),
-	strategy: Schema.optional(Schema.Literal('constant', 'exponential')),
-});
-
-export type RetryOptions = Schema.Schema.Type<typeof RetryOptionsSchema>;
-
 export const DebounceOptionsSchema = Schema.Struct({
 	wait: Schema.Number,
 	leading: Schema.optional(Schema.Boolean),
@@ -42,8 +34,6 @@ export type DebounceOptions = Schema.Schema.Type<typeof DebounceOptionsSchema>;
 
 export const EffectOptionsSchema = Schema.Struct({
 	immediate: Schema.optional(Schema.Boolean),
-	retry: Schema.optional(RetryOptionsSchema),
-	timeout: Schema.optional(Schema.Number),
 	debounce: Schema.optional(DebounceOptionsSchema),
 	flush: Schema.optional(Schema.Literal('sync', 'post')),
 });
