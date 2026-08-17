@@ -244,24 +244,61 @@ export function computed<T>(getter: () => T): ReadonlySignal<T> {
 
 /** Stops dependency subscriptions owned by a computed signal. */
 export const disposeComputed = (source: ReadonlySignal<unknown>): void => {
+	// A writable view wraps a computed rather than being one, so matching only
+	// `ComputedSignal` made disposal a silent no-op for it.
+	if (source instanceof WritableComputedSignal) {
+		disposeComputed(source._source);
+		return;
+	}
 	if (source instanceof ComputedSignal) {
 		source._cell.stop();
 	}
 };
+
+/**
+ * Writable view over a computed.
+ *
+ * Carries `_dep` through from the underlying computed, because that is what
+ * `isSignal` tests for. Forwarding only `value` left the result typed as
+ * `Signal<T>` while failing every runtime check: `unref` handed back the
+ * wrapper, `getSignalDep` returned null, and binding one to a prop rendered no
+ * attribute at all, since an unrecognised object matches no branch in
+ * `setElementProp`.
+ *
+ * Prototype accessors for the same reason as `SignalCell` and `ComputedSignal`:
+ * defining them per instance forces a fresh hidden class for every one created.
+ */
+class WritableComputedSignal<T> {
+	constructor(
+		private readonly source: ReadonlySignal<T>,
+		private readonly write: (value: T) => void
+	) {}
+
+	get value(): T {
+		return this.source.value;
+	}
+
+	set value(next: T) {
+		this.write(next);
+	}
+
+	get _dep(): Dep | null {
+		return (this.source as unknown as { _dep: Dep })._dep;
+	}
+
+	/** Not enumerable surface; read only by `disposeComputed`. */
+	get _source(): ReadonlySignal<T> {
+		return this.source;
+	}
+}
 
 // Build writable computed signal
 export function writableComputed<T>(options: {
 	get: () => T;
 	set: (value: T) => void;
 }): Signal<T> {
-	const readonlyComputed = computed(options.get);
-
-	return {
-		get value(): T {
-			return readonlyComputed.value;
-		},
-		set value(newValue: T) {
-			options.set(newValue);
-		},
-	};
+	return new WritableComputedSignal(
+		computed(options.get),
+		options.set
+	) as unknown as Signal<T>;
 }
