@@ -26,7 +26,7 @@ import { Predicate } from 'effect';
 import type { ReadonlySignal, Signal } from '../types/index.js';
 import type { Reactive } from './reactive.js';
 import { isDebugEnabled, isStrictMode } from '../config/index.js';
-import { isSignal } from './signal.js';
+import { isSignal, readonlySignal } from './signal.js';
 import { READONLY_MARKER } from '../constants.js';
 
 export type DeepReadonly<T> = T extends object
@@ -43,11 +43,11 @@ export function readonly<T>(
 	target: T | Signal<T> | Reactive<T & object>
 ): ReadonlySignal<T> | DeepReadonly<T> {
 	if (isSignal<T>(target)) {
-		return {
-			get value(): T {
-				return target.value;
-			},
-		};
+		// Delegated rather than rebuilt. This branch used to hand-roll the same
+		// view and dropped `_dep` doing it, which is what `isSignal` tests for:
+		// the result read correctly but nothing recognised it as a signal, so
+		// binding one to a prop rendered no attribute at all.
+		return readonlySignal(target);
 	}
 
 	if (Predicate.isObject(target)) {
