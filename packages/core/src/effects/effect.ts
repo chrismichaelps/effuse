@@ -34,6 +34,7 @@ import {
 import type { Dep } from '../reactivity/dep.js';
 import { isSuspendToken } from '../suspense/Suspense.js';
 import type {
+	DebounceOptions,
 	EffectHandle,
 	EffectOptions,
 	OnCleanup,
@@ -50,6 +51,8 @@ export function watchEffect(
 	let isScheduled = false;
 	let currentFiber: Fiber.RuntimeFiber<void> | null = null;
 	let debounceTimeout: ReturnType<typeof setTimeout> | null = null;
+	/** Whether another trigger arrived while a debounce window was open. */
+	let sawTriggerDuringWait = false;
 	let cleanupFns: CleanupFn[] = [];
 	let subscriptions: (() => void)[] = [];
 	let executionGeneration = 0;
@@ -149,18 +152,48 @@ export function watchEffect(
 		currentFiber = fiber;
 	}
 
+	/**
+	 * Debounce has to see every trigger, because each one restarts the wait.
+	 * The shared `isScheduled` guard used to swallow them: the first trigger set
+	 * it, and the rest returned here without reaching the `clearTimeout` that
+	 * restarts the window. The effect then ran `wait` after the *first* trigger
+	 * rather than the last, which is a trailing-edge throttle.
+	 */
+	function scheduleDebounced(debounce: DebounceOptions): void {
+		const { wait, leading = false, trailing = true } = debounce;
+
+		if (debounceTimeout === null) {
+			if (leading) execute();
+		} else {
+			// Something already fired inside this window, so a trailing run has
+			// work to report even when the leading edge already ran.
+			sawTriggerDuringWait = true;
+			clearTimeout(debounceTimeout);
+		}
+
+		isScheduled = true;
+		debounceTimeout = setTimeout(() => {
+			debounceTimeout = null;
+			isScheduled = false;
+			// A lone trigger under `leading` has already run; firing again here
+			// would run it twice for one burst.
+			const fireTrailing = trailing && (!leading || sawTriggerDuringWait);
+			sawTriggerDuringWait = false;
+			if (fireTrailing) execute();
+		}, wait);
+	}
+
 	function scheduleRun(): void {
-		if (!isActive || isPaused || isScheduled) return;
+		if (!isActive || isPaused) return;
 
 		if (options.debounce) {
-			if (debounceTimeout) {
-				clearTimeout(debounceTimeout);
-			}
-			isScheduled = true;
-			debounceTimeout = setTimeout(() => {
-				execute();
-			}, options.debounce.wait);
-		} else if (options.flush === 'post') {
+			scheduleDebounced(options.debounce);
+			return;
+		}
+
+		if (isScheduled) return;
+
+		if (options.flush === 'post') {
 			isScheduled = true;
 			queueMicrotask(execute);
 		} else {
@@ -180,7 +213,9 @@ export function watchEffect(
 
 			if (debounceTimeout) {
 				clearTimeout(debounceTimeout);
+				debounceTimeout = null;
 			}
+			sawTriggerDuringWait = false;
 
 			if (currentFiber) {
 				Effect.runFork(Fiber.interrupt(currentFiber));
