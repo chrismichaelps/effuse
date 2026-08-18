@@ -32,7 +32,20 @@ export interface RouterHistory {
 	readonly getCurrentPath: () => string;
 }
 
+import { getServerRenderUrl } from '@effuse/core';
+
 const isBrowser = (): boolean => typeof window !== 'undefined';
+
+/**
+ * The path a history should report when there is no `window`.
+ *
+ * During SSR this is the URL of the render in progress, so a web-history
+ * router resolves the request that is actually being rendered. Returning a
+ * bare `'/'` made every server-rendered request resolve the root route, which
+ * a browser hid: hydration read the real location and swapped the correct one
+ * in, so only crawlers and JS-disabled clients ever saw the wrong page.
+ */
+const serverPath = (): string => getServerRenderUrl() ?? '/';
 
 export const createWebHistory = (base: string = ''): RouterHistory => {
 	const normalizeBase = base.replace(/\/$/, '');
@@ -68,7 +81,10 @@ export const createWebHistory = (base: string = ''): RouterHistory => {
 			};
 		},
 		getCurrentPath: () => {
-			if (!isBrowser()) return '/';
+			if (!isBrowser()) {
+				const path = serverPath();
+				return normalizeBase ? path.replace(normalizeBase, '') || '/' : path;
+			}
 			const path =
 				window.location.pathname +
 				window.location.search +

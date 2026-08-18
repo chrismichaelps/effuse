@@ -70,16 +70,22 @@ interface ServerErrorBoundary {
 	readonly parent: ServerErrorBoundary | undefined;
 }
 
-const runServerRender = <T>(ssrRuntime: SSRRuntime, render: () => T): T =>
-	runWithServerRenderContext(() =>
-		runWithSSRContext(
-			{
-				push: (head: HeadProps) => {
-					ssrRuntime.headStack.push(head);
+const runServerRender = <T>(
+	ssrRuntime: SSRRuntime,
+	render: () => T,
+	url?: string
+): T =>
+	runWithServerRenderContext(
+		() =>
+			runWithSSRContext(
+				{
+					push: (head: HeadProps) => {
+						ssrRuntime.headStack.push(head);
+					},
 				},
-			},
-			render
-		)
+				render
+			),
+		url
 	);
 
 /**
@@ -100,56 +106,60 @@ export const renderToString = (
 	const startTime = Date.now();
 
 	// Run the entire render inside the AsyncLocalStorage SSR context
-	return runServerRender(ssrRuntime, () => {
-		try {
-			const html = renderNodeToString(root);
+	return runServerRender(
+		ssrRuntime,
+		() => {
+			try {
+				const html = renderNodeToString(root);
 
-			// Merge all collected heads (layer heads + useHead() calls)
-			// `mergeLayerHeads`, not a spread: a spread replaces `meta`, `link`,
-			// `script`, `og` and `twitter` wholesale, so each contributor deleted
-			// what the earlier ones added — a page calling useHead({ meta })
-			// silently dropped every site-wide tag its layers had provided.
-			const mergedHead = mergeLayerHeads(ssrRuntime.headStack);
+				// Merge all collected heads (layer heads + useHead() calls)
+				// `mergeLayerHeads`, not a spread: a spread replaces `meta`, `link`,
+				// `script`, `og` and `twitter` wholesale, so each contributor deleted
+				// what the earlier ones added — a page calling useHead({ meta })
+				// silently dropped every site-wide tag its layers had provided.
+				const mergedHead = mergeLayerHeads(ssrRuntime.headStack);
 
-			// Serialize state for hydration
-			const serializedState: Record<string, unknown> = {};
-			for (const [key, value] of ssrRuntime.state) {
-				serializedState[key] = value;
+				// Serialize state for hydration
+				const serializedState: Record<string, unknown> = {};
+				for (const [key, value] of ssrRuntime.state) {
+					serializedState[key] = value;
+				}
+
+				const hydrationData: HydrationData = {
+					head: mergedHead,
+					state: serializedState,
+					url,
+					timestamp: Date.now(),
+				};
+
+				const fullHtml = generateFullHtml(
+					html,
+					mergedHead,
+					hydrationData,
+					options
+				);
+
+				const timing = Date.now() - startTime;
+
+				return {
+					html: fullHtml,
+					head: mergedHead,
+					state: serializedState,
+					timing,
+				};
+			} catch (error) {
+				if (error instanceof RenderError) {
+					throw error;
+				}
+				throw new RenderError({
+					message: `Render failed: ${String(error)}`,
+					url,
+					cause: error,
+				});
 			}
-
-			const hydrationData: HydrationData = {
-				head: mergedHead,
-				state: serializedState,
-				url,
-				timestamp: Date.now(),
-			};
-
-			const fullHtml = generateFullHtml(
-				html,
-				mergedHead,
-				hydrationData,
-				options
-			);
-
-			const timing = Date.now() - startTime;
-
-			return {
-				html: fullHtml,
-				head: mergedHead,
-				state: serializedState,
-				timing,
-			};
-		} catch (error) {
-			if (error instanceof RenderError) {
-				throw error;
-			}
-			throw new RenderError({
-				message: `Render failed: ${String(error)}`,
-				url,
-				cause: error,
-			});
-		}
-	});
+		},
+		url
+	);
 };
 
 /**
@@ -158,9 +168,10 @@ export const renderToString = (
  */
 export const renderToFragment = (
 	root: Component | EffuseNode,
-	ssrRuntime: SSRRuntime
+	ssrRuntime: SSRRuntime,
+	url?: string
 ): string => {
-	return runServerRender(ssrRuntime, () => renderNodeToString(root));
+	return runServerRender(ssrRuntime, () => renderNodeToString(root), url);
 };
 
 const renderNodeToString = (
@@ -307,11 +318,7 @@ const renderEffuseNode = (
 					} catch (error) {
 						if (isSuspendToken(error)) throw error;
 						controller.capture(normalizeBoundaryError(error), false);
-						html = renderChildren(
-							node.children,
-							errorBoundary,
-							namespace
-						);
+						html = renderChildren(node.children, errorBoundary, namespace);
 					}
 				}
 			} catch (error) {
@@ -457,9 +464,7 @@ const renderAttributes = (
 
 		if (Predicate.isBoolean(actualValue)) {
 			if (actualValue) {
-				parts.push(
-					escapeAttrName(normalizeDOMAttributeName(key, namespace))
-				);
+				parts.push(escapeAttrName(normalizeDOMAttributeName(key, namespace)));
 			}
 			continue;
 		}
@@ -534,4 +539,3 @@ const generateFullHtml = (
 </body>
 </html>`;
 };
-

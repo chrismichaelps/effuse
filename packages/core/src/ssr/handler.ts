@@ -113,6 +113,10 @@ export const createHandler = (config: HandlerConfig) => {
 
 			const url = new URL(req.url);
 			const pathname = url.pathname;
+			// Path plus query: a router resolving the render needs the search
+			// string, and passing the pathname alone dropped it before routing
+			// could see it.
+			const renderTarget = `${pathname}${url.search}`;
 
 			const serverDispatch = dispatchServerRequest?.(req, config);
 			if (serverDispatch) {
@@ -126,7 +130,7 @@ export const createHandler = (config: HandlerConfig) => {
 
 			let html: string;
 			try {
-				html = (await serverApp.renderToString(pathname)).html;
+				html = (await serverApp.renderToString(renderTarget)).html;
 			} catch (error) {
 				if (!(error instanceof RenderError)) throw error;
 				reportError(config, error, req, 'Render');
@@ -214,6 +218,10 @@ export const createStreamingHandler = (config: HandlerConfig) => {
 
 			const url = new URL(req.url);
 			const pathname = url.pathname;
+			// Path plus query: a router resolving the render needs the search
+			// string, and passing the pathname alone dropped it before routing
+			// could see it.
+			const renderTarget = `${pathname}${url.search}`;
 
 			const serverDispatch = dispatchServerRequest?.(req, config);
 			if (serverDispatch) {
@@ -225,7 +233,7 @@ export const createStreamingHandler = (config: HandlerConfig) => {
 				return new Response(null, { status: 404 });
 			}
 
-			const stream = await serverApp.renderToStream(pathname);
+			const stream = await serverApp.renderToStream(renderTarget);
 
 			return new Response(stream as unknown as BodyInit, {
 				status: 200,
