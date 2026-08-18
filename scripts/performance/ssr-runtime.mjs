@@ -96,19 +96,26 @@ const cases = [
 			return response.text();
 		},
 	},
+	// The bypass cases are the cheapest in the suite, around 700ns, so relative
+	// noise is largest exactly where the budgets compare them by ratio. Four
+	// times the samples roughly halves the spread of the ui-layer ratio and
+	// costs nothing measurable: the whole script still runs in under a second.
 	{
 		name: 'ssr.static-bypass',
 		iterations: quick ? 100 : 1_000,
+		samples: quick ? 4 : 40,
 		operation: () => handler(staticRequest),
 	},
 	{
 		name: 'ssr.ui-layer-static-bypass',
 		iterations: quick ? 100 : 1_000,
+		samples: quick ? 4 : 40,
 		operation: () => uiLayerHandler(staticRequest),
 	},
 	{
 		name: 'ssr.app-static-bypass',
 		iterations: quick ? 100 : 1_000,
+		samples: quick ? 4 : 40,
 		operation: () => effuseApp.handleRequest(staticRequest),
 	},
 ];
