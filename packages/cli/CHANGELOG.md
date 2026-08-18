@@ -1,3 +1,15 @@
+## @effuse/cli [1.0.5](https://github.com/chrismichaelps/effuse/compare/@effuse/cli@1.0.4...@effuse/cli@1.0.5) (2026-08-18)
+
+### Bug Fixes
+
+* **cli:** serve self-hosted client assets refs [#625](https://github.com/chrismichaelps/effuse/issues/625) ([#626](https://github.com/chrismichaelps/effuse/issues/626)) ([7fead40](https://github.com/chrismichaelps/effuse/commit/7fead40b4c43cd24fe784423633dd447a480fd59))
+
+
+### Dependencies
+
+* **@effuse/server:** upgraded to 1.0.5
+* **@effuse/core:** upgraded to 3.0.0
+
 ## @effuse/cli [1.0.4](https://github.com/chrismichaelps/effuse/compare/@effuse/cli@1.0.3...@effuse/cli@1.0.4) (2026-08-14)
 
 ### Bug Fixes

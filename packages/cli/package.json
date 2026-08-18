@@ -1,6 +1,6 @@
 {
 	"name": "@effuse/cli",
-	"version": "1.0.4",
+	"version": "1.0.5",
 	"description": "The official CLI and Bundler for Effuse.",
 	"author": "Chris M. Pérez",
 	"license": "MIT",
@@ -55,12 +55,12 @@
 		"node": ">=22.14.0"
 	},
 	"peerDependencies": {
-		"@effuse/core": "2.1.0"
+		"@effuse/core": "3.0.0"
 	},
 	"dependencies": {
 		"@effect/platform": "^0.96.0",
 		"@effect/platform-node": "^0.106.0",
-		"@effuse/server": "1.0.4",
+		"@effuse/server": "1.0.5",
 		"cac": "^6.7.14",
 		"effect": "^3.21.5",
 		"express": "^4.21.2",
