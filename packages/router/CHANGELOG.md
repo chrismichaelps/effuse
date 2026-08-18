@@ -1,3 +1,14 @@
+## @effuse/router [1.2.5](https://github.com/chrismichaelps/effuse/compare/@effuse/router@1.2.4...@effuse/router@1.2.5) (2026-08-18)
+
+### Bug Fixes
+
+* **router:** resolve the requested route during SSR instead of always "/" ([#662](https://github.com/chrismichaelps/effuse/issues/662)) ([16a590d](https://github.com/chrismichaelps/effuse/commit/16a590da64299e51bb192993a4259f287fd2e435)), closes [#661](https://github.com/chrismichaelps/effuse/issues/661)
+
+
+### Dependencies
+
+* **@effuse/core:** upgraded to 3.0.0
+
 ## @effuse/router [1.2.4](https://github.com/chrismichaelps/effuse/compare/@effuse/router@1.2.3...@effuse/router@1.2.4) (2026-08-14)
 
 ### Documentation
