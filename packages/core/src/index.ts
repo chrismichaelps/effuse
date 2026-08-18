@@ -697,3 +697,9 @@ export {
 	type SyncTransport,
 	type VersionedValue,
 } from './sync/index.js';
+
+// Server render context: a router needs the URL of the render in progress.
+export {
+	getServerRenderUrl,
+	isServerRendering,
+} from './render/render-context.js';

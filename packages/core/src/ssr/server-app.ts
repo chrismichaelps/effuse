@@ -196,7 +196,7 @@ export const createServerApp = (root: Component): ServerApp => {
 											runtime.headStack.push(head);
 										},
 									},
-									() => renderToFragment(root, runtime)
+									() => renderToFragment(root, runtime, url)
 								)
 							);
 							controller.enqueue(encoder.encode(bodyHtml));

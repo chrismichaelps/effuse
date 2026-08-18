@@ -571,3 +571,10 @@ export {
 	type ServerSchemaInput,
 	type ServerSchemaOutput,
 } from './ssr/server-schema.js';
+
+// Present in the browser build too: the router imports it unconditionally,
+// and off a server render it simply reports null.
+export {
+	getServerRenderUrl,
+	isServerRendering,
+} from './render/render-context.js';
