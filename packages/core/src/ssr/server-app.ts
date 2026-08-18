@@ -213,7 +213,6 @@ export const createServerApp = (root: Component): ServerApp => {
 								head: mergedHead,
 								state: serializedState,
 								url,
-								timestamp: Date.now(),
 							};
 							const hydrationScript =
 								options.hydrate !== false

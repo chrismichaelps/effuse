@@ -28,7 +28,6 @@ const VALID = {
 	head: { title: 'T' },
 	state: { a: 1 },
 	url: '/',
-	timestamp: 0,
 };
 
 describe('hydration payloads that parse but have the wrong shape', () => {
@@ -110,7 +109,7 @@ describe('a valid hydration payload', () => {
 	});
 
 	it('is accepted with an empty head and empty state', () => {
-		const payload = { head: {}, state: {}, url: '/', timestamp: 0 };
+		const payload = { head: {}, state: {}, url: '/' };
 		putScript(JSON.stringify(payload));
 
 		expect(getHydrationData()).toEqual(payload);
