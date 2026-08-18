@@ -7,7 +7,6 @@ describe('serializeHydrationData', () => {
 			head: {},
 			state: { evil: '</script><script>alert("xss")</script>' },
 			url: '/',
-			timestamp: 0,
 		};
 
 		const html = serializeHydrationData(data);
@@ -24,7 +23,6 @@ describe('serializeHydrationData', () => {
 			head: {},
 			state: { evil: '<!-- bad -->' },
 			url: '/',
-			timestamp: 0,
 		};
 
 		const html = serializeHydrationData(data);
@@ -40,7 +38,6 @@ describe('serializeHydrationData', () => {
 			head: {},
 			state: { evil: '<!CDATA[ something ]]>' },
 			url: '/',
-			timestamp: 0,
 		};
 
 		const html = serializeHydrationData(data);
@@ -56,7 +53,6 @@ describe('serializeHydrationData', () => {
 			head: {},
 			state: { evil: '<svg onload=alert(1)>' },
 			url: '/',
-			timestamp: 0,
 		};
 
 		const html = serializeHydrationData(data);
@@ -72,7 +68,6 @@ describe('serializeHydrationData', () => {
 			head: { title: 'Test' },
 			state: { foo: 'bar', num: 42 },
 			url: '/test',
-			timestamp: 12345,
 		};
 
 		const html = serializeHydrationData(data);

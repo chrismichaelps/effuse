@@ -35,9 +35,11 @@ import type {
 } from '../types.js';
 import {
 	CircularDependencyError,
+	DependencyNotFoundError,
 	LayerNameCollisionError,
 } from '../errors.js';
 import type { Component } from '../../render/node.js';
+import { getLayerDependencyNames } from './dependencies.js';
 
 export const resolveLayerOrder = (
 	layers: readonly AnyLayer[]
@@ -89,6 +91,17 @@ export const resolveLayerOrder = (
 
 	for (const layer of layers) {
 		visit(layer, []);
+	}
+
+	for (const layer of resolved) {
+		for (const dependencyName of getLayerDependencyNames(layer)) {
+			if (!owners.has(dependencyName)) {
+				throw new DependencyNotFoundError({
+					layerName: layer.name,
+					dependencyName,
+				});
+			}
+		}
 	}
 
 	return resolved;

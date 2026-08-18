@@ -96,9 +96,11 @@ const seoMetaToHeadProps = (input: SeoMetaInput): HeadProps => {
 	const head: HeadProps = {};
 
 	if (input.title) (head as Record<string, unknown>).title = input.title;
+	// The scalar alone: `headToHtml` renders `head.description` as a
+	// `<meta name="description">`, so also pushing the meta tag emitted it
+	// twice, and left a stale copy behind whenever the scalar was overridden.
 	if (input.description) {
 		(head as Record<string, unknown>).description = input.description;
-		meta.push({ name: 'description', content: input.description });
 	}
 	if (input.keywords) meta.push({ name: 'keywords', content: input.keywords });
 	if (input.author) meta.push({ name: 'author', content: input.author });
@@ -138,6 +140,12 @@ const seoMetaToHeadProps = (input: SeoMetaInput): HeadProps => {
 		meta.push({ property: 'og:image:type', content: input.ogImageType });
 	if (input.ogLocale)
 		meta.push({ property: 'og:locale', content: input.ogLocale });
+	if (input.ogLocaleAlternate) {
+		// Open Graph defines this one as repeating, like article:author below.
+		input.ogLocaleAlternate.forEach((locale) =>
+			meta.push({ property: 'og:locale:alternate', content: locale })
+		);
+	}
 	if (input.ogSiteName)
 		meta.push({ property: 'og:site_name', content: input.ogSiteName });
 	if (input.ogDeterminer)

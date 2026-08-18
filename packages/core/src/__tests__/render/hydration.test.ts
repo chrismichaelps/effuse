@@ -66,7 +66,7 @@ const seedServerDocument = async (
 ): Promise<string> => {
 	const markup = await renderServerMarkup(root);
 	const hydrationScript = payload
-		? serializeHydrationData({ head: {}, state: {}, url: '/', timestamp: 0 })
+		? serializeHydrationData({ head: {}, state: {}, url: '/' })
 		: '';
 	document.body.innerHTML = `<div id="app">${markup}</div>${hydrationScript}`;
 	return markup;
@@ -301,7 +301,7 @@ describe('client hydration (issue #432)', () => {
 	describe('mismatch recovery', () => {
 		it('repairs mismatched text without duplicating the tree', async () => {
 			document.body.innerHTML = `<div id="app"><div class="docs-layout"><h1>Stale</h1><button data-testid="count">7</button></div></div>${serializeHydrationData(
-				{ head: {}, state: {}, url: '/', timestamp: 0 }
+				{ head: {}, state: {}, url: '/' }
 			)}`;
 			const serverHeading = document.querySelector('h1');
 
@@ -320,7 +320,7 @@ describe('client hydration (issue #432)', () => {
 
 		it('repairs a mismatched element structure', async () => {
 			document.body.innerHTML = `<div id="app"><section><span>Nope</span></section></div>${serializeHydrationData(
-				{ head: {}, state: {}, url: '/', timestamp: 0 }
+				{ head: {}, state: {}, url: '/' }
 			)}`;
 
 			mounted = await createApp(Page as Component).mount('#app', {
@@ -336,7 +336,7 @@ describe('client hydration (issue #432)', () => {
 
 		it('drops server nodes the client render does not produce', async () => {
 			document.body.innerHTML = `<div id="app"><div class="docs-layout"><h1>Hooks</h1><button data-testid="count">0</button></div><aside>extra</aside></div>${serializeHydrationData(
-				{ head: {}, state: {}, url: '/', timestamp: 0 }
+				{ head: {}, state: {}, url: '/' }
 			)}`;
 
 			mounted = await createApp(Page as Component).mount('#app', {

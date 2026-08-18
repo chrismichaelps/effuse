@@ -23,6 +23,7 @@
  */
 
 import { Data } from 'effect';
+import { renderErrorPage } from './error-page.js';
 import { escapeHtml } from './escape.js';
 
 export class CycleError extends Data.TaggedError('CycleError')<{
@@ -144,26 +145,14 @@ export const createErrorHtml = (error: SSRError): string => {
 		const diagnostic = escapeHtml(
 			JSON.stringify(createErrorDiagnostic(error), null, 2)
 		);
-		return `<!DOCTYPE html>
-<html lang="en">
-<head>
-	<meta charset="utf-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<title>SSR Error</title>
-	<style>
-		body { font-family: system-ui, sans-serif; padding: 2rem; background: #1a1a2e; color: #eee; }
-		.error { background: #16213e; padding: 1.5rem; border-radius: 8px; border-left: 4px solid #e94560; }
-		pre { background: #0f0f23; padding: 1rem; border-radius: 4px; overflow-x: auto; }
-	</style>
-</head>
-<body>
-	<div class="error">
-		<h1>${escapeHtml(error._tag)}</h1>
-		<p>${escapeHtml(error.message)}</p>
-		<pre>${diagnostic}</pre>
-	</div>
-</body>
-</html>`;
+		const source = error as unknown as { url?: string };
+		return renderErrorPage(
+			error._tag,
+			error.message,
+			source.url,
+			error,
+			diagnostic
+		);
 	}
 
 	return `<!DOCTYPE html>

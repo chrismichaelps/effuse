@@ -11,7 +11,10 @@ export interface GeneratedEntryPaths {
 /** Runtimes for which a standalone listening server entry can be generated. */
 export type ServerRuntime = 'node' | 'bun';
 
-const ADAPTER_IMPORT: Record<ServerRuntime, { factory: string; module: string }> = {
+const ADAPTER_IMPORT: Record<
+	ServerRuntime,
+	{ factory: string; module: string }
+> = {
 	node: { factory: 'createNodeServer', module: '@effuse/server/node' },
 	bun: { factory: 'createBunServer', module: '@effuse/server/bun' },
 };
@@ -32,13 +35,14 @@ const renderServerBootstrap = (
 // This file is recreated on every build. It binds the shared @effuse/server
 // adapter to the SSR handler and listens on the configured host/port.
 
-import { ${factory} } from '${module}';
+import { ${factory}, withStaticFiles } from '${module}';
 import { handleRequest } from '${handlerImport}';
 
 const port = Number(process.env.PORT ?? 3000);
 const host = process.env.HOST ?? '0.0.0.0';
 
-const server = ${factory}(handleRequest);
+const clientRoot = new URL('../client/', import.meta.url);
+const server = ${factory}(withStaticFiles(handleRequest, { root: clientRoot }));
 
 const address = await server.listen({ port, host });
 console.log(\`[effuse] ${label} server listening on \${address.url}\`);

@@ -90,6 +90,7 @@ export const runAsyncBenchmark = async ({
 
 export const evaluateBudgets = (results, budgets) => {
 	const failures = [];
+	const resultsByName = new Map(results.map((result) => [result.name, result]));
 	for (const result of results) {
 		const budget = budgets[result.name];
 		if (!budget) {
@@ -97,10 +98,32 @@ export const evaluateBudgets = (results, budgets) => {
 			continue;
 		}
 		for (const metric of ['medianNs', 'p95Ns']) {
-			if (result[metric] > budget[metric]) {
+			if (budget[metric] !== undefined && result[metric] > budget[metric]) {
 				failures.push(
 					`${result.name}: ${metric} ${Math.round(result[metric])}ns exceeds ${budget[metric]}ns`
 				);
+			}
+		}
+
+		if (budget.relativeTo) {
+			const baseline = resultsByName.get(budget.relativeTo);
+			if (!baseline) {
+				failures.push(
+					`${result.name}: relative baseline ${budget.relativeTo} is missing`
+				);
+				continue;
+			}
+			for (const [metric, ratioBudget] of [
+				['medianNs', budget.maxMedianRatio],
+				['p95Ns', budget.maxP95Ratio],
+			]) {
+				if (ratioBudget === undefined) continue;
+				const ratio = result[metric] / baseline[metric];
+				if (ratio > ratioBudget) {
+					failures.push(
+						`${result.name}: ${metric} ratio ${ratio.toFixed(2)}x exceeds ${ratioBudget}x relative to ${budget.relativeTo}`
+					);
+				}
 			}
 		}
 	}

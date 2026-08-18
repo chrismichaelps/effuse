@@ -5,8 +5,11 @@ import {
 	parseQuery,
 	createRequestContext,
 } from '../../ssr/handler.js';
-import { defineLayer } from '../../layers/api/defineLayer.js';
-import { LayerNameCollisionError } from '../../layers/errors.js';
+import { defineLayer, type LayerInput } from '../../layers/api/defineLayer.js';
+import {
+	DependencyNotFoundError,
+	LayerNameCollisionError,
+} from '../../layers/errors.js';
 import { clearGlobalLayerContext } from '../../layers/context.js';
 import { clearGlobalTracing } from '../../layers/tracing/index.js';
 import { CreateTextNode, type Component } from '../../render/node.js';
@@ -30,8 +33,62 @@ const createRootComponent = (): Component => {
 	}) as Component;
 };
 
+const createTrackedLayerRecord = (
+	entries: Readonly<Record<string, LayerInput>> = {}
+) => {
+	let enumerations = 0;
+	const layers = new Proxy(entries, {
+		ownKeys(target) {
+			enumerations += 1;
+			return Reflect.ownKeys(target);
+		},
+	});
+	return { layers, enumerations: () => enumerations };
+};
+
 describe('SSR handler', () => {
 	describe('createHandler', () => {
+		it('should not compile or dispatch an empty server layer source', async () => {
+			const tracked = createTrackedLayerRecord();
+			const buffered = createHandler({
+				root: createRoot() as any,
+				layers: tracked.layers,
+			});
+			const streaming = createStreamingHandler({
+				root: createRoot() as any,
+				layers: tracked.layers,
+			});
+
+			expect(tracked.enumerations()).toBe(2);
+			expect(
+				(await buffered(new Request('http://localhost/app.js'))).status
+			).toBe(404);
+			expect(
+				(await streaming(new Request('http://localhost/app.js'))).status
+			).toBe(404);
+			expect(tracked.enumerations()).toBe(2);
+		});
+
+		it('should classify UI-only layers once before bypassing server dispatch', async () => {
+			const tracked = createTrackedLayerRecord({
+				ui: defineLayer({ name: 'ui-only-handler-layer' }),
+			});
+			const handler = createHandler({
+				root: createRoot() as any,
+				layers: tracked.layers,
+			});
+
+			expect(tracked.enumerations()).toBe(1);
+			expect(
+				(await handler(new Request('http://localhost/first.js'))).status
+			).toBe(404);
+			expect(tracked.enumerations()).toBe(2);
+			expect(
+				(await handler(new Request('http://localhost/second.js'))).status
+			).toBe(404);
+			expect(tracked.enumerations()).toBe(2);
+		});
+
 		it('should return 200 with HTML for a valid route', async () => {
 			const handler = createHandler({
 				root: createRoot() as any,
@@ -241,6 +298,30 @@ describe('SSR handler', () => {
 			expect(String(onError.mock.calls[0][0])).toContain(
 				'Layer "duplicate-handler" is registered more than once'
 			);
+		});
+
+		it('should return 500 instead of hanging on a missing dependency', async () => {
+			const onError = vi.fn();
+			const ApiLayer = defineLayer({
+				name: 'blocked-handler',
+				dependencies: ['missing-handler-dependency'] as const,
+				server: {
+					api: { '/api/blocked': () => ({ ok: true }) },
+				},
+			});
+			const handler = createHandler({
+				root: createRootComponent(),
+				layers: [ApiLayer],
+				onError,
+			});
+
+			const response = await handler(
+				new Request('http://localhost:3000/api/blocked')
+			);
+
+			expect(response.status).toBe(500);
+			expect(onError).toHaveBeenCalledOnce();
+			expect(onError.mock.calls[0][0]).toBeInstanceOf(DependencyNotFoundError);
 		});
 
 		it('should pass route params and query to layer API handlers', async () => {
@@ -666,6 +747,219 @@ describe('SSR handler', () => {
 				target: '/api/traced',
 			});
 			expect(events[0]!.durationMs).toBeGreaterThanOrEqual(0);
+		});
+
+		it('should include layer runtime setup in server trace duration', async () => {
+			let clock = 10;
+			const now = vi.spyOn(performance, 'now').mockImplementation(() => clock);
+			const events: ServerTraceEvent[] = [];
+			const ApiLayer = defineLayer({
+				name: 'trace-setup-duration',
+				setup: () => {
+					clock += 25;
+				},
+				server: {
+					api: {
+						'/api/setup-duration': () => ({ ok: true }),
+					},
+				},
+			});
+			const handler = createHandler({
+				root: createRoot() as any,
+				layers: [ApiLayer],
+				onServerTrace: (event) => events.push(event),
+			});
+
+			try {
+				const response = await handler(
+					new Request('http://localhost:3000/api/setup-duration')
+				);
+
+				expect(response.status).toBe(200);
+				expect(events).toHaveLength(1);
+				expect(events[0]!.durationMs).toBe(25);
+			} finally {
+				now.mockRestore();
+			}
+		});
+
+		it('should trace layer runtime setup failures exactly once', async () => {
+			const events: ServerTraceEvent[] = [];
+			const onError = vi.fn();
+			const ApiLayer = defineLayer({
+				name: 'trace-setup-failure',
+				setup: () => {
+					throw new Error('setup failed');
+				},
+				server: {
+					api: {
+						'/api/setup-failure': () => ({ ok: true }),
+					},
+				},
+			});
+			const handler = createHandler({
+				root: createRoot() as any,
+				layers: [ApiLayer],
+				onError,
+				onServerTrace: (event) => events.push(event),
+			});
+
+			const response = await handler(
+				new Request('http://localhost:3000/api/setup-failure')
+			);
+
+			expect(response.status).toBe(500);
+			expect(onError).toHaveBeenCalledOnce();
+			expect(events).toHaveLength(1);
+			expect(events[0]).toMatchObject({
+				error: {
+					message: expect.stringContaining('setup failed'),
+				},
+				kind: 'api',
+				layer: 'trace-setup-failure',
+				ok: false,
+				status: 500,
+				target: '/api/setup-failure',
+			});
+			expect(events[0]!.error).not.toHaveProperty('stack');
+		});
+
+		it('should emit a successful trace after runtime cleanup', async () => {
+			let clock = 10;
+			const now = vi.spyOn(performance, 'now').mockImplementation(() => clock);
+			const order: string[] = [];
+			const events: ServerTraceEvent[] = [];
+			const ApiLayer = defineLayer({
+				name: 'trace-cleanup-order',
+				setup: () => {
+					clock += 10;
+					return () => {
+						clock += 15;
+						order.push('cleanup');
+					};
+				},
+				server: {
+					api: {
+						'/api/cleanup-order': () => ({ ok: true }),
+					},
+				},
+			});
+			const handler = createHandler({
+				root: createRoot() as any,
+				layers: [ApiLayer],
+				onServerTrace: (event) => {
+					order.push('trace');
+					events.push(event);
+				},
+			});
+
+			try {
+				const response = await handler(
+					new Request('http://localhost:3000/api/cleanup-order')
+				);
+
+				expect(response.status).toBe(200);
+				expect(order).toEqual(['cleanup', 'trace']);
+				expect(events).toHaveLength(1);
+				expect(events[0]).toMatchObject({
+					durationMs: 25,
+					ok: true,
+					status: 200,
+				});
+			} finally {
+				now.mockRestore();
+			}
+		});
+
+		it('should trace runtime cleanup failures as the final 500 outcome', async () => {
+			const order: string[] = [];
+			const events: ServerTraceEvent[] = [];
+			const onError = vi.fn();
+			let cleanupCalls = 0;
+			const ApiLayer = defineLayer({
+				name: 'trace-cleanup-failure',
+				setup: () => () => {
+					cleanupCalls += 1;
+					order.push('cleanup');
+					throw new Error('cleanup failed');
+				},
+				server: {
+					api: {
+						'/api/cleanup-failure': () => ({ ok: true }),
+					},
+				},
+			});
+			const handler = createHandler({
+				root: createRoot() as any,
+				layers: [ApiLayer],
+				onError,
+				onServerTrace: (event) => {
+					order.push('trace');
+					events.push(event);
+				},
+			});
+
+			const response = await handler(
+				new Request('http://localhost:3000/api/cleanup-failure')
+			);
+
+			expect(response.status).toBe(500);
+			expect(cleanupCalls).toBe(1);
+			expect(order).toEqual(['cleanup', 'trace']);
+			expect(onError).toHaveBeenCalledOnce();
+			expect(events).toHaveLength(1);
+			expect(events[0]).toMatchObject({
+				error: { message: 'cleanup failed' },
+				ok: false,
+				status: 500,
+				target: '/api/cleanup-failure',
+			});
+		});
+
+		it('should preserve route and cleanup failures in one final outcome', async () => {
+			const events: ServerTraceEvent[] = [];
+			const onError = vi.fn();
+			const ApiLayer = defineLayer({
+				name: 'trace-combined-failure',
+				setup: () => () => {
+					throw new Error('cleanup failed');
+				},
+				server: {
+					api: {
+						'/api/combined-failure': () => {
+							throw new Error('route failed');
+						},
+					},
+				},
+			});
+			const handler = createHandler({
+				root: createRoot() as any,
+				layers: [ApiLayer],
+				onError,
+				onServerTrace: (event) => events.push(event),
+			});
+
+			const response = await handler(
+				new Request('http://localhost:3000/api/combined-failure')
+			);
+
+			expect(response.status).toBe(500);
+			expect(onError).toHaveBeenCalledOnce();
+			const failure = onError.mock.calls[0][0];
+			expect(failure).toBeInstanceOf(AggregateError);
+			expect(
+				(failure as AggregateError).errors.map((error) => String(error))
+			).toEqual(['Error: route failed', 'Error: cleanup failed']);
+			expect(events).toHaveLength(1);
+			expect(events[0]).toMatchObject({
+				error: {
+					message: '[Effuse] Server route execution and cleanup failed.',
+					name: 'AggregateError',
+				},
+				ok: false,
+				status: 500,
+				target: '/api/combined-failure',
+			});
 		});
 
 		it('should isolate server trace hook failures', async () => {

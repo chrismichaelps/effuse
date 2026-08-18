@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-import { Effect, Schedule, Duration, Fiber } from 'effect';
+import { Effect, Fiber } from 'effect';
 import {
 	startTracking,
 	stopTracking,
@@ -34,6 +34,7 @@ import {
 import type { Dep } from '../reactivity/dep.js';
 import { isSuspendToken } from '../suspense/Suspense.js';
 import type {
+	DebounceOptions,
 	EffectHandle,
 	EffectOptions,
 	OnCleanup,
@@ -50,6 +51,8 @@ export function watchEffect(
 	let isScheduled = false;
 	let currentFiber: Fiber.RuntimeFiber<void> | null = null;
 	let debounceTimeout: ReturnType<typeof setTimeout> | null = null;
+	/** Whether another trigger arrived while a debounce window was open. */
+	let sawTriggerDuringWait = false;
 	let cleanupFns: CleanupFn[] = [];
 	let subscriptions: (() => void)[] = [];
 	let executionGeneration = 0;
@@ -131,51 +134,66 @@ export function watchEffect(
 		}
 	}
 
+	/**
+	 * Contains a rejection from an async callback so it cannot become an
+	 * unhandled rejection, which terminates the process on Node.
+	 *
+	 * This used to wrap the promise in `Effect.retry` and `Effect.timeout` for
+	 * the `retry` and `timeout` options. Neither did anything: the promise
+	 * arrives already created, so retrying re-awaited a settled value instead of
+	 * re-invoking the callback, and a timeout cannot cancel a promise, so the
+	 * work ran to completion with its result discarded. Both options were
+	 * removed rather than left promising behaviour they did not have.
+	 */
 	function executeAsync(promise: Promise<void>): void {
-		let effectProgram: Effect.Effect<void, unknown> = Effect.promise(
-			() => promise
-		);
-
-		if (options.retry) {
-			const { times = 3, delay = 1000, strategy = 'constant' } = options.retry;
-			const baseSchedule =
-				strategy === 'exponential'
-					? Schedule.exponential(Duration.millis(delay))
-					: Schedule.fixed(Duration.millis(delay));
-
-			const limitedSchedule = Schedule.compose(
-				baseSchedule,
-				Schedule.recurs(times)
-			);
-
-			effectProgram = Effect.retry(effectProgram, limitedSchedule);
-		}
-
-		if (options.timeout) {
-			effectProgram = Effect.timeout(
-				effectProgram,
-				Duration.millis(options.timeout)
-			);
-		}
-
 		const fiber = Effect.runFork(
-			Effect.catchAll(effectProgram, () => Effect.void)
+			Effect.catchAll(Effect.promise(() => promise), () => Effect.void)
 		);
 		currentFiber = fiber;
 	}
 
+	/**
+	 * Debounce has to see every trigger, because each one restarts the wait.
+	 * The shared `isScheduled` guard used to swallow them: the first trigger set
+	 * it, and the rest returned here without reaching the `clearTimeout` that
+	 * restarts the window. The effect then ran `wait` after the *first* trigger
+	 * rather than the last, which is a trailing-edge throttle.
+	 */
+	function scheduleDebounced(debounce: DebounceOptions): void {
+		const { wait, leading = false, trailing = true } = debounce;
+
+		if (debounceTimeout === null) {
+			if (leading) execute();
+		} else {
+			// Something already fired inside this window, so a trailing run has
+			// work to report even when the leading edge already ran.
+			sawTriggerDuringWait = true;
+			clearTimeout(debounceTimeout);
+		}
+
+		isScheduled = true;
+		debounceTimeout = setTimeout(() => {
+			debounceTimeout = null;
+			isScheduled = false;
+			// A lone trigger under `leading` has already run; firing again here
+			// would run it twice for one burst.
+			const fireTrailing = trailing && (!leading || sawTriggerDuringWait);
+			sawTriggerDuringWait = false;
+			if (fireTrailing) execute();
+		}, wait);
+	}
+
 	function scheduleRun(): void {
-		if (!isActive || isPaused || isScheduled) return;
+		if (!isActive || isPaused) return;
 
 		if (options.debounce) {
-			if (debounceTimeout) {
-				clearTimeout(debounceTimeout);
-			}
-			isScheduled = true;
-			debounceTimeout = setTimeout(() => {
-				execute();
-			}, options.debounce.wait);
-		} else if (options.flush === 'post') {
+			scheduleDebounced(options.debounce);
+			return;
+		}
+
+		if (isScheduled) return;
+
+		if (options.flush === 'post') {
 			isScheduled = true;
 			queueMicrotask(execute);
 		} else {
@@ -195,7 +213,9 @@ export function watchEffect(
 
 			if (debounceTimeout) {
 				clearTimeout(debounceTimeout);
+				debounceTimeout = null;
 			}
+			sawTriggerDuringWait = false;
 
 			if (currentFiber) {
 				Effect.runFork(Fiber.interrupt(currentFiber));

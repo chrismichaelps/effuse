@@ -82,6 +82,43 @@ test('reports missing and exceeded budgets', () => {
 	);
 });
 
+test('reports relative performance regressions against a same-run baseline', () => {
+	const results = [
+		{ name: 'baseline', medianNs: 100, p95Ns: 200 },
+		{ name: 'within-ratio', medianNs: 110, p95Ns: 300 },
+		{ name: 'regressed', medianNs: 140, p95Ns: 700 },
+		{ name: 'missing-baseline', medianNs: 10, p95Ns: 20 },
+	];
+	assert.deepEqual(
+		evaluateBudgets(results, {
+			baseline: { medianNs: 200, p95Ns: 400 },
+			'within-ratio': {
+				medianNs: 200,
+				p95Ns: 400,
+				relativeTo: 'baseline',
+				maxMedianRatio: 1.2,
+				maxP95Ratio: 2,
+			},
+			regressed: {
+				medianNs: 200,
+				p95Ns: 800,
+				relativeTo: 'baseline',
+				maxMedianRatio: 1.2,
+				maxP95Ratio: 2,
+			},
+			'missing-baseline': {
+				relativeTo: 'absent',
+				maxMedianRatio: 1.2,
+			},
+		}),
+		[
+			'regressed: medianNs ratio 1.40x exceeds 1.2x relative to baseline',
+			'regressed: p95Ns ratio 3.50x exceeds 2x relative to baseline',
+			'missing-baseline: relative baseline absent is missing',
+		]
+	);
+});
+
 test('rejects invalid sample configuration', () => {
 	assert.throws(
 		() =>

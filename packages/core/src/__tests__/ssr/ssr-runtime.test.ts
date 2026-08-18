@@ -4,12 +4,17 @@ import {
 	defineLayer,
 	resolveLayerDefinitions,
 } from '../../layers/api/defineLayer.js';
-import { LayerNameCollisionError } from '../../layers/errors.js';
+import {
+	DependencyNotFoundError,
+	LayerNameCollisionError,
+} from '../../layers/errors.js';
 import { createLayerRuntime } from '../../layers/internal/runtime.js';
 import { signal } from '../../reactivity/signal.js';
+import type { Component } from '../../render/node.js';
 import {
 	clearGlobalLayerContext,
 	getGlobalLayerContextStore,
+	getLayerContextStore,
 	getLayerService,
 	isLayerRuntimeReady,
 } from '../../layers/context.js';
@@ -41,6 +46,33 @@ describe('SSRRuntime', () => {
 			expect(runtime.headStack).toBeInstanceOf(Array);
 			expect(runtime.state).toBeInstanceOf(Map);
 			expect(runtime.run(() => isLayerRuntimeReady())).toBe(true);
+
+			await runtime.dispose();
+		});
+
+		it('should register passive layer metadata without managed setup', async () => {
+			const count = signal(2);
+			const deriveProps = vi.fn(() => ({ count }));
+			const Header = vi.fn() as unknown as Component;
+			const PassiveLayer = defineLayer({
+				name: 'passive-metadata',
+				store: { seed: 2 },
+				deriveProps,
+				components: { Header },
+			});
+
+			const runtime = await createSSRRuntime([PassiveLayer]);
+			const context = runtime.run(() => getLayerContextStore());
+
+			expect(deriveProps).toHaveBeenCalledOnce();
+			expect(context?.layerRegistry?.getLayer('passive-metadata')).toBe(
+				runtime.layers[0]
+			);
+			expect(context?.propsRegistry?.get('passive-metadata')).toEqual({
+				count,
+			});
+			expect(context?.layerRegistry?.getComponent('Header')).toBe(Header);
+			expect(runtime.run(() => getLayerService('tracing'))).toBeTruthy();
 
 			await runtime.dispose();
 		});
@@ -223,9 +255,12 @@ describe('SSRRuntime', () => {
 
 		it('should skip setup when runSetup is false', async () => {
 			let setupCalled = false;
+			const serviceFactory = vi.fn(() => ({ enabled: true }));
 
 			const TestLayer = defineLayer({
 				name: 'no-setup',
+				props: { count: signal(1) },
+				services: { feature: serviceFactory },
 				setup: () => {
 					setupCalled = true;
 					return () => {};
@@ -237,6 +272,13 @@ describe('SSRRuntime', () => {
 			});
 
 			expect(setupCalled).toBe(false);
+			expect(serviceFactory).not.toHaveBeenCalled();
+			expect(
+				runtime.run(() =>
+					getLayerContextStore()?.propsRegistry?.has('no-setup')
+				)
+			).toBe(true);
+			expect(runtime.run(() => getLayerService('feature'))).toBeUndefined();
 
 			await runtime.dispose();
 		});
@@ -273,6 +315,50 @@ describe('SSRRuntime', () => {
 				]);
 			} finally {
 				await Promise.all([first.dispose(), second.dispose()]);
+			}
+		});
+
+		it('should isolate layerless registries across concurrent async runtimes', async () => {
+			const first = await createSSRRuntime([]);
+			const second = await createSSRRuntime([]);
+			const firstRegistry = first.run(
+				() => getLayerContextStore()?.layerRegistry
+			);
+			const secondRegistry = second.run(
+				() => getLayerContextStore()?.layerRegistry
+			);
+
+			try {
+				expect(firstRegistry).toBeDefined();
+				expect(secondRegistry).toBeDefined();
+				expect(firstRegistry).not.toBe(secondRegistry);
+				expect(first.run(() => getLayerService('tracing'))).toBeTruthy();
+				expect(second.run(() => getLayerService('tracing'))).toBeTruthy();
+
+				const observations = await Promise.all([
+					first.run(async () => {
+						getLayerContextStore()?.layerRegistry?.registerService(
+							'request',
+							'first'
+						);
+						await Promise.resolve();
+						return getLayerService('request');
+					}),
+					second.run(async () => {
+						getLayerContextStore()?.layerRegistry?.registerService(
+							'request',
+							'second'
+						);
+						await Promise.resolve();
+						return getLayerService('request');
+					}),
+				]);
+
+				expect(observations).toEqual(['first', 'second']);
+			} finally {
+				const firstDisposal = first.dispose();
+				expect(first.dispose()).toBe(firstDisposal);
+				await Promise.all([firstDisposal, second.dispose()]);
 			}
 		});
 
@@ -416,6 +502,29 @@ describe('SSRRuntime', () => {
 				'Layer "session" is registered more than once'
 			);
 			expect(setupCalled).toBe(false);
+		});
+
+		it('should reject missing dependencies before SSR setup runs', async () => {
+			let setupCalled = false;
+			const FeatureLayer = defineLayer({
+				name: 'missing-dependency-feature',
+				dependencies: ['missing-base'] as const,
+				setup: () => {
+					setupCalled = true;
+				},
+			});
+
+			await expect(createSSRRuntime([FeatureLayer])).rejects.toMatchObject({
+				_tag: 'DependencyNotFoundError',
+				layerName: 'missing-dependency-feature',
+				dependencyName: 'missing-base',
+			});
+			await expect(createSSRRuntime([FeatureLayer])).rejects.toBeInstanceOf(
+				DependencyNotFoundError
+			);
+			expect(setupCalled).toBe(false);
+			expect(getGlobalLayerContextStore()).toBeUndefined();
+			expect(getGlobalTracing()).toBeNull();
 		});
 
 		it('rolls back initialized dependency layers when later setup fails', async () => {

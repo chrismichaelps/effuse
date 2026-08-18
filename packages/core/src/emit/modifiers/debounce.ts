@@ -34,8 +34,13 @@ export function createDebounce<T>(ms: number = DEFAULT_DEBOUNCE_MS): {
 		apply: (value: T, callback: (v: T) => void) => {
 			if (timer) clearTimeout(timer);
 			timer = setTimeout(() => {
-				callback(value);
+				// Released before the callback runs, not after: a callback that
+				// schedules another debounced call assigns the new handle here,
+				// and clearing afterwards overwrote it, leaving that call with
+				// nothing for `cancel` to clear. `effects/effect.ts` releases
+				// its own debounce handle first for the same reason.
 				timer = null;
+				callback(value);
 			}, ms);
 		},
 		cancel: () => {

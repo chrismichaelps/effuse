@@ -11,7 +11,10 @@ import {
 import { PropsService } from '../../layers/services/PropsService.js';
 import { RegistryService } from '../../layers/services/RegistryService.js';
 import { TracingServiceLive } from '../../layers/tracing/index.js';
-import { LayerSetupError } from '../../layers/errors.js';
+import {
+	DependencyNotFoundError,
+	LayerSetupError,
+} from '../../layers/errors.js';
 import type {
 	AnyResolvedLayer,
 	LayerServiceFactoryContext,
@@ -27,6 +30,32 @@ const runTest = <A, E>(effect: Effect.Effect<A, E, never>) =>
 	Effect.runPromiseExit(effect);
 
 describe('buildLayerEffect', () => {
+	it('fails malformed topology instead of blocking on a missing dependency', async () => {
+		const layer: AnyResolvedLayer = {
+			name: 'blocked',
+			dependencies: ['missing'],
+			_resolved: true,
+			_order: 0,
+		} as AnyResolvedLayer;
+
+		const result = await runTest(
+			Effect.provide(buildAllLayersEffect([layer]), testLayer)
+		);
+
+		expect(Exit.isFailure(result)).toBe(true);
+		if (Exit.isFailure(result)) {
+			const error = Cause.failureOption(result.cause);
+			expect(Option.isSome(error)).toBe(true);
+			if (Option.isSome(error)) {
+				expect(error.value).toBeInstanceOf(DependencyNotFoundError);
+				expect(error.value).toMatchObject({
+					layerName: 'blocked',
+					dependencyName: 'missing',
+				});
+			}
+		}
+	});
+
 	it('awaits every cleanup in reverse order and preserves failures', async () => {
 		const calls: string[] = [];
 		const onError = vi.fn();

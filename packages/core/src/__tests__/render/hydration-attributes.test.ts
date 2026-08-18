@@ -50,7 +50,7 @@ const hydrateOver = async (
 	const markup = await renderServerMarkup(serverRoot);
 	document.body.innerHTML =
 		`<div id="app">${markup}</div>` +
-		serializeHydrationData({ head: {}, state: {}, url: '/', timestamp: 0 });
+		serializeHydrationData({ head: {}, state: {}, url: '/' });
 	const app = await createApp(clientRoot).mount('#app', { hydrate: true });
 	await flushRenderer();
 	return app;
@@ -190,7 +190,7 @@ describe('hydration reconciles element attributes', () => {
 		const markup = await renderServerMarkup(Server as Component);
 		document.body.innerHTML =
 			`<div id="app">${markup}</div>` +
-			serializeHydrationData({ head: {}, state: {}, url: '/', timestamp: 0 });
+			serializeHydrationData({ head: {}, state: {}, url: '/' });
 		const serverNode = document.querySelector('#box');
 
 		mounted = await createApp(Client as Component).mount('#app', {

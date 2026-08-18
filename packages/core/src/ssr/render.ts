@@ -35,7 +35,9 @@ import type { HeadProps, RenderResult, ServerAppOptions } from './types.js';
 import { RenderError } from './errors.js';
 import { escapeHtml, escapeAttr, escapeAttrName } from './escape.js';
 import { normalizeClassValue } from '../render/class-value.js';
-import { headToHtml } from './head-registry.js';
+import { isEventHandlerName } from '../render/event-prop.js';
+import { styleKeyToCssProperty } from '../render/style-property.js';
+import { headToHtml, mergeLayerHeads } from './head-registry.js';
 import { runWithSSRContext } from './use-head.js';
 import { serializeHydrationData, type HydrationData } from './hydration.js';
 import {
@@ -68,16 +70,22 @@ interface ServerErrorBoundary {
 	readonly parent: ServerErrorBoundary | undefined;
 }
 
-const runServerRender = <T>(ssrRuntime: SSRRuntime, render: () => T): T =>
-	runWithServerRenderContext(() =>
-		runWithSSRContext(
-			{
-				push: (head: HeadProps) => {
-					ssrRuntime.headStack.push(head);
+const runServerRender = <T>(
+	ssrRuntime: SSRRuntime,
+	render: () => T,
+	url?: string
+): T =>
+	runWithServerRenderContext(
+		() =>
+			runWithSSRContext(
+				{
+					push: (head: HeadProps) => {
+						ssrRuntime.headStack.push(head);
+					},
 				},
-			},
-			render
-		)
+				render
+			),
+		url
 	);
 
 /**
@@ -98,55 +106,59 @@ export const renderToString = (
 	const startTime = Date.now();
 
 	// Run the entire render inside the AsyncLocalStorage SSR context
-	return runServerRender(ssrRuntime, () => {
-		try {
-			const html = renderNodeToString(root);
+	return runServerRender(
+		ssrRuntime,
+		() => {
+			try {
+				const html = renderNodeToString(root);
 
-			// Merge all collected heads (layer heads + useHead() calls)
-			const mergedHead = ssrRuntime.headStack.reduce<HeadProps>(
-				(acc, head) => ({ ...acc, ...head }),
-				{}
-			);
+				// Merge all collected heads (layer heads + useHead() calls)
+				// `mergeLayerHeads`, not a spread: a spread replaces `meta`, `link`,
+				// `script`, `og` and `twitter` wholesale, so each contributor deleted
+				// what the earlier ones added — a page calling useHead({ meta })
+				// silently dropped every site-wide tag its layers had provided.
+				const mergedHead = mergeLayerHeads(ssrRuntime.headStack);
 
-			// Serialize state for hydration
-			const serializedState: Record<string, unknown> = {};
-			for (const [key, value] of ssrRuntime.state) {
-				serializedState[key] = value;
+				// Serialize state for hydration
+				const serializedState: Record<string, unknown> = {};
+				for (const [key, value] of ssrRuntime.state) {
+					serializedState[key] = value;
+				}
+
+				const hydrationData: HydrationData = {
+					head: mergedHead,
+					state: serializedState,
+					url,
+				};
+
+				const fullHtml = generateFullHtml(
+					html,
+					mergedHead,
+					hydrationData,
+					options
+				);
+
+				const timing = Date.now() - startTime;
+
+				return {
+					html: fullHtml,
+					head: mergedHead,
+					state: serializedState,
+					timing,
+				};
+			} catch (error) {
+				if (error instanceof RenderError) {
+					throw error;
+				}
+				throw new RenderError({
+					message: `Render failed: ${String(error)}`,
+					url,
+					cause: error,
+				});
 			}
-
-			const hydrationData: HydrationData = {
-				head: mergedHead,
-				state: serializedState,
-				url,
-				timestamp: Date.now(),
-			};
-
-			const fullHtml = generateFullHtml(
-				html,
-				mergedHead,
-				hydrationData,
-				options
-			);
-
-			const timing = Date.now() - startTime;
-
-			return {
-				html: fullHtml,
-				head: mergedHead,
-				state: serializedState,
-				timing,
-			};
-		} catch (error) {
-			if (error instanceof RenderError) {
-				throw error;
-			}
-			throw new RenderError({
-				message: `Render failed: ${String(error)}`,
-				url,
-				cause: error,
-			});
-		}
-	});
+		},
+		url
+	);
 };
 
 /**
@@ -155,9 +167,10 @@ export const renderToString = (
  */
 export const renderToFragment = (
 	root: Component | EffuseNode,
-	ssrRuntime: SSRRuntime
+	ssrRuntime: SSRRuntime,
+	url?: string
 ): string => {
-	return runServerRender(ssrRuntime, () => renderNodeToString(root));
+	return runServerRender(ssrRuntime, () => renderNodeToString(root), url);
 };
 
 const renderNodeToString = (
@@ -304,11 +317,7 @@ const renderEffuseNode = (
 					} catch (error) {
 						if (isSuspendToken(error)) throw error;
 						controller.capture(normalizeBoundaryError(error), false);
-						html = renderChildren(
-							node.children,
-							errorBoundary,
-							namespace
-						);
+						html = renderChildren(node.children, errorBoundary, namespace);
 					}
 				}
 			} catch (error) {
@@ -410,7 +419,10 @@ const renderAttributes = (
 			continue;
 		}
 
-		if (key.startsWith('on') && Predicate.isFunction(value)) {
+		// The shared rule, not a prefix test: the client uses it too, and the
+		// prefix alone classified `once`, `online`, and `on-click` as handlers,
+		// so the server dropped attributes the client went on to render.
+		if (isEventHandlerName(key) && Predicate.isFunction(value)) {
 			continue;
 		}
 
@@ -451,9 +463,7 @@ const renderAttributes = (
 
 		if (Predicate.isBoolean(actualValue)) {
 			if (actualValue) {
-				parts.push(
-					escapeAttrName(normalizeDOMAttributeName(key, namespace))
-				);
+				parts.push(escapeAttrName(normalizeDOMAttributeName(key, namespace)));
 			}
 			continue;
 		}
@@ -464,9 +474,18 @@ const renderAttributes = (
 			const styleStr = Object.entries(
 				actualValue as Record<string, string | number>
 			)
-				.map(([k, v]) => `${camelToKebab(k)}: ${String(v)}`)
+				.map(([k, v]) => `${styleKeyToCssProperty(k)}: ${String(v)}`)
 				.join('; ');
 			parts.push(`style="${escapeAttr(styleStr)}"`);
+			continue;
+		}
+
+		// The same guard the client applies before `setAttribute`. Coercing
+		// anything with `String(...)` wrote attributes the client refuses to
+		// write, and a Date landed in the HTML as a timezone-dependent string,
+		// so the same data serialized differently on differently-configured
+		// machines. `class` and `style` handled their objects above.
+		if (!Predicate.isString(actualValue) && !Predicate.isNumber(actualValue)) {
 			continue;
 		}
 
@@ -518,8 +537,4 @@ const generateFullHtml = (
 	${hydrationScript}
 </body>
 </html>`;
-};
-
-const camelToKebab = (str: string): string => {
-	return str.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
 };

@@ -23,7 +23,12 @@
  */
 
 import type { Component } from '../render/node.js';
-import type { LayerInputSource } from '../layers/api/defineLayer.js';
+import { buildCacheControl } from './cache-control.js';
+import { ifNoneMatchSatisfied } from './hydration.js';
+import {
+	layerInputSourceToList,
+	type LayerInputSource,
+} from '../layers/api/defineLayer.js';
 import type { RequestContext, ServerAppOptions } from './types.js';
 import type { ServerTraceEvent } from './observability.js';
 import { createServerApp } from './server-app.js';
@@ -45,18 +50,86 @@ export interface HandlerConfig {
 	cacheMaxAge?: number;
 	/** Cache-Control s-maxage for CDN caching. Defaults to undefined (not set). */
 	cacheSMaxAge?: number;
+	/**
+	 * Window in which a CDN may serve a stale response while it refreshes.
+	 *
+	 * This is what keeps an origin cold start away from users: the edge answers
+	 * from cache immediately and revalidates behind the response. Setting it
+	 * drops `must-revalidate`, which forbids exactly the stale serving this
+	 * asks for; pass `cacheMustRevalidate` to override that.
+	 */
+	cacheStaleWhileRevalidate?: number;
+	/** Window in which a CDN may serve a stale response after an origin error. */
+	cacheStaleIfError?: number;
+	/** `public` or `private`. Defaults to `public`. */
+	cacheVisibility?: 'public' | 'private';
+	/** Defaults to true, or false when `cacheStaleWhileRevalidate` is set. */
+	cacheMustRevalidate?: boolean;
+	/** Emit `no-store` and drop every other cache directive. */
+	cacheNoStore?: boolean;
+	/** Literal `Cache-Control` value, overriding every option above. */
+	cacheControl?: string;
 	/** Optional error handler for logging/monitoring. Called before returning 500. */
 	onError?: (error: unknown, request: Request) => void;
 	onServerTrace?: (event: ServerTraceEvent) => void;
 	onServerTraceError?: (error: unknown, event: ServerTraceEvent) => void;
 }
 
-export const createHandler = (config: HandlerConfig) => {
+type LayerServerDispatcher = (
+	request: Request,
+	hooks: Pick<HandlerConfig, 'onServerTrace' | 'onServerTraceError'>
+) => Promise<Response | null> | null;
+
+const createLayerServerDispatcher = (
+	layers: LayerInputSource
+): LayerServerDispatcher | undefined => {
+	if (layerInputSourceToList(layers).length === 0) return undefined;
+
 	let serverRouter: CompiledLayerServerRouter | undefined;
-	const getServerRouter = (): CompiledLayerServerRouter =>
-		(serverRouter ??= compileLayerServerRouter(config.layers ?? []));
+	let hasServerHandlers: boolean | undefined;
+	return (request, hooks) => {
+		if (hasServerHandlers === false) return null;
+		serverRouter ??= compileLayerServerRouter(layers);
+		hasServerHandlers ??=
+			serverRouter.routeCount > 0 || serverRouter.actionCount > 0;
+		if (!hasServerHandlers) return null;
+		return handleLayerServerRequest(request, serverRouter, {
+			onTrace: hooks.onServerTrace,
+			onTraceError: hooks.onServerTraceError,
+		});
+	};
+};
+
+/**
+ * The `Cache-Control` a successful render carries.
+ *
+ * Shared by both handlers. The streaming one accepted every cache option
+ * through `HandlerConfig` and sent none of them, so moving a deployment to
+ * streaming silently dropped it to origin-only.
+ *
+ * `must-revalidate` forbids serving stale once expired, which is what
+ * `stale-while-revalidate` exists to do, so asking for one drops the other
+ * unless the caller says otherwise.
+ */
+const resolveCacheControl = (config: HandlerConfig): string =>
+	config.cacheControl ??
+	buildCacheControl({
+		noStore: config.cacheNoStore,
+		visibility: config.cacheVisibility ?? 'public',
+		maxAge: config.cacheMaxAge ?? 0,
+		sMaxAge: config.cacheSMaxAge,
+		staleWhileRevalidate: config.cacheStaleWhileRevalidate,
+		staleIfError: config.cacheStaleIfError,
+		mustRevalidate:
+			config.cacheMustRevalidate ??
+			config.cacheStaleWhileRevalidate === undefined,
+	});
+
+export const createHandler = (config: HandlerConfig) => {
+	const layers = config.layers ?? [];
+	const dispatchServerRequest = createLayerServerDispatcher(layers);
 	const serverApp = createServerApp(config.root)
-		.useLayers(config.layers ?? [])
+		.useLayers(layers)
 		.configure(config.options ?? {});
 
 	return async (request: Request): Promise<Response> => {
@@ -66,17 +139,15 @@ export const createHandler = (config: HandlerConfig) => {
 
 			const url = new URL(req.url);
 			const pathname = url.pathname;
+			// Path plus query: a router resolving the render needs the search
+			// string, and passing the pathname alone dropped it before routing
+			// could see it.
+			const renderTarget = `${pathname}${url.search}`;
 
-			const serverResponse = await handleLayerServerRequest(
-				req,
-				getServerRouter(),
-				{
-					onTrace: config.onServerTrace,
-					onTraceError: config.onServerTraceError,
-				}
-			);
-			if (serverResponse) {
-				return serverResponse;
+			const serverDispatch = dispatchServerRequest?.(req, config);
+			if (serverDispatch) {
+				const serverResponse = await serverDispatch;
+				if (serverResponse) return serverResponse;
 			}
 
 			if (shouldSkip(pathname)) {
@@ -85,7 +156,7 @@ export const createHandler = (config: HandlerConfig) => {
 
 			let html: string;
 			try {
-				html = (await serverApp.renderToString(pathname)).html;
+				html = (await serverApp.renderToString(renderTarget)).html;
 			} catch (error) {
 				if (!(error instanceof RenderError)) throw error;
 				reportError(config, error, req, 'Render');
@@ -104,28 +175,25 @@ export const createHandler = (config: HandlerConfig) => {
 			const etag = `"${hash}"`;
 
 			// Check If-None-Match for conditional requests
-			const ifNoneMatch = req.headers.get('If-None-Match');
-			if (ifNoneMatch === etag) {
+			if (ifNoneMatchSatisfied(req.headers.get('If-None-Match'), etag)) {
+				// RFC 7232 4.1: a 304 carries the header fields it would have
+				// sent with a 200. Without Cache-Control a shared cache learns
+				// the entry is still good but gets no directive to refresh its
+				// lifetime with, so it revalidates again on the next request.
 				return new Response(null, {
 					status: 304,
-					headers: { ETag: etag },
+					headers: { ETag: etag, 'Cache-Control': resolveCacheControl(config) },
 				});
 			}
 
-			// Build Cache-Control header
-			const cacheDirectives: string[] = ['public'];
-			cacheDirectives.push(`max-age=${String(config.cacheMaxAge ?? 0)}`);
-			if (config.cacheSMaxAge !== undefined) {
-				cacheDirectives.push(`s-maxage=${String(config.cacheSMaxAge)}`);
-			}
-			cacheDirectives.push('must-revalidate');
+			const cacheControl = resolveCacheControl(config);
 
 			return new Response(html, {
 				status: 200,
 				headers: {
 					'Content-Type': 'text/html; charset=utf-8',
 					'Content-Length': String(new TextEncoder().encode(html).byteLength),
-					'Cache-Control': cacheDirectives.join(', '),
+					'Cache-Control': cacheControl,
 					ETag: etag,
 					'X-Content-Type-Options': 'nosniff',
 				},
@@ -136,7 +204,11 @@ export const createHandler = (config: HandlerConfig) => {
 				`<!DOCTYPE html><html><head><title>Error</title></head><body><h1>Server Error</h1></body></html>`,
 				{
 					status: 500,
-					headers: { 'Content-Type': 'text/html; charset=utf-8' },
+					headers: {
+						'Content-Type': 'text/html; charset=utf-8',
+						'Cache-Control': 'no-store',
+						'X-Content-Type-Options': 'nosniff',
+					},
 				}
 			);
 		}
@@ -151,11 +223,10 @@ export const createHandler = (config: HandlerConfig) => {
  * Use this when TTFB is critical (e.g., large pages, slow data fetching).
  */
 export const createStreamingHandler = (config: HandlerConfig) => {
-	let serverRouter: CompiledLayerServerRouter | undefined;
-	const getServerRouter = (): CompiledLayerServerRouter =>
-		(serverRouter ??= compileLayerServerRouter(config.layers ?? []));
+	const layers = config.layers ?? [];
+	const dispatchServerRequest = createLayerServerDispatcher(layers);
 	const serverApp = createServerApp(config.root)
-		.useLayers(config.layers ?? [])
+		.useLayers(layers)
 		.configure(config.options ?? {});
 
 	return async (request: Request): Promise<Response> => {
@@ -165,30 +236,31 @@ export const createStreamingHandler = (config: HandlerConfig) => {
 
 			const url = new URL(req.url);
 			const pathname = url.pathname;
+			// Path plus query: a router resolving the render needs the search
+			// string, and passing the pathname alone dropped it before routing
+			// could see it.
+			const renderTarget = `${pathname}${url.search}`;
 
-			const serverResponse = await handleLayerServerRequest(
-				req,
-				getServerRouter(),
-				{
-					onTrace: config.onServerTrace,
-					onTraceError: config.onServerTraceError,
-				}
-			);
-			if (serverResponse) {
-				return serverResponse;
+			const serverDispatch = dispatchServerRequest?.(req, config);
+			if (serverDispatch) {
+				const serverResponse = await serverDispatch;
+				if (serverResponse) return serverResponse;
 			}
 
 			if (shouldSkip(pathname)) {
 				return new Response(null, { status: 404 });
 			}
 
-			const stream = await serverApp.renderToStream(pathname);
+			const stream = await serverApp.renderToStream(renderTarget);
 
+			// No ETag: the body is not known when the headers go out, so there
+			// is nothing to hash and a wrong one is worse than none.
 			return new Response(stream as unknown as BodyInit, {
 				status: 200,
 				headers: {
 					'Content-Type': 'text/html; charset=utf-8',
 					'Transfer-Encoding': 'chunked',
+					'Cache-Control': resolveCacheControl(config),
 					'X-Content-Type-Options': 'nosniff',
 				},
 			});
@@ -198,7 +270,11 @@ export const createStreamingHandler = (config: HandlerConfig) => {
 				`<!DOCTYPE html><html><head><title>Error</title></head><body><h1>Server Error</h1></body></html>`,
 				{
 					status: 500,
-					headers: { 'Content-Type': 'text/html; charset=utf-8' },
+					headers: {
+						'Content-Type': 'text/html; charset=utf-8',
+						'Cache-Control': 'no-store',
+						'X-Content-Type-Options': 'nosniff',
+					},
 				}
 			);
 		}

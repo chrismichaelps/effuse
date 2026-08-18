@@ -22,6 +22,7 @@
  * SOFTWARE.
  */
 
+import { Predicate } from 'effect';
 import type { HeadProps } from './types.js';
 import { HYDRATION_SCRIPT_ID } from '../constants.js';
 
@@ -31,7 +32,6 @@ export interface HydrationData {
 	head: HeadProps;
 	state: Record<string, unknown>;
 	url: string;
-	timestamp: number;
 }
 
 /**
@@ -47,6 +47,19 @@ export const serializeHydrationData = (data: HydrationData): string => {
 	const escaped = json.replace(/</g, '\\u003c');
 	return `<script id="${HYDRATION_SCRIPT_ID}" type="application/json">${escaped}</script>`;
 };
+
+/**
+ * Whether a parsed payload is actually hydration data.
+ *
+ * The parse result used to be cast straight to `HydrationData`, so the guard
+ * below caught malformed JSON and then handed back well-formed JSON of any
+ * shape: `{}`, `[]`, `"str"` and `123` all reached `applyHydratedHead`, which
+ * threw reading `head.title` and aborted hydration for the whole page.
+ *
+ * Only `head` is checked, because that is the field this module dereferences.
+ */
+const isHydrationData = (value: unknown): value is HydrationData =>
+	Predicate.isRecord(value) && Predicate.isRecord(value.head);
 
 /**
  * Retrieve hydration data from the DOM on the client side.
@@ -65,21 +78,87 @@ export const getHydrationData = (): HydrationData | null => {
 	try {
 		const content = script.textContent;
 		if (!content) return null;
-		return JSON.parse(content) as HydrationData;
+		const parsed: unknown = JSON.parse(content);
+		return isHydrationData(parsed) ? parsed : null;
 	} catch {
 		return null;
 	}
 };
 
 /**
- * Check if client state matches the server-rendered state.
- * Used during hydration to detect mismatches.
+ * Whether two state objects carry the same content.
+ *
+ * Offered for callers comparing client state against what the server rendered;
+ * nothing in the framework calls it.
+ *
+ * Compares by content rather than by serialisation. `JSON.stringify` is key
+ * order sensitive, so it reported a mismatch whenever server and client built
+ * the same state by different routes — a different branch order, a spread, a
+ * merge. Key order is not part of a state object's meaning. Array order is, and
+ * still counts.
+ *
+ * A key whose value is `undefined` matches its absence, because state reaches
+ * the client as JSON and such a key never survives the trip.
  */
 export const checkHydrationMatch = (
 	clientState: Record<string, unknown>,
 	serverState: Record<string, unknown>
+): boolean => sameContent(clientState, serverState, new Set());
+
+/** Own keys whose value is defined, since `undefined` never crosses as JSON. */
+const definedKeys = (value: Record<string, unknown>): string[] =>
+	Object.keys(value).filter((key) => value[key] !== undefined);
+
+const sameContent = (
+	left: unknown,
+	right: unknown,
+	seen: Set<unknown>
 ): boolean => {
-	return JSON.stringify(clientState) === JSON.stringify(serverState);
+	if (Object.is(left, right)) return true;
+
+	if (
+		typeof left !== 'object' ||
+		typeof right !== 'object' ||
+		left === null ||
+		right === null
+	) {
+		return false;
+	}
+
+	const leftIsArray = Array.isArray(left);
+	if (leftIsArray !== Array.isArray(right)) return false;
+
+	// A cycle on either side would otherwise recur forever. `JSON.stringify`
+	// threw on one; terminating with an answer is the lesser surprise.
+	if (seen.has(left) || seen.has(right)) return true;
+	seen.add(left);
+	seen.add(right);
+
+	try {
+		if (leftIsArray) {
+			const leftItems = left as unknown[];
+			const rightItems = right as unknown[];
+			if (leftItems.length !== rightItems.length) return false;
+			return leftItems.every((item, index) =>
+				sameContent(item, rightItems[index], seen)
+			);
+		}
+
+		const leftRecord = left as Record<string, unknown>;
+		const rightRecord = right as Record<string, unknown>;
+		const leftKeys = definedKeys(leftRecord);
+		const rightKeys = definedKeys(rightRecord);
+		if (leftKeys.length !== rightKeys.length) return false;
+
+		return leftKeys.every(
+			(key) =>
+				Object.prototype.hasOwnProperty.call(rightRecord, key) &&
+				sameContent(leftRecord[key], rightRecord[key], seen)
+		);
+	} finally {
+		seen.delete(left);
+		seen.delete(right);
+	}
 };
 
 /**
@@ -89,9 +168,13 @@ export const checkHydrationMatch = (
  */
 export const applyHydratedHead = (head: HeadProps): void => {
 	if (typeof document === 'undefined') return;
+	// A public export, so it is reachable without `getHydrationData` and its
+	// shape check; `head.title` threw when it was handed null or a primitive.
+	if (!Predicate.isRecord(head)) return;
 
-	if (head.title && document.title !== head.title) {
-		document.title = head.title;
+	const title = head.title;
+	if (Predicate.isString(title) && title !== '' && document.title !== title) {
+		document.title = title;
 	}
 };
 
@@ -122,4 +205,30 @@ export const initHydration = (): HydrationData | null => {
 	}
 
 	return data;
+};
+
+/**
+ * Whether an `If-None-Match` header matches `etag`.
+ *
+ * RFC 7232 §3.2 specifies the *weak* comparison function here, and the header
+ * may carry a comma-separated list or `*`. Comparing the raw header string to
+ * the tag failed all three: a proxy that compresses is expected to downgrade a
+ * strong ETag to `W/"…"` — nginx does this whenever gzip is on — so a 304 was
+ * unreachable behind any compressing proxy even once the tag was stable.
+ */
+export const ifNoneMatchSatisfied = (
+	header: string | null,
+	etag: string
+): boolean => {
+	if (header === null) return false;
+
+	const candidate = header.trim();
+	if (candidate === '') return false;
+	if (candidate === '*') return true;
+
+	// Weak comparison: the `W/` prefix is not part of the opaque tag.
+	const opaque = (tag: string): string => tag.trim().replace(/^W\//, '');
+	const target = opaque(etag);
+
+	return candidate.split(',').some((tag) => opaque(tag) === target);
 };

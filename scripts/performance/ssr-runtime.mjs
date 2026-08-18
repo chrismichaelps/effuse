@@ -5,10 +5,12 @@ import {
 	CreateElementNode,
 	CreateTextNode,
 	EFFUSE_NODE,
+	createApp,
 	createHandler,
 	createServerApp,
 	createSSRRuntime,
 	define,
+	defineLayer,
 } from '../../packages/core/dist/server.js';
 import {
 	evaluateBudgets,
@@ -51,6 +53,18 @@ const Root = define({
 });
 const serverApp = createServerApp(Root);
 const handler = createHandler({ root: Root });
+const uiLayers = Array.from({ length: 10 }, (_, index) =>
+	defineLayer({ name: `ssr-benchmark-ui-layer-${index}` })
+);
+const uiLayerHandler = createHandler({
+	root: Root,
+	layers: uiLayers,
+});
+const effuseApp = await createApp(Root).useLayers(uiLayers);
+const staticRequest = new Request('http://localhost/benchmark.js');
+
+await uiLayerHandler(staticRequest);
+await effuseApp.handleRequest(staticRequest);
 
 const cases = [
 	{
@@ -66,10 +80,43 @@ const cases = [
 	},
 	{
 		name: 'ssr.handler',
+		iterations: quick ? 20 : 100,
 		operation: async () => {
 			const response = await handler(new Request('http://localhost/benchmark'));
 			return response.text();
 		},
+	},
+	{
+		name: 'ssr.ui-layer-handler',
+		iterations: quick ? 20 : 100,
+		operation: async () => {
+			const response = await uiLayerHandler(
+				new Request('http://localhost/benchmark')
+			);
+			return response.text();
+		},
+	},
+	// The bypass cases are the cheapest in the suite, around 700ns, so relative
+	// noise is largest exactly where the budgets compare them by ratio. Four
+	// times the samples roughly halves the spread of the ui-layer ratio and
+	// costs nothing measurable: the whole script still runs in under a second.
+	{
+		name: 'ssr.static-bypass',
+		iterations: quick ? 100 : 1_000,
+		samples: quick ? 4 : 40,
+		operation: () => handler(staticRequest),
+	},
+	{
+		name: 'ssr.ui-layer-static-bypass',
+		iterations: quick ? 100 : 1_000,
+		samples: quick ? 4 : 40,
+		operation: () => uiLayerHandler(staticRequest),
+	},
+	{
+		name: 'ssr.app-static-bypass',
+		iterations: quick ? 100 : 1_000,
+		samples: quick ? 4 : 40,
+		operation: () => effuseApp.handleRequest(staticRequest),
 	},
 ];
 const results = [];

@@ -32,12 +32,13 @@ import type {
 	ServerResult,
 	ServerRoute,
 } from '../layers/types.js';
+import { buildCacheControl } from './cache-control.js';
 import { getLayerService } from '../layers/context.js';
 import {
 	resolveLayerDefinitions,
 	type LayerInputSource,
 } from '../layers/api/defineLayer.js';
-import { createSSRRuntime } from './runtime.js';
+import { createSSRRuntime, type SSRRuntime } from './runtime.js';
 import { createRequestScope, type RequestScope } from './request-scope.js';
 import type { AnyServerRequestContract } from './request-contract.js';
 import type { AnyServerValidator } from './validation.js';
@@ -524,7 +525,10 @@ const applyServerMetadata = (
 	} else if (typeof cache?.revalidate === 'number') {
 		headers.set(
 			'Cache-Control',
-			`s-maxage=${String(cache.revalidate)}, stale-while-revalidate`
+			buildCacheControl({
+				sMaxAge: cache.revalidate,
+				staleWhileRevalidate: true,
+			})
 		);
 	}
 	if (cache?.tags && cache.tags.length > 0) {
@@ -815,7 +819,8 @@ export const handleLayerServerRequest = async (
 ): Promise<Response | null> => {
 	const data = getCompiledRouterData(source);
 	const layers = data.layers;
-	const match = findActionHandler(request, data) ?? findApiHandler(request, data);
+	const match =
+		findActionHandler(request, data) ?? findApiHandler(request, data);
 	if (!match) {
 		return null;
 	}
@@ -874,19 +879,31 @@ const dispatchMatched = async (
 	observability?: ServerObservabilityHooks,
 	requestScope?: Pick<RequestScope, 'locals' | 'defer'>
 ): Promise<Response> => {
-	const runtime = await createSSRRuntime(layers, { runSetup: true });
 	const ownsScope = requestScope === undefined;
-	const scope: RequestScope = requestScope
-		? { ...requestScope, runDisposers: async () => undefined }
-		: createRequestScope();
 	const startedAt = performance.now();
 	const timestamp = Date.now();
+	let runtime: SSRRuntime | undefined;
+	let scope: RequestScope | undefined;
+	let response: Response | undefined;
+	let handledError: unknown;
+	const failures: unknown[] = [];
 
 	try {
-		return await runtime.run(async () => {
-			const ctx = createContext(request, runtime.layers, match.params, scope);
+		const activeRuntime = await createSSRRuntime(layers, { runSetup: true });
+		runtime = activeRuntime;
+		const activeScope: RequestScope = requestScope
+			? { ...requestScope, runDisposers: async () => undefined }
+			: createRequestScope();
+		scope = activeScope;
+		response = await activeRuntime.run(async () => {
+			const ctx = createContext(
+				request,
+				activeRuntime.layers,
+				match.params,
+				activeScope
+			);
 			const middleware = collectServerMiddleware(
-				runtime.layers,
+				activeRuntime.layers,
 				match.layer,
 				match.middleware
 			);
@@ -902,53 +919,70 @@ const dispatchMatched = async (
 					validateServerResponseContract(result, match.response)
 				);
 			});
-			const tracedResponse = applyServerMetadata(response, match.metadata);
-			emitServerTrace(observability, {
-				durationMs: performance.now() - startedAt,
-				kind: match.kind,
-				layer: match.layer?.name,
-				method: request.method.toUpperCase(),
-				ok: tracedResponse.ok,
-				path: new URL(request.url).pathname,
-				route: match.kind === 'api' ? match.target : undefined,
-				status: tracedResponse.status,
-				target: match.target,
-				timestamp,
-			});
-			return tracedResponse;
+			return applyServerMetadata(response, match.metadata);
 		});
 	} catch (error) {
-		const createErrorTrace = (status: number): void => {
-			emitServerTrace(observability, {
-				durationMs: performance.now() - startedAt,
-				error: createServerTraceError(error),
-				kind: match.kind,
-				layer: match.layer?.name,
-				method: request.method.toUpperCase(),
-				ok: false,
-				path: new URL(request.url).pathname,
-				route: match.kind === 'api' ? match.target : undefined,
-				status,
-				target: match.target,
-				timestamp,
-			});
-		};
+		handledError = error;
 		if (isLayerServerError(error)) {
-			createErrorTrace(error.status);
-			return layerServerErrorResponse(error);
+			response = layerServerErrorResponse(error);
+		} else if (isServerValidationError(error)) {
+			response = serverValidationErrorResponse(error);
+		} else {
+			failures.push(error);
 		}
-		if (isServerValidationError(error)) {
-			createErrorTrace(error.status);
-			return serverValidationErrorResponse(error);
-		}
-		createErrorTrace(500);
-		throw error;
-	} finally {
-		// Run request-scoped disposers inside the runtime scope so they can still
-		// reach scoped services, before the runtime itself is torn down.
-		if (ownsScope) {
-			await runtime.run(() => scope.runDisposers());
-		}
-		await runtime.dispose();
 	}
+
+	if (runtime) {
+		// Run request-scoped disposers inside the runtime scope so they can still
+		// reach scoped services. Runtime disposal remains independent so a failing
+		// request cleanup can never strand the layer runtime.
+		const activeScope = scope;
+		if (ownsScope && activeScope) {
+			try {
+				await runtime.run(() => activeScope.runDisposers());
+			} catch (error) {
+				failures.push(error);
+			}
+		}
+		try {
+			await runtime.dispose();
+		} catch (error) {
+			failures.push(error);
+		}
+	}
+
+	if (!response && failures.length === 0) {
+		failures.push(
+			new Error(
+				'[Effuse] Server route completed without a response or failure.'
+			)
+		);
+	}
+
+	const failure =
+		failures.length > 1
+			? new AggregateError(
+					failures,
+					'[Effuse] Server route execution and cleanup failed.'
+				)
+			: failures[0];
+	const status = failures.length > 0 ? 500 : (response?.status ?? 500);
+	emitServerTrace(observability, {
+		durationMs: performance.now() - startedAt,
+		...(failures.length > 0 || handledError !== undefined
+			? { error: createServerTraceError(failure ?? handledError) }
+			: {}),
+		kind: match.kind,
+		layer: match.layer?.name,
+		method: request.method.toUpperCase(),
+		ok: failures.length === 0 && (response?.ok ?? false),
+		path: new URL(request.url).pathname,
+		route: match.kind === 'api' ? match.target : undefined,
+		status,
+		target: match.target,
+		timestamp,
+	});
+
+	if (failures.length > 0) throw failure;
+	return response!;
 };

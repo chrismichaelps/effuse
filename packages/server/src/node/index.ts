@@ -41,8 +41,16 @@ import {
 	type ServerOptions,
 } from '../contract.js';
 import { withBodyLimit } from '../internal/body-limit.js';
-import { internalErrorResponse, shuttingDownResponse } from '../internal/envelopes.js';
+import {
+	internalErrorResponse,
+	shuttingDownResponse,
+} from '../internal/envelopes.js';
 import { toWebRequest, writeEnvelope, writeWebResponse } from './convert.js';
+
+export {
+	withStaticFiles,
+	type StaticFileOptions,
+} from '../internal/static-files.js';
 
 const DEFAULT_HOST = '127.0.0.1';
 
@@ -129,7 +137,9 @@ export const createNodeServer = (
 		void handleRequest(req, res, host).finally(settleInFlight);
 	});
 
-	const listen = (listenOptions: ListenOptions = {}): Promise<ServerAddress> => {
+	const listen = (
+		listenOptions: ListenOptions = {}
+	): Promise<ServerAddress> => {
 		const port = listenOptions.port ?? 0;
 		const host = listenOptions.host ?? DEFAULT_HOST;
 		const signal = listenOptions.signal;
