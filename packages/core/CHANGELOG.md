@@ -1,3 +1,55 @@
+## @effuse/core [3.0.0](https://github.com/chrismichaelps/effuse/compare/@effuse/core@2.1.0...@effuse/core@3.0.0) (2026-08-18)
+
+### ⚠ BREAKING CHANGES
+
+* **core:** `timestamp` is removed from `HydrationData` and from the
+serialized `__EFFUSE_DATA__` payload. Nothing in the workspace read it and it
+was never surfaced through a documented API, but code inspecting the payload
+directly will no longer find the field.
+* **core:** `titleTemplate`, `htmlAttrs`, `bodyAttrs`, `noscript` and
+`style` are removed from `HeadProps`. Passing any of them was already a no-op
+in every code path, so no rendered output changes; only the type narrows.
+Code that sets them will now fail to compile and can delete the property.
+* **core:** `retry` and `timeout` are no longer accepted by
+`EffectOptions` or `WatchOptions`, and the `RetryOptions` type is no
+longer exported. Both options were no-ops, so code passing them only fails
+to compile; no runtime behaviour changes. Remove them from any
+`watchEffect` or `watch` call.
+
+### Features
+
+* **core:** give the SSR development error page a usable UI ([#667](https://github.com/chrismichaelps/effuse/issues/667)) ([bbdfee3](https://github.com/chrismichaelps/effuse/commit/bbdfee31f6fd69bb07a4fb5ea96a892920b7ce2a)), closes [#666](https://github.com/chrismichaelps/effuse/issues/666)
+
+### Bug Fixes
+
+* **core:** compare hydration state by content, not by serialisation ([#640](https://github.com/chrismichaelps/effuse/issues/640)) ([65b3170](https://github.com/chrismichaelps/effuse/commit/65b31704c95a0db686dd78c459204237617a1d17)), closes [#639](https://github.com/chrismichaelps/effuse/issues/639)
+* **core:** debounce on the trailing edge of the burst, not the first trigger ([#634](https://github.com/chrismichaelps/effuse/issues/634)) ([95ca8d4](https://github.com/chrismichaelps/effuse/commit/95ca8d4b327372392470e588b1f8431a01cefcb9)), closes [#632](https://github.com/chrismichaelps/effuse/issues/632) [#633](https://github.com/chrismichaelps/effuse/issues/633)
+* **core:** dedupe head meta tags by their kind, not by whichever field is set ([#643](https://github.com/chrismichaelps/effuse/issues/643)) ([377e80d](https://github.com/chrismichaelps/effuse/commit/377e80da2c530749b2a93177e22813deb505156c)), closes [#641](https://github.com/chrismichaelps/effuse/issues/641)
+* **core:** keep the debounce timer handle cancellable across a reschedule ([#654](https://github.com/chrismichaelps/effuse/issues/654)) ([875c2bb](https://github.com/chrismichaelps/effuse/commit/875c2bb77799777076c4b88fb914d3fa8e52679e)), closes [#653](https://github.com/chrismichaelps/effuse/issues/653)
+* **core:** keep the leading dash on vendor-prefixed style properties ([#652](https://github.com/chrismichaelps/effuse/issues/652)) ([cee89be](https://github.com/chrismichaelps/effuse/commit/cee89bef28ffd81a7bf1c8b66e1f49c1f3a14965)), closes [#651](https://github.com/chrismichaelps/effuse/issues/651)
+* **core:** let createHandler express a CDN-cacheable Cache-Control ([#658](https://github.com/chrismichaelps/effuse/issues/658)) ([399bd60](https://github.com/chrismichaelps/effuse/commit/399bd60538f7f82bdf57ad5d1e2f991eb397f7b8)), closes [#657](https://github.com/chrismichaelps/effuse/issues/657)
+* **core:** make readonly(signal) recognisable as a signal ([#638](https://github.com/chrismichaelps/effuse/issues/638)) ([40ff4b1](https://github.com/chrismichaelps/effuse/commit/40ff4b1ca957f8d0ef0f0fd01ff7c2c64672712c)), closes [#635](https://github.com/chrismichaelps/effuse/issues/635) [#637](https://github.com/chrismichaelps/effuse/issues/637)
+* **core:** make SSR ETags deterministic and compare If-None-Match per RFC 7232 ([#664](https://github.com/chrismichaelps/effuse/issues/664)) ([be2a6fa](https://github.com/chrismichaelps/effuse/commit/be2a6fa67ca05e62106d28245b64fc1b20036a76)), closes [#658](https://github.com/chrismichaelps/effuse/issues/658) [#663](https://github.com/chrismichaelps/effuse/issues/663)
+* **core:** make writableComputed recognisable as a signal ([#636](https://github.com/chrismichaelps/effuse/issues/636)) ([d0c9b99](https://github.com/chrismichaelps/effuse/commit/d0c9b9902ebc5d53693811e9930f996e5124c25e)), closes [#635](https://github.com/chrismichaelps/effuse/issues/635)
+* **core:** merge SSR heads instead of spreading them over each other ([#660](https://github.com/chrismichaelps/effuse/issues/660)) ([c97ab8a](https://github.com/chrismichaelps/effuse/commit/c97ab8a5c7dc96184609ee176f55c5abf325257b)), closes [#643](https://github.com/chrismichaelps/effuse/issues/643) [#659](https://github.com/chrismichaelps/effuse/issues/659)
+* **core:** reject a hydration payload that parses but has the wrong shape ([#656](https://github.com/chrismichaelps/effuse/issues/656)) ([38e1cf5](https://github.com/chrismichaelps/effuse/commit/38e1cf57e834da3c56454841c655fffef32a0c4a)), closes [#655](https://github.com/chrismichaelps/effuse/issues/655)
+* **core:** remove the HeadProps keys that nothing renders ([#648](https://github.com/chrismichaelps/effuse/issues/648)) ([606fbc3](https://github.com/chrismichaelps/effuse/commit/606fbc36f17d3d1f08ce9d655444e8678cf90677)), closes [#642](https://github.com/chrismichaelps/effuse/issues/642)
+* **core:** remove the inert retry and timeout effect options ([#632](https://github.com/chrismichaelps/effuse/issues/632)) ([a680c88](https://github.com/chrismichaelps/effuse/commit/a680c88f3717f2ee5af5f4c6c002709166edab69)), closes [#631](https://github.com/chrismichaelps/effuse/issues/631)
+* **core:** send cache headers on every SSR response path, not just one ([#668](https://github.com/chrismichaelps/effuse/issues/668)) ([e7baf95](https://github.com/chrismichaelps/effuse/commit/e7baf95ed8e147116f274e3fd84edf2792a8e9d0)), closes [#631](https://github.com/chrismichaelps/effuse/issues/631) [#657](https://github.com/chrismichaelps/effuse/issues/657) [#664](https://github.com/chrismichaelps/effuse/issues/664) [#665](https://github.com/chrismichaelps/effuse/issues/665)
+* **core:** stop SSR dropping on-prefixed props that are not event handlers ([#647](https://github.com/chrismichaelps/effuse/issues/647)) ([0c9a3c4](https://github.com/chrismichaelps/effuse/commit/0c9a3c441e66562f635e832406f4bced3a53fed1)), closes [#646](https://github.com/chrismichaelps/effuse/issues/646)
+* **core:** stop SSR writing attribute values the client refuses to write ([#650](https://github.com/chrismichaelps/effuse/issues/650)) ([820ea31](https://github.com/chrismichaelps/effuse/commit/820ea314a2f92166228d09409a8061a0534dcdb5)), closes [#649](https://github.com/chrismichaelps/effuse/issues/649)
+* **layers:** reject missing dependencies refs [#627](https://github.com/chrismichaelps/effuse/issues/627) ([#628](https://github.com/chrismichaelps/effuse/issues/628)) ([79ef249](https://github.com/chrismichaelps/effuse/commit/79ef2497450c6e1dfae505a05536fc9f6408fca8))
+* **router:** resolve the requested route during SSR instead of always "/" ([#662](https://github.com/chrismichaelps/effuse/issues/662)) ([16a590d](https://github.com/chrismichaelps/effuse/commit/16a590da64299e51bb192993a4259f287fd2e435)), closes [#661](https://github.com/chrismichaelps/effuse/issues/661)
+* **ssr:** trace final route cleanup outcome refs [#621](https://github.com/chrismichaelps/effuse/issues/621) ([#622](https://github.com/chrismichaelps/effuse/issues/622)) ([c4202e0](https://github.com/chrismichaelps/effuse/commit/c4202e0e6cf6a69a5e99964251a61be8daaa9deb))
+* **ssr:** trace layer runtime setup refs [#619](https://github.com/chrismichaelps/effuse/issues/619) ([#620](https://github.com/chrismichaelps/effuse/issues/620)) ([d01348b](https://github.com/chrismichaelps/effuse/commit/d01348b09a72572e5fa8985a79cc4ea91a1fe650))
+
+### Performance Improvements
+
+* **ssr:** bypass empty server dispatch refs [#617](https://github.com/chrismichaelps/effuse/issues/617) ([#618](https://github.com/chrismichaelps/effuse/issues/618)) ([9816363](https://github.com/chrismichaelps/effuse/commit/9816363301ad769cadf3653147239dcfd6d5559f))
+* **ssr:** bypass passive layer runtimes refs [#629](https://github.com/chrismichaelps/effuse/issues/629) ([#630](https://github.com/chrismichaelps/effuse/issues/630)) ([b049359](https://github.com/chrismichaelps/effuse/commit/b0493598efa6b50369a4f64fa02bfa355e8cbb1a))
+* **ssr:** reuse app request handlers refs [#623](https://github.com/chrismichaelps/effuse/issues/623) ([#624](https://github.com/chrismichaelps/effuse/issues/624)) ([e16300e](https://github.com/chrismichaelps/effuse/commit/e16300e83f507999fd1ab9497301db592a9a837a))
+* **ssr:** skip managed runtime for layerless renders refs [#614](https://github.com/chrismichaelps/effuse/issues/614) ([#615](https://github.com/chrismichaelps/effuse/issues/615)) ([859afdb](https://github.com/chrismichaelps/effuse/commit/859afdbbcf3dd9096b7da965f77c8cb12d3133d6))
+
 ## @effuse/core [2.1.0](https://github.com/chrismichaelps/effuse/compare/@effuse/core@2.0.3...@effuse/core@2.1.0) (2026-08-14)
 
 ### Features
