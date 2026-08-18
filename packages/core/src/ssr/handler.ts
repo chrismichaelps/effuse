@@ -100,6 +100,31 @@ const createLayerServerDispatcher = (
 	};
 };
 
+/**
+ * The `Cache-Control` a successful render carries.
+ *
+ * Shared by both handlers. The streaming one accepted every cache option
+ * through `HandlerConfig` and sent none of them, so moving a deployment to
+ * streaming silently dropped it to origin-only.
+ *
+ * `must-revalidate` forbids serving stale once expired, which is what
+ * `stale-while-revalidate` exists to do, so asking for one drops the other
+ * unless the caller says otherwise.
+ */
+const resolveCacheControl = (config: HandlerConfig): string =>
+	config.cacheControl ??
+	buildCacheControl({
+		noStore: config.cacheNoStore,
+		visibility: config.cacheVisibility ?? 'public',
+		maxAge: config.cacheMaxAge ?? 0,
+		sMaxAge: config.cacheSMaxAge,
+		staleWhileRevalidate: config.cacheStaleWhileRevalidate,
+		staleIfError: config.cacheStaleIfError,
+		mustRevalidate:
+			config.cacheMustRevalidate ??
+			config.cacheStaleWhileRevalidate === undefined,
+	});
+
 export const createHandler = (config: HandlerConfig) => {
 	const layers = config.layers ?? [];
 	const dispatchServerRequest = createLayerServerDispatcher(layers);
@@ -151,28 +176,17 @@ export const createHandler = (config: HandlerConfig) => {
 
 			// Check If-None-Match for conditional requests
 			if (ifNoneMatchSatisfied(req.headers.get('If-None-Match'), etag)) {
+				// RFC 7232 4.1: a 304 carries the header fields it would have
+				// sent with a 200. Without Cache-Control a shared cache learns
+				// the entry is still good but gets no directive to refresh its
+				// lifetime with, so it revalidates again on the next request.
 				return new Response(null, {
 					status: 304,
-					headers: { ETag: etag },
+					headers: { ETag: etag, 'Cache-Control': resolveCacheControl(config) },
 				});
 			}
 
-			// `must-revalidate` forbids serving stale once expired, which is what
-			// `stale-while-revalidate` exists to do, so asking for one drops the
-			// other unless the caller says otherwise.
-			const cacheControl =
-				config.cacheControl ??
-				buildCacheControl({
-					noStore: config.cacheNoStore,
-					visibility: config.cacheVisibility ?? 'public',
-					maxAge: config.cacheMaxAge ?? 0,
-					sMaxAge: config.cacheSMaxAge,
-					staleWhileRevalidate: config.cacheStaleWhileRevalidate,
-					staleIfError: config.cacheStaleIfError,
-					mustRevalidate:
-						config.cacheMustRevalidate ??
-						config.cacheStaleWhileRevalidate === undefined,
-				});
+			const cacheControl = resolveCacheControl(config);
 
 			return new Response(html, {
 				status: 200,
@@ -190,7 +204,11 @@ export const createHandler = (config: HandlerConfig) => {
 				`<!DOCTYPE html><html><head><title>Error</title></head><body><h1>Server Error</h1></body></html>`,
 				{
 					status: 500,
-					headers: { 'Content-Type': 'text/html; charset=utf-8' },
+					headers: {
+						'Content-Type': 'text/html; charset=utf-8',
+						'Cache-Control': 'no-store',
+						'X-Content-Type-Options': 'nosniff',
+					},
 				}
 			);
 		}
@@ -235,11 +253,14 @@ export const createStreamingHandler = (config: HandlerConfig) => {
 
 			const stream = await serverApp.renderToStream(renderTarget);
 
+			// No ETag: the body is not known when the headers go out, so there
+			// is nothing to hash and a wrong one is worse than none.
 			return new Response(stream as unknown as BodyInit, {
 				status: 200,
 				headers: {
 					'Content-Type': 'text/html; charset=utf-8',
 					'Transfer-Encoding': 'chunked',
+					'Cache-Control': resolveCacheControl(config),
 					'X-Content-Type-Options': 'nosniff',
 				},
 			});
@@ -249,7 +270,11 @@ export const createStreamingHandler = (config: HandlerConfig) => {
 				`<!DOCTYPE html><html><head><title>Error</title></head><body><h1>Server Error</h1></body></html>`,
 				{
 					status: 500,
-					headers: { 'Content-Type': 'text/html; charset=utf-8' },
+					headers: {
+						'Content-Type': 'text/html; charset=utf-8',
+						'Cache-Control': 'no-store',
+						'X-Content-Type-Options': 'nosniff',
+					},
 				}
 			);
 		}
