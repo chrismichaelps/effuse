@@ -1,3 +1,10 @@
+## @effuse/use [1.2.5](https://github.com/chrismichaelps/effuse/compare/@effuse/use@1.2.4...@effuse/use@1.2.5) (2026-08-18)
+
+
+### Dependencies
+
+* **@effuse/core:** upgraded to 3.0.0
+
 ## @effuse/use [1.2.4](https://github.com/chrismichaelps/effuse/compare/@effuse/use@1.2.3...@effuse/use@1.2.4) (2026-08-14)
 
 ### Bug Fixes
