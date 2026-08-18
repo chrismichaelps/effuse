@@ -72,14 +72,79 @@ export const getHydrationData = (): HydrationData | null => {
 };
 
 /**
- * Check if client state matches the server-rendered state.
- * Used during hydration to detect mismatches.
+ * Whether two state objects carry the same content.
+ *
+ * Offered for callers comparing client state against what the server rendered;
+ * nothing in the framework calls it.
+ *
+ * Compares by content rather than by serialisation. `JSON.stringify` is key
+ * order sensitive, so it reported a mismatch whenever server and client built
+ * the same state by different routes — a different branch order, a spread, a
+ * merge. Key order is not part of a state object's meaning. Array order is, and
+ * still counts.
+ *
+ * A key whose value is `undefined` matches its absence, because state reaches
+ * the client as JSON and such a key never survives the trip.
  */
 export const checkHydrationMatch = (
 	clientState: Record<string, unknown>,
 	serverState: Record<string, unknown>
+): boolean => sameContent(clientState, serverState, new Set());
+
+/** Own keys whose value is defined, since `undefined` never crosses as JSON. */
+const definedKeys = (value: Record<string, unknown>): string[] =>
+	Object.keys(value).filter((key) => value[key] !== undefined);
+
+const sameContent = (
+	left: unknown,
+	right: unknown,
+	seen: Set<unknown>
 ): boolean => {
-	return JSON.stringify(clientState) === JSON.stringify(serverState);
+	if (Object.is(left, right)) return true;
+
+	if (
+		typeof left !== 'object' ||
+		typeof right !== 'object' ||
+		left === null ||
+		right === null
+	) {
+		return false;
+	}
+
+	const leftIsArray = Array.isArray(left);
+	if (leftIsArray !== Array.isArray(right)) return false;
+
+	// A cycle on either side would otherwise recur forever. `JSON.stringify`
+	// threw on one; terminating with an answer is the lesser surprise.
+	if (seen.has(left) || seen.has(right)) return true;
+	seen.add(left);
+	seen.add(right);
+
+	try {
+		if (leftIsArray) {
+			const leftItems = left as unknown[];
+			const rightItems = right as unknown[];
+			if (leftItems.length !== rightItems.length) return false;
+			return leftItems.every((item, index) =>
+				sameContent(item, rightItems[index], seen)
+			);
+		}
+
+		const leftRecord = left as Record<string, unknown>;
+		const rightRecord = right as Record<string, unknown>;
+		const leftKeys = definedKeys(leftRecord);
+		const rightKeys = definedKeys(rightRecord);
+		if (leftKeys.length !== rightKeys.length) return false;
+
+		return leftKeys.every(
+			(key) =>
+				Object.prototype.hasOwnProperty.call(rightRecord, key) &&
+				sameContent(leftRecord[key], rightRecord[key], seen)
+		);
+	} finally {
+		seen.delete(left);
+		seen.delete(right);
+	}
 };
 
 /**
