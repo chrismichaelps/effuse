@@ -36,6 +36,7 @@ import { RenderError } from './errors.js';
 import { escapeHtml, escapeAttr, escapeAttrName } from './escape.js';
 import { normalizeClassValue } from '../render/class-value.js';
 import { isEventHandlerName } from '../render/event-prop.js';
+import { styleKeyToCssProperty } from '../render/style-property.js';
 import { headToHtml } from './head-registry.js';
 import { runWithSSRContext } from './use-head.js';
 import { serializeHydrationData, type HydrationData } from './hydration.js';
@@ -468,7 +469,7 @@ const renderAttributes = (
 			const styleStr = Object.entries(
 				actualValue as Record<string, string | number>
 			)
-				.map(([k, v]) => `${camelToKebab(k)}: ${String(v)}`)
+				.map(([k, v]) => `${styleKeyToCssProperty(k)}: ${String(v)}`)
 				.join('; ');
 			parts.push(`style="${escapeAttr(styleStr)}"`);
 			continue;
@@ -533,6 +534,3 @@ const generateFullHtml = (
 </html>`;
 };
 
-const camelToKebab = (str: string): string => {
-	return str.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
-};

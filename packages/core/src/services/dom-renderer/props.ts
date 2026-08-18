@@ -36,6 +36,7 @@ import {
 } from '../../render/attribute-name.js';
 import { normalizeClassValue } from '../../render/class-value.js';
 import { isEventHandlerName } from '../../render/event-prop.js';
+import { styleKeyToCssProperty } from '../../render/style-property.js';
 
 export interface PropBindingResult {
 	cleanup: () => void;
@@ -120,7 +121,7 @@ const setElementProp = (
 		if (Predicate.isObject(value)) {
 			const styles = value as Record<string, string | number>;
 			for (const [prop, val] of Object.entries(styles)) {
-				const cssProp = prop.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`);
+				const cssProp = styleKeyToCssProperty(prop);
 				el.style.setProperty(cssProp, String(val));
 			}
 		}
