@@ -27,7 +27,7 @@ import type { LayerInputSource } from '../layers/api/defineLayer.js';
 import type { RenderResult, ServerAppOptions, HeadProps } from './types.js';
 import { renderToString, renderToFragment } from './render.js';
 import { RenderError, createErrorHtml } from './errors.js';
-import { headToHtml } from './head-registry.js';
+import { headToHtml, mergeLayerHeads } from './head-registry.js';
 import { runWithSSRContext } from './use-head.js';
 import { serializeHydrationData, type HydrationData } from './hydration.js';
 import {
@@ -137,8 +137,6 @@ export const createServerApp = (root: Component): ServerApp => {
 
 				const runtime = ssrRuntime;
 
-				const mergeHeads = (heads: readonly HeadProps[]): HeadProps =>
-					heads.reduce<HeadProps>((acc, head) => ({ ...acc, ...head }), {});
 
 				const containerId = options.containerId ?? DEFAULT_CONTAINER_ID;
 				const assets = omitTemplateDeclaredScripts(
@@ -158,7 +156,7 @@ export const createServerApp = (root: Component): ServerApp => {
 							// applied by the client head reconciler, the same tradeoff every
 							// streaming renderer makes. renderToString keeps full head in
 							// <head> for full-head SEO.
-							const staticHead = mergeHeads(runtime.headStack);
+							const staticHead = mergeLayerHeads(runtime.headStack);
 							const staticHeadHtml = `${headToHtml(staticHead)}${renderEntryLinkTags(assets)}`;
 							const lang = staticHead.lang ?? 'en';
 
@@ -205,7 +203,7 @@ export const createServerApp = (root: Component): ServerApp => {
 
 							// Full head now includes anything useHead() collected during
 							// render; it ships in the hydration payload for the client.
-							const mergedHead = mergeHeads(runtime.headStack);
+							const mergedHead = mergeLayerHeads(runtime.headStack);
 							const serializedState: Record<string, unknown> = {};
 							for (const [key, value] of runtime.state) {
 								serializedState[key] = value;
