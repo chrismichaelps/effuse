@@ -70,8 +70,6 @@ export interface TwitterCardProps {
 export interface HeadProps {
 	readonly title?: string;
 
-	readonly titleTemplate?: string | ((title?: string) => string);
-
 	readonly description?: string;
 
 	readonly canonical?: string;
@@ -99,14 +97,6 @@ export interface HeadProps {
 	readonly base?: string;
 
 	readonly robots?: string;
-
-	readonly htmlAttrs?: Record<string, string | boolean>;
-
-	readonly bodyAttrs?: Record<string, string | boolean>;
-
-	readonly noscript?: readonly { innerHTML: string; id?: string }[];
-
-	readonly style?: readonly { innerHTML: string; id?: string; type?: string }[];
 }
 
 export interface SSRContext {
