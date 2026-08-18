@@ -35,6 +35,7 @@ import type { HeadProps, RenderResult, ServerAppOptions } from './types.js';
 import { RenderError } from './errors.js';
 import { escapeHtml, escapeAttr, escapeAttrName } from './escape.js';
 import { normalizeClassValue } from '../render/class-value.js';
+import { isEventHandlerName } from '../render/event-prop.js';
 import { headToHtml } from './head-registry.js';
 import { runWithSSRContext } from './use-head.js';
 import { serializeHydrationData, type HydrationData } from './hydration.js';
@@ -410,7 +411,10 @@ const renderAttributes = (
 			continue;
 		}
 
-		if (key.startsWith('on') && Predicate.isFunction(value)) {
+		// The shared rule, not a prefix test: the client uses it too, and the
+		// prefix alone classified `once`, `online`, and `on-click` as handlers,
+		// so the server dropped attributes the client went on to render.
+		if (isEventHandlerName(key) && Predicate.isFunction(value)) {
 			continue;
 		}
 
