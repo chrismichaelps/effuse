@@ -474,6 +474,15 @@ const renderAttributes = (
 			continue;
 		}
 
+		// The same guard the client applies before `setAttribute`. Coercing
+		// anything with `String(...)` wrote attributes the client refuses to
+		// write, and a Date landed in the HTML as a timezone-dependent string,
+		// so the same data serialized differently on differently-configured
+		// machines. `class` and `style` handled their objects above.
+		if (!Predicate.isString(actualValue) && !Predicate.isNumber(actualValue)) {
+			continue;
+		}
+
 		parts.push(`${attrName}="${escapeAttr(String(actualValue))}"`);
 	}
 
