@@ -32,7 +32,6 @@ export interface HydrationData {
 	head: HeadProps;
 	state: Record<string, unknown>;
 	url: string;
-	timestamp: number;
 }
 
 /**
@@ -206,4 +205,30 @@ export const initHydration = (): HydrationData | null => {
 	}
 
 	return data;
+};
+
+/**
+ * Whether an `If-None-Match` header matches `etag`.
+ *
+ * RFC 7232 §3.2 specifies the *weak* comparison function here, and the header
+ * may carry a comma-separated list or `*`. Comparing the raw header string to
+ * the tag failed all three: a proxy that compresses is expected to downgrade a
+ * strong ETag to `W/"…"` — nginx does this whenever gzip is on — so a 304 was
+ * unreachable behind any compressing proxy even once the tag was stable.
+ */
+export const ifNoneMatchSatisfied = (
+	header: string | null,
+	etag: string
+): boolean => {
+	if (header === null) return false;
+
+	const candidate = header.trim();
+	if (candidate === '') return false;
+	if (candidate === '*') return true;
+
+	// Weak comparison: the `W/` prefix is not part of the opaque tag.
+	const opaque = (tag: string): string => tag.trim().replace(/^W\//, '');
+	const target = opaque(etag);
+
+	return candidate.split(',').some((tag) => opaque(tag) === target);
 };

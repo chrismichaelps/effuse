@@ -129,7 +129,6 @@ export const renderToString = (
 					head: mergedHead,
 					state: serializedState,
 					url,
-					timestamp: Date.now(),
 				};
 
 				const fullHtml = generateFullHtml(

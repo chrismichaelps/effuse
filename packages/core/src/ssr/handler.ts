@@ -24,6 +24,7 @@
 
 import type { Component } from '../render/node.js';
 import { buildCacheControl } from './cache-control.js';
+import { ifNoneMatchSatisfied } from './hydration.js';
 import {
 	layerInputSourceToList,
 	type LayerInputSource,
@@ -149,8 +150,7 @@ export const createHandler = (config: HandlerConfig) => {
 			const etag = `"${hash}"`;
 
 			// Check If-None-Match for conditional requests
-			const ifNoneMatch = req.headers.get('If-None-Match');
-			if (ifNoneMatch === etag) {
+			if (ifNoneMatchSatisfied(req.headers.get('If-None-Match'), etag)) {
 				return new Response(null, {
 					status: 304,
 					headers: { ETag: etag },

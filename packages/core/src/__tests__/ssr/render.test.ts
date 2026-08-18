@@ -173,7 +173,8 @@ describe('SSR render', () => {
 
 			expect(result.html).toContain('__EFFUSE_DATA__');
 			expect(result.html).toContain('"url":"/page"');
-			expect(result.html).toContain('"timestamp"');
+			expect(result.html).toContain('"head"');
+			expect(result.html).toContain('"state"');
 			expect(result.state).toEqual({});
 
 			await runtime.dispose();
