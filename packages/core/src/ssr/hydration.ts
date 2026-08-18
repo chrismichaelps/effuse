@@ -22,6 +22,7 @@
  * SOFTWARE.
  */
 
+import { Predicate } from 'effect';
 import type { HeadProps } from './types.js';
 import { HYDRATION_SCRIPT_ID } from '../constants.js';
 
@@ -49,6 +50,19 @@ export const serializeHydrationData = (data: HydrationData): string => {
 };
 
 /**
+ * Whether a parsed payload is actually hydration data.
+ *
+ * The parse result used to be cast straight to `HydrationData`, so the guard
+ * below caught malformed JSON and then handed back well-formed JSON of any
+ * shape: `{}`, `[]`, `"str"` and `123` all reached `applyHydratedHead`, which
+ * threw reading `head.title` and aborted hydration for the whole page.
+ *
+ * Only `head` is checked, because that is the field this module dereferences.
+ */
+const isHydrationData = (value: unknown): value is HydrationData =>
+	Predicate.isRecord(value) && Predicate.isRecord(value.head);
+
+/**
  * Retrieve hydration data from the DOM on the client side.
  * Returns null if the hydration script is not found or parsing fails.
  */
@@ -65,7 +79,8 @@ export const getHydrationData = (): HydrationData | null => {
 	try {
 		const content = script.textContent;
 		if (!content) return null;
-		return JSON.parse(content) as HydrationData;
+		const parsed: unknown = JSON.parse(content);
+		return isHydrationData(parsed) ? parsed : null;
 	} catch {
 		return null;
 	}
@@ -154,9 +169,13 @@ const sameContent = (
  */
 export const applyHydratedHead = (head: HeadProps): void => {
 	if (typeof document === 'undefined') return;
+	// A public export, so it is reachable without `getHydrationData` and its
+	// shape check; `head.title` threw when it was handed null or a primitive.
+	if (!Predicate.isRecord(head)) return;
 
-	if (head.title && document.title !== head.title) {
-		document.title = head.title;
+	const title = head.title;
+	if (Predicate.isString(title) && title !== '' && document.title !== title) {
+		document.title = title;
 	}
 };
 
