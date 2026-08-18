@@ -354,6 +354,8 @@ export {
 	createHandler,
 	createStreamingHandler,
 	type HandlerConfig,
+	buildCacheControl,
+	type CacheControlOptions,
 	RenderError,
 	createErrorDiagnostic,
 	createErrorHtml,

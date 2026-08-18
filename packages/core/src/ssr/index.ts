@@ -89,6 +89,8 @@ export {
 	type HandlerConfig,
 } from './handler.js';
 
+export { buildCacheControl, type CacheControlOptions } from './cache-control.js';
+
 export {
 	compileLayerServerRouter,
 	handleLayerServerRequest,

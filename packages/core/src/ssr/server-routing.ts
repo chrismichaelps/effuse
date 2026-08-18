@@ -32,6 +32,7 @@ import type {
 	ServerResult,
 	ServerRoute,
 } from '../layers/types.js';
+import { buildCacheControl } from './cache-control.js';
 import { getLayerService } from '../layers/context.js';
 import {
 	resolveLayerDefinitions,
@@ -524,7 +525,10 @@ const applyServerMetadata = (
 	} else if (typeof cache?.revalidate === 'number') {
 		headers.set(
 			'Cache-Control',
-			`s-maxage=${String(cache.revalidate)}, stale-while-revalidate`
+			buildCacheControl({
+				sMaxAge: cache.revalidate,
+				staleWhileRevalidate: true,
+			})
 		);
 	}
 	if (cache?.tags && cache.tags.length > 0) {

@@ -23,6 +23,7 @@
  */
 
 import type { Component } from '../render/node.js';
+import { buildCacheControl } from './cache-control.js';
 import {
 	layerInputSourceToList,
 	type LayerInputSource,
@@ -48,6 +49,25 @@ export interface HandlerConfig {
 	cacheMaxAge?: number;
 	/** Cache-Control s-maxage for CDN caching. Defaults to undefined (not set). */
 	cacheSMaxAge?: number;
+	/**
+	 * Window in which a CDN may serve a stale response while it refreshes.
+	 *
+	 * This is what keeps an origin cold start away from users: the edge answers
+	 * from cache immediately and revalidates behind the response. Setting it
+	 * drops `must-revalidate`, which forbids exactly the stale serving this
+	 * asks for; pass `cacheMustRevalidate` to override that.
+	 */
+	cacheStaleWhileRevalidate?: number;
+	/** Window in which a CDN may serve a stale response after an origin error. */
+	cacheStaleIfError?: number;
+	/** `public` or `private`. Defaults to `public`. */
+	cacheVisibility?: 'public' | 'private';
+	/** Defaults to true, or false when `cacheStaleWhileRevalidate` is set. */
+	cacheMustRevalidate?: boolean;
+	/** Emit `no-store` and drop every other cache directive. */
+	cacheNoStore?: boolean;
+	/** Literal `Cache-Control` value, overriding every option above. */
+	cacheControl?: string;
 	/** Optional error handler for logging/monitoring. Called before returning 500. */
 	onError?: (error: unknown, request: Request) => void;
 	onServerTrace?: (event: ServerTraceEvent) => void;
@@ -133,20 +153,29 @@ export const createHandler = (config: HandlerConfig) => {
 				});
 			}
 
-			// Build Cache-Control header
-			const cacheDirectives: string[] = ['public'];
-			cacheDirectives.push(`max-age=${String(config.cacheMaxAge ?? 0)}`);
-			if (config.cacheSMaxAge !== undefined) {
-				cacheDirectives.push(`s-maxage=${String(config.cacheSMaxAge)}`);
-			}
-			cacheDirectives.push('must-revalidate');
+			// `must-revalidate` forbids serving stale once expired, which is what
+			// `stale-while-revalidate` exists to do, so asking for one drops the
+			// other unless the caller says otherwise.
+			const cacheControl =
+				config.cacheControl ??
+				buildCacheControl({
+					noStore: config.cacheNoStore,
+					visibility: config.cacheVisibility ?? 'public',
+					maxAge: config.cacheMaxAge ?? 0,
+					sMaxAge: config.cacheSMaxAge,
+					staleWhileRevalidate: config.cacheStaleWhileRevalidate,
+					staleIfError: config.cacheStaleIfError,
+					mustRevalidate:
+						config.cacheMustRevalidate ??
+						config.cacheStaleWhileRevalidate === undefined,
+				});
 
 			return new Response(html, {
 				status: 200,
 				headers: {
 					'Content-Type': 'text/html; charset=utf-8',
 					'Content-Length': String(new TextEncoder().encode(html).byteLength),
-					'Cache-Control': cacheDirectives.join(', '),
+					'Cache-Control': cacheControl,
 					ETag: etag,
 					'X-Content-Type-Options': 'nosniff',
 				},
