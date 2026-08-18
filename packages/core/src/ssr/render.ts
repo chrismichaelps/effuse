@@ -37,7 +37,7 @@ import { escapeHtml, escapeAttr, escapeAttrName } from './escape.js';
 import { normalizeClassValue } from '../render/class-value.js';
 import { isEventHandlerName } from '../render/event-prop.js';
 import { styleKeyToCssProperty } from '../render/style-property.js';
-import { headToHtml } from './head-registry.js';
+import { headToHtml, mergeLayerHeads } from './head-registry.js';
 import { runWithSSRContext } from './use-head.js';
 import { serializeHydrationData, type HydrationData } from './hydration.js';
 import {
@@ -105,10 +105,11 @@ export const renderToString = (
 			const html = renderNodeToString(root);
 
 			// Merge all collected heads (layer heads + useHead() calls)
-			const mergedHead = ssrRuntime.headStack.reduce<HeadProps>(
-				(acc, head) => ({ ...acc, ...head }),
-				{}
-			);
+			// `mergeLayerHeads`, not a spread: a spread replaces `meta`, `link`,
+			// `script`, `og` and `twitter` wholesale, so each contributor deleted
+			// what the earlier ones added — a page calling useHead({ meta })
+			// silently dropped every site-wide tag its layers had provided.
+			const mergedHead = mergeLayerHeads(ssrRuntime.headStack);
 
 			// Serialize state for hydration
 			const serializedState: Record<string, unknown> = {};
