@@ -96,11 +96,51 @@ export const mergeHeadProps = (
 	return merged;
 };
 
+/**
+ * Properties the Open Graph and article vocabularies define as repeating.
+ *
+ * A page carries one description but many tags, so these identify a tag by its
+ * content as well as its property. Everything else is singular, where a later
+ * push is meant to replace an earlier one.
+ */
+const REPEATABLE_PROPERTIES = new Set([
+	'article:author',
+	'article:tag',
+	'og:locale:alternate',
+	'og:see_also',
+]);
+
+/** `og:image`, `og:video`, `og:audio` repeat together with their subkeys. */
+const REPEATABLE_PREFIXES = ['og:image', 'og:video', 'og:audio'];
+
+const repeats = (property: string): boolean =>
+	REPEATABLE_PROPERTIES.has(property) ||
+	REPEATABLE_PREFIXES.some(
+		(prefix) => property === prefix || property.startsWith(`${prefix}:`)
+	);
+
+/**
+ * Two meta tags are the same tag when they carry the same discriminator with
+ * the same value. Keying by `name ?? property ?? content` compared those in one
+ * namespace, so a tag with only `http-equiv` was keyed by its content: the
+ * standard `cache-control`/`pragma` no-cache pair collapsed to one, and any tag
+ * whose content matched another tag's name displaced it.
+ */
+const metaTagKey = (tag: MetaTag): string => {
+	if (tag.name !== undefined) return `name:${tag.name}`;
+	if (tag.property !== undefined) {
+		return repeats(tag.property)
+			? `property:${tag.property}:${tag.content}`
+			: `property:${tag.property}`;
+	}
+	if (tag.httpEquiv !== undefined) return `http-equiv:${tag.httpEquiv}`;
+	return `content:${tag.content}`;
+};
+
 const dedupeMetaTags = (tags: readonly MetaTag[]): MetaTag[] => {
 	const seen = new Map<string, MetaTag>();
 	for (const tag of tags) {
-		const key = tag.name ?? tag.property ?? tag.content;
-		seen.set(key, tag);
+		seen.set(metaTagKey(tag), tag);
 	}
 	return Array.from(seen.values());
 };
