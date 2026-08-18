@@ -1,3 +1,10 @@
+## @effuse/query [2.0.5](https://github.com/chrismichaelps/effuse/compare/@effuse/query@2.0.4...@effuse/query@2.0.5) (2026-08-18)
+
+
+### Dependencies
+
+* **@effuse/core:** upgraded to 3.0.0
+
 ## @effuse/query [2.0.4](https://github.com/chrismichaelps/effuse/compare/@effuse/query@2.0.3...@effuse/query@2.0.4) (2026-08-14)
 
 ### Documentation
