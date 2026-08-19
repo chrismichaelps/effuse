@@ -38,6 +38,9 @@ jobs:
       - name: Verify Node.js policy
         run: pnpm check:node
 
+      - name: Verify no literal NUL bytes in sources
+        run: node scripts/check-no-nul-bytes.mjs
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
