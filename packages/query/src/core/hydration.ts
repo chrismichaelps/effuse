@@ -70,6 +70,33 @@ const BUILTIN_SERIALIZERS: TypeSerializer<unknown>[] = [
 	},
 ];
 
+/**
+ * Marks a plain object that already carries the wrapper keys.
+ *
+ * Without it, `deserializeValue` cannot tell a wrapper this module produced
+ * from user data that merely looks like one, and `{ __type: 'Date', __value }`
+ * came back from hydration as a real `Date`.
+ */
+const RAW_MARKER = '__effuse_raw';
+
+const looksLikeWrapper = (value: object): boolean =>
+	'__type' in value && '__value' in value;
+
+/** Recurse into an object's values without re-testing the object itself. */
+const serializeProps = (
+	value: object,
+	serializers: TypeSerializer<unknown>[]
+): Record<string, unknown> => {
+	const result: Record<string, unknown> = {};
+	for (const key of Object.keys(value)) {
+		result[key] = serializeValue(
+			(value as Record<string, unknown>)[key],
+			serializers
+		);
+	}
+	return result;
+};
+
 const serializeValue = (
 	value: unknown,
 	serializers: TypeSerializer<unknown>[]
@@ -87,11 +114,15 @@ const serializeValue = (
 		return value.map((item) => serializeValue(item, serializers));
 	}
 
-	const result: Record<string, unknown> = {};
-	for (const key of Object.keys(value)) {
-		result[key] = serializeValue((value as Record<string, unknown>)[key], serializers);
+	// Escaped rather than emitted as-is: an object shaped like a wrapper is
+	// indistinguishable from one on the way back. Escaping is applied to the
+	// object itself and its values are serialised separately, so an object that
+	// looks like the escape marker escapes too rather than recursing forever.
+	if (looksLikeWrapper(value)) {
+		return { __type: RAW_MARKER, __value: serializeProps(value, serializers) };
 	}
-	return result;
+
+	return serializeProps(value, serializers);
 };
 
 const deserializeValue = (
@@ -101,14 +132,16 @@ const deserializeValue = (
 	if (value === null || value === undefined) return value;
 	if (typeof value !== 'object') return value;
 
-	if (
-		typeof value === 'object' &&
-		value !== null &&
-		'__type' in value &&
-		'__value' in value
-	) {
+	if (looksLikeWrapper(value)) {
 		const typeName = (value as Record<string, unknown>).__type as string;
 		const innerValue = (value as Record<string, unknown>).__value;
+
+		// An escaped object is user data that happened to look like a wrapper:
+		// unwrap one level and return it as the plain object it always was.
+		if (typeName === RAW_MARKER) {
+			return deserializeProps(innerValue as object, serializers);
+		}
+
 		const serializer = serializers.find((s) => s.name === typeName);
 		if (serializer) {
 			return serializer.deserialize(innerValue);
@@ -119,6 +152,14 @@ const deserializeValue = (
 		return value.map((item) => deserializeValue(item, serializers));
 	}
 
+	return deserializeProps(value, serializers);
+};
+
+/** Recurse into an object's values without re-testing the object itself. */
+function deserializeProps(
+	value: object,
+	serializers: TypeSerializer<unknown>[]
+): Record<string, unknown> {
 	const result: Record<string, unknown> = {};
 	for (const key of Object.keys(value)) {
 		result[key] = deserializeValue(
@@ -127,7 +168,7 @@ const deserializeValue = (
 		);
 	}
 	return result;
-};
+}
 
 /** Options for dehydrate and hydrate. */
 export interface DehydrateOptions {
