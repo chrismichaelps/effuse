@@ -12,120 +12,182 @@ import {
 
 const POLICY = { revalidate: 60 } as const;
 
-/** Two requests to one path, each carrying its own header values. */
-const twoCallers = async (
-	varyHeader: string | null
-): Promise<{ runs: number; first: string; second: string; events: string[] }> => {
-	const events: ResponseCacheEvent[] = [];
-	const cache = createResponseCache({
-		maxEntries: 10,
-		onEvent: (event: ResponseCacheEvent) => events.push(event),
-	} as never);
+const request = (headers: Record<string, string> = {}): Request =>
+	new Request('https://example.com/page', { headers });
 
+/** A handler whose `Vary` header can be changed between calls. */
+const varyingHandler = (): {
+	handler: () => Response;
+	setVary: (vary: string | undefined) => void;
+	runs: () => number;
+} => {
+	let vary: string | undefined = 'X-Test';
 	let runs = 0;
-	const handler = (who: string) => () => {
-		runs += 1;
-		return new Response(`body-for-${who}`, {
-			status: 200,
-			headers: varyHeader === null ? {} : { Vary: varyHeader },
-		});
-	};
-	const request = (who: string) =>
-		new Request('http://x/page', {
-			headers: { 'x-user': who, 'accept-language': who },
-		});
-
-	const first = await cache.handle(request('alice'), POLICY, handler('alice'));
-	const second = await cache.handle(request('bob'), POLICY, handler('bob'));
-
 	return {
-		runs,
-		first: await first.text(),
-		second: await second.text(),
-		events: events.map((event) => event.type),
+		handler: () => {
+			runs += 1;
+			return new Response('body', {
+				status: 200,
+				headers: vary === undefined ? {} : { Vary: vary },
+			});
+		},
+		setVary: (next) => {
+			vary = next;
+		},
+		runs: () => runs,
 	};
 };
 
-describe('Vary: * is never reused', () => {
-	it.each(['*', '*, Accept-Encoding', 'Accept, *', 'accept-encoding , *'])(
-		'runs the handler again for %s',
-		async (varyHeader) => {
-			// RFC 7234 4.1: a stored response whose Vary is `*` always fails to
-			// match. Collapsing it to "no variance" served the first caller's
-			// body to everyone.
-			const outcome = await twoCallers(varyHeader);
-
-			expect(outcome.runs).toBe(2);
-			expect(outcome.first).toBe('body-for-alice');
-			expect(outcome.second).toBe('body-for-bob');
-		}
-	);
-
-	it('reports the decision as a bypass', async () => {
-		const outcome = await twoCallers('*');
-
-		expect(outcome.events).toContain('bypass');
-	});
-
-	it('never serves a stored entry for it, however many callers arrive', async () => {
-		const cache = createResponseCache({ maxEntries: 10 });
+describe('response cache Vary learning', () => {
+	it('caches a route that never varies', async () => {
+		const cache = createResponseCache();
 		let runs = 0;
-		const handler = () => {
+		const handler = (): Response => {
 			runs += 1;
-			return new Response(`run-${runs}`, {
-				status: 200,
-				headers: { Vary: '*' },
-			});
+			return new Response('body', { status: 200 });
 		};
 
-		const bodies: string[] = [];
-		for (let index = 0; index < 4; index++) {
-			bodies.push(
-				await (
-					await cache.handle(new Request('http://x/p'), POLICY, handler)
-				).text()
+		for (let attempt = 0; attempt < 4; attempt += 1) {
+			await cache.handle(request(), POLICY, handler);
+		}
+
+		expect(runs).toBe(1);
+	});
+
+	it('varies while the route sends Vary', async () => {
+		const cache = createResponseCache();
+		const source = varyingHandler();
+
+		await cache.handle(request({ 'X-Test': 'a' }), POLICY, source.handler);
+		await cache.handle(request({ 'X-Test': 'a' }), POLICY, source.handler);
+		await cache.handle(request({ 'X-Test': 'b' }), POLICY, source.handler);
+
+		// One run per distinct header value, and the repeat of 'a' hits.
+		expect(source.runs()).toBe(2);
+	});
+
+	it('caches again after the route stops sending Vary', async () => {
+		const cache = createResponseCache();
+		const source = varyingHandler();
+
+		await cache.handle(request({ 'X-Test': 'a' }), POLICY, source.handler);
+		source.setVary(undefined);
+
+		// First call relearns; the rest must hit.
+		await cache.handle(request({ 'X-Test': 'x' }), POLICY, source.handler);
+		const before = source.runs();
+		for (let attempt = 0; attempt < 4; attempt += 1) {
+			await cache.handle(request({ 'X-Test': 'x' }), POLICY, source.handler);
+		}
+
+		expect(source.runs()).toBe(before);
+	});
+
+	it('serves one entry to differing headers once Vary is gone', async () => {
+		const cache = createResponseCache();
+		const source = varyingHandler();
+
+		await cache.handle(request({ 'X-Test': 'a' }), POLICY, source.handler);
+		source.setVary(undefined);
+		await cache.handle(request({ 'X-Test': 'first' }), POLICY, source.handler);
+
+		const events: ResponseCacheEvent[] = [];
+		const observed = createResponseCache({
+			onEvent: (event) => events.push(event),
+		});
+		const plain = (): Response => new Response('body', { status: 200 });
+		await observed.handle(request({ 'X-Test': 'p' }), POLICY, plain);
+		await observed.handle(request({ 'X-Test': 'q' }), POLICY, plain);
+
+		// A route with no Vary must ignore the header entirely.
+		expect(events.map((event) => event.type)).toEqual(['miss', 'hit']);
+	});
+
+	it('adopts a new set of Vary headers when the route changes them', async () => {
+		const cache = createResponseCache();
+		const source = varyingHandler();
+
+		await cache.handle(request({ 'X-Test': 'a' }), POLICY, source.handler);
+		source.setVary('X-Other');
+		await cache.handle(request({ 'X-Other': 'b' }), POLICY, source.handler);
+		const before = source.runs();
+
+		// Keyed by X-Other now, so X-Test may differ freely.
+		await cache.handle(
+			request({ 'X-Other': 'b', 'X-Test': 'anything' }),
+			POLICY,
+			source.handler
+		);
+
+		expect(source.runs()).toBe(before);
+	});
+
+	it('does not retain Vary rules for entries it has evicted', async () => {
+		const cache = createResponseCache({ maxEntries: 2 });
+		let runs = 0;
+		const handler = (): Response => {
+			runs += 1;
+			return new Response('body', { status: 200, headers: { Vary: 'X-Test' } });
+		};
+
+		// Far more distinct paths than the cache can hold.
+		for (let index = 0; index < 50; index += 1) {
+			await cache.handle(
+				new Request(`https://example.com/p/${String(index)}`, {
+					headers: { 'X-Test': 'v' },
+				}),
+				POLICY,
+				handler
 			);
 		}
 
-		expect(runs).toBe(4);
-		expect(bodies).toEqual(['run-1', 'run-2', 'run-3', 'run-4']);
+		expect(cache.size).toBeLessThanOrEqual(2);
+		expect(runs).toBe(50);
+
+		// The evicted paths must not still be described by a retained rule.
+		const revisit = await cache.handle(
+			new Request('https://example.com/p/0', { headers: { 'X-Test': 'v' } }),
+			POLICY,
+			handler
+		);
+		expect(revisit.status).toBe(200);
+		expect(cache.size).toBeLessThanOrEqual(2);
 	});
-});
+	it('keeps the rule when a stale entry is refreshed in the background', async () => {
+		// The refresh re-stores the same key while the entry is still present, so
+		// the replacement releases the rule's last reference. Recording the rule
+		// before that store silently dropped it, and the route stopped varying.
+		let clock = 1_000_000;
+		const cache = createResponseCache({ now: () => clock });
+		const policy = { revalidate: 10, staleWhileRevalidate: 600 } as const;
+		const source = varyingHandler();
 
-describe('ordinary Vary handling is unchanged', () => {
-	it('separates callers by a named header', async () => {
-		const outcome = await twoCallers('x-user');
+		await cache.handle(request({ 'X-Test': 'a' }), policy, source.handler);
+		clock += 20_000;
+		await cache.handle(request({ 'X-Test': 'a' }), policy, source.handler);
+		await cache.idle();
 
-		expect(outcome.runs).toBe(2);
-		expect(outcome.second).toBe('body-for-bob');
+		const before = source.runs();
+		await cache.handle(request({ 'X-Test': 'a' }), policy, source.handler);
+		expect(source.runs()).toBe(before);
+
+		// Still keyed by the header, so a new value is still a miss.
+		await cache.handle(request({ 'X-Test': 'b' }), policy, source.handler);
+		await cache.handle(request({ 'X-Test': 'b' }), policy, source.handler);
+		expect(source.runs()).toBe(before + 1);
 	});
 
-	it('serves a second caller from cache when the named header matches', async () => {
-		const cache = createResponseCache({ maxEntries: 10 });
-		let runs = 0;
-		const handler = () => {
-			runs += 1;
-			return new Response(`run-${runs}`, {
-				status: 200,
-				headers: { Vary: 'x-user' },
-			});
-		};
-		const request = () =>
-			new Request('http://x/p', { headers: { 'x-user': 'same' } });
+	it('keeps the rule when an expired entry is replaced', async () => {
+		let clock = 1_000_000;
+		const cache = createResponseCache({ now: () => clock });
+		const source = varyingHandler();
 
-		const first = await (await cache.handle(request(), POLICY, handler)).text();
-		const second = await (
-			await cache.handle(request(), POLICY, handler)
-		).text();
+		await cache.handle(request({ 'X-Test': 'a' }), POLICY, source.handler);
+		clock += 120_000;
+		await cache.handle(request({ 'X-Test': 'a' }), POLICY, source.handler);
 
-		expect(runs).toBe(1);
-		expect(second).toBe(first);
-	});
-
-	it('caches under the base key when there is no Vary at all', async () => {
-		const outcome = await twoCallers(null);
-
-		expect(outcome.runs).toBe(1);
-		expect(outcome.second).toBe('body-for-alice');
+		const before = source.runs();
+		await cache.handle(request({ 'X-Test': 'a' }), POLICY, source.handler);
+		expect(source.runs()).toBe(before);
 	});
 });
