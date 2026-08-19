@@ -256,7 +256,7 @@ export const injectIntoTemplate = (
 };
 
 /** Sentinel that cannot occur in HTML, used to split a template in two. */
-const STREAM_OUTLET_SENTINEL = ' effuse-stream-outlet ';
+const STREAM_OUTLET_SENTINEL = '\u0000effuse-stream-outlet\u0000';
 
 export interface TemplateParts {
 	/** Everything up to and including the render outlet's opening tag. */
