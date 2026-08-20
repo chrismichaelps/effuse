@@ -75,3 +75,40 @@ export const PIPELINE_OPERATORS: readonly PipelineOperatorDescription[] = [
 		appliesTo: 'list',
 	},
 ];
+
+/** One thing the specification leaves optional. */
+export interface FeatureDescription {
+	readonly name: string;
+	readonly description: string;
+	readonly supported: boolean;
+}
+
+/**
+ * The optional features of the specification, and whether this runtime has
+ * them, so a client can find out rather than guess.
+ */
+export const OPTIONAL_FEATURES: readonly FeatureDescription[] = [
+	{
+		name: 'costAnalysis',
+		description:
+			'Requests are priced before they run, and can be refused for cost or depth.',
+		supported: true,
+	},
+	{
+		name: 'differentialLive',
+		description:
+			'A live operation can send only what changed since the snapshot before it.',
+		supported: true,
+	},
+	{
+		name: 'transactions',
+		description:
+			'A mutation can group fields in a transaction block, which run in order.',
+		supported: true,
+	},
+	{
+		name: 'introspection',
+		description: 'The catalog describes itself through __schema and __type.',
+		supported: true,
+	},
+];

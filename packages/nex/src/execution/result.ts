@@ -23,6 +23,7 @@
  */
 
 import type { NexExecutionError } from '../errors/index.js';
+import type { PatchOperation } from './patch.js';
 
 /** What to do with a field that fails, from specification section 6. */
 export const ErrorPolicy = {
@@ -36,10 +37,26 @@ export const ErrorPolicy = {
 
 export type ErrorPolicy = (typeof ErrorPolicy)[keyof typeof ErrorPolicy];
 
+/** How a live operation sends what it produced, per specification section 7. */
+export const LiveDelivery = {
+	/** Every event carries the whole response. */
+	SNAPSHOT: 'snapshot',
+	/** The first event carries the whole response; the rest carry changes. */
+	DIFFERENTIAL: 'differential',
+} as const;
+
+export type LiveDelivery = (typeof LiveDelivery)[keyof typeof LiveDelivery];
+
 /** A response, shaped as specification section 7 describes. */
 export interface ExecutionResult {
-	/** The data that resolved, or `null` when the request could not run. */
-	readonly data: Record<string, unknown> | null;
+	/**
+	 * The data that resolved, or `null` when the request could not run.
+	 *
+	 * Absent on a differential snapshot, which carries {@link patch} instead.
+	 */
+	readonly data?: Record<string, unknown> | null | undefined;
+	/** What changed since the last snapshot, when sending differences. */
+	readonly patch?: readonly PatchOperation[] | undefined;
 	/** Every problem, present only when there was at least one. */
 	readonly errors?: readonly NexExecutionError[] | undefined;
 	/** Everything else worth reporting, starting with what the request cost. */

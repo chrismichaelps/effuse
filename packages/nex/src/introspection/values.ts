@@ -35,7 +35,7 @@ import type {
 import { Kind } from '../language/kinds/index.js';
 import { printValue } from '../language/printer/index.js';
 import { introspectionTypes } from './definitions.js';
-import { PIPELINE_OPERATORS } from './operators.js';
+import { OPTIONAL_FEATURES, PIPELINE_OPERATORS } from './operators.js';
 
 const TYPE_KINDS: Readonly<Record<string, string>> = {
 	[Kind.SCALAR_TYPE_DEFINITION]: 'SCALAR',
@@ -297,6 +297,11 @@ export const schemaValue = (catalog: Catalog): Introspected => ({
 		PIPELINE_OPERATORS.map((operator) => ({
 			__typename: '__PipelineOperator',
 			...operator,
+		})),
+	features: () =>
+		OPTIONAL_FEATURES.map((feature) => ({
+			__typename: '__Feature',
+			...feature,
 		})),
 });
 

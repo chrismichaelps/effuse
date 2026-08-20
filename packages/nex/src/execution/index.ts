@@ -38,7 +38,8 @@ export {
 	type TypeNameResolver,
 	type TypeResolvers,
 } from './resolvers.js';
-export { ErrorPolicy, type ExecutionResult } from './result.js';
+export { ErrorPolicy, LiveDelivery, type ExecutionResult } from './result.js';
+export { applyPatch, diffValues, type PatchOperation } from './patch.js';
 export {
 	executeLive,
 	liveRootField,

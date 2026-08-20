@@ -39,6 +39,15 @@ export const INTROSPECTION_SOURCE = `
 		directives: [__Directive!]!
 		"The pipeline stages this runtime understands."
 		pipelineOperators: [__PipelineOperator!]!
+		"The optional features this runtime supports."
+		features: [__Feature!]!
+	}
+
+	"Something the specification leaves optional, and whether it is here."
+	type __Feature {
+		name: String!
+		description: String!
+		supported: Boolean!
 	}
 
 	"A named type, or a wrapper around one."

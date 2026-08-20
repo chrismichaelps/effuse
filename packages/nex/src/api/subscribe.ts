@@ -31,6 +31,8 @@ import type {
 import { Kind } from '../language/kinds/index.js';
 import {
 	ErrorPolicy,
+	LiveDelivery,
+	diffValues,
 	coerceVariableValues,
 	executeLive,
 	type ExecutionResult,
@@ -44,6 +46,14 @@ import { validateRequest } from './validate-request.js';
 export interface SubscribeOptions extends Omit<ExecuteOptions, 'rootValue'> {
 	/** Where each live field's events come from, by type then field name. */
 	readonly sources: LiveSources;
+	/**
+	 * Whether every event carries the whole response, or only what changed.
+	 *
+	 * Defaults to `snapshot`. With `differential`, the first event carries the
+	 * whole response and the rest carry a patch against the one before, which
+	 * a client applies with `applyPatch`.
+	 */
+	readonly delivery?: LiveDelivery | undefined;
 }
 
 const fragmentsOf = (
@@ -178,13 +188,44 @@ export const subscribe = async function* (
 		options.sources
 	);
 
+	const differential = options.delivery === LiveDelivery.DIFFERENTIAL;
+	let previous: Record<string, unknown> | undefined;
+
 	for await (const outcome of snapshots) {
 		const errors = formatErrors(outcome.errors, format);
+		const extensions = { cost: analysis.cost };
+
+		// A snapshot that failed has nothing to describe changes against, so
+		// the next one that succeeds is sent whole again.
+		if (!differential || outcome.data === null) {
+			if (outcome.data === null) previous = undefined;
+			else if (differential) previous = outcome.data;
+
+			yield {
+				data: outcome.data,
+				...(errors.length === 0 ? {} : { errors }),
+				extensions,
+			};
+			continue;
+		}
+
+		if (previous === undefined) {
+			previous = outcome.data;
+			yield {
+				data: outcome.data,
+				...(errors.length === 0 ? {} : { errors }),
+				extensions,
+			};
+			continue;
+		}
+
+		const patch = diffValues(previous, outcome.data);
+		previous = outcome.data;
 
 		yield {
-			data: outcome.data,
+			patch,
 			...(errors.length === 0 ? {} : { errors }),
-			extensions: { cost: analysis.cost },
+			extensions,
 		};
 	}
 };

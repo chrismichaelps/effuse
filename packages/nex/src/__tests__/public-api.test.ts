@@ -127,6 +127,8 @@ describe('public API', () => {
 		expect(surface).toEqual(
 			expect.arrayContaining([
 				'analyzeRequest',
+				'applyPatch',
+				'diffValues',
 				'buildCatalog',
 				'buildCatalogFromIntrospection',
 				'buildCatalogFromIntrospectionSafe',
@@ -179,6 +181,8 @@ describe('public API', () => {
 				'BUILT_IN_SCALARS',
 				'DirectiveLocation',
 				'ErrorPolicy',
+				'LiveDelivery',
+				'OPTIONAL_FEATURES',
 				'Kind',
 				'OperationType',
 				'INTROSPECTION_QUERY',

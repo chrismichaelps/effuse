@@ -13,11 +13,13 @@ const entry = pathToFileURL(resolve(packageRoot, 'dist/index.js')).href;
 
 const REQUIRED = [
 	'analyzeRequest',
+	'applyPatch',
 	'buildCatalog',
 	'buildCatalogFromIntrospection',
 	'buildCatalogFromIntrospectionSafe',
 	'buildCatalogSafe',
 	'concatDocuments',
+	'diffValues',
 	'execute',
 	'handleHttpRequest',
 	'isDocument',
@@ -42,6 +44,8 @@ const REQUIRED = [
 	'BUILT_IN_SCALARS',
 	'DirectiveLocation',
 	'ErrorPolicy',
+	'LiveDelivery',
+	'OPTIONAL_FEATURES',
 	'Kind',
 	'NexCatalogError',
 	'NexExecutionError',

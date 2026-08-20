@@ -30,7 +30,9 @@ export {
 	TYPE_FIELD,
 } from './definitions.js';
 export {
+	OPTIONAL_FEATURES,
 	PIPELINE_OPERATORS,
+	type FeatureDescription,
 	type PipelineOperatorDescription,
 } from './operators.js';
 export { schemaValue, typeByNameValue, typeValue } from './values.js';

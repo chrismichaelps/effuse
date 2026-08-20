@@ -221,11 +221,48 @@ for await (const snapshot of stream) {
 }
 ```
 
-Stop reading and the source is closed with the loop. Differential updates are a transport concern; what this produces is a snapshot per event.
+Stop reading and the source is closed with the loop.
+
+### Sending only what changed
+
+A board of players changes one score at a time, and sending the whole board
+each time is mostly repetition. Ask for differential delivery and the first
+event carries the whole response, the rest carry what changed:
+
+```ts
+const stream = subscribe({
+  request,
+  catalog,
+  sources,
+  delivery: 'differential',
+});
+
+let snapshot;
+for await (const event of stream) {
+  snapshot = event.patch ? applyPatch(snapshot, event.patch) : event.data;
+  render(snapshot);
+}
+```
+
+A patch is a list of `set` and `remove` operations, each with the path it
+applies at, and `applyPatch` returns a new value rather than touching the one
+it was given. A snapshot that failed cannot be described as a change against
+the one before it, so the next one that succeeds is sent whole again.
+
+`diffValues` and `applyPatch` are exported on their own, for a client that
+keeps its own cache.
 
 ## Introspection
 
-`__schema` and `__type` answer from the catalog with no wiring, alongside `__typename`. Beyond the shape of the catalog, they report what the catalog knows: whether a field is a `@connection`, what it costs, what it requires of the caller, and which pipeline operators the runtime understands.
+`__schema` and `__type` answer from the catalog with no wiring, alongside `__typename`. Beyond the shape of the catalog, they report what the catalog knows: whether a field is a `@connection`, what it costs, what it requires of the caller, which pipeline operators the runtime understands, and which optional features it supports.
+
+```ts
+await execute({
+  request: '{ __schema { features { name supported } } }',
+  catalog,
+});
+// costAnalysis, differentialLive, transactions, introspection
+```
 
 ```ts
 await execute({

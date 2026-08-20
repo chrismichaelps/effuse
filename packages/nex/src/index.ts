@@ -64,7 +64,11 @@ export { DirectiveLocation } from './catalog/directive-locations.js';
 
 export {
 	ErrorPolicy,
+	LiveDelivery,
+	applyPatch,
+	diffValues,
 	type ExecutionResult,
+	type PatchOperation,
 	type FieldResolver,
 	type LiveSource,
 	type LiveSources,
@@ -77,6 +81,7 @@ export {
 
 export {
 	INTROSPECTION_QUERY,
+	OPTIONAL_FEATURES,
 	PIPELINE_OPERATORS,
 	type PipelineOperatorDescription,
 } from './introspection/index.js';
