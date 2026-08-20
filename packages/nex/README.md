@@ -500,6 +500,26 @@ is `unknown`, so a caller has to say what they expect before using it.
 The request is validated first: types written from a request that cannot run
 would lie about what comes back.
 
+`generateCatalogTypes` does the same for the other side: one type per catalog
+type, plus a `CatalogResolvers` map that says what each resolver is given and
+what it must return.
+
+```ts
+export type CatalogResolvers<TContext = unknown> = {
+  Query?: {
+    posts?: (
+      source: Query,
+      args: { status?: Status | null; first?: number | null },
+      context: TContext,
+      info: ResolverInfo
+    ) => Post[] | Promise<Post[]>;
+  };
+};
+```
+
+An interface or union entry also takes `__resolveType`, and every part is
+optional, since a field with no resolver reads its own property.
+
 ## What a request still leans on
 
 A request can validate cleanly and still ask for things on their way out.

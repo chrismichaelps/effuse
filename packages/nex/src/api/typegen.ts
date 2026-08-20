@@ -26,7 +26,10 @@ import type { Catalog } from '../catalog/index.js';
 import { NexValidationError } from '../errors/index.js';
 import type { FragmentDefinitionNode } from '../language/ast/index.js';
 import { Kind } from '../language/kinds/index.js';
-import { generateOperationTypes } from '../typegen/index.js';
+import {
+	generateCatalogTypes as writeCatalogTypes,
+	generateOperationTypes,
+} from '../typegen/index.js';
 import { parse } from './parse.js';
 import { validateRequest, type RequestInput } from './validate-request.js';
 
@@ -85,3 +88,13 @@ export const generateTypes = (
 
 	return `${blocks.join('\n\n')}\n`;
 };
+
+/**
+ * Write the TypeScript for everything a catalog holds.
+ *
+ * One type per catalog type, plus a `CatalogResolvers` map that types what
+ * each resolver is given and what it must return, so a server is checked
+ * against its own catalog rather than against a comment.
+ */
+export const generateCatalogTypes = (catalog: Catalog): string =>
+	writeCatalogTypes(catalog);

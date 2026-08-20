@@ -24,3 +24,4 @@
 
 export { generateOperationTypes } from './generate.js';
 export { CUSTOM_SCALAR_TYPE, SCALAR_TYPES } from './scalars.js';
+export { generateCatalogTypes } from './catalog.js';

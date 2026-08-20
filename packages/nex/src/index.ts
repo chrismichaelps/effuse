@@ -31,6 +31,7 @@ export {
 	createOperationStore,
 	execute,
 	findDeprecations,
+	generateCatalogTypes,
 	generateTypes,
 	handleHttpRequest,
 	isDocument,

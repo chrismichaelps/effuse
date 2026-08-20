@@ -63,4 +63,8 @@ export {
 	type OperationStore,
 } from './operation-store.js';
 export { findDeprecations } from './deprecations.js';
-export { generateTypes, type GenerateTypesOptions } from './typegen.js';
+export {
+	generateCatalogTypes,
+	generateTypes,
+	type GenerateTypesOptions,
+} from './typegen.js';

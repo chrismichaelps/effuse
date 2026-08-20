@@ -137,6 +137,7 @@ describe('public API', () => {
 				'concatDocuments',
 				'execute',
 				'findDeprecations',
+				'generateCatalogTypes',
 				'generateTypes',
 				'handleHttpRequest',
 				'isDocument',
