@@ -22,6 +22,7 @@
  * SOFTWARE.
  */
 
+import type { NexScalars } from './scalars.js';
 import { BUILT_IN_SCALARS, type Catalog } from '../catalog/index.js';
 import type {
 	ArgumentNode,
@@ -78,7 +79,8 @@ export const coerceInputValue = (
 	catalog: Catalog,
 	value: unknown,
 	type: TypeNode,
-	subject: string
+	subject: string,
+	scalars: NexScalars = {}
 ): { readonly value: unknown } | { readonly errors: readonly string[] } => {
 	if (type.kind === Kind.NON_NULL_TYPE) {
 		if (value === null || value === undefined) {
@@ -86,13 +88,13 @@ export const coerceInputValue = (
 				errors: [`${subject} of type "${displayType(type)}" cannot be null`],
 			};
 		}
-		return coerceInputValue(catalog, value, type.type, subject);
+		return coerceInputValue(catalog, value, type.type, subject, scalars);
 	}
 
 	if (value === null || value === undefined) return { value: null };
 
 	if (type.kind === Kind.OPTIONAL_TYPE) {
-		return coerceInputValue(catalog, value, type.type, subject);
+		return coerceInputValue(catalog, value, type.type, subject, scalars);
 	}
 
 	if (type.kind === Kind.LIST_TYPE) {
@@ -101,7 +103,13 @@ export const coerceInputValue = (
 		const errors: string[] = [];
 
 		for (const item of items) {
-			const result = coerceInputValue(catalog, item, type.type, subject);
+			const result = coerceInputValue(
+				catalog,
+				item,
+				type.type,
+				subject,
+				scalars
+			);
 			if ('errors' in result) errors.push(...result.errors);
 			else coerced.push(result.value);
 		}
@@ -164,7 +172,8 @@ export const coerceInputValue = (
 				catalog,
 				supplied,
 				field.type,
-				`Field "${key}"`
+				`Field "${key}"`,
+				scalars
 			);
 			if ('errors' in result) errors.push(...result.errors);
 			else fields[key] = result.value;
@@ -173,7 +182,24 @@ export const coerceInputValue = (
 		return errors.length > 0 ? { errors } : { value: fields };
 	}
 
-	if (!BUILT_IN_SCALARS.has(typeName)) return { value };
+	if (!BUILT_IN_SCALARS.has(typeName)) {
+		const scalar = scalars[typeName];
+		if (scalar === undefined) return { value };
+
+		// The server said what one of these is, so it decides whether this is
+		// one - and what it says becomes the reason a caller is given.
+		try {
+			return { value: scalar.parse(value) };
+		} catch (cause) {
+			return {
+				errors: [
+					`${subject} of type "${typeName}" cannot be read: ${
+						cause instanceof Error ? cause.message : String(cause)
+					}`,
+				],
+			};
+		}
+	}
 
 	const accepted =
 		(typeName === 'Int' && isInteger(value)) ||
@@ -197,7 +223,8 @@ export const coerceInputValue = (
 export const coerceVariableValues = (
 	catalog: Catalog,
 	operation: OperationDefinitionNode,
-	supplied: Readonly<Record<string, unknown>>
+	supplied: Readonly<Record<string, unknown>>,
+	scalars: NexScalars = {}
 ):
 	| { readonly variables: Readonly<Record<string, unknown>> }
 	| { readonly errors: readonly string[] } => {
@@ -225,7 +252,8 @@ export const coerceVariableValues = (
 			catalog,
 			value,
 			definition.type,
-			`Variable "$${name}"`
+			`Variable "$${name}"`,
+			scalars
 		);
 		if ('errors' in result) errors.push(...result.errors);
 		else variables[name] = result.value;
@@ -235,10 +263,28 @@ export const coerceVariableValues = (
 };
 
 /** Build the argument object a resolver is called with. */
+/**
+ * Whether a value written in a request leans on a variable anywhere inside it.
+ *
+ * A variable has already been read by the time an argument is built, so
+ * reading it a second time would hand a scalar what it produced rather than
+ * what a caller wrote. Only a value written out in full is read here.
+ */
+const isWrittenOut = (node: ValueNode): boolean => {
+	if (node.kind === Kind.VARIABLE) return false;
+	if (node.kind === Kind.LIST) return node.values.every(isWrittenOut);
+	if (node.kind === Kind.OBJECT) {
+		return node.fields.every((field) => isWrittenOut(field.value));
+	}
+	return true;
+};
+
 export const coerceArgumentValues = (
 	definition: FieldDefinitionNode,
 	provided: readonly ArgumentNode[] | undefined,
-	variables: Readonly<Record<string, unknown>>
+	variables: Readonly<Record<string, unknown>>,
+	catalog?: Catalog,
+	scalars: NexScalars = {}
 ): Readonly<Record<string, unknown>> => {
 	const written = new Map<string, ArgumentNode>(
 		(provided ?? []).map((argument) => [argument.name.value, argument])
@@ -266,7 +312,28 @@ export const coerceArgumentValues = (
 			continue;
 		}
 
-		args[name] = valueFromNode(argument.value, variables);
+		const value = valueFromNode(argument.value, variables);
+
+		// A value written out in the request has not been read yet, so this is
+		// where a scalar the server defined gets to say what it is.
+		if (catalog !== undefined && isWrittenOut(argument.value)) {
+			const read = coerceInputValue(
+				catalog,
+				value,
+				declared.type,
+				`Argument "${name}"`,
+				scalars
+			);
+
+			if ('errors' in read) {
+				throw new Error(read.errors[0] ?? `Argument "${name}" cannot be read`);
+			}
+
+			args[name] = read.value;
+			continue;
+		}
+
+		args[name] = value;
 	}
 
 	return args;

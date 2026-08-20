@@ -34,6 +34,7 @@ import type {
 import { Kind } from '../language/kinds/index.js';
 import { BUILT_IN_SCALARS, REFERENCE_FIELD } from '../catalog/index.js';
 import { refFor } from './reference.js';
+import type { NexScalars } from './scalars.js';
 import {
 	isCompositeName,
 	listItemType,
@@ -136,6 +137,8 @@ export interface ExecutionPlan<TContext = unknown> {
 	readonly signal?: AbortSignal | undefined;
 	/** Where the run reports what it did. */
 	readonly instrumentation?: Instrumentation | undefined;
+	/** How the server writes and reads the scalars it names. */
+	readonly scalars?: NexScalars | undefined;
 }
 
 /** What a run produced, before it is dressed up as a response. */
@@ -260,7 +263,22 @@ export const executeOperation = async <TContext>(
 			return serialized;
 		}
 
-		if (!BUILT_IN_SCALARS.has(typeName)) return value;
+		if (!BUILT_IN_SCALARS.has(typeName)) {
+			const scalar = plan.scalars?.[typeName];
+			if (scalar === undefined) return value;
+
+			// The server said how one of these is written, so what it says goes
+			// on the wire - and what it refuses is reported as it said it.
+			try {
+				return scalar.serialize(value);
+			} catch (cause) {
+				throw new NexExecutionError({
+					message: cause instanceof Error ? cause.message : String(cause),
+					path: pathToArray(path),
+					cause,
+				});
+			}
+		}
 
 		const refuse = (): never => {
 			throw new NexExecutionError({
@@ -569,7 +587,13 @@ export const executeOperation = async <TContext>(
 			(declaredArguments === undefined || declaredArguments.length === 0) &&
 			(field.arguments === undefined || field.arguments.length === 0)
 				? NO_ARGUMENTS
-				: coerceArgumentValues(definition, field.arguments, plan.variables);
+				: coerceArgumentValues(
+						definition,
+						field.arguments,
+						plan.variables,
+						plan.catalog,
+						plan.scalars ?? {}
+					);
 
 		const produced =
 			supplied === undefined

@@ -73,3 +73,4 @@ export {
 	type LoaderOptions,
 } from './loader.js';
 export { parseRef, refFor, type ObjectReference } from './reference.js';
+export type { NexScalar, NexScalars } from './scalars.js';
