@@ -36,3 +36,11 @@ export {
 	saveNexState,
 	type SSRState,
 } from './ssr.js';
+export {
+	nexMutation,
+	nexQuery,
+	nexQueryKey,
+	type NexBindingOptions,
+	type NexMutationBinding,
+	type NexQueryBinding,
+} from './query-binding.js';

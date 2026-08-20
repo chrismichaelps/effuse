@@ -100,7 +100,13 @@ export { DirectiveLocation } from './catalog/directive-locations.js';
 export {
 	createNexClient,
 	loadNexState,
+	nexMutation,
+	nexQuery,
+	nexQueryKey,
 	NEX_STATE_KEY,
+	type NexBindingOptions,
+	type NexMutationBinding,
+	type NexQueryBinding,
 	readEventStream,
 	saveNexState,
 	type SSRState,
