@@ -854,6 +854,34 @@ nex.hydrate(payload);
 await nex.request('{ posts | page first: 10 { title } }'); // no request goes out
 ```
 
+A render in this ecosystem already carries a state bag for exactly this, so
+the handoff goes where the rest of the page's state goes rather than beside
+it:
+
+```ts
+import { createSSRRuntime, renderToString } from '@effuse/core';
+import { saveNexState } from '@effuse/nex';
+
+const runtime = await createSSRRuntime(layers);
+await nex.prefetch('{ posts | page first: 10 { title } }');
+saveNexState(runtime.state, nex);
+
+const { html, state } = runtime.run(() => renderToString(App, url, runtime));
+```
+
+```ts
+import { loadNexState } from '@effuse/nex';
+
+loadNexState(state, nex); // whatever the page carried
+```
+
+Both sides have to agree on where it sits, and agreeing by writing the same
+string twice is how they stop agreeing - so neither writes it. A render that
+fetched nothing leaves nothing rather than an empty shell, and what comes back
+is checked before it is trusted: it arrived through JSON, from the page rather
+than from this process, so a page carrying something else leaves the client
+empty instead of holding a shape it will fail on later.
+
 Because entries are keyed by `requestKey`, a render and the browser that takes
 over agree on what has already been asked without exchanging anything else -
 the same key a persisted-operation store uses.
@@ -1044,6 +1072,45 @@ Each capability, and what keeps it honest:
 
 Not implemented, and why: federation is future work in the specification;
 binary transports and multipart uploads belong to whatever serves the package.
+
+### Every subject, and where it is answered
+
+A query language is only as good as the questions it has an answer for. This
+is the full list of subjects a hierarchical, typed API has to deal with, and
+where each is answered here - including the ones deliberately left out.
+
+| Subject                      | Where                                                                          |
+| ---------------------------- | ------------------------------------------------------------------------------ |
+| The language                 | `parse`, `print`, `tokenize`, and the AST, including pipelines and `Type?`     |
+| The type system and catalogs | `buildCatalog`, coherence checks, extensions, `printCatalog`                   |
+| Requests                     | Fields, arguments, aliases, fragments, variables, `@skip` and `@include`       |
+| Changes                      | Mutations, run serially, with transaction blocks                               |
+| Live data                    | `live` operations over server-sent events, snapshots or patches                |
+| Execution                    | `execute`, resolvers, error policies, per-row concurrency                      |
+| The response                 | `data`, `errors`, `extensions`, and a partial response that says why           |
+| Validation                   | Every rule, reported at once, with the pipeline rules this language adds       |
+| Introspection                | `__schema`, `__type`, `__typename`, plus operators, cost, and features         |
+| Paging                       | `\| page`, `@connection`, and one page shape everything paged answers in       |
+| Serving over HTTP            | `createNexHandler`, GET and POST, batching, event streams                      |
+| Server rendering             | `saveNexState` and `loadNexState`, through the ecosystem's own state bag       |
+| Caching                      | Answers by request, objects by `__ref`, and `evict` by object                  |
+| Object identity              | `@identity` and `__ref`, with `parseRef` for a refetch                         |
+| Performance                  | `createLoader`, memoized collection, windowed rows, `pnpm bench:nex`           |
+| Security                     | `@auth`, cost and depth limits, spending budgets, introspection off            |
+| Authorization                | An authorizer asked before a guarded field runs, and before a live source      |
+| Errors                       | A code per kind, source excerpts, `formatError`, no detail leaking out         |
+| Debugging errors             | `printSourceExcerpt`, a trace on every run, field-error hooks                  |
+| Robust applications          | Response types that still read when a catalog gains a value or a member        |
+| Schema design                | `reviewCatalog`, on what a working catalog makes impossible later              |
+| Schema review                | The same, named by coordinate so a review can point at it                      |
+| Naming and design            | Left to the catalog: this package refuses what breaks, and advises on the rest |
+| Thinking in graphs           | Guidance rather than machinery; the catalog is where it lands                  |
+| Versioning                   | `compareCatalogs`, `findBrokenOperations`, `findDeprecations`                  |
+| Ownership and governance     | A deployment concern: `mergeCatalogs` is what makes split ownership work       |
+| Tooling                      | `generateTypes`, `generateCatalogTypes`, `minifyRequest`, `visitWithTypes`     |
+| Composition                  | `mergeCatalogs`, with every disagreement between sources reported              |
+| Federation                   | Not implemented: future work in the specification                              |
+| File uploads                 | Not implemented: multipart belongs to whatever serves the package              |
 
 ## Specification coverage
 
