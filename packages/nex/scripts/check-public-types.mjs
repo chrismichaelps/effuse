@@ -9,7 +9,14 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const declarations = ['dist/index.d.ts', 'dist/index.d.cts'];
+// Every declaration the package publishes, not only the main one: a type
+// leaking through a second entry point is still a type a caller has to learn.
+const declarations = [
+	'dist/index.d.ts',
+	'dist/index.d.cts',
+	'dist/cli/bin.d.ts',
+	'dist/cli/bin.d.cts',
+];
 const forbidden = [
 	/from ['"]effect['"]/,
 	/\bSchema\./,

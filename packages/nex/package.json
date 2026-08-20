@@ -70,5 +70,8 @@
 		"typescript": "^5.9.3",
 		"typescript-eslint": "^8.57.1",
 		"vitest": "^4.1.0"
+	},
+	"bin": {
+		"nex": "./dist/cli/bin.js"
 	}
 }

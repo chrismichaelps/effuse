@@ -27,4 +27,8 @@ import { baseConfig } from '../../tsup.config';
 
 export default defineConfig({
 	...baseConfig,
+	// The command ships alongside the library: a build that checks a catalog,
+	// reviews it, or writes its types is what CI runs, and asking a project to
+	// write that script itself is asking it to get it wrong.
+	entry: ['src/index.ts', 'src/cli/bin.ts'],
 });
