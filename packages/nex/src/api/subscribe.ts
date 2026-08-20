@@ -32,6 +32,8 @@ import { Kind } from '../language/kinds/index.js';
 import {
 	ErrorPolicy,
 	LiveDelivery,
+	newTraceId,
+	notify,
 	diffValues,
 	coerceVariableValues,
 	executeLive,
@@ -100,6 +102,8 @@ export const subscribe = async function* <
 			: ({ success: true, document: options.request } as const);
 
 	const format = options.formatError;
+	const traceId = options.traceId ?? newTraceId();
+	const watcher = options.instrumentation?.onOperation;
 
 	if (!parsed.success) {
 		yield refusal(parsed.error.message, format, NexErrorCode.SYNTAX);
@@ -198,6 +202,9 @@ export const subscribe = async function* <
 				? {}
 				: { authorize: options.authorize }),
 			...(options.signal === undefined ? {} : { signal: options.signal }),
+			...(options.instrumentation === undefined
+				? {}
+				: { instrumentation: options.instrumentation }),
 		},
 		options.sources
 	);
@@ -206,8 +213,25 @@ export const subscribe = async function* <
 	let previous: Record<string, unknown> | undefined;
 
 	for await (const outcome of snapshots) {
+		const startedAt = performance.now();
 		const errors = formatErrors(outcome.errors, format);
-		const extensions = { cost: analysis.cost };
+		const extensions = { cost: analysis.cost, traceId };
+
+		// A live operation is a run per event, so each snapshot is reported the
+		// way a query would be.
+		if (watcher !== undefined) {
+			notify(() =>
+				watcher({
+					traceId,
+					operation: operation.operation,
+					operationName: operation.name?.value,
+					cost: analysis.cost,
+					durationMs: performance.now() - startedAt,
+					errorCount: errors.length,
+					ran: outcome.data !== null,
+				})
+			);
+		}
 
 		// A snapshot that failed has nothing to describe changes against, so
 		// the next one that succeeds is sent whole again.

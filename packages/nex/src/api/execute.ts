@@ -33,7 +33,11 @@ import type {
 import { Kind } from '../language/kinds/index.js';
 import {
 	ErrorPolicy,
+	newTraceId,
+	notify,
 	type Authorize,
+	type Instrumentation,
+	type OperationTrace,
 	type ExecutionResult,
 	type Resolvers,
 } from '../execution/index.js';
@@ -92,6 +96,16 @@ export interface ExecuteOptions<TContext = unknown> {
 	 */
 	readonly signal?: AbortSignal | undefined;
 	/**
+	 * The trace this run belongs to.
+	 *
+	 * A server that already names its requests passes that name in, so what it
+	 * logs and what the response carries are the same thing. Left out, a name
+	 * is made for the run.
+	 */
+	readonly traceId?: string | undefined;
+	/** Where the run reports what it did. */
+	readonly instrumentation?: Instrumentation | undefined;
+	/**
 	 * Rewrite every error before it leaves.
 	 *
 	 * A server that does not want internal detail on the wire replaces the
@@ -127,11 +141,12 @@ const fragmentsOf = (
 const refuse = <TData extends Record<string, unknown>>(
 	errors: readonly NexExecutionError[],
 	format: ((error: NexExecutionError) => NexExecutionError) | undefined,
+	traceId: string,
 	cost = 0
 ): ExecutionResult<TData> => ({
 	data: null,
 	errors: formatErrors(errors, format),
-	extensions: { cost },
+	extensions: { cost, traceId },
 });
 
 /**
@@ -152,17 +167,47 @@ export const execute = async <
 			: ({ success: true, document: options.request } as const);
 
 	const format = options.formatError;
+	const traceId = options.traceId ?? newTraceId();
+	const startedAt = performance.now();
+	const watcher = options.instrumentation?.onOperation;
+
+	/** Tell a watcher what happened, then hand the response back. */
+	const finish = (
+		result: ExecutionResult<TData>,
+		ran: boolean,
+		operationType: OperationTrace['operation'] = 'query',
+		operationName?: string | undefined
+	): ExecutionResult<TData> => {
+		if (watcher !== undefined) {
+			const trace: OperationTrace = {
+				traceId,
+				operation: operationType,
+				operationName,
+				cost: Number(result.extensions.cost ?? 0),
+				durationMs: performance.now() - startedAt,
+				errorCount: result.errors?.length ?? 0,
+				ran,
+			};
+			notify(() => watcher(trace));
+		}
+
+		return result;
+	};
 
 	if (!parsed.success) {
-		return refuse(
-			[
-				new NexExecutionError({
-					message: parsed.error.message,
-					location: parsed.error.location,
-					code: NexErrorCode.SYNTAX,
-				}),
-			],
-			format
+		return finish(
+			refuse(
+				[
+					new NexExecutionError({
+						message: parsed.error.message,
+						location: parsed.error.location,
+						code: NexErrorCode.SYNTAX,
+					}),
+				],
+				format,
+				traceId
+			),
+			false
 		);
 	}
 
@@ -182,33 +227,41 @@ export const execute = async <
 		});
 
 		if (problems.length > 0) {
-			return refuse(
-				problems.map(
-					(problem) =>
-						new NexExecutionError({
-							message: problem.message,
-							path: problem.path,
-							location: problem.location,
-							code: problem.code,
-						})
+			return finish(
+				refuse(
+					problems.map(
+						(problem) =>
+							new NexExecutionError({
+								message: problem.message,
+								path: problem.path,
+								location: problem.location,
+								code: problem.code,
+							})
+					),
+					format,
+					traceId
 				),
-				format
+				false
 			);
 		}
 	}
 
 	const operation = selectOperation(document, options.operationName);
 	if (operation === undefined) {
-		return refuse(
-			[
-				new NexExecutionError({
-					message:
-						options.operationName === undefined
-							? 'The document defines no operation to run'
-							: `The document defines no operation named "${options.operationName}"`,
-				}),
-			],
-			format
+		return finish(
+			refuse(
+				[
+					new NexExecutionError({
+						message:
+							options.operationName === undefined
+								? 'The document defines no operation to run'
+								: `The document defines no operation named "${options.operationName}"`,
+					}),
+				],
+				format,
+				traceId
+			),
+			false
 		);
 	}
 
@@ -218,12 +271,18 @@ export const execute = async <
 		suppliedVariables
 	);
 	if ('errors' in coerced) {
-		return refuse(
-			coerced.errors.map(
-				(message) =>
-					new NexExecutionError({ message, code: NexErrorCode.VARIABLE })
+		return finish(
+			refuse(
+				coerced.errors.map(
+					(message) =>
+						new NexExecutionError({ message, code: NexErrorCode.VARIABLE })
+				),
+				format,
+				traceId
 			),
-			format
+			false,
+			operation.operation,
+			operation.name?.value
 		);
 	}
 
@@ -252,17 +311,25 @@ export const execute = async <
 					? {}
 					: { authorize: options.authorize }),
 				...(options.signal === undefined ? {} : { signal: options.signal }),
+				...(options.instrumentation === undefined
+					? {}
+					: { instrumentation: options.instrumentation }),
 			});
 		})
 	);
 
 	const errors = formatErrors(outcome.errors, format);
 
-	return {
-		// The executor builds the response the request asked for; naming that
-		// shape is the caller's to do, and this is where the two meet.
-		data: outcome.data as TData | null,
-		...(errors.length === 0 ? {} : { errors }),
-		extensions: { cost: analysis.cost },
-	};
+	return finish(
+		{
+			// The executor builds the response the request asked for; naming that
+			// shape is the caller's to do, and this is where the two meet.
+			data: outcome.data as TData | null,
+			...(errors.length === 0 ? {} : { errors }),
+			extensions: { cost: analysis.cost, traceId },
+		},
+		true,
+		operation.operation,
+		operation.name?.value
+	);
 };

@@ -56,6 +56,7 @@ import {
 	type ResolverInfo,
 	type Resolvers,
 } from './resolvers.js';
+import { notify, type Instrumentation } from './instrumentation.js';
 import { addPath, pathToArray, type ResponsePath } from './path.js';
 import { ErrorPolicy } from './result.js';
 import { coerceArgumentValues } from './values.js';
@@ -101,6 +102,8 @@ export interface ExecutionPlan<TContext = unknown> {
 	readonly authorize?: Authorize<TContext> | undefined;
 	/** Calls the run off: the caller went away, or a deadline passed. */
 	readonly signal?: AbortSignal | undefined;
+	/** Where the run reports what it did. */
+	readonly instrumentation?: Instrumentation | undefined;
 }
 
 /** What a run produced, before it is dressed up as a response. */
@@ -122,6 +125,9 @@ export const executeOperation = async <TContext>(
 	const errors: NexExecutionError[] = [];
 
 	const record = (error: NexExecutionError): void => {
+		const watcher = plan.instrumentation?.onFieldError;
+		if (watcher !== undefined) notify(() => watcher(error));
+
 		if (plan.errorPolicy === ErrorPolicy.FAIL_FAST) throw new Abort(error);
 		if (plan.errorPolicy === ErrorPolicy.IGNORE) return;
 		errors.push(error);
@@ -298,7 +304,13 @@ export const executeOperation = async <TContext>(
 			const items: unknown[] = [];
 			for (const [index, item] of value.entries()) {
 				items.push(
-					await completeValue(item, type.type, fields, addPath(path, index), serial)
+					await completeValue(
+						item,
+						type.type,
+						fields,
+						addPath(path, index),
+						serial
+					)
 				);
 			}
 			return items;
@@ -381,13 +393,13 @@ export const executeOperation = async <TContext>(
 			: property;
 	};
 
-	const resolveFieldValue = async (
+	const resolveFieldValue = (
 		parentTypeName: string,
 		fieldName: string,
 		source: unknown,
 		args: Readonly<Record<string, unknown>>,
 		info: ResolverInfo
-	): Promise<unknown> => {
+	): unknown => {
 		const resolve = resolverFor(plan.resolvers, parentTypeName, fieldName);
 		return resolve(source, args, plan.context, info);
 	};
@@ -468,16 +480,11 @@ export const executeOperation = async <TContext>(
 				? NO_ARGUMENTS
 				: coerceArgumentValues(definition, field.arguments, plan.variables);
 
-		const resolved =
+		const produced =
 			supplied === undefined
 				? readProperty(source, fieldName, args, infoFor)
-				: await resolveFieldValue(
-						parentTypeName,
-						fieldName,
-						source,
-						args,
-						infoFor()
-					);
+				: resolveFieldValue(parentTypeName, fieldName, source, args, infoFor());
+		const resolved = await produced;
 
 		// A transaction runs its fields in order; everything below a mutation
 		// root is otherwise free to resolve concurrently.

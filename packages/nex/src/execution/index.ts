@@ -60,3 +60,9 @@ export {
 	type Authorize,
 	type AuthorizeRequest,
 } from './authorize.js';
+export {
+	newTraceId,
+	notify,
+	type Instrumentation,
+	type OperationTrace,
+} from './instrumentation.js';

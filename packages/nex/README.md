@@ -746,6 +746,12 @@ const answer = await handleHttpRequest(request, {
   operation is checked before its source is opened.
 - **Introspection** answers by default. Pass `introspection: false` to `execute`, `subscribe`, or the handler and `__schema` and `__type` are refused during validation, before anything runs. `__typename` is unaffected.
 - **Cost and depth** are not enforced unless asked for. Set `limits` and an expensive request is refused before a resolver is called.
+- **Every run carries a trace.** `extensions.traceId` names it, taken from the
+  server's own `traceId` when it has one, and `instrumentation.onOperation`
+  reports what each run cost, how long it took, and how many problems it
+  carried - including runs refused before anything resolved.
+  `instrumentation.onFieldError` hands over each field that failed. A watcher
+  that throws never breaks the run it watches.
 - **Error messages** go out as written. `formatError` rewrites every error - request, field, and live snapshot alike - so internal detail never reaches a client.
 - **Batches** are capped at ten requests; lower it with `maxBatchSize`.
 
