@@ -548,6 +548,54 @@ analyzeRequest('{ posts | page first: 10 { title } }', catalog); // { cost: 11, 
 validateRequest(request, catalog, { maxCost: 500, maxDepth: 8 });
 ```
 
+## Talking to a server
+
+`createNexClient` is the other side of `handleHttpRequest`: it sends requests,
+keeps what came back, and hands a render over to the browser.
+
+```ts
+import { createNexClient } from '@effuse/nex';
+
+const nex = createNexClient({
+  endpoint: '/nex',
+  headers: () => ({ authorization: `Bearer ${token()}` }),
+});
+
+const result = await nex.request('{ posts | page first: 10 { title } }');
+
+for await (const snapshot of nex.subscribe(
+  'live Feed { postAdded { title } }'
+)) {
+  render(snapshot);
+}
+```
+
+Answers are kept by what the request does rather than by how it was typed, so
+two spellings of one request share an answer. Two callers asking at once share
+one request in flight, and a request that failed is never kept - it is asked
+again rather than remembered.
+
+### Server rendering and the browser
+
+The same client runs on both sides, which is what makes the handoff a two-liner:
+
+```ts
+// While rendering
+await nex.prefetch('{ posts | page first: 10 { title } }');
+const payload = nex.dehydrate(); // plain JSON, ready to inline
+
+// In the browser
+nex.hydrate(payload);
+await nex.request('{ posts | page first: 10 { title } }'); // no request goes out
+```
+
+Because entries are keyed by `requestKey`, a render and the browser that takes
+over agree on what has already been asked without exchanging anything else -
+the same key a persisted-operation store uses.
+
+Point the client at an operation store and it sends the name rather than the
+request, which pairs with a server running `persistedOnly`.
+
 ## Serving over HTTP
 
 `handleHttpRequest` maps HTTP onto this package without knowing anything about a particular server: hand it a method, a URL, headers, and a body, and it hands back a status, headers, and either a body or a stream.

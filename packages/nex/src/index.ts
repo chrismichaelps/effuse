@@ -74,6 +74,15 @@ export { BUILT_IN_SCALARS, type Catalog } from './catalog/index.js';
 export { DirectiveLocation } from './catalog/directive-locations.js';
 
 export {
+	createNexClient,
+	readEventStream,
+	type DehydratedNexState,
+	type NexClient,
+	type NexClientOptions,
+	type NexRequestOptions,
+} from './client/index.js';
+
+export {
 	ErrorPolicy,
 	LiveDelivery,
 	applyPatch,
