@@ -840,6 +840,43 @@ request is made rather than on a timer, so nothing is ever held waiting for a
 request that has not been asked for; `{ size }` caps how many travel together,
 and a lone request is still sent on its own.
 
+### Inside a component
+
+This ecosystem already owns caching, deduplication, retries, cancellation, and
+reactive fetch status - that is what `@effuse/query` is for - and running a
+second cache underneath it means two things that each believe they know what
+is current. So nex hands over a key and a way to run the request, and nothing
+else:
+
+```ts
+import { useQuery } from '@effuse/query';
+import { createNexClient, nexQuery } from '@effuse/nex';
+
+const nex = createNexClient({ endpoint: '/nex', cache: false });
+
+const feed = useQuery(nexQuery(nex, '{ posts | page first: 10 { title } }'));
+```
+
+`nexQuery` returns `{ queryKey, queryFn }` and imports nothing from the query
+package, so neither depends on the other. Build the client `cache: false` and
+there is one cache, invalidated one way - `nexQueryKey` names a request so the
+query client can invalidate it:
+
+```ts
+await nex.request('mutation { rename(id: "1", to: "Ada L.") { __ref } }');
+queryClient.invalidateQueries({ queryKey: nexQueryKey(FEED) });
+```
+
+A request that produced nothing throws, so nothing is held and a retry policy
+applies. A request that produced part of an answer returns it and reports what
+failed through `onErrors` - a partial response is a real answer with real
+problems, and a cache has one slot for each, so neither is thrown away.
+`nexMutation` does the same for a change, taking its variables from wherever
+it is triggered.
+
+Nex's own cache is what answers when nex owns it instead - a render, a script,
+anywhere there is no component runtime to hold state for you.
+
 ### Server rendering and the browser
 
 The same client runs on both sides, which is what makes the handoff a two-liner:
@@ -1137,6 +1174,7 @@ where each is answered here - including the ones deliberately left out.
 | Paging                       | `\| page`, `@connection`, and one page shape everything paged answers in       |
 | Serving over HTTP            | `createNexHandler`, GET and POST, batching, event streams                      |
 | Server rendering             | `saveNexState` and `loadNexState`, through the ecosystem's own state bag       |
+| In a component               | `nexQuery` and `nexMutation`, so the ecosystem's query cache is the only one   |
 | Caching                      | Answers by request, objects by `__ref`, and `evict` by object                  |
 | Object identity              | `@identity` and `__ref`, with `parseRef` for a refetch                         |
 | Performance                  | `createLoader`, memoized collection, windowed rows, `pnpm bench:nex`           |
