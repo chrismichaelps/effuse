@@ -52,11 +52,27 @@ import { toEventStream } from './event-stream.js';
 import {
 	errorResponse,
 	jsonResponse,
+	MediaType,
 	type HttpRequest,
 	type HttpRequestBody,
 	type HttpResponse,
 } from './messages.js';
 import { parseGetRequest, parsePostRequest } from './parse.js';
+import { accepts } from './accept.js';
+
+/**
+ * The trace a caller named for this request, when it named one.
+ *
+ * A client that already traces its own work can say what this run belongs to,
+ * so what it logs and what the server logs carry the same name and a request
+ * can be followed across the boundary between them. Anything that is not a
+ * name is ignored rather than refused: a trace is for reading logs, and no
+ * request should fail over one.
+ */
+const traceOf = (body: HttpRequestBody): string | undefined => {
+	const named = body.extensions?.traceId;
+	return typeof named === 'string' && named.trim() !== '' ? named : undefined;
+};
 
 /**
  * A caller, and what they may spend.
@@ -317,8 +333,11 @@ const runOne = async <TContext>(
 	const spent = charge(read.document, body, options);
 	if (spent !== undefined) return overBudget(spent, options);
 
+	const traceId = traceOf(body);
+
 	const result = await execute({
 		request: read.document,
+		...(traceId === undefined ? {} : { traceId }),
 		catalog: options.catalog,
 		validate: false,
 		...(options.resolvers === undefined
@@ -343,6 +362,17 @@ const runOne = async <TContext>(
 
 	return { result, requestError: false };
 };
+
+/**
+ * Answer a caller that cannot read what this request would produce.
+ *
+ * The body still goes out as JSON, since a caller has to be able to read why
+ * it was refused even when it cannot read what it asked for.
+ */
+const unreadable = (media: string): HttpResponse =>
+	errorResponse(406, [
+		`This request answers with ${media}, which is not among what you said you accept`,
+	]);
 
 /**
  * Answer a caller who has spent what they had.
@@ -378,6 +408,7 @@ export const handleProtocolRequest = async <TContext>(
 	options: HttpHandlerOptions<TContext>
 ): Promise<HttpResponse> => {
 	const method = request.method.toUpperCase();
+	const accept = request.headers.accept;
 
 	if (method !== 'GET' && method !== 'POST') {
 		return errorResponse(405, [`${method} is not supported`], {
@@ -419,6 +450,10 @@ export const handleProtocolRequest = async <TContext>(
 	}
 
 	if (live) {
+		if (!accepts(accept, MediaType.EVENT_STREAM)) {
+			return unreadable(MediaType.EVENT_STREAM);
+		}
+
 		if (parsed.batch.length > 1) {
 			return errorResponse(400, ['A live operation cannot be batched']);
 		}
@@ -473,6 +508,8 @@ export const handleProtocolRequest = async <TContext>(
 			),
 		};
 	}
+
+	if (!accepts(accept, MediaType.JSON)) return unreadable(MediaType.JSON);
 
 	if (parsed.batch.length > 1) {
 		const ran = await Promise.all(

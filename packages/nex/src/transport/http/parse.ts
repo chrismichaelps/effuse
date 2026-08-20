@@ -67,9 +67,21 @@ const readOne = (value: unknown): HttpRequestBody | string => {
 		return '"operationName" must be a string';
 	}
 
+	const extensions = record.extensions;
+	if (
+		extensions !== undefined &&
+		extensions !== null &&
+		asRecord(extensions) === undefined
+	) {
+		return '"extensions" must be an object';
+	}
+
 	return {
 		query: typeof query === 'string' ? query : '',
 		...(typeof id === 'string' ? { id } : {}),
+		...(asRecord(extensions) === undefined
+			? {}
+			: { extensions: asRecord(extensions) }),
 		...(asRecord(variables) === undefined
 			? {}
 			: { variables: asRecord(variables) }),
@@ -172,12 +184,27 @@ export const parseGetRequest = (request: HttpRequest): ParsedHttpRequest => {
 		}
 	}
 
+	const rawExtensions = params.get('extensions');
+	let extensions: unknown;
+	if (rawExtensions !== null) {
+		try {
+			extensions = JSON.parse(rawExtensions);
+		} catch {
+			return {
+				ok: false,
+				status: 400,
+				message: 'The "extensions" parameter is not valid JSON',
+			};
+		}
+	}
+
 	const operationName = params.get('operationName');
 
 	return readBatch(
 		{
 			query,
 			...(variables === undefined ? {} : { variables }),
+			...(extensions === undefined ? {} : { extensions }),
 			...(operationName === null ? {} : { operationName }),
 		},
 		1
