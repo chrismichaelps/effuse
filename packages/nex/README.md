@@ -657,19 +657,19 @@ import { createLoader } from '@effuse/nex';
 
 const handler = createNexHandler({
   catalog,
+  // One loader per request, never one per server: what a loader remembers is
+  // what that request has already seen.
+  createContext: (request) => ({
+    session: sessionFor(request),
+    authors: createLoader({
+      load: (ids) => db.users.whereIn('id', ids),
+    }),
+  }),
   resolvers: {
     Post: {
       author: (post, _args, context) => context.authors.load(post.authorId),
     },
   },
-});
-
-// One loader per request, never one per server: what a loader remembers is
-// what that request has already seen.
-const context = () => ({
-  authors: createLoader({
-    load: (ids) => db.users.whereIn('id', ids),
-  }),
 });
 ```
 
@@ -752,6 +752,27 @@ await execute({
   authorize: ({ requires, context }) => context.roles.includes(requires ?? ''),
 });
 ```
+
+A server builds one per request with `createContext`, which is where anything
+a request must not share belongs - the session that made it, the loaders that
+remember what it has already fetched:
+
+```ts
+const handler = createNexHandler({
+  catalog,
+  resolvers,
+  createContext: (request) => ({
+    userId: sessionFor(request).userId,
+    authors: createLoader({ load: (ids) => db.users.whereIn('id', ids) }),
+  }),
+});
+```
+
+`context` is one value for the life of the server, so a loader built there
+would hand a later request rows fetched for an earlier one - which is a leak
+between callers, not a stale cache. A live operation is given one context for
+as long as it is watched. A context that cannot be built at all is answered
+`500` with the reason, put through the same `formatError` as everything else.
 
 A response keeps its shape the same way. Name what the request returns - the
 type `generateTypes` writes for it - and the result reads without a cast:
