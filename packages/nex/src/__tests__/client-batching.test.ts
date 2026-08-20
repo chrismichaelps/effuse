@@ -110,6 +110,68 @@ describe('sending several requests at once', () => {
 		expect(Array.isArray(calls[1])).toBe(false);
 	});
 
+	it('sends batches in the order they were formed', async () => {
+		const { calls, fetchImpl } = countingFetch();
+		const nex = createNexClient({
+			endpoint: '/nex',
+			fetch: fetchImpl,
+			cache: false,
+			batch: { size: 2 },
+		});
+
+		// Working out what to send costs a turn of the event loop, so a later
+		// batch that finishes that work sooner must still wait its turn.
+		await Promise.all(
+			['a', 'b', 'c', 'd', 'e'].map((text) =>
+				nex.request('query E($text: String!) { echo(text: $text) }', {
+					variables: { text },
+				})
+			)
+		);
+
+		const sent = calls.map((call) =>
+			(Array.isArray(call) ? call : [call]).map(
+				(one) => (one as { variables: { text: string } }).variables.text
+			)
+		);
+
+		expect(sent).toEqual([['a', 'b'], ['c', 'd'], ['e']]);
+	});
+
+	it('does not strand the batches behind one that could not be prepared', async () => {
+		const { calls, fetchImpl } = countingFetch();
+		const nex = createNexClient({
+			endpoint: '/nex',
+			fetch: fetchImpl,
+			cache: false,
+			batch: { size: 1 },
+		});
+
+		// A runtime without a usable digest - an insecure browsing context, an
+		// old engine - fails a request while it is being prepared, before
+		// anything is sent. What is queued behind it must still go.
+		const digest = crypto.subtle.digest;
+		let broken = true;
+		vi.spyOn(crypto.subtle, 'digest').mockImplementation(async (...args) => {
+			if (broken) {
+				broken = false;
+				throw new Error('no digest here');
+			}
+			return digest.apply(crypto.subtle, args as Parameters<typeof digest>);
+		});
+
+		const [first, second] = await Promise.all([
+			nex.request('{ hello }'),
+			nex.request('{ goodbye }'),
+		]);
+
+		vi.restoreAllMocks();
+
+		expect(first.errors?.[0]?.message).toMatch(/never reached/);
+		expect(second.data).toBeDefined();
+		expect(calls).toHaveLength(1);
+	});
+
 	it('sends one request on its own as one request', async () => {
 		const { calls, fetchImpl } = countingFetch();
 		const nex = createNexClient({

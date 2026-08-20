@@ -222,6 +222,33 @@ export const createNexClient = (options: NexClientOptions): NexClient => {
 	let queue: Queued[] = [];
 	let scheduled = false;
 
+	/**
+	 * A batch's place in the queue for the wire.
+	 *
+	 * Working out what to send costs a turn of the event loop - the key a
+	 * request is kept under is a hash - and a batch that finishes that work
+	 * sooner would otherwise overtake one formed before it. A client that sends
+	 * two mutations expects the server to see them in the order they were made,
+	 * so each batch takes a place the moment it is formed and waits for it.
+	 */
+	interface Turn {
+		/** Resolves once every batch formed earlier has gone out. */
+		readonly wait: Promise<void>;
+		/** Say this batch has gone, letting the next one go. */
+		readonly done: () => void;
+	}
+
+	let dispatched: Promise<void> = Promise.resolve();
+
+	const takeTurn = (): Turn => {
+		const wait = dispatched;
+		let done = (): void => undefined;
+		dispatched = new Promise<void>((resolve) => {
+			done = resolve;
+		});
+		return { wait, done };
+	};
+
 	/** Answer everyone in a batch with what came back for them. */
 	const deliver = (
 		waiting: readonly Queued[],
@@ -243,10 +270,38 @@ export const createNexClient = (options: NexClientOptions): NexClient => {
 		}
 	};
 
-	const sendBatch = async (queued: readonly Queued[]): Promise<void> => {
-		const prepared = await Promise.all(
-			queued.map(async (entry) => ({ entry, ready: await entry.prepare() }))
-		);
+	const sendBatch = async (
+		queued: readonly Queued[],
+		turn: Turn
+	): Promise<void> => {
+		const failed = (cause: unknown): void => {
+			deliver(
+				queued,
+				failure(
+					`The request never reached ${options.endpoint}: ${
+						cause instanceof Error ? cause.message : String(cause)
+					}`,
+					NexErrorCode.INTERNAL
+				)
+			);
+		};
+
+		let prepared: {
+			readonly entry: Queued;
+			readonly ready: Awaited<ReturnType<Queued['prepare']>>;
+		}[];
+
+		try {
+			prepared = await Promise.all(
+				queued.map(async (entry) => ({ entry, ready: await entry.prepare() }))
+			);
+		} catch (cause) {
+			// Nothing was sent, so nothing is owed a place on the wire - but the
+			// batches behind this one are, and must not wait on it forever.
+			turn.done();
+			failed(cause);
+			return;
+		}
 
 		const waiting: Queued[] = [];
 		const bodies: Record<string, unknown>[] = [];
@@ -261,20 +316,14 @@ export const createNexClient = (options: NexClientOptions): NexClient => {
 		}
 
 		const first = waiting[0];
-		if (first === undefined) return;
+		if (first === undefined) {
+			turn.done();
+			return;
+		}
 
 		const single = waiting.length === 1;
 
-		try {
-			const response = await send(options.endpoint, {
-				method: 'POST',
-				headers: first.headers,
-				body: JSON.stringify(single ? bodies[0] : bodies),
-				...(first.signal === undefined ? {} : { signal: first.signal }),
-			});
-
-			deliver(waiting, await readAnswer(response));
-		} catch (cause) {
+		const unreachable = (cause: unknown): void => {
 			deliver(
 				waiting,
 				failure(
@@ -284,6 +333,34 @@ export const createNexClient = (options: NexClientOptions): NexClient => {
 					NexErrorCode.INTERNAL
 				)
 			);
+		};
+
+		await turn.wait;
+
+		let answering: Promise<Response>;
+		try {
+			answering = Promise.resolve(
+				send(options.endpoint, {
+					method: 'POST',
+					headers: first.headers,
+					body: JSON.stringify(single ? bodies[0] : bodies),
+					...(first.signal === undefined ? {} : { signal: first.signal }),
+				})
+			);
+		} catch (cause) {
+			turn.done();
+			unreachable(cause);
+			return;
+		}
+
+		// The next batch may go as soon as this one is on the wire; waiting for
+		// the answer would make batches take turns rather than travel together.
+		turn.done();
+
+		try {
+			deliver(waiting, await readAnswer(await answering));
+		} catch (cause) {
+			unreachable(cause);
 		}
 	};
 
@@ -294,7 +371,7 @@ export const createNexClient = (options: NexClientOptions): NexClient => {
 		if (queue.length >= batchSize) {
 			const full = queue;
 			queue = [];
-			void sendBatch(full);
+			void sendBatch(full, takeTurn());
 			return;
 		}
 
@@ -305,7 +382,7 @@ export const createNexClient = (options: NexClientOptions): NexClient => {
 			scheduled = false;
 			const waiting = queue;
 			queue = [];
-			if (waiting.length > 0) void sendBatch(waiting);
+			if (waiting.length > 0) void sendBatch(waiting, takeTurn());
 		});
 	};
 
