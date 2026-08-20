@@ -95,13 +95,20 @@ export type TypeNameResolver<TContext = unknown> = (
 ) => string | undefined;
 
 /** The resolvers for one type: its fields, and how to narrow it. */
-export interface TypeResolvers<TContext = unknown> {
+/**
+ * The resolvers for one type: a field each, and how to tell an abstract type
+ * apart at run time.
+ *
+ * An intersection rather than one shape with a union in it, because a
+ * parameter cannot be typed against a union of signatures: written the other
+ * way, everyone writing `(source, args) =>` would be told those are `any`,
+ * which is the opposite of the point.
+ */
+export type TypeResolvers<TContext = unknown> = {
 	readonly __resolveType?: TypeNameResolver<TContext>;
-	readonly [fieldName: string]:
-		| FieldResolver<TContext>
-		| TypeNameResolver<TContext>
-		| undefined;
-}
+} & {
+	readonly [fieldName: string]: FieldResolver<TContext> | undefined;
+};
 
 /** Resolvers by type name. Types and fields left out fall back to defaults. */
 export type Resolvers<TContext = unknown> = Readonly<
