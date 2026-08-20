@@ -52,11 +52,18 @@ import {
 	defaultFieldResolver,
 	resolverFor,
 	resolveTypeName,
+	type FieldResolver,
 	type ResolverInfo,
 	type Resolvers,
 } from './resolvers.js';
+import { addPath, pathToArray, type ResponsePath } from './path.js';
 import { ErrorPolicy } from './result.js';
 import { coerceArgumentValues } from './values.js';
+
+/** Shared by every field that takes no arguments, so none of them allocate. */
+const NO_ARGUMENTS: Readonly<Record<string, unknown>> = Object.freeze(
+	Object.create(null) as Record<string, unknown>
+);
 
 /** Thrown when a non-null field produced null, to bubble to a nullable parent. */
 class NullBubble extends Error {
@@ -126,16 +133,65 @@ export const executeOperation = async <TContext>(
 	 * Checked before each field rather than only at the start: a run that has
 	 * already lost its reader should not keep resolving on its behalf.
 	 */
-	const stopIfCalledOff = (path: readonly (string | number)[]): void => {
+	const stopIfCalledOff = (path: ResponsePath | undefined): void => {
 		if (plan.signal?.aborted !== true) return;
 
 		throw new Abort(
 			new NexExecutionError({
 				message: `The run was called off: ${abortReason(plan.signal)}`,
-				path,
+				path: pathToArray(path),
 				code: NexErrorCode.ABORTED,
 			})
 		);
+	};
+
+	/**
+	 * Which fields a selection set asks of a type, worked out once.
+	 *
+	 * A list of five thousand rows asks the same question of the same selection
+	 * set five thousand times, and the answer cannot differ: the request is
+	 * fixed, and so are the variables it was given. Working it out per row is
+	 * the difference between reading the request once and reading it per row.
+	 */
+	const collected = new Map<
+		SelectionSetNode,
+		Map<string, ReadonlyMap<string, readonly FieldNode[]>>
+	>();
+
+	const fieldsFor = (
+		runtimeTypeName: string,
+		selectionSet: SelectionSetNode
+	): ReadonlyMap<string, readonly FieldNode[]> => {
+		let byType = collected.get(selectionSet);
+		if (byType === undefined) {
+			byType = new Map();
+			collected.set(selectionSet, byType);
+		}
+
+		const already = byType.get(runtimeTypeName);
+		if (already !== undefined) return already;
+
+		const groups = collectFields(
+			plan.catalog,
+			runtimeTypeName,
+			selectionSet,
+			plan.variables,
+			plan.fragments
+		);
+		byType.set(runtimeTypeName, groups);
+		return groups;
+	};
+
+	/** What a type is, asked of the catalog once per run rather than per row. */
+	const composite = new Map<string, boolean>();
+
+	const isComposite = (typeName: string): boolean => {
+		const already = composite.get(typeName);
+		if (already !== undefined) return already;
+
+		const answer = isCompositeName(plan.catalog, typeName);
+		composite.set(typeName, answer);
+		return answer;
 	};
 
 	const readerFor = (info: ResolverInfo): PathReader<TContext> => ({
@@ -148,7 +204,7 @@ export const executeOperation = async <TContext>(
 	const completeLeaf = (
 		value: unknown,
 		typeName: string,
-		path: readonly (string | number)[]
+		path: ResponsePath | undefined
 	): unknown => {
 		const definition = plan.catalog.getType(typeName);
 
@@ -160,7 +216,7 @@ export const executeOperation = async <TContext>(
 			if (!members.has(serialized)) {
 				throw new NexExecutionError({
 					message: `Value ${JSON.stringify(value)} is not a member of enum "${typeName}"`,
-					path,
+					path: pathToArray(path),
 				});
 			}
 			return serialized;
@@ -171,7 +227,7 @@ export const executeOperation = async <TContext>(
 		const refuse = (): never => {
 			throw new NexExecutionError({
 				message: `Field of type "${typeName}" cannot represent ${JSON.stringify(value) ?? String(value)}`,
-				path,
+				path: pathToArray(path),
 			});
 		};
 
@@ -204,7 +260,7 @@ export const executeOperation = async <TContext>(
 		value: unknown,
 		type: TypeNode,
 		fields: readonly FieldNode[],
-		path: readonly (string | number)[],
+		path: ResponsePath | undefined,
 		serial: boolean
 	): Promise<unknown> => {
 		if (type.kind === Kind.NON_NULL_TYPE) {
@@ -217,8 +273,8 @@ export const executeOperation = async <TContext>(
 			);
 			if (completed === null) {
 				throw new NexExecutionError({
-					message: `Cannot return null for non-null field "${fields[0]?.name.value ?? String(path.at(-1))}"`,
-					path,
+					message: `Cannot return null for non-null field "${fields[0]?.name.value ?? String(path?.key)}"`,
+					path: pathToArray(path),
 					code: NexErrorCode.NON_NULL,
 				});
 			}
@@ -234,15 +290,15 @@ export const executeOperation = async <TContext>(
 		if (type.kind === Kind.LIST_TYPE) {
 			if (!Array.isArray(value)) {
 				throw new NexExecutionError({
-					message: `Expected a list for "${String(path.at(-1))}", received ${typeof value}`,
-					path,
+					message: `Expected a list for "${String(path?.key)}", received ${typeof value}`,
+					path: pathToArray(path),
 				});
 			}
 
 			const items: unknown[] = [];
 			for (const [index, item] of value.entries()) {
 				items.push(
-					await completeValue(item, type.type, fields, [...path, index], serial)
+					await completeValue(item, type.type, fields, addPath(path, index), serial)
 				);
 			}
 			return items;
@@ -250,7 +306,7 @@ export const executeOperation = async <TContext>(
 
 		const typeName = type.name.value;
 
-		if (!isCompositeName(plan.catalog, typeName)) {
+		if (!isComposite(typeName)) {
 			return completeLeaf(value, typeName, path);
 		}
 
@@ -268,7 +324,7 @@ export const executeOperation = async <TContext>(
 		if (runtimeTypeName === undefined) {
 			throw new NexExecutionError({
 				message: `Cannot tell which type "${typeName}" resolved to; add __typename to the value or a __resolveType resolver`,
-				path,
+				path: pathToArray(path),
 			});
 		}
 
@@ -284,25 +340,27 @@ export const executeOperation = async <TContext>(
 		);
 	};
 
-	const rootTypeName = (): string | undefined =>
-		plan.catalog.getRootType(plan.operation.operation)?.name.value;
+	const rootName = plan.catalog.getRootType(plan.operation.operation)?.name
+		.value;
+
+	/** Whether a meta field written here would be one the root answers. */
+	const parentIsRoot = (fieldName: string): boolean =>
+		rootName !== undefined &&
+		(fieldName === SCHEMA_FIELD || fieldName === TYPE_FIELD);
 
 	/**
 	 * `__schema` and `__type` are answered from the catalog, unless the
 	 * resolvers say otherwise, so introspection works with no extra wiring.
 	 */
-	const resolveFieldValue = async (
-		parentTypeName: string,
-		fieldName: string,
+	/** Read a field off the value, the way a field with no resolver is read. */
+	const readProperty = (
 		source: unknown,
+		fieldName: string,
 		args: Readonly<Record<string, unknown>>,
-		info: ResolverInfo
-	): Promise<unknown> => {
-		const supplied = plan.resolvers[parentTypeName]?.[fieldName];
-
+		infoFor: () => ResolverInfo
+	): unknown => {
 		if (
-			supplied === undefined &&
-			parentTypeName === rootTypeName() &&
+			parentIsRoot(fieldName) &&
 			(fieldName === SCHEMA_FIELD || fieldName === TYPE_FIELD)
 		) {
 			return fieldName === SCHEMA_FIELD
@@ -310,6 +368,26 @@ export const executeOperation = async <TContext>(
 				: typeByNameValue(plan.catalog, args.name);
 		}
 
+		if (source === null || typeof source !== 'object') return undefined;
+
+		const property = (source as Record<string, unknown>)[fieldName];
+		return typeof property === 'function'
+			? (property as FieldResolver<TContext>)(
+					source,
+					args,
+					plan.context,
+					infoFor()
+				)
+			: property;
+	};
+
+	const resolveFieldValue = async (
+		parentTypeName: string,
+		fieldName: string,
+		source: unknown,
+		args: Readonly<Record<string, unknown>>,
+		info: ResolverInfo
+	): Promise<unknown> => {
 		const resolve = resolverFor(plan.resolvers, parentTypeName, fieldName);
 		return resolve(source, args, plan.context, info);
 	};
@@ -318,7 +396,7 @@ export const executeOperation = async <TContext>(
 		parentTypeName: string,
 		fields: readonly FieldNode[],
 		source: unknown,
-		path: readonly (string | number)[],
+		path: ResponsePath | undefined,
 		serial: boolean
 	): Promise<unknown> => {
 		const field = fields[0];
@@ -332,14 +410,23 @@ export const executeOperation = async <TContext>(
 		const definition = plan.catalog.getField(parentTypeName, fieldName);
 		if (definition === undefined) return null;
 
-		const info: ResolverInfo = {
+		const supplied = plan.resolvers[parentTypeName]?.[fieldName];
+
+		/**
+		 * Built only for a resolver that was actually supplied.
+		 *
+		 * Most fields on most rows have none: they read the property of the
+		 * same name off the value, and building an info object for each of
+		 * them is the largest thing a run does for nobody.
+		 */
+		const infoFor = (): ResolverInfo => ({
 			fieldName,
 			parentTypeName,
-			path,
+			path: pathToArray(path),
 			operation: plan.operation.operation,
 			variables: plan.variables,
 			catalog: plan.catalog,
-		};
+		});
 
 		// A guarded field is asked about before anything of it runs, so a
 		// refusal never reaches a resolver.
@@ -348,7 +435,7 @@ export const executeOperation = async <TContext>(
 			if (plan.authorize === undefined) {
 				throw new NexExecutionError({
 					message: `"${parentTypeName}.${fieldName}" is guarded by @auth and this server has no authorizer configured`,
-					path,
+					path: pathToArray(path),
 					code: NexErrorCode.FORBIDDEN,
 				});
 			}
@@ -358,7 +445,7 @@ export const executeOperation = async <TContext>(
 				fieldName,
 				parentTypeName,
 				coordinate: `${parentTypeName}.${fieldName}`,
-				path,
+				path: pathToArray(path),
 				context: plan.context,
 			});
 
@@ -368,24 +455,29 @@ export const executeOperation = async <TContext>(
 						guard.requires === undefined
 							? `"${parentTypeName}.${fieldName}" is not available to this caller`
 							: `"${parentTypeName}.${fieldName}" requires "${guard.requires}"`,
-					path,
+					path: pathToArray(path),
 					code: NexErrorCode.FORBIDDEN,
 				});
 			}
 		}
 
-		const args = coerceArgumentValues(
-			definition,
-			field.arguments,
-			plan.variables
-		);
-		const resolved = await resolveFieldValue(
-			parentTypeName,
-			fieldName,
-			source,
-			args,
-			info
-		);
+		const declaredArguments = definition.arguments;
+		const args =
+			(declaredArguments === undefined || declaredArguments.length === 0) &&
+			(field.arguments === undefined || field.arguments.length === 0)
+				? NO_ARGUMENTS
+				: coerceArgumentValues(definition, field.arguments, plan.variables);
+
+		const resolved =
+			supplied === undefined
+				? readProperty(source, fieldName, args, infoFor)
+				: await resolveFieldValue(
+						parentTypeName,
+						fieldName,
+						source,
+						args,
+						infoFor()
+					);
 
 		// A transaction runs its fields in order; everything below a mutation
 		// root is otherwise free to resolve concurrently.
@@ -410,12 +502,14 @@ export const executeOperation = async <TContext>(
 		const itemType = listItemType(definition.type);
 		const itemTypeName = itemType === undefined ? '' : namedTypeOf(itemType);
 		const outcome = await applyPipeline(
-			readerFor(info),
+			// A pipeline reads paths through resolvers, so it needs the same
+			// information a resolver is given.
+			readerFor(infoFor()),
 			rows,
 			itemTypeName,
 			stages,
 			plan.variables,
-			path
+			pathToArray(path)
 		);
 
 		if (outcome.kind === 'rows') {
@@ -432,7 +526,7 @@ export const executeOperation = async <TContext>(
 			outcome.page.items,
 			definition.type,
 			fields,
-			[...path, 'items'],
+			addPath(path, 'items'),
 			childrenSerial
 		);
 
@@ -448,11 +542,11 @@ export const executeOperation = async <TContext>(
 		responseKey: string,
 		fields: readonly FieldNode[],
 		source: unknown,
-		path: readonly (string | number)[],
+		path: ResponsePath | undefined,
 		into: Record<string, unknown>,
 		serial: boolean
 	): Promise<void> => {
-		const fieldPath = [...path, responseKey];
+		const fieldPath = addPath(path, responseKey);
 		const definition = plan.catalog.getField(
 			parentTypeName,
 			fields[0]?.name.value ?? ''
@@ -481,7 +575,7 @@ export const executeOperation = async <TContext>(
 					? cause
 					: new NexExecutionError({
 							message: cause instanceof Error ? cause.message : String(cause),
-							path: fieldPath,
+							path: pathToArray(fieldPath),
 							code: NexErrorCode.RESOLVER,
 							...(fields[0]?.loc === undefined
 								? {}
@@ -505,18 +599,12 @@ export const executeOperation = async <TContext>(
 		parentTypeName: string,
 		selectionSet: SelectionSetNode,
 		source: unknown,
-		path: readonly (string | number)[],
+		path: ResponsePath | undefined,
 		serial: boolean
 	): Promise<Record<string, unknown>> => {
 		// A response key is whatever the request wrote, `__proto__` included,
 		// so the object it is written into starts with no prototype at all.
-		const groups = collectFields(
-			plan.catalog,
-			parentTypeName,
-			selectionSet,
-			plan.variables,
-			plan.fragments
-		);
+		const groups = fieldsFor(parentTypeName, selectionSet);
 		const into = Object.create(null) as Record<string, unknown>;
 
 		let bubbled = false;
@@ -546,9 +634,11 @@ export const executeOperation = async <TContext>(
 				await runOne(responseKey, fields);
 			}
 		} else {
-			await Promise.all(
-				[...groups].map(([responseKey, fields]) => runOne(responseKey, fields))
-			);
+			const pending: Promise<void>[] = [];
+			for (const [responseKey, fields] of groups) {
+				pending.push(runOne(responseKey, fields));
+			}
+			await Promise.all(pending);
 		}
 
 		if (bubbled) throw new NullBubble();
@@ -584,7 +674,7 @@ export const executeOperation = async <TContext>(
 			rootType.name.value,
 			plan.operation.selectionSet,
 			plan.rootValue,
-			[],
+			undefined,
 			isSerialRoot(plan.operation)
 		);
 		return { data, errors };
