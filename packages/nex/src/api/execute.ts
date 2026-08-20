@@ -39,6 +39,7 @@ import {
 	type Instrumentation,
 	type OperationTrace,
 	type ExecutionResult,
+	type NexDirectives,
 	type NexScalars,
 	type Resolvers,
 } from '../execution/index.js';
@@ -75,6 +76,14 @@ export interface ExecuteOptions<TContext = unknown> {
 	 * becomes what a resolver receives.
 	 */
 	readonly scalars?: NexScalars | undefined;
+	/**
+	 * What the directives the catalog declares actually do.
+	 *
+	 * A declaration on its own is checked and nothing more; a schema author
+	 * marking a field reasonably expects something to happen, and this is
+	 * where a server says what.
+	 */
+	readonly directives?: NexDirectives<TContext> | undefined;
 	/** Variable values supplied alongside the request. */
 	readonly variables?: Readonly<Record<string, unknown>> | undefined;
 	/** Which operation to run, when the document holds several. */
@@ -159,7 +168,7 @@ const fragmentsOf = (
 	return fragments;
 };
 
-const refuse = <TData extends Record<string, unknown>>(
+const refuse = <TData extends object>(
 	errors: readonly NexExecutionError[],
 	format: ((error: NexExecutionError) => NexExecutionError) | undefined,
 	traceId: string,
@@ -177,7 +186,7 @@ const refuse = <TData extends Record<string, unknown>>(
  * problems that stopped the rest, and what the request cost.
  */
 export const execute = async <
-	TData extends Record<string, unknown> = Record<string, unknown>,
+	TData extends object = Record<string, unknown>,
 	TContext = unknown,
 >(
 	options: ExecuteOptions<TContext>
@@ -322,6 +331,9 @@ export const execute = async <
 				catalog: options.catalog,
 				traceId,
 				...(options.scalars === undefined ? {} : { scalars: options.scalars }),
+				...(options.directives === undefined
+					? {}
+					: { directives: options.directives }),
 				resolvers: options.resolvers ?? {},
 				fragments: fragmentsOf(document),
 				operation,

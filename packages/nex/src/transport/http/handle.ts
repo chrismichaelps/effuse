@@ -35,6 +35,7 @@ import {
 	type ErrorPolicy,
 	type ExecutionResult,
 	type LiveSources,
+	type NexDirectives,
 	type NexScalars,
 	type Resolvers,
 } from '../../execution/index.js';
@@ -101,6 +102,8 @@ export interface HttpHandlerOptions<TContext = unknown> {
 	readonly limits?: RequestLimits | undefined;
 	/** How the server writes and reads the scalars the catalog names. */
 	readonly scalars?: NexScalars | undefined;
+	/** What the directives the catalog declares actually do. */
+	readonly directives?: NexDirectives<TContext> | undefined;
 	/** What the caller may spend over time, charged what each request costs. */
 	readonly budget?: SpendingLimit | undefined;
 	/** How many requests one batch may carry. Defaults to 10. */
@@ -342,6 +345,9 @@ const runOne = async <TContext>(
 	const result = await execute({
 		request: read.document,
 		...(options.scalars === undefined ? {} : { scalars: options.scalars }),
+		...(options.directives === undefined
+			? {}
+			: { directives: options.directives }),
 		...(traceId === undefined ? {} : { traceId }),
 		catalog: options.catalog,
 		validate: false,
@@ -488,6 +494,9 @@ export const handleProtocolRequest = async <TContext>(
 					...(options.scalars === undefined
 						? {}
 						: { scalars: options.scalars }),
+					...(options.directives === undefined
+						? {}
+						: { directives: options.directives }),
 					sources: options.sources ?? {},
 					...(options.resolvers === undefined
 						? {}

@@ -76,7 +76,7 @@ const fragmentsOf = (
 	return fragments;
 };
 
-const refusal = <TData extends Record<string, unknown>>(
+const refusal = <TData extends object>(
 	message: string,
 	format: SubscribeOptions<never>['formatError'],
 	code: NexErrorCode = NexErrorCode.INTERNAL
@@ -93,7 +93,7 @@ const refusal = <TData extends Record<string, unknown>>(
  * other response. Stop reading the stream and the source is closed with it.
  */
 export const subscribe = async function* <
-	TData extends Record<string, unknown> = Record<string, unknown>,
+	TData extends object = Record<string, unknown>,
 	TContext = unknown,
 >(options: SubscribeOptions<TContext>): AsyncGenerator<ExecutionResult<TData>> {
 	const parsed =
@@ -192,6 +192,9 @@ export const subscribe = async function* <
 			catalog: options.catalog,
 			traceId,
 			...(options.scalars === undefined ? {} : { scalars: options.scalars }),
+			...(options.directives === undefined
+				? {}
+				: { directives: options.directives }),
 			resolvers: options.resolvers ?? {},
 			fragments: fragmentsOf(document),
 			operation,

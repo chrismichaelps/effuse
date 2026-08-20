@@ -83,3 +83,8 @@ export {
 	type MetricsSnapshot,
 	type Tally,
 } from './metrics.js';
+export type {
+	DirectiveContext,
+	NexDirective,
+	NexDirectives,
+} from './directives.js';

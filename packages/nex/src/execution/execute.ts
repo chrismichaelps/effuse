@@ -28,6 +28,7 @@ import type {
 	FieldNode,
 	FragmentDefinitionNode,
 	OperationDefinitionNode,
+	DirectiveNode,
 	SelectionSetNode,
 	TypeNode,
 } from '../language/ast/index.js';
@@ -35,6 +36,7 @@ import { Kind } from '../language/kinds/index.js';
 import { BUILT_IN_SCALARS, REFERENCE_FIELD } from '../catalog/index.js';
 import { refFor } from './reference.js';
 import type { NexScalars } from './scalars.js';
+import type { NexDirectives } from './directives.js';
 import {
 	isCompositeName,
 	listItemType,
@@ -146,6 +148,8 @@ export interface ExecutionPlan<TContext = unknown> {
 	readonly traceId?: string | undefined;
 	/** How the server writes and reads the scalars it names. */
 	readonly scalars?: NexScalars | undefined;
+	/** What the directives the catalog declares actually do. */
+	readonly directives?: NexDirectives<TContext> | undefined;
 }
 
 /** What a run produced, before it is dressed up as a response. */
@@ -373,6 +377,60 @@ export const executeOperation = async <TContext>(
 		}
 
 		return selected;
+	};
+
+	/**
+	 * Run a field through the directives it carries, outermost first.
+	 *
+	 * Each is handed what the rest would answer with, so one that never calls
+	 * on is one that answers instead - which is how a directive that reads
+	 * from a cache, or refuses outright, is written.
+	 */
+	const throughDirectives = (
+		written: readonly DirectiveNode[],
+		resolve: () => Promise<unknown>,
+		source: unknown,
+		fieldArguments: Readonly<Record<string, unknown>>,
+		infoFor: () => ResolverInfo
+	): Promise<unknown> => {
+		const step = (index: number): Promise<unknown> => {
+			const node = written[index];
+			if (node === undefined) return resolve();
+
+			const directive = plan.directives?.[node.name.value];
+			const behaviour = directive?.onField;
+			if (behaviour === undefined) return step(index + 1);
+
+			const declared = plan.catalog.getDirective(node.name.value);
+
+			return Promise.resolve(
+				behaviour(() => step(index + 1), {
+					arguments:
+						declared === undefined
+							? NO_ARGUMENTS
+							: coerceArgumentValues(
+									{
+										kind: Kind.FIELD_DEFINITION,
+										name: declared.name,
+										...(declared.arguments === undefined
+											? {}
+											: { arguments: declared.arguments }),
+										type: { kind: Kind.NAMED_TYPE, name: declared.name },
+									},
+									node.arguments,
+									plan.variables,
+									plan.catalog,
+									plan.scalars ?? {}
+								),
+					source,
+					fieldArguments,
+					context: plan.context,
+					info: infoFor(),
+				})
+			);
+		};
+
+		return step(0);
 	};
 
 	/** Tell a watcher what one field cost, without letting it break the run. */
@@ -687,9 +745,43 @@ export const executeOperation = async <TContext>(
 						plan.scalars ?? {}
 					);
 
+		/**
+		 * The directives on this field that the server gave meaning to.
+		 *
+		 * Worked out per field rather than kept, since a field carrying none -
+		 * which is nearly all of them - should reach the same code it did
+		 * before any of this existed.
+		 */
+		const wrapping =
+			plan.directives === undefined
+				? undefined
+				: (definition.directives ?? []).filter(
+						(directive) =>
+							plan.directives?.[directive.name.value]?.onField !== undefined
+					);
+
 		let resolved: unknown;
 
-		if (supplied === undefined) {
+		if (wrapping !== undefined && wrapping.length > 0) {
+			resolved = await throughDirectives(
+				wrapping,
+				() =>
+					Promise.resolve(
+						supplied === undefined
+							? readProperty(source, fieldName, args, infoFor)
+							: resolveFieldValue(
+									parentTypeName,
+									fieldName,
+									source,
+									args,
+									infoFor()
+								)
+					),
+				source,
+				args,
+				infoFor
+			);
+		} else if (supplied === undefined) {
 			resolved = await readProperty(source, fieldName, args, infoFor);
 		} else {
 			// Only a field with a resolver is timed, and only when someone
