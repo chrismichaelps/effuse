@@ -30,3 +30,9 @@ export {
 	type NexRequestOptions,
 } from './client.js';
 export { readEventStream } from './event-stream.js';
+export {
+	loadNexState,
+	NEX_STATE_KEY,
+	saveNexState,
+	type SSRState,
+} from './ssr.js';

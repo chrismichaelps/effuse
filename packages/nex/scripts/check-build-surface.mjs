@@ -22,6 +22,8 @@ const REQUIRED = [
 	'compareCatalogs',
 	'createLoader',
 	'createNexClient',
+	'loadNexState',
+	'saveNexState',
 	'createOperationStore',
 	'concatDocuments',
 	'diffValues',

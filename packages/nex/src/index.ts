@@ -98,7 +98,11 @@ export { DirectiveLocation } from './catalog/directive-locations.js';
 
 export {
 	createNexClient,
+	loadNexState,
+	NEX_STATE_KEY,
 	readEventStream,
+	saveNexState,
+	type SSRState,
 	type DehydratedNexState,
 	type NexClient,
 	type NexClientOptions,
