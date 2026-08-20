@@ -67,8 +67,13 @@ export {
 	type SubscribeOptions,
 } from './api/index.js';
 
-export { createCostBudget } from './analysis/index.js';
+export {
+	createCostBudget,
+	reviewCatalog,
+	ReviewCode,
+} from './analysis/index.js';
 export type {
+	ReviewNotice,
 	BudgetDecision,
 	CostBudget,
 	CostBudgetOptions,

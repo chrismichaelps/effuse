@@ -46,6 +46,7 @@ const REQUIRED = [
 	'print',
 	'refFor',
 	'printCatalog',
+	'reviewCatalog',
 	'mergeCatalogs',
 	'mergeCatalogsSafe',
 	'sortCatalog',
