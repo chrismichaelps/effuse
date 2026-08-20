@@ -53,20 +53,41 @@ const pageType = (items: string, indent: number): string => {
 	);
 };
 
+/**
+ * What a value the client does not recognise is typed as.
+ *
+ * `string & {}` keeps the known members completing in an editor while still
+ * accepting anything else, which a plain `string` would not.
+ */
+const UNKNOWN_VALUE = '(string & {})';
+
 /** Build the TypeScript for one request against a catalog. */
 export const generateOperationTypes = (
 	catalog: Catalog,
 	operation: OperationDefinitionNode,
 	fragments: ReadonlyMap<string, FragmentDefinitionNode>
 ): string => {
-	const named = (typeName: string): string => {
+	/**
+	 * Whatever a name stands for, as TypeScript.
+	 *
+	 * `open` says the value is being read rather than written. A catalog may
+	 * gain an enum value at any time, and a client built before that still has
+	 * to read what comes back: an open enum keeps the known values completing
+	 * while leaving somewhere for the rest to land, and stops an exhaustive
+	 * switch from typechecking as complete when it is not. Writing is the other
+	 * way round - a caller must not be able to send a value the server never
+	 * declared - so an argument stays closed.
+	 */
+	const named = (typeName: string, open: boolean): string => {
 		const definition = catalog.getType(typeName);
 
 		if (definition?.kind === Kind.ENUM_TYPE_DEFINITION) {
 			const values = definition.values ?? [];
-			return values.length === 0
-				? 'never'
-				: values.map((value) => `'${value.name.value}'`).join(' | ');
+			if (values.length === 0) return 'never';
+
+			const known = values.map((value) => `'${value.name.value}'`).join(' | ');
+
+			return open ? `${known} | ${UNKNOWN_VALUE}` : known;
 		}
 
 		if (BUILT_IN_SCALARS.has(typeName)) {
@@ -102,7 +123,7 @@ export const generateOperationTypes = (
 			return `${objectType(fields, indent)} | null`;
 		}
 
-		return `${named(typeName)} | null`;
+		return `${named(typeName, false)} | null`;
 	};
 
 	/** Everything one selection set will produce, as one or more variants. */
@@ -181,18 +202,18 @@ export const generateOperationTypes = (
 
 		if (branches.size === 0) return objectType(shared, indent);
 
-		return [...branches]
-			.map(([typeName, fields]) =>
-				objectType(
-					[
-						...shared.filter((field) => !field.startsWith('__typename')),
-						`__typename: '${typeName}';`,
-						...fields,
-					],
-					indent
-				)
-			)
-			.join(' | ');
+		const common = shared.filter((field) => !field.startsWith('__typename'));
+
+		// A union or an interface may gain a member, and code matching only the
+		// ones it knows still has to have somewhere for the rest to land. The
+		// catch-all carries what was selected on the type itself, which any
+		// member added later declares too.
+		return [
+			...[...branches].map(([typeName, fields]) =>
+				objectType([...common, `__typename: '${typeName}';`, ...fields], indent)
+			),
+			objectType([...common, `__typename: ${UNKNOWN_VALUE};`], indent),
+		].join(' | ');
 	};
 
 	/** What one field produces, wrappers, pipeline, and all. */
@@ -232,7 +253,7 @@ export const generateOperationTypes = (
 			const typeName = namedTypeOf(bare);
 
 			return selection.selectionSet === undefined
-				? named(typeName)
+				? named(typeName, true)
 				: selectionType(typeName, selection.selectionSet, indent);
 		};
 
