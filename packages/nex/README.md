@@ -1292,7 +1292,7 @@ Each capability, and what keeps it honest:
 | Schema evolution       | Response types that still read when a catalog gains an enum value or a union member                                       |
 | Scalars                | A server says how it writes and reads each type the language does not define                                              |
 | Object identity        | A reference per object, opaque and unique across the graph, refused when it came from elsewhere                           |
-| Composition            | One catalog built from several, with every disagreement between sources reported                                          |
+| Composition            | One catalog built from several, and a graph of services that answers from it                                              |
 | Spending limits        | A budget that refills, charged per request, refusing with `429` and a `Retry-After`                                       |
 | Public surface         | Pinned by a test and by a build-time check that imports the built entry and runs a request                                |
 
@@ -1354,8 +1354,8 @@ where each is answered here - including the ones deliberately left out.
 | Ownership and governance     | A deployment concern: `mergeCatalogs` is what makes split ownership work        |
 | On the command line          | `nex check`, `review`, `diff`, and `typegen`, with exit codes a build reads     |
 | Tooling                      | `generateTypes`, `generateCatalogTypes`, `minifyRequest`, `visitWithTypes`      |
-| Composition                  | `mergeCatalogs`, with every disagreement between sources reported               |
-| Federation                   | Not implemented: future work in the specification                               |
+| Composition                  | `mergeCatalogs` joins what services describe, `composeServices` makes it answer |
+| Federation                   | Root-field routing across services; cross-service joins are the caller's        |
 | File uploads                 | Not implemented: multipart belongs to whatever serves the package               |
 
 ## Specification coverage
