@@ -435,6 +435,12 @@ A handler returns nothing to leave a node alone, a node to replace it, `null` to
 
 The walk never mutates what it was given - an edited document comes back as a new tree - and `visitorKeys` lists the children of every node kind, so a tool can drive its own traversal from the same table.
 
+`visitWithTypes` walks the same tree with the catalog beside it, so a handler
+is told which type a field belongs to, what it returns, and what an argument or
+input field expects - what a lint rule or a cost model needs and a plain walk
+cannot know. It reads rather than rewrites: tracking types through edits would
+describe a tree that no longer exists.
+
 `isExecutableDefinitionNode`, `isTypeSystemDefinitionNode`, `isTypeSystemExtensionNode`, `isSelectionNode`, `isValueNode`, `isTypeNode`, and `isPipelineStageNode` narrow a node without matching on `kind` by hand.
 
 ## What a catalog must satisfy

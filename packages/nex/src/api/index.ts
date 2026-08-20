@@ -71,3 +71,7 @@ export {
 	type BrokenOperation,
 	type OperationSource,
 } from './catalog-changes.js';
+export {
+	introspectionFromCatalog,
+	type IntrospectionResult,
+} from './introspection-result.js';

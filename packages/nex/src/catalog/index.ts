@@ -36,3 +36,4 @@ export {
 	compareCatalogs,
 	type CatalogChange,
 } from './changes.js';
+export { sortCatalog } from './sort.js';

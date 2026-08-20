@@ -36,6 +36,7 @@ export {
 	findDeprecations,
 	generateCatalogTypes,
 	generateTypes,
+	introspectionFromCatalog,
 	isDocument,
 	isValidRequest,
 	normalizeRequest,
@@ -53,6 +54,7 @@ export {
 	type CatalogResult,
 	type ExecuteOptions,
 	type GenerateTypesOptions,
+	type IntrospectionResult,
 	type NexHandlerOptions,
 	type NormalizeOptions,
 	type BrokenOperation,
@@ -71,6 +73,7 @@ export type {
 	RequestAnalysis,
 } from './analysis/index.js';
 
+export { sortCatalog } from './catalog/index.js';
 export {
 	BUILT_IN_SCALARS,
 	ChangeSeverity,
@@ -125,6 +128,11 @@ export {
 
 export { Kind, OperationType } from './language/kinds/index.js';
 export { printSourceExcerpt } from './language/source-excerpt.js';
+export { minifyRequest } from './language/minify.js';
+export {
+	valueToNode,
+	type ValueToNodeOptions,
+} from './language/value-to-node.js';
 export {
 	parseCoordinate,
 	printCoordinate,
@@ -145,7 +153,11 @@ export {
 	BREAK,
 	SKIP,
 	visit,
+	visitWithTypes,
 	visitorKeys,
+	type TypedVisitFn,
+	type TypedVisitor,
+	type TypedVisitorInfo,
 	type EnterLeaveVisitor,
 	type VisitFn,
 	type Visitor,

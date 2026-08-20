@@ -33,3 +33,9 @@ export {
 	type VisitorPath,
 	type VisitorResult,
 } from './visit.js';
+export {
+	visitWithTypes,
+	type TypedVisitFn,
+	type TypedVisitor,
+	type TypedVisitorInfo,
+} from './typed.js';
