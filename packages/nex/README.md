@@ -389,14 +389,14 @@ A store holds the operations a server will run, each under the name
 server that registered the same ones agree without exchanging anything else:
 
 ```ts
-import { createOperationStore, handleHttpRequest } from '@effuse/nex';
+import { createNexHandler, createOperationStore } from '@effuse/nex';
 
 const operations = await createOperationStore.from([
   '{ posts | page first: 10 { title } }',
   'query Post($id: ID!) { post(id: $id) { title } }',
 ]);
 
-await handleHttpRequest(request, {
+const handler = createNexHandler({
   catalog,
   resolvers,
   operations,
@@ -585,6 +585,35 @@ analyzeRequest('{ posts | page first: 10 { title } }', catalog); // { cost: 11, 
 validateRequest(request, catalog, { maxCost: 500, maxDepth: 8 });
 ```
 
+## What a caller may spend
+
+Cost and depth bound any one request. A budget bounds what a caller may ask
+for over time, which is the load a server actually feels: a thousand cheap
+requests cost more than one expensive one that was refused.
+
+```ts
+const budget = createCostBudget({ capacity: 10_000, refillPerSecond: 500 });
+
+const handler = createNexHandler({
+  catalog,
+  resolvers,
+  budget: {
+    budget,
+    callerFor: (request) => request.headers.get('x-api-key') ?? 'anonymous',
+  },
+});
+```
+
+Each request is priced the way `analyzeRequest` prices it and charged to
+whoever `callerFor` names, after it is known to be valid and before a resolver
+runs - so a refusal costs a parse rather than a database. A caller who cannot
+afford what they asked for is answered `429` with an `OVER_BUDGET` error, and
+a `Retry-After` header saying when there would be room.
+
+A budget fills back up steadily rather than resetting on a schedule, so a
+caller who spends carefully is never made to wait for a window to turn over.
+It holds one number and one timestamp per caller, and no timers.
+
 ## Asking a source once
 
 A field on fifty rows asks fifty times for the same handful of things, and a
@@ -618,7 +647,7 @@ turn, and the source is asked once for the three authors they share.
 
 ## Talking to a server
 
-`createNexClient` is the other side of `handleHttpRequest`: it sends requests,
+`createNexClient` is the other side of `createNexHandler`: it sends requests,
 keeps what came back, and hands a render over to the browser.
 
 ```ts
@@ -753,7 +782,7 @@ Batches are capped at ten requests unless `maxBatchSize` says otherwise, and a l
 The defaults are safe to start from; these are the knobs a server should reach for.
 
 ```ts
-const answer = await handleHttpRequest(request, {
+const handler = createNexHandler({
   catalog,
   resolvers,
   sources,
@@ -783,6 +812,9 @@ const answer = await handleHttpRequest(request, {
   operation is checked before its source is opened.
 - **Introspection** answers by default. Pass `introspection: false` to `execute`, `subscribe`, or the handler and `__schema` and `__type` are refused during validation, before anything runs. `__typename` is unaffected.
 - **Cost and depth** are not enforced unless asked for. Set `limits` and an expensive request is refused before a resolver is called.
+- **What a caller may spend** is not bounded unless asked for. Pass a `budget`
+  and each request is charged what it costs, with a `429` and a `Retry-After`
+  once a caller has spent what they had.
 - **Every run carries a trace.** `extensions.traceId` names it, taken from the
   server's own `traceId` when it has one, and `instrumentation.onOperation`
   reports what each run cost, how long it took, and how many problems it
@@ -820,12 +852,11 @@ Each capability, and what keeps it honest:
 | Evolution              | `compareCatalogs` grades a change, `findBrokenOperations` names what stops working                                        |
 | Observability          | A trace on every run, operation and field-error hooks that cannot break a run                                             |
 | Performance            | `pnpm bench:nex` with budgets over a scalar field, a large list, and a paged list                                         |
+| Spending limits        | A budget that refills, charged per request, refusing with `429` and a `Retry-After`                                       |
 | Public surface         | Pinned by a test and by a build-time check that imports the built entry and runs a request                                |
 
 Not implemented, and why: federation is future work in the specification;
-binary transports and multipart uploads belong to whatever serves the package;
-rate limiting is a deployment concern that cost and depth limits inform rather
-than replace.
+binary transports and multipart uploads belong to whatever serves the package.
 
 ## Specification coverage
 
