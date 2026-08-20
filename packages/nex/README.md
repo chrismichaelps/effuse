@@ -500,8 +500,21 @@ export type FeedData = {
 
 Nullability follows the catalog, a paged field takes the page shape, and a
 selection on an interface or a union becomes one variant per branch,
-discriminated by `__typename`. A custom scalar is `unknown`, so a caller has
-to say what they expect before using it.
+discriminated by `__typename`.
+
+A scalar the language does not define reads as `unknown` unless you say what
+it is - a caller has to narrow it rather than be handed `any` and find out
+later. Say what it is and the generated types say so too:
+
+```ts
+generateTypes(request, catalog, { scalars: { Money: 'number' } });
+generateCatalogTypes(catalog, { scalars: { Money: 'number' } });
+```
+
+Anything is allowed, not just a name: `{ Json: 'Record<string, unknown>' }`
+reads as that everywhere the catalog names `Json`, in results, variables, and
+input types alike. The scalars the language does define cannot be renamed this
+way, the same way a catalog cannot redefine them.
 
 Enums and variants are written to survive a catalog that grows. A server may
 add an enum value or a union member at any time, and a client built before
