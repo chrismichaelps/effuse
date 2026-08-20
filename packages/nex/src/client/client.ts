@@ -27,6 +27,22 @@ import { requestKey } from '../api/persisted.js';
 import { REFERENCE_FIELD } from '../catalog/index.js';
 import { print } from '../api/print.js';
 import { NexErrorCode, NexExecutionError } from '../errors/index.js';
+import type { SourceLocation } from '../errors/index.js';
+
+const ERROR_CODES: ReadonlySet<string> = new Set(Object.values(NexErrorCode));
+
+const isErrorCode = (value: unknown): value is NexErrorCode =>
+	typeof value === 'string' && ERROR_CODES.has(value);
+
+const isLocation = (value: unknown): value is SourceLocation => {
+	if (typeof value !== 'object' || value === null) return false;
+	const { start, line, column } = value as Record<string, unknown>;
+	return (
+		typeof start === 'number' &&
+		typeof line === 'number' &&
+		typeof column === 'number'
+	);
+};
 import type { ExecutionResult } from '../execution/index.js';
 import type { DocumentNode } from '../language/ast/index.js';
 import { readEventStream } from './event-stream.js';
@@ -476,9 +492,74 @@ export const createNexClient = (options: NexClientOptions): NexClient => {
 	};
 
 	/** Read what came back, whatever shape the server answered in. */
+	/**
+	 * Turn one error from the wire back into an error.
+	 *
+	 * What arrives is whatever `JSON.parse` produced, and handing that on as an
+	 * error means a caller gets something the types call an error and nothing
+	 * else does: no stack, no `instanceof`, nothing for a retry policy to
+	 * branch on. A server that sent something else entirely still produces an
+	 * error rather than a hole in the list.
+	 */
+	const readError = (value: unknown): NexExecutionError => {
+		if (typeof value !== 'object' || value === null) {
+			return new NexExecutionError({
+				message:
+					typeof value === 'string'
+						? value
+						: 'The server reported a problem it did not describe',
+				code: NexErrorCode.INTERNAL,
+			});
+		}
+
+		const { message, path, location, extensions } = value as {
+			message?: unknown;
+			path?: unknown;
+			location?: unknown;
+			extensions?: unknown;
+		};
+
+		const carried =
+			typeof extensions === 'object' && extensions !== null
+				? (extensions as Record<string, unknown>)
+				: {};
+		const { code, ...rest } = carried;
+
+		return new NexExecutionError({
+			message:
+				typeof message === 'string'
+					? message
+					: 'The server reported a problem it did not describe',
+			path: Array.isArray(path)
+				? path.filter(
+						(step): step is string | number =>
+							typeof step === 'string' || typeof step === 'number'
+					)
+				: [],
+			...(isLocation(location) ? { location } : {}),
+			...(isErrorCode(code) ? { code } : {}),
+			extensions: rest,
+		});
+	};
+
+	/** One answer from the wire, with its errors made real again. */
+	const readResult = (value: unknown): ExecutionResult => {
+		if (typeof value !== 'object' || value === null) {
+			return failure(
+				'The response could not be read as a Nex response',
+				NexErrorCode.INTERNAL
+			);
+		}
+
+		const answer = value as ExecutionResult & { errors?: unknown };
+		if (!Array.isArray(answer.errors)) return answer;
+
+		return { ...answer, errors: answer.errors.map(readError) };
+	};
+
 	const readAnswer = async (
 		response: Response
-	): Promise<readonly ExecutionResult[] | ExecutionResult> => {
+	): Promise<ExecutionResult[] | ExecutionResult> => {
 		const body = await response.text();
 		let parsed: unknown;
 
@@ -500,7 +581,7 @@ export const createNexClient = (options: NexClientOptions): NexClient => {
 			);
 		}
 
-		return parsed as readonly ExecutionResult[] | ExecutionResult;
+		return Array.isArray(parsed) ? parsed.map(readResult) : readResult(parsed);
 	};
 
 	const run = async (
@@ -526,28 +607,18 @@ export const createNexClient = (options: NexClientOptions): NexClient => {
 			);
 		}
 
-		const body = await response.text();
-		let parsed: unknown;
+		// Read the same way a batch is read: one rule for what a response is,
+		// rather than two that agree until one of them changes.
+		const answer = await readAnswer(response);
 
-		try {
-			parsed = JSON.parse(body);
-		} catch {
+		if (Array.isArray(answer)) {
 			return failure(
-				response.ok
-					? 'The response could not be read as a Nex response'
-					: `The server answered ${String(response.status)} and the body could not be read as a Nex response`,
+				'The server answered with a batch to a request that was sent on its own',
 				NexErrorCode.INTERNAL
 			);
 		}
 
-		if (typeof parsed !== 'object' || parsed === null) {
-			return failure(
-				'The response could not be read as a Nex response',
-				NexErrorCode.INTERNAL
-			);
-		}
-
-		return parsed as ExecutionResult;
+		return answer;
 	};
 
 	/** Run a request on its own, working out its key on the way. */
