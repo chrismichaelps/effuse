@@ -27,6 +27,7 @@ const catalog = buildCatalog(`
 	enum Status { DRAFT PUBLISHED }
 	input NewPost { title: String! draft: Boolean = true size: Int! = 5 }
 	scalar DateTime
+	scalar Money
 `);
 
 const types = generateCatalogTypes(catalog);
@@ -74,7 +75,13 @@ describe('what the catalog holds, in TypeScript', () => {
 	});
 
 	it('writes a custom scalar as something a caller must narrow', () => {
-		expect(types).toContain('export type DateTime = unknown;');
+		expect(types).toContain('export type Money = unknown;');
+	});
+
+	it('writes a scalar the language defines as what it is', () => {
+		// Declaring it in a catalog does not make it the catalog's to define,
+		// and a field of this type reads as a string everywhere else.
+		expect(types).toContain('export type DateTime = string;');
 	});
 
 	it('carries a description across as a comment', () => {
