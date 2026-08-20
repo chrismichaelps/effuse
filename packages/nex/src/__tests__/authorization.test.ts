@@ -57,7 +57,7 @@ describe('a field the catalog guards', () => {
 	});
 
 	it('is asked about with what the catalog requires and where it sits', async () => {
-		const authorize = vi.fn(() => true);
+		const authorize = vi.fn((_request: AuthorizeRequest) => true);
 		await run('{ account { balance } }', {
 			authorize,
 			context: { user: 'ada' },
@@ -106,7 +106,7 @@ describe('a field the catalog guards', () => {
 	});
 
 	it('leaves an unguarded field alone', async () => {
-		const authorize = vi.fn(() => true);
+		const authorize = vi.fn((_request: AuthorizeRequest) => true);
 		const result = await run('{ open }', { authorize });
 
 		expect(result.data).toEqual({ open: 'anyone' });

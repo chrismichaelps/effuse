@@ -85,7 +85,7 @@ describe('a scalar the server says how to write', () => {
 
 describe('a scalar the server says how to read', () => {
 	it('hands a resolver what the scalar made of it', async () => {
-		const cost = vi.fn(() => 0);
+		const cost = vi.fn((_amount: number) => 0);
 		await run(
 			'query C($amount: Money!) { cost(amount: $amount) }',
 			{
@@ -111,7 +111,7 @@ describe('a scalar the server says how to read', () => {
 	});
 
 	it('reads a value written into the request itself', async () => {
-		const cost = vi.fn(() => 0);
+		const cost = vi.fn((_amount: number) => 0);
 		await run('{ cost(amount: "3.25") }', {
 			Query: {
 				cost: (_s: unknown, args: { amount: number }) => cost(args.amount),

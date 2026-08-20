@@ -5,6 +5,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import type { Catalog } from '../index.js';
 import {
 	buildCatalog,
 	execute,
@@ -168,7 +169,7 @@ describe('merging catalogs', () => {
 });
 
 describe('what a merge refuses', () => {
-	const errorsOf = (...catalogs: Parameters<typeof mergeCatalogsSafe>) => {
+	const errorsOf = (...catalogs: readonly Catalog[]) => {
 		const merged = mergeCatalogsSafe(...catalogs);
 		if (merged.success) throw new Error('the merge was expected to fail');
 		return merged.errors.map((error) => error.message);

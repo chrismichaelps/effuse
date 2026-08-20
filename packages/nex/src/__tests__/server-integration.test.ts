@@ -12,6 +12,7 @@ import {
 	createLoader,
 	createNexHandler,
 	refFor,
+	type Loader,
 } from '../index.js';
 
 const catalog = buildCatalog(`
@@ -23,7 +24,7 @@ const catalog = buildCatalog(`
 
 interface Session {
 	readonly caller: string;
-	readonly people: { readonly load: (id: string) => Promise<string> };
+	readonly people: Loader<string, string>;
 }
 
 const budget = createCostBudget({ capacity: 150, refillPerSecond: 0 });

@@ -181,7 +181,7 @@ describe('a server that spends on a caller’s behalf', () => {
 	});
 
 	it('reads the caller from the request', async () => {
-		const callerFor = vi.fn(() => 'caller');
+		const callerFor = vi.fn((_request: Request) => 'caller');
 		const handler = createNexHandler({
 			catalog,
 			resolvers,

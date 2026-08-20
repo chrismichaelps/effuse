@@ -1380,6 +1380,7 @@ where each is answered here - including the ones deliberately left out.
 | The language                 | `parse`, `print`, `tokenize`, and the AST, including pipelines and `Type?`      |
 | The type system and catalogs | `buildCatalog`, coherence checks, extensions, `printCatalog`                    |
 | Requests                     | Fields, arguments, aliases, fragments, variables, `@skip` and `@include`        |
+| Directives                   | Declared and checked by the catalog, given behaviour by the server              |
 | Changes                      | Mutations, run serially, with transaction blocks                                |
 | Live data                    | `live` operations over server-sent events, snapshots or patches                 |
 | Execution                    | `execute`, resolvers, error policies, per-row concurrency                       |

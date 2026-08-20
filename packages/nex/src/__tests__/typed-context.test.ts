@@ -92,7 +92,7 @@ describe('a context that keeps its type', () => {
 	it('reaches a live source as itself', async () => {
 		const snapshots: unknown[] = [];
 
-		for await (const snapshot of subscribe<Session>({
+		for await (const snapshot of subscribe({
 			request: 'live L { ticks }',
 			catalog,
 			context: { userId: 'ada', roles: [] },

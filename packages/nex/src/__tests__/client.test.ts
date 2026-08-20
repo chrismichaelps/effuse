@@ -59,12 +59,15 @@ describe('sending a request', () => {
 	});
 
 	it('carries the headers it was given', async () => {
-		const fetchImpl = vi.fn(async () => ok({ hello: 'world' }));
+		const fetchImpl = vi.fn(async (_url: string, _init: RequestInit) =>
+			ok({ hello: 'world' })
+		);
 		await client(fetchImpl as unknown as typeof fetch, {
 			headers: { authorization: 'Bearer token' },
 		}).request('{ hello }');
 
-		const init = (fetchImpl.mock.calls[0] as never[])[1] as RequestInit;
+		const init = fetchImpl.mock.calls[0]?.[1];
+		if (init === undefined) throw new Error('the request was never sent');
 		expect(init.headers).toMatchObject({
 			'content-type': 'application/json',
 			authorization: 'Bearer token',

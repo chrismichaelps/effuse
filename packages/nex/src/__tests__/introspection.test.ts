@@ -35,7 +35,7 @@ const catalog = buildCatalog(`
 const run = async (request: string) => {
 	const result = await execute({ request, catalog });
 	expect(result.errors).toBeUndefined();
-	return result.data as Record<string, never>;
+	return result.data as Record<string, unknown>;
 };
 
 describe('__schema', () => {

@@ -6,6 +6,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { buildCatalog, createLoader, createNexHandler } from '../index.js';
+import type { Loader } from '../index.js';
 
 const catalog = buildCatalog(`
 	type Query { who: String! seen: [String!]! }
@@ -15,7 +16,7 @@ const catalog = buildCatalog(`
 
 interface Session {
 	readonly userId: string;
-	readonly names: { readonly load: (id: string) => Promise<string> };
+	readonly names: Loader<string, string>;
 }
 
 const ask = (

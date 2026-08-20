@@ -95,7 +95,7 @@ describe('walking a document', () => {
 	it('reports where it is', () => {
 		const paths: string[] = [];
 		visit(parse('{ a { b } }'), {
-			Field: (_node, key, _parent, path) => {
+			Field: (_node, _key, _parent, path) => {
 				paths.push(path.join('.'));
 			},
 		});
