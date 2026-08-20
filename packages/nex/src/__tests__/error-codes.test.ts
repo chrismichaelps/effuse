@@ -14,10 +14,10 @@ import {
 	buildCatalog,
 	buildCatalogSafe,
 	execute,
-	handleHttpRequest,
 	parseSafe,
 	validateRequest,
 } from '../index.js';
+import { handleProtocolRequest } from '../transport/index.js';
 
 const catalog = buildCatalog(`
 	type Query { posts: [Post!]! @connection hello: String! maybe: String }
@@ -164,7 +164,7 @@ describe('what a client sees on the wire', () => {
 	});
 
 	it('carries it through the HTTP handler', async () => {
-		const response = await handleHttpRequest(
+		const response = await handleProtocolRequest(
 			{
 				method: 'POST',
 				url: '/nex',

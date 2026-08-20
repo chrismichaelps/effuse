@@ -143,7 +143,7 @@ describe('public API', () => {
 				'findDeprecations',
 				'generateCatalogTypes',
 				'generateTypes',
-				'handleHttpRequest',
+				'createNexHandler',
 				'isDocument',
 				'isValidRequest',
 				'normalizeRequest',

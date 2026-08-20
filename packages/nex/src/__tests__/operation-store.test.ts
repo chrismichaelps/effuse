@@ -9,10 +9,10 @@ import {
 	NexErrorCode,
 	buildCatalog,
 	createOperationStore,
-	handleHttpRequest,
 	normalizeRequest,
 	requestKey,
 } from '../index.js';
+import { handleProtocolRequest } from '../transport/index.js';
 
 const catalog = buildCatalog(`
 	type Query { hello: String! echo(text: String!): String! }
@@ -29,7 +29,7 @@ const resolvers = {
 };
 
 const post = (body: unknown, options: Record<string, unknown> = {}) =>
-	handleHttpRequest(
+	handleProtocolRequest(
 		{
 			method: 'POST',
 			url: '/nex',

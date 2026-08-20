@@ -12,11 +12,11 @@ import {
 	buildCatalog,
 	buildCatalogSafe,
 	execute,
-	handleHttpRequest,
 	parse,
 	subscribe,
 	validateRequest,
 } from '../api/index.js';
+import { handleProtocolRequest } from '../transport/index.js';
 import { NexExecutionError, NexSyntaxError } from '../errors/index.js';
 import { decodeCursor, encodeCursor } from '../execution/index.js';
 
@@ -230,7 +230,7 @@ describe('what an error says to the outside world', () => {
 	});
 
 	it('reaches the wire through the HTTP handler', async () => {
-		const response = await handleHttpRequest(
+		const response = await handleProtocolRequest(
 			{
 				method: 'POST',
 				url: '/nex',

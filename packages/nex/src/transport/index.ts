@@ -22,16 +22,14 @@
  * SOFTWARE.
  */
 
+export { createNexHandler, type NexHandlerOptions } from './fetch-handler.js';
 export { toEventStream } from './http/event-stream.js';
-export { handleHttpRequest, type HttpHandlerOptions } from './http/handle.js';
 export {
-	MediaType,
-	type HttpRequest,
-	type HttpRequestBody,
-	type HttpResponse,
+	handleProtocolRequest,
+	type HttpHandlerOptions,
+} from './http/handle.js';
+export type {
+	HttpRequest,
+	HttpRequestBody,
+	HttpResponse,
 } from './http/messages.js';
-export {
-	parseGetRequest,
-	parsePostRequest,
-	type ParsedHttpRequest,
-} from './http/parse.js';

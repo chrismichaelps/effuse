@@ -42,12 +42,9 @@ export { analyzeRequest } from './analyze.js';
 export { execute, type ExecuteOptions } from './execute.js';
 export { subscribe, type SubscribeOptions } from './subscribe.js';
 export {
-	handleHttpRequest,
+	createNexHandler,
 	toEventStream,
-	type HttpHandlerOptions,
-	type HttpRequest,
-	type HttpRequestBody,
-	type HttpResponse,
+	type NexHandlerOptions,
 } from '../transport/index.js';
 export {
 	buildCatalogFromIntrospection,

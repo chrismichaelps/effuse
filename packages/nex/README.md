@@ -627,29 +627,28 @@ the same key a persisted-operation store uses.
 Point the client at an operation store and it sends the name rather than the
 request, which pairs with a server running `persistedOnly`.
 
-## Serving over HTTP
+## Serving requests
 
-`handleHttpRequest` maps HTTP onto this package without knowing anything about a particular server: hand it a method, a URL, headers, and a body, and it hands back a status, headers, and either a body or a stream.
+`createNexHandler` builds the request handler a server mounts. It answers web
+`Request`s with web `Response`s, which is exactly what `@effuse/server` binds
+to its Node and Bun adapters:
 
 ```ts
-import { handleHttpRequest } from '@effuse/nex';
+import { createNodeServer } from '@effuse/server';
+import { createNexHandler } from '@effuse/nex';
 
-const answer = await handleHttpRequest(
-  {
-    method: request.method,
-    url: request.url,
-    headers,
-    body: await request.text(),
-  },
-  { catalog, resolvers, sources, context: { user } }
+const server = createNodeServer(
+  createNexHandler({ catalog, resolvers, sources, context: { user } })
 );
 
-if (answer.stream) {
-  for await (const frame of answer.stream) write(frame); // server-sent events
-} else {
-  send(answer.status, answer.headers, answer.body);
-}
+await server.listen({ port: 4000 });
 ```
+
+Nothing about HTTP itself lives in this package: the runtime owns listening,
+body limits, graceful shutdown, and static files, while this owns what a Nex
+request means. A live operation comes back as a streaming `Response`, which the
+adapters serve without buffering, and when a caller goes away its source is
+closed rather than left producing.
 
 How it maps:
 
@@ -678,6 +677,8 @@ const answer = await handleHttpRequest(request, {
   resolvers,
   sources,
   context: { user },
+  authorize: ({ requires, context }) =>
+    (context as Session).roles.includes(requires ?? ''),
   introspection: process.env.NODE_ENV !== 'production',
   limits: { maxCost: 5_000, maxDepth: 12 },
   maxBatchSize: 5,
@@ -691,6 +692,11 @@ const answer = await handleHttpRequest(request, {
 });
 ```
 
+- **Guarded fields** are refused unless an `authorize` callback says otherwise.
+  A field the catalog marks `@auth` is asked about before anything of it runs,
+  and with no authorizer configured it is refused rather than quietly resolved:
+  a guard the server never checks is worse than no guard at all. A live
+  operation is checked before its source is opened.
 - **Introspection** answers by default. Pass `introspection: false` to `execute`, `subscribe`, or the handler and `__schema` and `__type` are refused during validation, before anything runs. `__typename` is unaffected.
 - **Cost and depth** are not enforced unless asked for. Set `limits` and an expensive request is refused before a resolver is called.
 - **Error messages** go out as written. `formatError` rewrites every error - request, field, and live snapshot alike - so internal detail never reaches a client.

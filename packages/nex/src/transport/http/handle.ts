@@ -26,6 +26,7 @@ import { selectOperation } from '../../analysis/index.js';
 import type { Catalog } from '../../catalog/index.js';
 import {
 	coerceVariableValues,
+	type Authorize,
 	type ErrorPolicy,
 	type ExecutionResult,
 	type LiveSources,
@@ -77,6 +78,8 @@ export interface HttpHandlerOptions {
 	readonly persistedOnly?: boolean | undefined;
 	/** Whether `__schema` and `__type` may be asked for. Defaults to `true`. */
 	readonly introspection?: boolean | undefined;
+	/** Decide whether a caller may have a field the catalog guards. */
+	readonly authorize?: Authorize | undefined;
 	/** Rewrite every error before it goes on the wire. */
 	readonly formatError?:
 		| ((error: NexExecutionError) => NexExecutionError)
@@ -259,6 +262,9 @@ const runOne = async (
 		...(options.errorPolicy === undefined
 			? {}
 			: { errorPolicy: options.errorPolicy }),
+		...(options.authorize === undefined
+			? {}
+			: { authorize: options.authorize }),
 		...(options.formatError === undefined
 			? {}
 			: { formatError: options.formatError }),
@@ -268,16 +274,18 @@ const runOne = async (
 };
 
 /**
- * Serve one HTTP request.
+ * Read one request, run it, and say what to answer with.
  *
- * Reads the request, runs it, and hands back what to answer with - nothing in
- * here knows about a particular server, so any of them can mount it.
+ * This is the mapping specification section 9 describes - which bodies are
+ * requests, which failures are the client's, how a live operation is framed -
+ * expressed against plain values. `createNexHandler` wraps it in the web
+ * platform's own `Request` and `Response`, which is what a server mounts.
  *
  * `GET` carries safe queries only; a mutation or a live operation sent that
  * way is refused with the methods that would work. A live operation answers
  * with an event stream instead of a body.
  */
-export const handleHttpRequest = async (
+export const handleProtocolRequest = async (
 	request: HttpRequest,
 	options: HttpHandlerOptions
 ): Promise<HttpResponse> => {
@@ -362,6 +370,9 @@ export const handleHttpRequest = async (
 					...(options.formatError === undefined
 						? {}
 						: { formatError: options.formatError }),
+					...(options.authorize === undefined
+						? {}
+						: { authorize: options.authorize }),
 				})
 			),
 		};

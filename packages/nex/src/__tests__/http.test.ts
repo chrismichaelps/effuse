@@ -9,10 +9,12 @@ import {
 	type LiveSources,
 	type Resolvers,
 	buildCatalog,
-	handleHttpRequest,
 	toEventStream,
-	type HttpResponse,
 } from '../index.js';
+import {
+	handleProtocolRequest,
+	type HttpResponse,
+} from '../transport/index.js';
 
 const catalog = buildCatalog(`
 	schema { query: Query mutation: Mutation live: Live }
@@ -40,7 +42,7 @@ const sources: LiveSources = {
 };
 
 const post = (body: unknown, headers: Record<string, string> = {}) =>
-	handleHttpRequest(
+	handleProtocolRequest(
 		{
 			method: 'POST',
 			url: '/nex',
@@ -51,7 +53,7 @@ const post = (body: unknown, headers: Record<string, string> = {}) =>
 	);
 
 const get = (query: string) =>
-	handleHttpRequest(
+	handleProtocolRequest(
 		{ method: 'GET', url: `/nex?${query}`, headers: {} },
 		{ catalog, resolvers, sources }
 	);
@@ -134,7 +136,7 @@ describe('POST', () => {
 	});
 
 	it('answers 200 when a field failed but the rest resolved', async () => {
-		const response = await handleHttpRequest(
+		const response = await handleProtocolRequest(
 			{
 				method: 'POST',
 				url: '/nex',
@@ -194,7 +196,7 @@ describe('GET', () => {
 
 describe('other methods', () => {
 	it('refuses anything but GET and POST', async () => {
-		const response = await handleHttpRequest(
+		const response = await handleProtocolRequest(
 			{ method: 'DELETE', url: '/nex', headers: {} },
 			{ catalog, resolvers }
 		);
@@ -234,7 +236,7 @@ describe('batching', () => {
 	});
 
 	it('refuses a batch larger than the limit', async () => {
-		const response = await handleHttpRequest(
+		const response = await handleProtocolRequest(
 			{
 				method: 'POST',
 				url: '/nex',

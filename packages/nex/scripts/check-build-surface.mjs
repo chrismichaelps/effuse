@@ -30,7 +30,7 @@ const REQUIRED = [
 	'findDeprecations',
 	'generateCatalogTypes',
 	'generateTypes',
-	'handleHttpRequest',
+	'createNexHandler',
 	'isDocument',
 	'isValidRequest',
 	'normalizeRequest',
