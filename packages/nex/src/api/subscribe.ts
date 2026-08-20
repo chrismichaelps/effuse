@@ -162,7 +162,8 @@ export const subscribe = async function* <
 	const coerced = coerceVariableValues(
 		options.catalog,
 		operation,
-		suppliedVariables
+		suppliedVariables,
+		options.scalars ?? {}
 	);
 	if ('errors' in coerced) {
 		yield {
@@ -189,6 +190,7 @@ export const subscribe = async function* <
 	const snapshots = executeLive(
 		{
 			catalog: options.catalog,
+			...(options.scalars === undefined ? {} : { scalars: options.scalars }),
 			resolvers: options.resolvers ?? {},
 			fragments: fragmentsOf(document),
 			operation,

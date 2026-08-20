@@ -35,6 +35,7 @@ import {
 	type ErrorPolicy,
 	type ExecutionResult,
 	type LiveSources,
+	type NexScalars,
 	type Resolvers,
 } from '../../execution/index.js';
 import { NexErrorCode, NexExecutionError } from '../../errors/index.js';
@@ -98,6 +99,8 @@ export interface HttpHandlerOptions<TContext = unknown> {
 	readonly errorPolicy?: ErrorPolicy | undefined;
 	/** Cost and depth limits enforced before anything runs. */
 	readonly limits?: RequestLimits | undefined;
+	/** How the server writes and reads the scalars the catalog names. */
+	readonly scalars?: NexScalars | undefined;
 	/** What the caller may spend over time, charged what each request costs. */
 	readonly budget?: SpendingLimit | undefined;
 	/** How many requests one batch may carry. Defaults to 10. */
@@ -318,7 +321,8 @@ const runOne = async <TContext>(
 	const coerced = coerceVariableValues(
 		options.catalog,
 		operation,
-		body.variables ?? {}
+		body.variables ?? {},
+		options.scalars ?? {}
 	);
 	if ('errors' in coerced) {
 		return refused(
@@ -337,6 +341,7 @@ const runOne = async <TContext>(
 
 	const result = await execute({
 		request: read.document,
+		...(options.scalars === undefined ? {} : { scalars: options.scalars }),
 		...(traceId === undefined ? {} : { traceId }),
 		catalog: options.catalog,
 		validate: false,
@@ -480,6 +485,9 @@ export const handleProtocolRequest = async <TContext>(
 				subscribe({
 					request: first.query,
 					catalog: options.catalog,
+					...(options.scalars === undefined
+						? {}
+						: { scalars: options.scalars }),
 					sources: options.sources ?? {},
 					...(options.resolvers === undefined
 						? {}

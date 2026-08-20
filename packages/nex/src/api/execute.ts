@@ -39,6 +39,7 @@ import {
 	type Instrumentation,
 	type OperationTrace,
 	type ExecutionResult,
+	type NexScalars,
 	type Resolvers,
 } from '../execution/index.js';
 import { coerceVariableValues } from '../execution/index.js';
@@ -65,6 +66,15 @@ export interface ExecuteOptions<TContext = unknown> {
 	readonly catalog: Catalog;
 	/** Field resolvers, by type name. Anything missing reads the source value. */
 	readonly resolvers?: Resolvers<TContext> | undefined;
+	/**
+	 * How the server writes and reads the scalars the catalog names.
+	 *
+	 * A scalar the language does not define travels untouched without one,
+	 * which is right for a type that is already JSON. With one, what a
+	 * resolver returns becomes what goes on the wire, and what a caller sent
+	 * becomes what a resolver receives.
+	 */
+	readonly scalars?: NexScalars | undefined;
 	/** Variable values supplied alongside the request. */
 	readonly variables?: Readonly<Record<string, unknown>> | undefined;
 	/** Which operation to run, when the document holds several. */
@@ -279,7 +289,8 @@ export const execute = async <
 	const coerced = coerceVariableValues(
 		options.catalog,
 		operation,
-		suppliedVariables
+		suppliedVariables,
+		options.scalars ?? {}
 	);
 	if ('errors' in coerced) {
 		return finish(
@@ -309,6 +320,7 @@ export const execute = async <
 			const executor = yield* ExecutorService;
 			return yield* executor.run({
 				catalog: options.catalog,
+				...(options.scalars === undefined ? {} : { scalars: options.scalars }),
 				resolvers: options.resolvers ?? {},
 				fragments: fragmentsOf(document),
 				operation,
