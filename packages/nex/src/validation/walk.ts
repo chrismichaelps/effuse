@@ -47,6 +47,13 @@ const REFERENCE = '__ref';
  * introspection request can be made to describe the same handful of types
  * over and over. Counting the repeats keeps the cost of that bounded.
  */
+/**
+ * How far into the type graph one request may walk.
+ *
+ * Introspection is recursive, and its cost is not what a field's cost says it
+ * is: a handful of nested steps asks a server to write out its whole shape
+ * several times over. Three is what a tool that draws a schema needs.
+ */
 const MAX_INTROSPECTION_DEPTH = 3;
 
 /**
@@ -62,6 +69,62 @@ const RECURSIVE_INTROSPECTION_FIELDS: ReadonlySet<string> = new Set([
 	'possibleTypes',
 	'inputFields',
 ]);
+
+const TOO_DEEP = `Introspection goes too deep here: at most ${String(MAX_INTROSPECTION_DEPTH)} levels of the type graph are read`;
+
+/**
+ * How far a selection set carries on walking the type graph.
+ *
+ * Only the steps count, not what is checked along the way - the general walk
+ * does that where each fragment is defined. Following spreads here is what
+ * stops a walk split across fragments from getting past the limit; a fragment
+ * already being followed is left alone, since a cycle is reported elsewhere.
+ */
+const walksTooDeep = (
+	context: ValidationContext,
+	selectionSet: SelectionSetNode,
+	depth: number,
+	following: ReadonlySet<string> = new Set()
+): boolean => {
+	for (const selection of selectionSet.selections) {
+		if (selection.kind === Kind.FRAGMENT_SPREAD) {
+			const name = selection.name.value;
+			if (following.has(name)) continue;
+
+			const fragment = context.fragments.get(name);
+			if (fragment === undefined) continue;
+
+			if (
+				walksTooDeep(
+					context,
+					fragment.selectionSet,
+					depth,
+					new Set([...following, name])
+				)
+			) {
+				return true;
+			}
+			continue;
+		}
+
+		const next =
+			selection.kind === Kind.FIELD &&
+			RECURSIVE_INTROSPECTION_FIELDS.has(selection.name.value)
+				? depth + 1
+				: depth;
+
+		if (next >= MAX_INTROSPECTION_DEPTH) return true;
+
+		if (
+			selection.selectionSet !== undefined &&
+			walksTooDeep(context, selection.selectionSet, next, following)
+		) {
+			return true;
+		}
+	}
+
+	return false;
+};
 
 const INTROSPECTION_FIELDS: ReadonlySet<string> = new Set([
 	'__schema',
@@ -121,11 +184,8 @@ const walkField = (
 			(RECURSIVE_INTROSPECTION_FIELDS.has(fieldName) ? 1 : 0)
 		: 0;
 
-	if (nextDepth > MAX_INTROSPECTION_DEPTH) {
-		context.report(
-			`Introspection goes too deep here: at most ${String(MAX_INTROSPECTION_DEPTH)} levels of the type graph are read`,
-			field
-		);
+	if (nextDepth >= MAX_INTROSPECTION_DEPTH) {
+		context.report(TOO_DEEP, field);
 		return;
 	}
 
@@ -214,6 +274,14 @@ export const walkSelectionSet = (
 						`Fragment "${name}" on type "${condition}" can never apply to type "${parentTypeName}"`,
 						selection
 					);
+				}
+
+				// A fragment is checked where it is defined, but how far into
+				// the type graph it goes depends on where it was spread from -
+				// and splitting a walk across fragments would otherwise get
+				// past the limit that walking it in one place runs into.
+				if (walksTooDeep(context, fragment.selectionSet, introspectionDepth)) {
+					context.report(TOO_DEEP, selection);
 				}
 				break;
 			}
