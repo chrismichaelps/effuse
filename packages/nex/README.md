@@ -699,6 +699,47 @@ A budget fills back up steadily rather than resetting on a schedule, so a
 caller who spends carefully is never made to wait for a window to turn over.
 It holds one number and one timestamp per caller, and no timers.
 
+## Scalars a server defines
+
+The language defines `Int`, `Float`, `String`, `Boolean`, `ID`, and
+`DateTime`. Anything else a catalog names is opaque: the catalog says a value
+of that type exists, and only the server knows what one is. Without a
+definition it travels untouched, which is right for a type that is already
+JSON.
+
+Give it one and both directions become explicit:
+
+```ts
+const scalars = {
+  Money: {
+    // Held as whole cents, written as a decimal string.
+    serialize: (value) => (Number(value) / 100).toFixed(2),
+    parse: (value) => {
+      if (typeof value !== 'string' || !/^\d+\.\d{2}$/u.test(value)) {
+        throw new Error('Money is written as a decimal with two places');
+      }
+      return Math.round(Number(value) * 100);
+    },
+  },
+};
+
+const handler = createNexHandler({ catalog, resolvers, scalars });
+```
+
+What a resolver returns goes through `serialize` on its way to the wire; what
+a caller sent goes through `parse` before a resolver sees it, whether it
+arrived as a variable or was written into the request. Either may throw to
+refuse a value, and what it throws is what the caller is told - so say what
+was wrong with the value rather than that something was.
+
+A value written into a request is read once and a variable is read once: an
+argument that leans on a variable anywhere inside it has already been read by
+the time the argument is built, and reading it again would hand the scalar
+what it produced rather than what the caller wrote.
+
+The same definitions apply to a query, a change, and a live operation, and to
+requests served over HTTP.
+
 ## What identifies an object
 
 A client caching what it has seen needs one key per object. A bare `id` is
@@ -1166,6 +1207,7 @@ Each capability, and what keeps it honest:
 | Performance            | `pnpm bench:nex` with budgets over a scalar field, a large list, and a paged list                                         |
 | Catalog review         | Advice on what a working catalog makes impossible later, named by coordinate                                              |
 | Schema evolution       | Response types that still read when a catalog gains an enum value or a union member                                       |
+| Scalars                | A server says how it writes and reads each type the language does not define                                              |
 | Object identity        | A reference per object, opaque and unique across the graph, refused when it came from elsewhere                           |
 | Composition            | One catalog built from several, with every disagreement between sources reported                                          |
 | Spending limits        | A budget that refills, charged per request, refusing with `429` and a `Retry-After`                                       |
