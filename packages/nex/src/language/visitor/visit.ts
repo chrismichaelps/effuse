@@ -66,16 +66,42 @@ export interface EnterLeaveVisitor<TNode = ASTNode> {
  * A kind's handler wins over the general one, which is what makes a visitor
  * for one kind read as a one-liner.
  */
+/** The node a kind stands for. */
+export type NodeOfKind<TKind extends ASTNode['kind']> = Extract<
+	ASTNode,
+	{ readonly kind: TKind }
+>;
+
+/**
+ * Handlers by node kind, plus ones for every node.
+ *
+ * Each kind is handed the node that kind is, rather than the whole union: a
+ * visitor keyed by `Field` already said which node it wants, and making the
+ * caller narrow it again is asking twice.
+ */
 export type Visitor = EnterLeaveVisitor & {
-	readonly [kind: string]: VisitFn | EnterLeaveVisitor | undefined;
+	readonly [TKind in ASTNode['kind']]?:
+		| VisitFn<NodeOfKind<TKind>>
+		| EnterLeaveVisitor<NodeOfKind<TKind>>
+		| undefined;
 };
+
+/**
+ * Reading a handler off a visitor that is keyed by kind.
+ *
+ * The visitor a caller writes says which node each handler takes; walking it
+ * happens over the union, and this is the one place those two views meet.
+ */
+type HandlerLookup = Readonly<
+	Record<string, VisitFn | EnterLeaveVisitor | undefined>
+>;
 
 const handlerFor = (
 	visitor: Visitor,
 	kind: string,
 	phase: 'enter' | 'leave'
 ): VisitFn | undefined => {
-	const specific = visitor[kind];
+	const specific = (visitor as HandlerLookup)[kind];
 
 	if (typeof specific === 'function') {
 		return phase === 'enter' ? specific : undefined;

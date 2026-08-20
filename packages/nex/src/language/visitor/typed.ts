@@ -34,6 +34,7 @@ import type {
 } from '../ast/index.js';
 import { Kind } from '../kinds/index.js';
 import { namedTypeOf } from '../../validation/type-utils.js';
+import type { NodeOfKind } from './visit.js';
 
 /** What the catalog says about where a walk currently stands. */
 export interface TypedVisitorInfo {
@@ -57,7 +58,7 @@ export type TypedVisitFn<TNode extends ASTNode = ASTNode> = (
 
 /** Handlers by node kind, plus one for every node. */
 export type TypedVisitor = {
-	readonly [kind: string]: TypedVisitFn | undefined;
+	readonly [TKind in ASTNode['kind']]?: TypedVisitFn<NodeOfKind<TKind>>;
 } & {
 	readonly enter?: TypedVisitFn;
 	readonly leave?: TypedVisitFn;
@@ -92,9 +93,17 @@ export const visitWithTypes = (
 		}
 	}
 
+	/**
+	 * The visitor a caller writes says which node each handler takes; walking
+	 * happens over the union, and this is the one place those two meet.
+	 */
+	const handlers = visitor as Readonly<
+		Record<string, TypedVisitFn | undefined>
+	>;
+
 	const call = (node: ASTNode, types: TypedVisitorInfo): void => {
 		visitor.enter?.(node, types);
-		visitor[node.kind]?.(node, types);
+		handlers[node.kind]?.(node, types);
 		visitor.leave?.(node, types);
 	};
 
