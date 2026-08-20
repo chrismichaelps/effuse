@@ -34,6 +34,9 @@ import type {
 import { Kind, OperationType } from '../language/kinds/index.js';
 import { printType } from '../language/printer/index.js';
 import { BUILT_IN_SCALARS } from './built-in-scalars.js';
+import { DEFAULT_IDENTITY_FIELD } from './catalog.js';
+
+const IDENTITY_DIRECTIVE = 'identity';
 import type { CatalogIndex } from './index-definitions.js';
 import { unwrapType } from './named-type.js';
 
@@ -444,6 +447,39 @@ export const checkCoherence = (
 		}
 
 		if (!hasQuery) report('A catalog must define a query root type');
+	}
+
+	/**
+	 * A type saying what identifies it has to have that field.
+	 *
+	 * The reference a client caches an object under is built from this field's
+	 * value, so a name that resolves to nothing would be found at run time, on
+	 * a row, rather than here.
+	 */
+	for (const [name, definition] of index.types) {
+		if (definition.kind !== Kind.OBJECT_TYPE_DEFINITION) continue;
+
+		const marked = (definition.directives ?? []).find(
+			(directive) => directive.name.value === IDENTITY_DIRECTIVE
+		);
+		if (marked === undefined) continue;
+
+		const named = (marked.arguments ?? []).find(
+			(argument) => argument.name.value === 'field'
+		);
+		const field =
+			named?.value.kind === Kind.STRING
+				? named.value.value
+				: DEFAULT_IDENTITY_FIELD;
+
+		if ((definition.fields ?? []).some((one) => one.name.value === field)) {
+			continue;
+		}
+
+		report(
+			`"${name}" says "${field}" identifies it, but declares no such field`,
+			marked.loc
+		);
 	}
 
 	return errors;

@@ -23,7 +23,12 @@
  */
 
 export { buildCatalogFromDocument, type CatalogBuild } from './build.js';
-export { createCatalog, type Catalog } from './catalog.js';
+export {
+	createCatalog,
+	DEFAULT_IDENTITY_FIELD,
+	REFERENCE_FIELD,
+	type Catalog,
+} from './catalog.js';
 export { BUILT_IN_SCALARS } from './built-in-scalars.js';
 export { unwrapType } from './named-type.js';
 export { printCatalog } from './print.js';

@@ -106,6 +106,10 @@ export const BUILT_IN_DIRECTIVES: readonly DirectiveDefinitionNode[] = [
 			...OPERATION_LOCATIONS,
 		],
 	}),
+	directive('identity', {
+		arguments: [input('field', namedType('String'))],
+		locations: [DirectiveLocation.OBJECT],
+	}),
 	directive('auth', {
 		arguments: [input('requires', namedType('String'))],
 		locations: [

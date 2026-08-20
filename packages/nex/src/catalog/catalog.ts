@@ -42,6 +42,13 @@ const CONVENTIONAL_ROOT_NAMES: Readonly<Record<OperationType, string>> = {
 };
 
 const CONNECTION_DIRECTIVE = 'connection';
+const IDENTITY_DIRECTIVE = 'identity';
+
+/** The field a type identifies itself by when it does not name one. */
+export const DEFAULT_IDENTITY_FIELD = 'id';
+
+/** The field on an object that stands for the whole object. */
+export const REFERENCE_FIELD = '__ref';
 
 /** A resolved catalog: every type, directive, and root operation of a schema. */
 export interface Catalog {
@@ -68,6 +75,13 @@ export interface Catalog {
 	) => FieldDefinitionNode | undefined;
 	/** Whether a field is marked `@connection`, so `| page` applies to it. */
 	readonly isConnectionField: (typeName: string, fieldName: string) => boolean;
+	/**
+	 * The field a type says identifies it, or `undefined` when it says nothing.
+	 *
+	 * A type marked `@identity` answers `__ref`, the reference a client caches
+	 * it under. `@identity(field:)` names the field when it is not `id`.
+	 */
+	readonly identityField: (typeName: string) => string | undefined;
 	/** The object types a name can resolve to at runtime. */
 	readonly getPossibleTypes: (
 		name: string
@@ -106,10 +120,47 @@ export const createCatalog = (index: CatalogIndex): Catalog => {
 		);
 	};
 
+	const identityField = (typeName: string): string | undefined => {
+		const definition = getType(typeName);
+		if (definition?.kind !== Kind.OBJECT_TYPE_DEFINITION) return undefined;
+
+		const marked = (definition.directives ?? []).find(
+			(directive) => directive.name.value === IDENTITY_DIRECTIVE
+		);
+		if (marked === undefined) return undefined;
+
+		const named = (marked.arguments ?? []).find(
+			(argument) => argument.name.value === 'field'
+		);
+
+		return named?.value.kind === Kind.STRING
+			? named.value.value
+			: DEFAULT_IDENTITY_FIELD;
+	};
+
 	const getField = (
 		typeName: string,
 		fieldName: string
 	): FieldDefinitionNode | undefined => {
+		// A reference stands for the object rather than being written on it, so
+		// it answers wherever a type says what identifies it.
+		if (
+			fieldName === REFERENCE_FIELD &&
+			identityField(typeName) !== undefined
+		) {
+			return {
+				kind: Kind.FIELD_DEFINITION,
+				name: { kind: Kind.NAME, value: REFERENCE_FIELD },
+				type: {
+					kind: Kind.NON_NULL_TYPE,
+					type: {
+						kind: Kind.NAMED_TYPE,
+						name: { kind: Kind.NAME, value: 'String' },
+					},
+				},
+			};
+		}
+
 		const definition = getType(typeName);
 		if (
 			definition?.kind !== Kind.OBJECT_TYPE_DEFINITION &&
@@ -168,6 +219,7 @@ export const createCatalog = (index: CatalogIndex): Catalog => {
 			(getField(typeName, fieldName)?.directives ?? []).some(
 				(directive) => directive.name.value === CONNECTION_DIRECTIVE
 			),
+		identityField,
 		getPossibleTypes,
 		getDirective: (name) => index.directives.get(name),
 	};
