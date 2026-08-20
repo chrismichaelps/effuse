@@ -612,6 +612,12 @@ two spellings of one request share an answer. Two callers asking at once share
 one request in flight, and a request that failed is never kept - it is asked
 again rather than remembered.
 
+Pass `batch: true` and requests made in the same tick travel as one round trip,
+which the handler already understands. Membership is decided the moment each
+request is made rather than on a timer, so nothing is ever held waiting for a
+request that has not been asked for; `{ size }` caps how many travel together,
+and a lone request is still sent on its own.
+
 ### Server rendering and the browser
 
 The same client runs on both sides, which is what makes the handoff a two-liner:
@@ -761,6 +767,34 @@ What the package refuses on its own, whatever the options say:
 - Response objects and coerced inputs are built with no prototype, so a request writing `__proto__` as an alias, or a client sending it as an input key, cannot reach `Object.prototype`.
 - Cursors are read back only if this package handed them out.
 - Nothing reaches for a runtime global: cursors encode their own base64, so the package runs unchanged in Node, Bun, an edge worker, or a browser.
+
+## What is covered, and how it is held
+
+Each capability, and what keeps it honest:
+
+| Capability             | Held by                                                                                                                   |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Lexer, parser, printer | Round-trip tests, adversarial input (depth and token caps), source excerpts on every error                                |
+| Catalog and extensions | Coherence rules with one test each, `printCatalog` round-trip, `sortCatalog` settled ordering                             |
+| Validation             | A test per rule, including the pipeline rules this language adds, plus cost and depth limits                              |
+| Execution              | Nullability, error policies, mutation ordering, leaf coercion; a conformance sweep across the behaviours a client expects |
+| Pipelines and paging   | Filter, sort, take, skip, unique, page; opaque cursors this package alone hands out                                       |
+| Live operations        | Snapshot and differential delivery, source closed when a caller goes away                                                 |
+| Introspection          | Answers from the catalog, bounded depth, rebuildable into a catalog offline                                               |
+| Authorization          | `@auth` refused unless an authorizer says otherwise, checked before a resolver runs or a stream opens                     |
+| Cancellation           | A signal checked before each field; the handler passes the request's own                                                  |
+| Transport              | Web `Request` and `Response`, batching, server-sent events, status codes per case                                         |
+| Client                 | Caching by request identity, in-flight sharing, request batching, SSR handoff                                             |
+| Types                  | Context and response shape carried as parameters; `generateTypes` and `generateCatalogTypes` write both ends              |
+| Evolution              | `compareCatalogs` grades a change, `findBrokenOperations` names what stops working                                        |
+| Observability          | A trace on every run, operation and field-error hooks that cannot break a run                                             |
+| Performance            | `pnpm bench:nex` with budgets over a scalar field, a large list, and a paged list                                         |
+| Public surface         | Pinned by a test and by a build-time check that imports the built entry and runs a request                                |
+
+Not implemented, and why: federation is future work in the specification;
+binary transports and multipart uploads belong to whatever serves the package;
+rate limiting is a deployment concern that cost and depth limits inform rather
+than replace.
 
 ## Specification coverage
 

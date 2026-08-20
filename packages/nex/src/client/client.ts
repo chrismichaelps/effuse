@@ -65,6 +65,14 @@ export interface NexClientOptions {
 	readonly operations?: OperationStore | undefined;
 	/** Keep what came back, keyed by what the request does. Defaults to true. */
 	readonly cache?: boolean | undefined;
+	/**
+	 * Send requests made together as one round trip.
+	 *
+	 * `true` batches everything queued in the same tick; `{ size }` caps how
+	 * many travel together. A batch is never held for a request that has not
+	 * been made: nothing waits on a timer.
+	 */
+	readonly batch?: boolean | { readonly size?: number } | undefined;
 }
 
 /** A client for one server. */
@@ -122,6 +130,9 @@ const failure = <TData extends Record<string, unknown>>(
  */
 export const createNexClient = (options: NexClientOptions): NexClient => {
 	const send = options.fetch ?? globalThis.fetch;
+	const batching = options.batch !== undefined && options.batch !== false;
+	const batchSize =
+		typeof options.batch === 'object' ? (options.batch.size ?? 25) : 25;
 	const keeps = options.cache !== false;
 	const held = new Map<string, ExecutionResult>();
 	const inFlight = new Map<string, Promise<ExecutionResult>>();
@@ -189,6 +200,143 @@ export const createNexClient = (options: NexClientOptions): NexClient => {
 			JSON.stringify(request?.variables ?? null),
 		].join('\u0000');
 
+	/**
+	 * A request waiting to travel with the others queued this tick.
+	 *
+	 * What goes on the wire is worked out afterwards - the key it is kept
+	 * under is a hash, and that costs a turn of the event loop - but which
+	 * requests travel together is decided the moment each is made, or the
+	 * batch would already have gone.
+	 */
+	interface Queued {
+		/** What to send, or the answer already held for it. */
+		readonly prepare: () => Promise<
+			| { readonly body: Record<string, unknown> }
+			| { readonly held: ExecutionResult }
+		>;
+		readonly settle: (result: ExecutionResult) => void;
+		readonly headers: Record<string, string>;
+		readonly signal: AbortSignal | undefined;
+	}
+
+	let queue: Queued[] = [];
+	let scheduled = false;
+
+	/** Answer everyone in a batch with what came back for them. */
+	const deliver = (
+		waiting: readonly Queued[],
+		answers: readonly ExecutionResult[] | ExecutionResult
+	): void => {
+		if (!Array.isArray(answers)) {
+			for (const entry of waiting) entry.settle(answers as ExecutionResult);
+			return;
+		}
+
+		for (const [index, entry] of waiting.entries()) {
+			entry.settle(
+				answers[index] ??
+					failure(
+						'The server answered a batch with fewer results than it was sent',
+						NexErrorCode.INTERNAL
+					)
+			);
+		}
+	};
+
+	const sendBatch = async (queued: readonly Queued[]): Promise<void> => {
+		const prepared = await Promise.all(
+			queued.map(async (entry) => ({ entry, ready: await entry.prepare() }))
+		);
+
+		const waiting: Queued[] = [];
+		const bodies: Record<string, unknown>[] = [];
+
+		for (const { entry, ready } of prepared) {
+			if ('held' in ready) {
+				entry.settle(ready.held);
+				continue;
+			}
+			waiting.push(entry);
+			bodies.push(ready.body);
+		}
+
+		const first = waiting[0];
+		if (first === undefined) return;
+
+		const single = waiting.length === 1;
+
+		try {
+			const response = await send(options.endpoint, {
+				method: 'POST',
+				headers: first.headers,
+				body: JSON.stringify(single ? bodies[0] : bodies),
+				...(first.signal === undefined ? {} : { signal: first.signal }),
+			});
+
+			deliver(waiting, await readAnswer(response));
+		} catch (cause) {
+			deliver(
+				waiting,
+				failure(
+					`The request never reached ${options.endpoint}: ${
+						cause instanceof Error ? cause.message : String(cause)
+					}`,
+					NexErrorCode.INTERNAL
+				)
+			);
+		}
+	};
+
+	/** Queue a request, and send what is queued once this tick is over. */
+	const enqueue = (entry: Queued): void => {
+		queue.push(entry);
+
+		if (queue.length >= batchSize) {
+			const full = queue;
+			queue = [];
+			void sendBatch(full);
+			return;
+		}
+
+		if (scheduled) return;
+		scheduled = true;
+
+		queueMicrotask(() => {
+			scheduled = false;
+			const waiting = queue;
+			queue = [];
+			if (waiting.length > 0) void sendBatch(waiting);
+		});
+	};
+
+	/** Read what came back, whatever shape the server answered in. */
+	const readAnswer = async (
+		response: Response
+	): Promise<readonly ExecutionResult[] | ExecutionResult> => {
+		const body = await response.text();
+		let parsed: unknown;
+
+		try {
+			parsed = JSON.parse(body);
+		} catch {
+			return failure(
+				response.ok
+					? 'The response could not be read as a Nex response'
+					: `The server answered ${String(response.status)} and the body could not be read as a Nex response`,
+				NexErrorCode.INTERNAL
+			);
+		}
+
+		if (typeof parsed !== 'object' || parsed === null) {
+			return failure(
+				'The response could not be read as a Nex response',
+				NexErrorCode.INTERNAL
+			);
+		}
+
+		return parsed as readonly ExecutionResult[] | ExecutionResult;
+	};
+
 	const run = async (
 		input: string | DocumentNode,
 		request: NexRequestOptions | undefined,
@@ -236,6 +384,59 @@ export const createNexClient = (options: NexClientOptions): NexClient => {
 		return parsed as ExecutionResult;
 	};
 
+	/** Run a request on its own, working out its key on the way. */
+	const direct = async (
+		input: string | DocumentNode,
+		request: NexRequestOptions | undefined
+	): Promise<ExecutionResult> => {
+		const key = await keyFor(input, request);
+
+		if (keeps && request?.refresh !== true) {
+			const already = held.get(key);
+			if (already !== undefined) return already;
+		}
+
+		const result = await run(input, request, key);
+
+		// Only an answer worth reusing is kept: a failure should be asked again
+		// rather than remembered.
+		if (keeps && result.errors === undefined) held.set(key, result);
+		return result;
+	};
+
+	/** Put a request in this tick's batch, and answer when the batch does. */
+	const queued = (
+		input: string | DocumentNode,
+		request: NexRequestOptions | undefined
+	): Promise<ExecutionResult> =>
+		new Promise<ExecutionResult>((resolve) => {
+			enqueue({
+				prepare: async () => {
+					const key = await keyFor(input, request);
+
+					if (keeps && request?.refresh !== true) {
+						const already = held.get(key);
+						if (already !== undefined) return { held: already };
+					}
+
+					return {
+						body: JSON.parse(await bodyFor(input, request, key)) as Record<
+							string,
+							unknown
+						>,
+					};
+				},
+				settle: (result) => {
+					if (keeps && result.errors === undefined) {
+						void keyFor(input, request).then((key) => held.set(key, result));
+					}
+					resolve(result);
+				},
+				headers: headersFor(request),
+				signal: request?.signal,
+			});
+		});
+
 	const requestFor = <
 		TData extends Record<string, unknown> = Record<string, unknown>,
 	>(
@@ -248,25 +449,11 @@ export const createNexClient = (options: NexClientOptions): NexClient => {
 			return running as Promise<ExecutionResult<TData>>;
 		}
 
-		const pending = (async (): Promise<ExecutionResult<TData>> => {
-			const key = await keyFor(input, request);
-
-			if (keeps && request?.refresh !== true) {
-				const already = held.get(key);
-				// What a server sent back is the shape the request asked for; the
-				// caller is the one who can name it.
-				if (already !== undefined) return already as ExecutionResult<TData>;
-			}
-
-			const result = await run(input, request, key);
-
-			// Only an answer worth reusing is kept: a failure should be asked
-			// again rather than remembered.
-			if (keeps && result.errors === undefined) held.set(key, result);
-			return result as ExecutionResult<TData>;
-		})().finally(() => {
+		const pending = (
+			batching ? queued(input, request) : direct(input, request)
+		).finally(() => {
 			inFlight.delete(sharing);
-		});
+		}) as Promise<ExecutionResult<TData>>;
 
 		inFlight.set(sharing, pending as Promise<ExecutionResult>);
 		return pending;
