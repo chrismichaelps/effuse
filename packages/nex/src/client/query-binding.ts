@@ -79,7 +79,7 @@ export const nexQueryKey = (
 ];
 
 /** Whatever came back, or a reason nothing did. */
-const answerOf = <TData extends Record<string, unknown>>(
+const answerOf = <TData extends object>(
 	result: ExecutionResult<TData>,
 	options: NexBindingOptions
 ): TData => {
@@ -115,9 +115,7 @@ const answerOf = <TData extends Record<string, unknown>>(
  * policy applies. A request that produced some of an answer returns it, and
  * reports what failed through `onErrors`.
  */
-export const nexQuery = <
-	TData extends Record<string, unknown> = Record<string, unknown>,
->(
+export const nexQuery = <TData extends object = Record<string, unknown>>(
 	client: NexClient,
 	request: string | DocumentNode,
 	options: NexBindingOptions = {}
@@ -145,8 +143,11 @@ export const nexQuery = <
  * here, which is what lets one binding serve every caller of it.
  */
 export const nexMutation = <
-	TData extends Record<string, unknown> = Record<string, unknown>,
-	TVariables extends Record<string, unknown> = Record<string, unknown>,
+	TData extends object = Record<string, unknown>,
+	TVariables extends Readonly<Record<string, unknown>> = Record<
+		string,
+		unknown
+	>,
 >(
 	client: NexClient,
 	request: string | DocumentNode,

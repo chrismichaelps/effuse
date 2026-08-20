@@ -95,9 +95,7 @@ export interface NexClientOptions {
 /** A client for one server. */
 export interface NexClient {
 	/** Run a request, answering from what the client already has when it can. */
-	readonly request: <
-		TData extends Record<string, unknown> = Record<string, unknown>,
-	>(
+	readonly request: <TData extends object = Record<string, unknown>>(
 		input: string | DocumentNode,
 		options?: NexRequestOptions
 	) => Promise<ExecutionResult<TData>>;
@@ -107,16 +105,12 @@ export interface NexClient {
 		options?: NexRequestOptions
 	) => Promise<void>;
 	/** Watch a live operation. */
-	readonly subscribe: <
-		TData extends Record<string, unknown> = Record<string, unknown>,
-	>(
+	readonly subscribe: <TData extends object = Record<string, unknown>>(
 		input: string | DocumentNode,
 		options?: NexRequestOptions
 	) => AsyncGenerator<ExecutionResult<TData>>;
 	/** What the client has for a request, if anything. */
-	readonly read: <
-		TData extends Record<string, unknown> = Record<string, unknown>,
-	>(
+	readonly read: <TData extends object = Record<string, unknown>>(
 		input: string | DocumentNode,
 		options?: Pick<NexRequestOptions, 'operationName'>
 	) => Promise<ExecutionResult<TData> | undefined>;
@@ -124,9 +118,7 @@ export interface NexClient {
 	 * What the client knows about one object, joined across every answer that
 	 * carried it. `undefined` when it has never been told about it.
 	 */
-	readonly readObject: <
-		TObject extends Record<string, unknown> = Record<string, unknown>,
-	>(
+	readonly readObject: <TObject extends object = Record<string, unknown>>(
 		reference: string
 	) => TObject | undefined;
 	/**
@@ -145,7 +137,7 @@ export interface NexClient {
 	readonly clear: () => void;
 }
 
-const failure = <TData extends Record<string, unknown>>(
+const failure = <TData extends object>(
 	message: string,
 	code: NexErrorCode
 ): ExecutionResult<TData> => ({
@@ -674,9 +666,7 @@ export const createNexClient = (options: NexClientOptions): NexClient => {
 			});
 		});
 
-	const requestFor = <
-		TData extends Record<string, unknown> = Record<string, unknown>,
-	>(
+	const requestFor = <TData extends object = Record<string, unknown>>(
 		input: string | DocumentNode,
 		request?: NexRequestOptions
 	): Promise<ExecutionResult<TData>> => {
@@ -701,9 +691,7 @@ export const createNexClient = (options: NexClientOptions): NexClient => {
 		prefetch: async (input, request) => {
 			await requestFor(input, request);
 		},
-		subscribe: async function* <
-			TData extends Record<string, unknown> = Record<string, unknown>,
-		>(
+		subscribe: async function* <TData extends object = Record<string, unknown>>(
 			input: string | DocumentNode,
 			request?: NexRequestOptions
 		): AsyncGenerator<ExecutionResult<TData>> {
