@@ -51,6 +51,8 @@ export const NexErrorCode = {
 	FORBIDDEN: 'FORBIDDEN',
 	/** The caller went away, or the run was called off. */
 	ABORTED: 'ABORTED',
+	/** The caller has asked for more than their budget allows for now. */
+	OVER_BUDGET: 'OVER_BUDGET',
 	/** Anything else that went wrong while running. */
 	INTERNAL: 'INTERNAL',
 } as const;

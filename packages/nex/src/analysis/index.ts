@@ -34,3 +34,9 @@ export {
 	type DeprecationNotice,
 	type DeprecationOptions,
 } from './deprecations.js';
+export {
+	createCostBudget,
+	type BudgetDecision,
+	type CostBudget,
+	type CostBudgetOptions,
+} from './budget.js';
