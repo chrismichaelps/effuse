@@ -22,6 +22,7 @@ const REQUIRED = [
 	'concatDocuments',
 	'diffValues',
 	'execute',
+	'findDeprecations',
 	'handleHttpRequest',
 	'isDocument',
 	'isValidRequest',

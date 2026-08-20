@@ -62,3 +62,4 @@ export {
 	createOperationStore,
 	type OperationStore,
 } from './operation-store.js';
+export { findDeprecations } from './deprecations.js';

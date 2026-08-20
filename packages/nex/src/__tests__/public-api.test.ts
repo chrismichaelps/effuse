@@ -136,6 +136,7 @@ describe('public API', () => {
 				'createOperationStore',
 				'concatDocuments',
 				'execute',
+				'findDeprecations',
 				'handleHttpRequest',
 				'isDocument',
 				'isValidRequest',

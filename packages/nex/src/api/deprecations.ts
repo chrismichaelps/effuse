@@ -22,15 +22,27 @@
  * SOFTWARE.
  */
 
-export {
-	analyzeDocument,
-	selectOperation,
-	type AnalysisOptions,
-	type RequestAnalysis,
-} from './analyze.js';
-export { DEFAULT_PAGE_SIZE, expectedRowCount } from './page-size.js';
-export {
-	findDeprecations,
+import {
+	findDeprecations as inspect,
 	type DeprecationNotice,
 	type DeprecationOptions,
-} from './deprecations.js';
+} from '../analysis/index.js';
+import type { Catalog } from '../catalog/index.js';
+import { parse } from './parse.js';
+import type { RequestInput } from './validate-request.js';
+
+/**
+ * Find everything a request leans on that the catalog has deprecated.
+ *
+ * A request that validates cleanly can still be asking for things on their way
+ * out; this is what tells a client to move, and a server what its clients
+ * still depend on.
+ *
+ * @throws {NexSyntaxError} when source text does not parse.
+ */
+export const findDeprecations = (
+	input: RequestInput,
+	catalog: Catalog,
+	options: DeprecationOptions = {}
+): readonly DeprecationNotice[] =>
+	inspect(typeof input === 'string' ? parse(input) : input, catalog, options);

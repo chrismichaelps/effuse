@@ -30,6 +30,7 @@ export {
 	buildCatalogSafe,
 	createOperationStore,
 	execute,
+	findDeprecations,
 	handleHttpRequest,
 	isDocument,
 	isValidRequest,
@@ -59,7 +60,12 @@ export {
 	type SubscribeOptions,
 } from './api/index.js';
 
-export type { AnalysisOptions, RequestAnalysis } from './analysis/index.js';
+export type {
+	AnalysisOptions,
+	DeprecationNotice,
+	DeprecationOptions,
+	RequestAnalysis,
+} from './analysis/index.js';
 
 export { BUILT_IN_SCALARS, type Catalog } from './catalog/index.js';
 export { DirectiveLocation } from './catalog/directive-locations.js';

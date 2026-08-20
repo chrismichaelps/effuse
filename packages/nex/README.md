@@ -459,6 +459,25 @@ extend enum Status { SCHEDULED }
 extend schema { live: Live }
 ```
 
+## What a request still leans on
+
+A request can validate cleanly and still ask for things on their way out.
+`findDeprecations` reports one notice per place, not per name, so a client can
+see exactly how much there is to change:
+
+```ts
+findDeprecations('{ feed { byline } }', catalog);
+// [
+//   { coordinate: 'Query.feed', reason: 'use posts', path: ['feed'], ... },
+//   { coordinate: 'Post.byline', message: '"Post.byline" is deprecated', ... },
+// ]
+```
+
+Fields, arguments, input fields, and enum values all count, wherever they were
+written - inside a fragment, an argument, or a pipeline filter. A server can
+run this over its operation store to see what its clients still depend on
+before removing anything.
+
 ## Cost and depth
 
 `analyzeRequest` prices a request before it runs. A field costs what its `@cost(value:)` says and one unit otherwise, plus everything it selects; a list multiplies its subtree by the rows it is expected to yield, read from `| page first:` or `| take`, and assumed to be 20 when the request leaves it open.
