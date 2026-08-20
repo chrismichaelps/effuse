@@ -1044,6 +1044,32 @@ What the package refuses on its own, whatever the options say:
 
 ## What is covered, and how it is held
 
+"Production ready" is only worth saying if it can be checked, so here is what
+it is taken to mean. Every one of these runs on every change, and the build
+fails when any of them does.
+
+- **Nothing is written before a test that fails without it.** Every capability
+  below arrived that way, and every fix was checked by breaking the code again
+  afterwards to confirm the test notices.
+- **The public surface is pinned twice.** A test names every export, and a
+  build-time check imports the built entry, asserts each one is there, and
+  runs a real paged request through it. A second check fails the build if any
+  Effect type reaches the published declarations - the package uses Effect
+  inside and asks nobody to learn it.
+- **Types are strict.** `exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`,
+  and no `any` anywhere in the source.
+- **Performance has budgets, not just numbers.** `pnpm bench:nex` measures four
+  shapes of request and fails the build when any of them regresses past its
+  recorded budget.
+- **It runs where it says it runs.** Nothing reaches for a runtime global:
+  cursors and references encode their own base64, so the same build works in
+  Node, Bun, an edge worker, and a browser.
+- **Hostile input is a test, not an assumption.** Depth and token caps,
+  prototype pollution through aliases and input keys, cursors from elsewhere,
+  a page whose state was written by something else.
+- **What the README shows is what exists.** Two of the defects fixed here were
+  found by a documented example that the code never supported.
+
 Each capability, and what keeps it honest:
 
 | Capability             | Held by                                                                                                                   |
@@ -1072,6 +1098,24 @@ Each capability, and what keeps it honest:
 
 Not implemented, and why: federation is future work in the specification;
 binary transports and multipart uploads belong to whatever serves the package.
+
+### How this was checked
+
+Coverage is not a claim about intent. Every rule a mature implementation of a
+hierarchical, typed query language enforces was written down, and a request or
+catalog that ought to break each one was run against this package. That probe
+is kept as a test - `reference-parity.test.ts` - so what it found stays found.
+
+It found three things the topic-level reading had missed: introspection could
+be walked one level deeper than it should, that limit could be got past
+entirely by splitting the walk across fragments, and a schema block naming an
+operation twice was accepted with the first one quietly winning. All three are
+fixed and pinned.
+
+The equivalents of every other rule were already enforced, most of them with
+messages that say more than the rule's name: which type a field was asked on,
+which two spellings of one response key disagree, which argument a directive
+still needs.
 
 ### Every subject, and where it is answered
 
