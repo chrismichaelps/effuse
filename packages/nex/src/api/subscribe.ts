@@ -188,6 +188,9 @@ export const subscribe = async function* (
 			context: options.context,
 			rootValue: {},
 			errorPolicy: options.errorPolicy ?? ErrorPolicy.PARTIAL,
+			...(options.authorize === undefined
+				? {}
+				: { authorize: options.authorize }),
 		},
 		options.sources
 	);

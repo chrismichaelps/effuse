@@ -38,6 +38,7 @@ import {
 	listItemType,
 	namedTypeOf,
 } from '../validation/type-utils.js';
+import { authRequirement, type Authorize } from './authorize.js';
 import {
 	SCHEMA_FIELD,
 	TYPE_FIELD,
@@ -81,6 +82,8 @@ export interface ExecutionPlan {
 	readonly context: unknown;
 	readonly rootValue: unknown;
 	readonly errorPolicy: ErrorPolicy;
+	/** Decides whether a caller may have a field the catalog guards. */
+	readonly authorize?: Authorize | undefined;
 }
 
 /** What a run produced, before it is dressed up as a response. */
@@ -307,6 +310,39 @@ export const executeOperation = async (
 			variables: plan.variables,
 			catalog: plan.catalog,
 		};
+
+		// A guarded field is asked about before anything of it runs, so a
+		// refusal never reaches a resolver.
+		const guard = authRequirement(definition);
+		if (guard !== undefined) {
+			if (plan.authorize === undefined) {
+				throw new NexExecutionError({
+					message: `"${parentTypeName}.${fieldName}" is guarded by @auth and this server has no authorizer configured`,
+					path,
+					code: NexErrorCode.FORBIDDEN,
+				});
+			}
+
+			const allowed = await plan.authorize({
+				requires: guard.requires,
+				fieldName,
+				parentTypeName,
+				coordinate: `${parentTypeName}.${fieldName}`,
+				path,
+				context: plan.context,
+			});
+
+			if (!allowed) {
+				throw new NexExecutionError({
+					message:
+						guard.requires === undefined
+							? `"${parentTypeName}.${fieldName}" is not available to this caller`
+							: `"${parentTypeName}.${fieldName}" requires "${guard.requires}"`,
+					path,
+					code: NexErrorCode.FORBIDDEN,
+				});
+			}
+		}
 
 		const args = coerceArgumentValues(
 			definition,

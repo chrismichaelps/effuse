@@ -47,6 +47,8 @@ export const NexErrorCode = {
 	NON_NULL: 'NON_NULL',
 	/** A cursor was not one this server handed out. */
 	CURSOR: 'CURSOR',
+	/** The catalog guards this field, and the caller was not allowed it. */
+	FORBIDDEN: 'FORBIDDEN',
 	/** Anything else that went wrong while running. */
 	INTERNAL: 'INTERNAL',
 } as const;

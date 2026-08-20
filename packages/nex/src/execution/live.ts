@@ -23,7 +23,7 @@
  */
 
 import type { Catalog } from '../catalog/index.js';
-import { NexExecutionError } from '../errors/index.js';
+import { NexErrorCode, NexExecutionError } from '../errors/index.js';
 import type {
 	FieldNode,
 	FragmentDefinitionNode,
@@ -31,7 +31,12 @@ import type {
 } from '../language/ast/index.js';
 import { Kind } from '../language/kinds/index.js';
 import { collectFields } from './collect.js';
-import { executeOperation, type ExecutionPlan } from './execute.js';
+import {
+	executeOperation,
+	type ExecutionOutcome,
+	type ExecutionPlan,
+} from './execute.js';
+import { authRequirement } from './authorize.js';
 import type { ResolverInfo } from './resolvers.js';
 import { coerceArgumentValues } from './values.js';
 
@@ -134,6 +139,47 @@ export const executeLive = async function* (
 
 	const definition = plan.catalog.getField(rootTypeName, fieldName);
 	if (definition === undefined) return;
+
+	// A guarded stream is refused before it is opened: a source that starts
+	// producing for a caller who may not read it is a leak, not an error.
+	const guard = authRequirement(definition);
+	if (guard !== undefined) {
+		const refusal = (message: string): ExecutionOutcome => ({
+			data: null,
+			errors: [
+				new NexExecutionError({
+					message,
+					path: [selected.responseKey],
+					code: NexErrorCode.FORBIDDEN,
+				}),
+			],
+		});
+
+		if (plan.authorize === undefined) {
+			yield refusal(
+				`"${rootTypeName}.${fieldName}" is guarded by @auth and this server has no authorizer configured`
+			);
+			return;
+		}
+
+		const allowed = await plan.authorize({
+			requires: guard.requires,
+			fieldName,
+			parentTypeName: rootTypeName,
+			coordinate: `${rootTypeName}.${fieldName}`,
+			path: [selected.responseKey],
+			context: plan.context,
+		});
+
+		if (!allowed) {
+			yield refusal(
+				guard.requires === undefined
+					? `"${rootTypeName}.${fieldName}" is not available to this caller`
+					: `"${rootTypeName}.${fieldName}" requires "${guard.requires}"`
+			);
+			return;
+		}
+	}
 
 	const info: ResolverInfo = {
 		fieldName,

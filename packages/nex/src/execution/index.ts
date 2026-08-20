@@ -55,3 +55,8 @@ export {
 	coerceVariableValues,
 	valueFromNode,
 } from './values.js';
+export {
+	authRequirement,
+	type Authorize,
+	type AuthorizeRequest,
+} from './authorize.js';

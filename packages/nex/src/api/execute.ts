@@ -33,6 +33,7 @@ import type {
 import { Kind } from '../language/kinds/index.js';
 import {
 	ErrorPolicy,
+	type Authorize,
 	type ExecutionResult,
 	type Resolvers,
 } from '../execution/index.js';
@@ -70,6 +71,13 @@ export interface ExecuteOptions {
 	readonly limits?: RequestLimits | undefined;
 	/** Whether `__schema` and `__type` may be asked for. Defaults to `true`. */
 	readonly introspection?: boolean | undefined;
+	/**
+	 * Decide whether a caller may have a field the catalog guards with `@auth`.
+	 *
+	 * Without one, a guarded field is refused rather than quietly resolved: a
+	 * guard the server never checks is worse than no guard at all.
+	 */
+	readonly authorize?: Authorize | undefined;
 	/**
 	 * Rewrite every error before it leaves.
 	 *
@@ -222,6 +230,9 @@ export const execute = async (
 				context: options.context,
 				rootValue: options.rootValue ?? {},
 				errorPolicy: options.errorPolicy ?? ErrorPolicy.PARTIAL,
+				...(options.authorize === undefined
+					? {}
+					: { authorize: options.authorize }),
 			});
 		})
 	);
