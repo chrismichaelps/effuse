@@ -125,7 +125,9 @@ export const createNexHandler = <TContext = unknown>(
 				headers,
 				...(method === 'POST' ? { body: await request.text() } : {}),
 			},
-			options
+			// The request's own signal calls the run off, so a caller that
+			// disconnects stops the work it started.
+			{ ...options, signal: request.signal }
 		);
 
 		if (answer.stream !== undefined) {

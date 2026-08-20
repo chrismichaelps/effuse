@@ -47,14 +47,20 @@ export const LiveDelivery = {
 
 export type LiveDelivery = (typeof LiveDelivery)[keyof typeof LiveDelivery];
 
-/** A response, shaped as specification section 7 describes. */
-export interface ExecutionResult {
+/**
+ * A response, shaped as specification section 7 describes.
+ *
+ * `TData` is the shape the request asks for. Pair it with what
+ * `generateTypes` writes and a caller reads `result.data.posts.items` without
+ * casting anything back into shape.
+ */
+export interface ExecutionResult<TData = Record<string, unknown>> {
 	/**
 	 * The data that resolved, or `null` when the request could not run.
 	 *
 	 * Absent on a differential snapshot, which carries {@link patch} instead.
 	 */
-	readonly data?: Record<string, unknown> | null | undefined;
+	readonly data?: TData | null | undefined;
 	/** What changed since the last snapshot, when sending differences. */
 	readonly patch?: readonly PatchOperation[] | undefined;
 	/** Every problem, present only when there was at least one. */

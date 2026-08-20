@@ -47,12 +47,19 @@ export interface ResolverInfo {
  * `TContext` is whatever the run was given as its context, so a resolver reads
  * it as itself rather than casting `unknown` back into shape.
  */
-export type FieldResolver<TContext = unknown> = (
-	source: unknown,
-	args: Readonly<Record<string, unknown>>,
+export type FieldResolver<
+	TContext = unknown,
+	TSource = unknown,
+	TArgs extends Readonly<Record<string, unknown>> = Readonly<
+		Record<string, unknown>
+	>,
+	TResult = unknown,
+> = (
+	source: TSource,
+	args: TArgs,
 	context: TContext,
 	info: ResolverInfo
-) => unknown;
+) => TResult | Promise<TResult>;
 
 /** Decide which object type a value of an interface or union type is. */
 export type TypeNameResolver<TContext = unknown> = (

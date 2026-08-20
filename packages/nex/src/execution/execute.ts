@@ -72,6 +72,14 @@ class Abort extends Error {
 	}
 }
 
+/** What the caller said when they called the run off. */
+const abortReason = (signal: AbortSignal): string => {
+	const reason: unknown = signal.reason;
+	if (reason instanceof Error) return reason.message;
+	if (typeof reason === 'string') return reason;
+	return 'the caller went away';
+};
+
 /** Everything one run needs, gathered once. */
 export interface ExecutionPlan<TContext = unknown> {
 	readonly catalog: Catalog;
@@ -84,6 +92,8 @@ export interface ExecutionPlan<TContext = unknown> {
 	readonly errorPolicy: ErrorPolicy;
 	/** Decides whether a caller may have a field the catalog guards. */
 	readonly authorize?: Authorize<TContext> | undefined;
+	/** Calls the run off: the caller went away, or a deadline passed. */
+	readonly signal?: AbortSignal | undefined;
 }
 
 /** What a run produced, before it is dressed up as a response. */
@@ -108,6 +118,24 @@ export const executeOperation = async <TContext>(
 		if (plan.errorPolicy === ErrorPolicy.FAIL_FAST) throw new Abort(error);
 		if (plan.errorPolicy === ErrorPolicy.IGNORE) return;
 		errors.push(error);
+	};
+
+	/**
+	 * Stop the run if the caller has gone.
+	 *
+	 * Checked before each field rather than only at the start: a run that has
+	 * already lost its reader should not keep resolving on its behalf.
+	 */
+	const stopIfCalledOff = (path: readonly (string | number)[]): void => {
+		if (plan.signal?.aborted !== true) return;
+
+		throw new Abort(
+			new NexExecutionError({
+				message: `The run was called off: ${abortReason(plan.signal)}`,
+				path,
+				code: NexErrorCode.ABORTED,
+			})
+		);
 	};
 
 	const readerFor = (info: ResolverInfo): PathReader<TContext> => ({
@@ -295,6 +323,8 @@ export const executeOperation = async <TContext>(
 	): Promise<unknown> => {
 		const field = fields[0];
 		if (field === undefined) return null;
+
+		stopIfCalledOff(path);
 
 		const fieldName = field.name.value;
 		if (fieldName === '__typename') return parentTypeName;
@@ -532,6 +562,18 @@ export const executeOperation = async <TContext>(
 			errors: [
 				new NexExecutionError({
 					message: `The catalog defines no ${plan.operation.operation} root type`,
+				}),
+			],
+		};
+	}
+
+	if (plan.signal?.aborted === true) {
+		return {
+			data: null,
+			errors: [
+				new NexExecutionError({
+					message: `The run was called off: ${abortReason(plan.signal)}`,
+					code: NexErrorCode.ABORTED,
 				}),
 			],
 		};

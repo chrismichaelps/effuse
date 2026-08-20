@@ -85,6 +85,13 @@ export interface ExecuteOptions<TContext = unknown> {
 	 */
 	readonly authorize?: Authorize<TContext> | undefined;
 	/**
+	 * Calls the run off when the caller goes away, or a deadline passes.
+	 *
+	 * Checked before each field, so a run whose reader has gone stops rather
+	 * than finishing work nobody will read.
+	 */
+	readonly signal?: AbortSignal | undefined;
+	/**
 	 * Rewrite every error before it leaves.
 	 *
 	 * A server that does not want internal detail on the wire replaces the
@@ -117,11 +124,11 @@ const fragmentsOf = (
 	return fragments;
 };
 
-const refuse = (
+const refuse = <TData extends Record<string, unknown>>(
 	errors: readonly NexExecutionError[],
 	format: ((error: NexExecutionError) => NexExecutionError) | undefined,
 	cost = 0
-): ExecutionResult => ({
+): ExecutionResult<TData> => ({
 	data: null,
 	errors: formatErrors(errors, format),
 	extensions: { cost },
@@ -133,9 +140,12 @@ const refuse = (
  * The response follows specification section 7: the data that resolved, the
  * problems that stopped the rest, and what the request cost.
  */
-export const execute = async <TContext = unknown>(
+export const execute = async <
+	TData extends Record<string, unknown> = Record<string, unknown>,
+	TContext = unknown,
+>(
 	options: ExecuteOptions<TContext>
-): Promise<ExecutionResult> => {
+): Promise<ExecutionResult<TData>> => {
 	const parsed =
 		typeof options.request === 'string'
 			? parseSafe(options.request)
@@ -241,6 +251,7 @@ export const execute = async <TContext = unknown>(
 				...(options.authorize === undefined
 					? {}
 					: { authorize: options.authorize }),
+				...(options.signal === undefined ? {} : { signal: options.signal }),
 			});
 		})
 	);
@@ -248,7 +259,9 @@ export const execute = async <TContext = unknown>(
 	const errors = formatErrors(outcome.errors, format);
 
 	return {
-		data: outcome.data,
+		// The executor builds the response the request asked for; naming that
+		// shape is the caller's to do, and this is where the two meet.
+		data: outcome.data as TData | null,
 		...(errors.length === 0 ? {} : { errors }),
 		extensions: { cost: analysis.cost },
 	};

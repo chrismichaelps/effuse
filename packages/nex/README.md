@@ -649,8 +649,18 @@ await execute({
 });
 ```
 
-Nothing casts, and a context that changes shape is caught where it is read
-rather than where it fails. `Resolvers<Session>`, `Authorize<Session>`,
+A response keeps its shape the same way. Name what the request returns - the
+type `generateTypes` writes for it - and the result reads without a cast:
+
+```ts
+const result = await execute<FeedData>({ request, catalog, resolvers });
+
+result.data?.posts.items[0]?.title; // string, no cast
+```
+
+The client takes the same parameter: `nex.request<FeedData>(request)`. Nothing
+casts, and a context or a response that changes shape is caught where it is
+read rather than where it fails. `Resolvers<Session>`, `Authorize<Session>`,
 `LiveSources<Session>`, and `createNexHandler<Session>` are there for the
 places a type has to be written out, and `generateCatalogTypes` emits a
 `CatalogResolvers<TContext>` that lines up with them.
@@ -719,6 +729,10 @@ const answer = await handleHttpRequest(request, {
 });
 ```
 
+- **A caller that goes away** stops the work it started. Pass a `signal` to
+  `execute` or `subscribe`, and the run is checked before each field rather
+  than only at the start; the request handler passes the request's own signal,
+  so a disconnect ends the run and closes a live source.
 - **Guarded fields** are refused unless an `authorize` callback says otherwise.
   A field the catalog marks `@auth` is asked about before anything of it runs,
   and with no authorizer configured it is refused rather than quietly resolved:

@@ -70,25 +70,31 @@ export interface NexClientOptions {
 /** A client for one server. */
 export interface NexClient {
 	/** Run a request, answering from what the client already has when it can. */
-	readonly request: (
+	readonly request: <
+		TData extends Record<string, unknown> = Record<string, unknown>,
+	>(
 		input: string | DocumentNode,
 		options?: NexRequestOptions
-	) => Promise<ExecutionResult>;
+	) => Promise<ExecutionResult<TData>>;
 	/** Run a request and keep the answer, without looking at it. */
 	readonly prefetch: (
 		input: string | DocumentNode,
 		options?: NexRequestOptions
 	) => Promise<void>;
 	/** Watch a live operation. */
-	readonly subscribe: (
+	readonly subscribe: <
+		TData extends Record<string, unknown> = Record<string, unknown>,
+	>(
 		input: string | DocumentNode,
 		options?: NexRequestOptions
-	) => AsyncGenerator<ExecutionResult>;
+	) => AsyncGenerator<ExecutionResult<TData>>;
 	/** What the client has for a request, if anything. */
-	readonly read: (
+	readonly read: <
+		TData extends Record<string, unknown> = Record<string, unknown>,
+	>(
 		input: string | DocumentNode,
 		options?: Pick<NexRequestOptions, 'operationName'>
-	) => Promise<ExecutionResult | undefined>;
+	) => Promise<ExecutionResult<TData> | undefined>;
 	/** Everything the client holds, ready to send to a browser. */
 	readonly dehydrate: () => DehydratedNexState;
 	/** Take what a server resolved during a render. */
@@ -97,7 +103,10 @@ export interface NexClient {
 	readonly clear: () => void;
 }
 
-const failure = (message: string, code: NexErrorCode): ExecutionResult => ({
+const failure = <TData extends Record<string, unknown>>(
+	message: string,
+	code: NexErrorCode
+): ExecutionResult<TData> => ({
 	data: null,
 	errors: [new NexExecutionError({ message, code })],
 	extensions: { cost: 0 },
@@ -227,20 +236,26 @@ export const createNexClient = (options: NexClientOptions): NexClient => {
 		return parsed as ExecutionResult;
 	};
 
-	const requestFor = (
+	const requestFor = <
+		TData extends Record<string, unknown> = Record<string, unknown>,
+	>(
 		input: string | DocumentNode,
 		request?: NexRequestOptions
-	): Promise<ExecutionResult> => {
+	): Promise<ExecutionResult<TData>> => {
 		const sharing = coalesceKey(input, request);
 		const running = inFlight.get(sharing);
-		if (running !== undefined && request?.refresh !== true) return running;
+		if (running !== undefined && request?.refresh !== true) {
+			return running as Promise<ExecutionResult<TData>>;
+		}
 
-		const pending = (async (): Promise<ExecutionResult> => {
+		const pending = (async (): Promise<ExecutionResult<TData>> => {
 			const key = await keyFor(input, request);
 
 			if (keeps && request?.refresh !== true) {
 				const already = held.get(key);
-				if (already !== undefined) return already;
+				// What a server sent back is the shape the request asked for; the
+				// caller is the one who can name it.
+				if (already !== undefined) return already as ExecutionResult<TData>;
 			}
 
 			const result = await run(input, request, key);
@@ -248,12 +263,12 @@ export const createNexClient = (options: NexClientOptions): NexClient => {
 			// Only an answer worth reusing is kept: a failure should be asked
 			// again rather than remembered.
 			if (keeps && result.errors === undefined) held.set(key, result);
-			return result;
+			return result as ExecutionResult<TData>;
 		})().finally(() => {
 			inFlight.delete(sharing);
 		});
 
-		inFlight.set(sharing, pending);
+		inFlight.set(sharing, pending as Promise<ExecutionResult>);
 		return pending;
 	};
 
@@ -262,7 +277,12 @@ export const createNexClient = (options: NexClientOptions): NexClient => {
 		prefetch: async (input, request) => {
 			await requestFor(input, request);
 		},
-		subscribe: async function* (input, request) {
+		subscribe: async function* <
+			TData extends Record<string, unknown> = Record<string, unknown>,
+		>(
+			input: string | DocumentNode,
+			request?: NexRequestOptions
+		): AsyncGenerator<ExecutionResult<TData>> {
 			const key = await keyFor(input, request);
 			let response: Response;
 
@@ -291,9 +311,14 @@ export const createNexClient = (options: NexClientOptions): NexClient => {
 				return;
 			}
 
-			yield* readEventStream(response.body);
+			// Frames carry whatever the server sent; naming that shape is the
+			// caller's, the same as for a request.
+			yield* readEventStream(response.body) as AsyncGenerator<
+				ExecutionResult<TData>
+			>;
 		},
-		read: async (input, request) => held.get(await keyFor(input, request)),
+		read: async (input, request) =>
+			held.get(await keyFor(input, request)) as never,
 		dehydrate: () => ({
 			results: [...held].map(([key, result]) => ({ key, result })),
 		}),

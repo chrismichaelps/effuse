@@ -74,11 +74,11 @@ const fragmentsOf = (
 	return fragments;
 };
 
-const refusal = (
+const refusal = <TData extends Record<string, unknown>>(
 	message: string,
 	format: SubscribeOptions<never>['formatError'],
 	code: NexErrorCode = NexErrorCode.INTERNAL
-): ExecutionResult => ({
+): ExecutionResult<TData> => ({
 	data: null,
 	errors: formatErrors([new NexExecutionError({ message, code })], format),
 	extensions: { cost: 0 },
@@ -90,9 +90,10 @@ const refusal = (
  * Returns a stream of full snapshots, one per event, each shaped like any
  * other response. Stop reading the stream and the source is closed with it.
  */
-export const subscribe = async function* <TContext = unknown>(
-	options: SubscribeOptions<TContext>
-): AsyncGenerator<ExecutionResult> {
+export const subscribe = async function* <
+	TData extends Record<string, unknown> = Record<string, unknown>,
+	TContext = unknown,
+>(options: SubscribeOptions<TContext>): AsyncGenerator<ExecutionResult<TData>> {
 	const parsed =
 		typeof options.request === 'string'
 			? parseSafe(options.request)
@@ -196,6 +197,7 @@ export const subscribe = async function* <TContext = unknown>(
 			...(options.authorize === undefined
 				? {}
 				: { authorize: options.authorize }),
+			...(options.signal === undefined ? {} : { signal: options.signal }),
 		},
 		options.sources
 	);
@@ -214,7 +216,7 @@ export const subscribe = async function* <TContext = unknown>(
 			else if (differential) previous = outcome.data;
 
 			yield {
-				data: outcome.data,
+				data: outcome.data as TData | null,
 				...(errors.length === 0 ? {} : { errors }),
 				extensions,
 			};
@@ -224,7 +226,7 @@ export const subscribe = async function* <TContext = unknown>(
 		if (previous === undefined) {
 			previous = outcome.data;
 			yield {
-				data: outcome.data,
+				data: outcome.data as TData,
 				...(errors.length === 0 ? {} : { errors }),
 				extensions,
 			};

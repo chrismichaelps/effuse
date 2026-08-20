@@ -3,14 +3,16 @@
  *
  * Copyright (c) 2025 Chris M. Perez
  *
- * A context is whatever a server passes, and every place that reads it should
- * read it as itself. Nothing in here casts, which is the point: if the context
- * stopped flowing, this file would stop compiling.
+ * A context is whatever a server passes, and a response is whatever the request
+ * asked for. Every place that reads either should read it as itself. Nothing in
+ * here casts, which is the point: if a type stopped flowing, this file would
+ * stop compiling.
  */
 
 import { describe, expect, it } from 'vitest';
 import {
 	buildCatalog,
+	createNexClient,
 	createNexHandler,
 	execute,
 	subscribe,
@@ -134,5 +136,60 @@ describe('a context that keeps its type', () => {
 		};
 
 		expect((await execute(options)).data).toEqual({ me: 'anonymous' });
+	});
+});
+
+/** What `generateTypes` writes for the request below. */
+interface FeedData extends Record<string, unknown> {
+	readonly posts: {
+		readonly items: readonly { readonly title: string }[];
+		readonly totalCount: number;
+	};
+}
+
+describe('a response that keeps its shape', () => {
+	it('is read without casting anything back', async () => {
+		const typed = buildCatalog(`
+			type Query { posts: [Post!]! @connection }
+			type Post { id: ID! title: String! }
+		`);
+
+		const result = await execute<FeedData>({
+			request: '{ posts | page first: 2 { title } }',
+			catalog: typed,
+			resolvers: {
+				Query: {
+					posts: () => [
+						{ id: '1', title: 'first' },
+						{ id: '2', title: 'second' },
+					],
+				},
+			},
+		});
+
+		// `data` is FeedData | null, so this reads without a cast.
+		expect(result.data?.posts.items[0]?.title).toBe('first');
+		expect(result.data?.posts.totalCount).toBe(2);
+	});
+
+	it('reads the same way through a client', async () => {
+		const answer = {
+			data: { posts: { items: [{ title: 'first' }], totalCount: 1 } },
+			extensions: { cost: 1 },
+		};
+		const nex = createNexClient({
+			endpoint: '/nex',
+			fetch: (async () =>
+				new Response(JSON.stringify(answer), {
+					status: 200,
+					headers: { 'content-type': 'application/json' },
+				})) as unknown as typeof fetch,
+		});
+
+		const result = await nex.request<FeedData>(
+			'{ posts | page first: 1 { title } }'
+		);
+
+		expect(result.data?.posts.items[0]?.title).toBe('first');
 	});
 });

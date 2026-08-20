@@ -140,6 +140,26 @@ export const executeLive = async function* <TContext>(
 	const definition = plan.catalog.getField(rootTypeName, fieldName);
 	if (definition === undefined) return;
 
+	// Read through a call rather than a check: `aborted` flips while the loop
+	// runs, and a narrowed check would be answered once and never again.
+	const calledOffNow = (): boolean => plan.signal?.aborted === true;
+
+	const calledOff = (): ExecutionOutcome => ({
+		data: null,
+		errors: [
+			new NexExecutionError({
+				message: 'The run was called off: the caller went away',
+				path: [selected.responseKey],
+				code: NexErrorCode.ABORTED,
+			}),
+		],
+	});
+
+	if (calledOffNow()) {
+		yield calledOff();
+		return;
+	}
+
 	// A guarded stream is refused before it is opened: a source that starts
 	// producing for a caller who may not read it is a leak, not an error.
 	const guard = authRequirement(definition);
@@ -214,6 +234,8 @@ export const executeLive = async function* <TContext>(
 	}
 
 	for await (const event of events) {
+		if (calledOffNow()) return;
+
 		// Each event stands in for the field's own value, so the snapshot runs
 		// with a root that already holds it.
 		yield await executeOperation({

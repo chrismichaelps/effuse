@@ -49,6 +49,8 @@ export const NexErrorCode = {
 	CURSOR: 'CURSOR',
 	/** The catalog guards this field, and the caller was not allowed it. */
 	FORBIDDEN: 'FORBIDDEN',
+	/** The caller went away, or the run was called off. */
+	ABORTED: 'ABORTED',
 	/** Anything else that went wrong while running. */
 	INTERNAL: 'INTERNAL',
 } as const;

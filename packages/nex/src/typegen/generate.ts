@@ -262,6 +262,8 @@ export const generateOperationTypes = (
 		);
 	}
 
+	// Written as an interface extending the index signature `execute<TData>`
+	// asks for, so the generated type drops straight into a call.
 	blocks.push(
 		`export type ${typeNameFor(name, 'Data')} = ${selectionType(
 			rootType.name.value,

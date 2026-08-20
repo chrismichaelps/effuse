@@ -80,6 +80,8 @@ export interface HttpHandlerOptions<TContext = unknown> {
 	readonly introspection?: boolean | undefined;
 	/** Decide whether a caller may have a field the catalog guards. */
 	readonly authorize?: Authorize<TContext> | undefined;
+	/** Calls the run off when the caller goes away. */
+	readonly signal?: AbortSignal | undefined;
 	/** Rewrite every error before it goes on the wire. */
 	readonly formatError?:
 		| ((error: NexExecutionError) => NexExecutionError)
@@ -265,6 +267,7 @@ const runOne = async <TContext>(
 		...(options.authorize === undefined
 			? {}
 			: { authorize: options.authorize }),
+		...(options.signal === undefined ? {} : { signal: options.signal }),
 		...(options.formatError === undefined
 			? {}
 			: { formatError: options.formatError }),
@@ -373,6 +376,7 @@ export const handleProtocolRequest = async <TContext>(
 					...(options.authorize === undefined
 						? {}
 						: { authorize: options.authorize }),
+					...(options.signal === undefined ? {} : { signal: options.signal }),
 				})
 			),
 		};
