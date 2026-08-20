@@ -38,6 +38,7 @@ import {
 } from './type-utils.js';
 
 const TYPENAME = '__typename';
+const REFERENCE = '__ref';
 
 /**
  * How far a request may walk the catalog's description of itself.
@@ -75,11 +76,22 @@ const walkField = (
 ): void => {
 	const fieldName = field.name.value;
 
-	if (fieldName === TYPENAME) {
+	if (fieldName === TYPENAME || fieldName === REFERENCE) {
 		checkDirectives(context, field.directives, DirectiveLocation.FIELD);
 		if (field.selectionSet !== undefined) {
 			context.report(
-				`Field "${TYPENAME}" cannot have a selection of subfields`,
+				`Field "${fieldName}" cannot have a selection of subfields`,
+				field
+			);
+			return;
+		}
+
+		if (
+			fieldName === REFERENCE &&
+			context.catalog.identityField(parentTypeName) === undefined
+		) {
+			context.report(
+				`"${parentTypeName}" does not say what identifies it, so it has no "${REFERENCE}"; mark it @identity`,
 				field
 			);
 		}

@@ -32,7 +32,8 @@ import type {
 	TypeNode,
 } from '../language/ast/index.js';
 import { Kind } from '../language/kinds/index.js';
-import { BUILT_IN_SCALARS } from '../catalog/index.js';
+import { BUILT_IN_SCALARS, REFERENCE_FIELD } from '../catalog/index.js';
+import { refFor } from './reference.js';
 import {
 	isCompositeName,
 	listItemType,
@@ -60,6 +61,22 @@ import { notify, type Instrumentation } from './instrumentation.js';
 import { addPath, pathToArray, type ResponsePath } from './path.js';
 import { ErrorPolicy } from './result.js';
 import { coerceArgumentValues } from './values.js';
+
+/**
+ * Read the value a type says identifies it.
+ *
+ * Numbers are as common an identifier as strings, so both answer; anything
+ * else - a missing row, a null column - has nothing to build a reference from.
+ */
+const readIdentity = (source: unknown, field: string): string | undefined => {
+	if (typeof source !== 'object' || source === null) return undefined;
+
+	const value = (source as Record<string, unknown>)[field];
+	if (typeof value === 'string') return value;
+	if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+
+	return undefined;
+};
 
 /**
  * How many rows of a list are resolved at the same time.
@@ -477,6 +494,21 @@ export const executeOperation = async <TContext>(
 
 		const fieldName = field.name.value;
 		if (fieldName === '__typename') return parentTypeName;
+
+		if (fieldName === REFERENCE_FIELD) {
+			const identity = plan.catalog.identityField(parentTypeName);
+			if (identity === undefined) return null;
+
+			const value = readIdentity(source, identity);
+			if (value === undefined) {
+				throw new NexExecutionError({
+					message: `"${parentTypeName}.${identity}" has no value, so "${REFERENCE_FIELD}" cannot be built`,
+					path: pathToArray(path),
+				});
+			}
+
+			return refFor(parentTypeName, value);
+		}
 
 		const definition = plan.catalog.getField(parentTypeName, fieldName);
 		if (definition === undefined) return null;

@@ -36,6 +36,7 @@ import { expectedRowCount } from './page-size.js';
 
 const COST_DIRECTIVE = 'cost';
 const TYPENAME = '__typename';
+const REFERENCE = '__ref';
 
 /** What a request will cost to run, and how deeply it nests. */
 export interface RequestAnalysis {
@@ -135,7 +136,10 @@ export const analyzeDocument = (
 				case Kind.FIELD: {
 					deepest = Math.max(deepest, depth);
 
-					if (selection.name.value === TYPENAME) {
+					if (
+						selection.name.value === TYPENAME ||
+						selection.name.value === REFERENCE
+					) {
 						cost += 1;
 						break;
 					}
