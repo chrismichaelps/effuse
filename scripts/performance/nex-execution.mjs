@@ -83,7 +83,7 @@ const results = [
 
 const metadata = runtimeMetadata();
 console.table([metadata]);
-console.table(formatResults(results));
+formatResults(results);
 
 if (args.has('--check')) {
 	const budgets = JSON.parse(
