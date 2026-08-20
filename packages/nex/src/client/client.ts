@@ -162,6 +162,24 @@ export const createNexClient = (options: NexClientOptions): NexClient => {
 				: { operationName: request.operationName }),
 		});
 
+	/**
+	 * What two callers must agree on to share a request in flight.
+	 *
+	 * The stored key is a hash, and working one out takes a turn of the event
+	 * loop - long enough for a second caller to arrive and miss the first. This
+	 * one is worked out on the spot, so callers coalesce before anything
+	 * awaits; the hash still decides what is kept.
+	 */
+	const coalesceKey = (
+		input: string | DocumentNode,
+		request: NexRequestOptions | undefined
+	): string =>
+		[
+			typeof input === 'string' ? input : print(input),
+			request?.operationName ?? '',
+			JSON.stringify(request?.variables ?? null),
+		].join('\u0000');
+
 	const run = async (
 		input: string | DocumentNode,
 		request: NexRequestOptions | undefined,
@@ -209,32 +227,33 @@ export const createNexClient = (options: NexClientOptions): NexClient => {
 		return parsed as ExecutionResult;
 	};
 
-	const requestFor = async (
+	const requestFor = (
 		input: string | DocumentNode,
 		request?: NexRequestOptions
 	): Promise<ExecutionResult> => {
-		const key = await keyFor(input, request);
-
-		if (keeps && request?.refresh !== true) {
-			const already = held.get(key);
-			if (already !== undefined) return already;
-		}
-
-		const running = inFlight.get(key);
+		const sharing = coalesceKey(input, request);
+		const running = inFlight.get(sharing);
 		if (running !== undefined && request?.refresh !== true) return running;
 
-		const pending = run(input, request, key)
-			.then((result) => {
-				// Only an answer worth reusing is kept: a failure should be asked
-				// again rather than remembered.
-				if (keeps && result.errors === undefined) held.set(key, result);
-				return result;
-			})
-			.finally(() => {
-				inFlight.delete(key);
-			});
+		const pending = (async (): Promise<ExecutionResult> => {
+			const key = await keyFor(input, request);
 
-		inFlight.set(key, pending);
+			if (keeps && request?.refresh !== true) {
+				const already = held.get(key);
+				if (already !== undefined) return already;
+			}
+
+			const result = await run(input, request, key);
+
+			// Only an answer worth reusing is kept: a failure should be asked
+			// again rather than remembered.
+			if (keeps && result.errors === undefined) held.set(key, result);
+			return result;
+		})().finally(() => {
+			inFlight.delete(sharing);
+		});
+
+		inFlight.set(sharing, pending);
 		return pending;
 	};
 

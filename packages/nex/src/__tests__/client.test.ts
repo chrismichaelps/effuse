@@ -135,21 +135,58 @@ describe('asking for the same thing twice', () => {
 		const pending = new Promise<Response>((resolve) => {
 			answer = resolve;
 		});
-		const fetchImpl = vi.fn(async () => pending);
+		// The mock says when it has been reached, so the second call is made
+		// while the first is provably in flight rather than after a timer.
+		let reached: () => void = () => undefined;
+		const atFetch = new Promise<void>((resolve) => {
+			reached = resolve;
+		});
+		const fetchImpl = vi.fn(async () => {
+			reached();
+			return pending;
+		});
 		// With nothing kept, sharing the request in flight is the only thing
 		// that can stop a second one going out.
 		const nex = client(fetchImpl as unknown as typeof fetch, { cache: false });
 
 		const first = nex.request('{ hello }');
+		await atFetch;
 		const second = nex.request('{ hello }');
-
-		// Both calls have to be in flight before the answer arrives; otherwise
-		// the first would have finished and the second would rightly ask again.
-		await new Promise((resolve) => setTimeout(resolve, 0));
 		answer(ok({ hello: 'world' }));
 
 		expect(await first).toEqual(await second);
 		expect(fetchImpl).toHaveBeenCalledTimes(1);
+	});
+
+	it('shares a request with a caller that arrives in the same tick', async () => {
+		const fetchImpl = vi.fn(async () => ok({ hello: 'world' }));
+		const nex = client(fetchImpl as unknown as typeof fetch, { cache: false });
+
+		// Neither caller has awaited anything yet, which is where the old
+		// hash-first design let a second request slip out.
+		const [first, second] = await Promise.all([
+			nex.request('{ hello }'),
+			nex.request('{ hello }'),
+		]);
+
+		expect(first).toEqual(second);
+		expect(fetchImpl).toHaveBeenCalledTimes(1);
+	});
+
+	it('does not share requests that differ in their variables', async () => {
+		const fetchImpl = vi.fn(async () => ok({ echo: 'x' }));
+		const nex = client(fetchImpl as unknown as typeof fetch, { cache: false });
+
+		await Promise.all([
+			nex.request('query A($text: String!) { echo(text: $text) }', {
+				variables: { text: 'one' },
+			}),
+			nex.request('query A($text: String!) { echo(text: $text) }', {
+				variables: { text: 'two' },
+			}),
+		]);
+
+		expect(fetchImpl).toHaveBeenCalledTimes(2);
 	});
 
 	it('answers from what it already has', async () => {
