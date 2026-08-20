@@ -1025,6 +1025,44 @@ How it maps:
 
 Batches are capped at ten requests unless `maxBatchSize` says otherwise, and a live operation cannot be batched.
 
+### What a caller says it can read
+
+A request answers with one thing: JSON for a query or a change, an event
+stream for a live operation. If the caller's `Accept` header does not cover
+that, it is refused with `406` rather than sent something it cannot parse -
+a browser prompting a download, a typed client throwing where it reads.
+
+```
+Accept: application/json          -> a query answers
+Accept: text/event-stream         -> a live operation answers
+Accept: */*                       -> either
+Accept: text/html                 -> 406, saying what would have been sent
+Accept: application/json;q=0      -> 406: a weight of zero rules a type out
+```
+
+A caller that sends no `Accept` is taken to accept anything, which is what the
+header's absence means. Weights beyond zero order preferences this does not
+have - there is one thing to send for each kind of request - so they are read
+past rather than acted on.
+
+### Saying which trace a request belongs to
+
+A client that already traces its own work can name the trace this run belongs
+to, so what it logs and what the server logs carry the same name:
+
+```json
+{ "query": "{ posts { title } }", "extensions": { "traceId": "3f9c-..." } }
+```
+
+The response carries that name back in `extensions.traceId`, and every
+`instrumentation.onOperation` report for the run uses it. Left out, the run
+names itself. Anything that is not a name is ignored rather than refused: a
+trace is for reading logs afterwards, and no request should fail over one.
+
+`extensions` is otherwise the caller's to use, on a POST body or as a
+URL-encoded JSON parameter on a GET; it has to be an object, and a request
+sending something else is refused rather than quietly ignored.
+
 ## Running this in production
 
 The defaults are safe to start from; these are the knobs a server should reach for.
@@ -1160,39 +1198,39 @@ A query language is only as good as the questions it has an answer for. This
 is the full list of subjects a hierarchical, typed API has to deal with, and
 where each is answered here - including the ones deliberately left out.
 
-| Subject                      | Where                                                                          |
-| ---------------------------- | ------------------------------------------------------------------------------ |
-| The language                 | `parse`, `print`, `tokenize`, and the AST, including pipelines and `Type?`     |
-| The type system and catalogs | `buildCatalog`, coherence checks, extensions, `printCatalog`                   |
-| Requests                     | Fields, arguments, aliases, fragments, variables, `@skip` and `@include`       |
-| Changes                      | Mutations, run serially, with transaction blocks                               |
-| Live data                    | `live` operations over server-sent events, snapshots or patches                |
-| Execution                    | `execute`, resolvers, error policies, per-row concurrency                      |
-| The response                 | `data`, `errors`, `extensions`, and a partial response that says why           |
-| Validation                   | Every rule, reported at once, with the pipeline rules this language adds       |
-| Introspection                | `__schema`, `__type`, `__typename`, plus operators, cost, and features         |
-| Paging                       | `\| page`, `@connection`, and one page shape everything paged answers in       |
-| Serving over HTTP            | `createNexHandler`, GET and POST, batching, event streams                      |
-| Server rendering             | `saveNexState` and `loadNexState`, through the ecosystem's own state bag       |
-| In a component               | `nexQuery` and `nexMutation`, so the ecosystem's query cache is the only one   |
-| Caching                      | Answers by request, objects by `__ref`, and `evict` by object                  |
-| Object identity              | `@identity` and `__ref`, with `parseRef` for a refetch                         |
-| Performance                  | `createLoader`, memoized collection, windowed rows, `pnpm bench:nex`           |
-| Security                     | `@auth`, cost and depth limits, spending budgets, introspection off            |
-| Authorization                | An authorizer asked before a guarded field runs, and before a live source      |
-| Errors                       | A code per kind, source excerpts, `formatError`, no detail leaking out         |
-| Debugging errors             | `printSourceExcerpt`, a trace on every run, field-error hooks                  |
-| Robust applications          | Response types that still read when a catalog gains a value or a member        |
-| Schema design                | `reviewCatalog`, on what a working catalog makes impossible later              |
-| Schema review                | The same, named by coordinate so a review can point at it                      |
-| Naming and design            | `reviewCatalog`: case conventions, and root fields that repeat themselves      |
-| Thinking in graphs           | `reviewCatalog` names the type a field holding a key could answer with instead |
-| Versioning                   | `compareCatalogs`, `findBrokenOperations`, `findDeprecations`                  |
-| Ownership and governance     | A deployment concern: `mergeCatalogs` is what makes split ownership work       |
-| Tooling                      | `generateTypes`, `generateCatalogTypes`, `minifyRequest`, `visitWithTypes`     |
-| Composition                  | `mergeCatalogs`, with every disagreement between sources reported              |
-| Federation                   | Not implemented: future work in the specification                              |
-| File uploads                 | Not implemented: multipart belongs to whatever serves the package              |
+| Subject                      | Where                                                                           |
+| ---------------------------- | ------------------------------------------------------------------------------- |
+| The language                 | `parse`, `print`, `tokenize`, and the AST, including pipelines and `Type?`      |
+| The type system and catalogs | `buildCatalog`, coherence checks, extensions, `printCatalog`                    |
+| Requests                     | Fields, arguments, aliases, fragments, variables, `@skip` and `@include`        |
+| Changes                      | Mutations, run serially, with transaction blocks                                |
+| Live data                    | `live` operations over server-sent events, snapshots or patches                 |
+| Execution                    | `execute`, resolvers, error policies, per-row concurrency                       |
+| The response                 | `data`, `errors`, `extensions`, and a partial response that says why            |
+| Validation                   | Every rule, reported at once, with the pipeline rules this language adds        |
+| Introspection                | `__schema`, `__type`, `__typename`, plus operators, cost, and features          |
+| Paging                       | `\| page`, `@connection`, and one page shape everything paged answers in        |
+| Serving over HTTP            | `createNexHandler`, GET and POST, `Accept` negotiation, batching, event streams |
+| Server rendering             | `saveNexState` and `loadNexState`, through the ecosystem's own state bag        |
+| In a component               | `nexQuery` and `nexMutation`, so the ecosystem's query cache is the only one    |
+| Caching                      | Answers by request, objects by `__ref`, and `evict` by object                   |
+| Object identity              | `@identity` and `__ref`, with `parseRef` for a refetch                          |
+| Performance                  | `createLoader`, memoized collection, windowed rows, `pnpm bench:nex`            |
+| Security                     | `@auth`, cost and depth limits, spending budgets, introspection off             |
+| Authorization                | An authorizer asked before a guarded field runs, and before a live source       |
+| Errors                       | A code per kind, source excerpts, `formatError`, no detail leaking out          |
+| Debugging errors             | `printSourceExcerpt`, a trace on every run, field-error hooks                   |
+| Robust applications          | Response types that still read when a catalog gains a value or a member         |
+| Schema design                | `reviewCatalog`, on what a working catalog makes impossible later               |
+| Schema review                | The same, named by coordinate so a review can point at it                       |
+| Naming and design            | `reviewCatalog`: case conventions, and root fields that repeat themselves       |
+| Thinking in graphs           | `reviewCatalog` names the type a field holding a key could answer with instead  |
+| Versioning                   | `compareCatalogs`, `findBrokenOperations`, `findDeprecations`                   |
+| Ownership and governance     | A deployment concern: `mergeCatalogs` is what makes split ownership work        |
+| Tooling                      | `generateTypes`, `generateCatalogTypes`, `minifyRequest`, `visitWithTypes`      |
+| Composition                  | `mergeCatalogs`, with every disagreement between sources reported               |
+| Federation                   | Not implemented: future work in the specification                               |
+| File uploads                 | Not implemented: multipart belongs to whatever serves the package               |
 
 ## Specification coverage
 
