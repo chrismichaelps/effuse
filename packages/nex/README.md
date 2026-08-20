@@ -520,6 +520,37 @@ export type CatalogResolvers<TContext = unknown> = {
 An interface or union entry also takes `__resolveType`, and every part is
 optional, since a field with no resolver reads its own property.
 
+## Changing a catalog without breaking clients
+
+`compareCatalogs` reads two catalogs and says what each difference asks of the
+clients already out there:
+
+```ts
+compareCatalogs(before, after);
+// [
+//   { severity: 'breaking', coordinate: 'Query.legacy', message: '"Query.legacy" was removed' },
+//   { severity: 'risky', coordinate: 'Status.SCHEDULED', message: '"Status.SCHEDULED" was added, ...' },
+//   { severity: 'safe', coordinate: 'Post.byline', message: '"Post.byline" was added' },
+// ]
+```
+
+A field that leaves breaks whoever asked for it; one that arrives asks nothing
+of anyone. In between sit the changes a client meets without failing outright -
+a new enum value it has no branch for - which are worth seeing before a release
+rather than after. Promising more than before is safe (`String` to `String!`);
+promising less is not.
+
+That is the abstract answer. `findBrokenOperations` gives the concrete one, by
+checking the operations a server actually holds:
+
+```ts
+findBrokenOperations(operations, after);
+// [{ operation: 'query Feed { ... }', problems: [NexValidationError: Cannot query field "body" ...] }]
+```
+
+Pair it with an operation store in CI and a release says exactly which requests
+would stop working, rather than which shapes changed.
+
 ## What a request still leans on
 
 A request can validate cleanly and still ask for things on their way out.

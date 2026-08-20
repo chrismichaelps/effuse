@@ -68,3 +68,9 @@ export {
 	generateTypes,
 	type GenerateTypesOptions,
 } from './typegen.js';
+export {
+	compareCatalogs,
+	findBrokenOperations,
+	type BrokenOperation,
+	type OperationSource,
+} from './catalog-changes.js';

@@ -28,8 +28,10 @@ export {
 	buildCatalogFromIntrospection,
 	buildCatalogFromIntrospectionSafe,
 	buildCatalogSafe,
+	compareCatalogs,
 	createOperationStore,
 	execute,
+	findBrokenOperations,
 	findDeprecations,
 	generateCatalogTypes,
 	generateTypes,
@@ -56,6 +58,8 @@ export {
 	type HttpRequestBody,
 	type HttpResponse,
 	type NormalizeOptions,
+	type BrokenOperation,
+	type OperationSource,
 	type OperationStore,
 	type ParseResult,
 	type RequestInput,
@@ -70,7 +74,12 @@ export type {
 	RequestAnalysis,
 } from './analysis/index.js';
 
-export { BUILT_IN_SCALARS, type Catalog } from './catalog/index.js';
+export {
+	BUILT_IN_SCALARS,
+	ChangeSeverity,
+	type Catalog,
+	type CatalogChange,
+} from './catalog/index.js';
 export { DirectiveLocation } from './catalog/directive-locations.js';
 
 export {

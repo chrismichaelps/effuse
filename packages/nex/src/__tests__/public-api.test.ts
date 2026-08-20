@@ -134,10 +134,12 @@ describe('public API', () => {
 				'buildCatalogFromIntrospection',
 				'buildCatalogFromIntrospectionSafe',
 				'buildCatalogSafe',
+				'compareCatalogs',
 				'createNexClient',
 				'createOperationStore',
 				'concatDocuments',
 				'execute',
+				'findBrokenOperations',
 				'findDeprecations',
 				'generateCatalogTypes',
 				'generateTypes',
@@ -186,6 +188,7 @@ describe('public API', () => {
 		expect(surface).toEqual(
 			expect.arrayContaining([
 				'BUILT_IN_SCALARS',
+				'ChangeSeverity',
 				'DirectiveLocation',
 				'ErrorPolicy',
 				'LiveDelivery',

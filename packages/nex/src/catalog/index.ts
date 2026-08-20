@@ -31,3 +31,8 @@ export {
 	resolveCoordinate,
 	type CoordinateTarget,
 } from './resolve-coordinate.js';
+export {
+	ChangeSeverity,
+	compareCatalogs,
+	type CatalogChange,
+} from './changes.js';
