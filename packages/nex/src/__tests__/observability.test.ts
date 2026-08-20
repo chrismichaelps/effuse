@@ -5,182 +5,289 @@
  */
 
 import { describe, expect, it, vi } from 'vitest';
-import { buildCatalog, execute, subscribe } from '../index.js';
-import type { OperationTrace } from '../index.js';
+import {
+	buildCatalog,
+	createMetrics,
+	execute,
+	type FieldTrace,
+} from '../index.js';
 
 const catalog = buildCatalog(`
-	schema { query: Query live: Live }
-	type Query { hello: String! slow: String! broken: String posts: [Post!]! }
-	type Post { id: ID! title: String! }
-	type Live { ticks: Int! }
+	type Author { name: String! }
+	type Post { id: ID! title: String! author: Author! }
+	type Query { posts: [Post!]! slow: String! broken: String? }
+	schema { query: Query }
 `);
 
 const resolvers = {
 	Query: {
-		hello: () => 'world',
+		posts: () => [
+			{ id: '1', title: 'first' },
+			{ id: '2', title: 'second' },
+		],
 		slow: async () => {
 			await new Promise((resolve) => setTimeout(resolve, 5));
 			return 'eventually';
 		},
 		broken: () => {
-			throw new Error('resolver failed');
+			throw new Error('the source is down');
 		},
-		posts: () => [{ id: '1', title: 'first' }],
 	},
+	Post: { author: () => ({ name: 'Ada' }) },
 };
 
-describe('what a run reports about itself', () => {
-	it('carries a trace a caller can follow', async () => {
-		const result = await execute({ request: '{ hello }', catalog, resolvers });
-
-		expect(typeof result.extensions.traceId).toBe('string');
-		expect(String(result.extensions.traceId).length).toBeGreaterThan(8);
+const run = (request: string, onField: (trace: FieldTrace) => void) =>
+	execute({
+		request,
+		catalog,
+		resolvers,
+		instrumentation: { onField },
 	});
 
-	it('gives each run its own trace', async () => {
-		const [first, second] = await Promise.all([
-			execute({ request: '{ hello }', catalog, resolvers }),
-			execute({ request: '{ hello }', catalog, resolvers }),
-		]);
+describe('what each field cost', () => {
+	it('reports a field that had a resolver', async () => {
+		const seen: FieldTrace[] = [];
+		await run('{ posts { title } }', (trace) => seen.push(trace));
 
-		expect(first.extensions.traceId).not.toBe(second.extensions.traceId);
+		expect(seen.map((one) => one.fieldName)).toContain('posts');
 	});
 
-	it('carries the trace a server already had', async () => {
+	it('says nothing about a field that only read a property', async () => {
+		const seen: FieldTrace[] = [];
+		await run('{ posts { title } }', (trace) => seen.push(trace));
+
+		// A property read is free, and reporting each one would swamp both the
+		// trace and the run producing it.
+		expect(seen.map((one) => one.fieldName)).not.toContain('title');
+	});
+
+	it('reports one for every row a resolver ran on', async () => {
+		const seen: FieldTrace[] = [];
+		await run('{ posts { author { name } } }', (trace) => seen.push(trace));
+
+		const authors = seen.filter((one) => one.fieldName === 'author');
+		expect(authors).toHaveLength(2);
+	});
+
+	it('says where in the response it was', async () => {
+		const seen: FieldTrace[] = [];
+		await run('{ posts { author { name } } }', (trace) => seen.push(trace));
+
+		const [first] = seen.filter((one) => one.fieldName === 'author');
+		expect(first?.path).toEqual(['posts', 0, 'author']);
+		expect(first?.parentTypeName).toBe('Post');
+	});
+
+	it('says how long it took', async () => {
+		const seen: FieldTrace[] = [];
+		await run('{ slow }', (trace) => seen.push(trace));
+
+		expect(seen[0]?.durationMs).toBeGreaterThan(1);
+	});
+
+	it('says which run it belongs to', async () => {
+		const seen: FieldTrace[] = [];
 		const result = await execute({
-			request: '{ hello }',
+			request: '{ posts { title } }',
 			catalog,
 			resolvers,
-			traceId: 'request-42',
+			traceId: 'the-run',
+			instrumentation: { onField: (trace) => seen.push(trace) },
 		});
 
-		expect(result.extensions.traceId).toBe('request-42');
+		expect(result.extensions.traceId).toBe('the-run');
+		expect(seen[0]?.traceId).toBe('the-run');
+	});
+
+	it('reports a field that failed, and says it failed', async () => {
+		const seen: FieldTrace[] = [];
+		await run('{ broken }', (trace) => seen.push(trace));
+
+		expect(seen[0]?.fieldName).toBe('broken');
+		expect(seen[0]?.failed).toBe(true);
+	});
+
+	it('says a field that worked did not fail', async () => {
+		const seen: FieldTrace[] = [];
+		await run('{ posts { title } }', (trace) => seen.push(trace));
+
+		expect(seen[0]?.failed).toBe(false);
+	});
+
+	it('never lets a watcher break the run it watches', async () => {
+		const result = await run('{ posts { title } }', () => {
+			throw new Error('the sink is down');
+		});
+
+		expect(result.errors).toBeUndefined();
+		expect(result.data).toBeDefined();
+	});
+
+	it('costs nothing when nobody is watching', async () => {
+		const result = await execute({
+			request: '{ posts { title } }',
+			catalog,
+			resolvers,
+		});
+
+		expect(result.errors).toBeUndefined();
 	});
 });
 
-describe('watching a run happen', () => {
-	it('says when a run started and what it cost', async () => {
-		const traces: OperationTrace[] = [];
+describe('what a server has seen so far', () => {
+	it('counts the runs it watched', async () => {
+		const metrics = createMetrics();
 
 		await execute({
-			request: '{ hello }',
+			request: '{ posts { title } }',
 			catalog,
 			resolvers,
-			instrumentation: { onOperation: (trace) => traces.push(trace) },
+			instrumentation: metrics.instrumentation,
 		});
-
-		const [trace] = traces;
-		expect(trace?.operation).toBe('query');
-		expect(trace?.operationName).toBeUndefined();
-		expect(trace?.cost).toBe(1);
-		expect(trace?.durationMs).toBeGreaterThanOrEqual(0);
-		expect(trace?.traceId).toBeDefined();
-		expect(trace?.errorCount).toBe(0);
-	});
-
-	it('names the operation it ran', async () => {
-		const traces: OperationTrace[] = [];
-
 		await execute({
-			request: 'query Greeting { hello }',
+			request: '{ posts { title } }',
 			catalog,
 			resolvers,
-			instrumentation: { onOperation: (trace) => traces.push(trace) },
+			instrumentation: metrics.instrumentation,
 		});
 
-		expect(traces[0]?.operationName).toBe('Greeting');
+		expect(metrics.snapshot().operations.total).toBe(2);
 	});
 
-	it('counts the fields that failed', async () => {
-		const traces: OperationTrace[] = [];
-
-		await execute({
-			request: '{ broken hello }',
-			catalog,
-			resolvers,
-			instrumentation: { onOperation: (trace) => traces.push(trace) },
-		});
-
-		expect(traces[0]?.errorCount).toBe(1);
-	});
-
-	it('reports a request that never ran', async () => {
-		const traces: OperationTrace[] = [];
-
-		await execute({
-			request: '{ nope }',
-			catalog,
-			resolvers,
-			instrumentation: { onOperation: (trace) => traces.push(trace) },
-		});
-
-		expect(traces[0]?.errorCount).toBe(1);
-		expect(traces[0]?.ran).toBe(false);
-	});
-
-	it('hands over each field that failed, with where it was', async () => {
-		const failures: { path: readonly (string | number)[]; message: string }[] =
-			[];
+	it('counts the ones that carried problems', async () => {
+		const metrics = createMetrics();
 
 		await execute({
 			request: '{ broken }',
 			catalog,
 			resolvers,
-			instrumentation: {
-				onFieldError: (error) => {
-					failures.push({ path: error.path, message: error.message });
-				},
-			},
+			instrumentation: metrics.instrumentation,
 		});
-
-		expect(failures).toEqual([
-			{ path: ['broken'], message: 'resolver failed' },
-		]);
-	});
-
-	it('reports every snapshot of a live operation', async () => {
-		const traces: OperationTrace[] = [];
-
-		for await (const _snapshot of subscribe({
-			request: 'live L { ticks }',
-			catalog,
-			sources: {
-				Live: {
-					ticks: async function* () {
-						yield 1;
-						yield 2;
-					},
-				},
-			},
-			instrumentation: { onOperation: (trace) => traces.push(trace) },
-		})) {
-			// reading is enough
-		}
-
-		expect(traces).toHaveLength(2);
-		expect(traces.every((trace) => trace.operation === 'live')).toBe(true);
-	});
-
-	it('never lets watching break the run it watches', async () => {
-		const result = await execute({
-			request: '{ hello }',
+		await execute({
+			request: '{ posts { title } }',
 			catalog,
 			resolvers,
-			instrumentation: {
-				onOperation: () => {
-					throw new Error('the telemetry sink is down');
-				},
-			},
+			instrumentation: metrics.instrumentation,
 		});
 
-		expect(result.data).toEqual({ hello: 'world' });
-		expect(result.errors).toBeUndefined();
+		expect(metrics.snapshot().operations.failed).toBe(1);
 	});
 
-	it('costs nothing when nobody is watching', async () => {
-		const onOperation = vi.fn();
-		await execute({ request: '{ hello }', catalog, resolvers });
+	it('adds up what the requests cost', async () => {
+		const metrics = createMetrics();
 
-		expect(onOperation).not.toHaveBeenCalled();
+		await execute({
+			request: '{ posts { title } }',
+			catalog,
+			resolvers,
+			instrumentation: metrics.instrumentation,
+		});
+
+		expect(metrics.snapshot().operations.totalCost).toBeGreaterThan(0);
+	});
+
+	it('keeps each operation apart by name', async () => {
+		const metrics = createMetrics();
+
+		await execute({
+			request: 'query Feed { posts { title } }',
+			catalog,
+			resolvers,
+			instrumentation: metrics.instrumentation,
+		});
+		await execute({
+			request: 'query One { posts { id } }',
+			catalog,
+			resolvers,
+			instrumentation: metrics.instrumentation,
+		});
+
+		const byName = metrics.snapshot().operations.byName;
+		expect(byName.Feed?.total).toBe(1);
+		expect(byName.One?.total).toBe(1);
+	});
+
+	it('names the slowest field it has seen', async () => {
+		const metrics = createMetrics();
+
+		await execute({
+			request: '{ slow posts { title } }',
+			catalog,
+			resolvers,
+			instrumentation: metrics.instrumentation,
+		});
+
+		const fields = metrics.snapshot().fields;
+		expect(fields['Query.slow']?.total).toBe(1);
+		expect(fields['Query.slow']?.slowestMs).toBeGreaterThan(1);
+	});
+
+	it('counts the fields that failed', async () => {
+		const metrics = createMetrics();
+
+		await execute({
+			request: '{ broken }',
+			catalog,
+			resolvers,
+			instrumentation: metrics.instrumentation,
+		});
+
+		expect(metrics.snapshot().fields['Query.broken']?.failed).toBe(1);
+	});
+
+	it('hands back a reading that does not change under it', async () => {
+		const metrics = createMetrics();
+		await execute({
+			request: '{ posts { title } }',
+			catalog,
+			resolvers,
+			instrumentation: metrics.instrumentation,
+		});
+
+		const before = metrics.snapshot();
+		await execute({
+			request: '{ posts { title } }',
+			catalog,
+			resolvers,
+			instrumentation: metrics.instrumentation,
+		});
+
+		expect(before.operations.total).toBe(1);
+		expect(metrics.snapshot().operations.total).toBe(2);
+	});
+
+	it('forgets everything when asked', async () => {
+		const metrics = createMetrics();
+		await execute({
+			request: 'query Feed { posts { title } }',
+			catalog,
+			resolvers,
+			instrumentation: metrics.instrumentation,
+		});
+
+		metrics.reset();
+
+		expect(metrics.snapshot().operations.total).toBe(0);
+		expect(metrics.snapshot().operations.totalCost).toBe(0);
+		expect(metrics.snapshot().operations.byName).toEqual({});
+		expect(metrics.snapshot().fields).toEqual({});
+	});
+
+	it('holds no more names than it was told to', async () => {
+		const metrics = createMetrics({ maxNames: 2 });
+
+		for (const name of ['A', 'B', 'C', 'D']) {
+			await execute({
+				request: `query ${name} { posts { title } }`,
+				catalog,
+				resolvers,
+				instrumentation: metrics.instrumentation,
+			});
+		}
+
+		// A name per caller-chosen operation is a way to run a server out of
+		// memory, so what is kept is bounded.
+		expect(Object.keys(metrics.snapshot().operations.byName)).toHaveLength(2);
+		expect(metrics.snapshot().operations.total).toBe(4);
 	});
 });
