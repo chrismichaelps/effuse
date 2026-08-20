@@ -10,6 +10,11 @@
 			"p95Ns": 25000000,
 			"note": "2000 rows of six fields each: 14000 field resolutions. Measured near 7.3ms median on an idle machine, so the budget leaves room for a loaded one without hiding a regression."
 		},
+		"nex.list-of-relations": {
+			"medianNs": 30000000,
+			"p95Ns": 50000000,
+			"note": "2000 rows behind a relation that has to be waited on. Rows resolve in windows rather than one after another, which is what keeps this from growing with the number of rows."
+		},
 		"nex.paged-list": {
 			"medianNs": 1500000,
 			"p95Ns": 3000000,

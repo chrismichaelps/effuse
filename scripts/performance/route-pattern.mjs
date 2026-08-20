@@ -220,7 +220,8 @@ const cases = [
 	{
 		name: 'ssr.render-document',
 		iterations: Math.max(20, options.iterations / 200),
-		operation: () => ssrRuntime.run(() => renderToFragment(ssrTree, ssrRuntime)),
+		operation: () =>
+			ssrRuntime.run(() => renderToFragment(ssrTree, ssrRuntime)),
 	},
 	{
 		name: 'server.router-compile',

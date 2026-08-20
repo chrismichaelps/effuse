@@ -41,6 +41,14 @@ const rows = Array.from({ length: ROWS }, (_, index) => ({
 
 const resolvers = {
 	Query: { posts: () => rows, scalar: () => 'value' },
+	Post: {
+		// A relation that has to be waited on, which is what makes a list of
+		// rows expensive in the shape a server actually serves.
+		author: async (source) => {
+			await Promise.resolve();
+			return source.author;
+		},
+	},
 };
 
 const run = (request) => async () => {
@@ -59,6 +67,11 @@ const results = [
 	await runAsyncBenchmark({
 		name: 'nex.large-list',
 		operation: run('{ posts { id title rank author { id name } } }'),
+		...options,
+	}),
+	await runAsyncBenchmark({
+		name: 'nex.list-of-relations',
+		operation: run('{ posts { id author { name } } }'),
 		...options,
 	}),
 	await runAsyncBenchmark({
