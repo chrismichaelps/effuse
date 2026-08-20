@@ -85,6 +85,7 @@ export type {
 	RequestAnalysis,
 } from './analysis/index.js';
 
+export { runNexCommand, type NexCommandIO } from './cli/index.js';
 export {
 	mergeCatalogs,
 	mergeCatalogsSafe,
