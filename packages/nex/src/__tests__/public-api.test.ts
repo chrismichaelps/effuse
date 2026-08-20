@@ -133,6 +133,7 @@ describe('public API', () => {
 				'buildCatalogFromIntrospection',
 				'buildCatalogFromIntrospectionSafe',
 				'buildCatalogSafe',
+				'createOperationStore',
 				'concatDocuments',
 				'execute',
 				'handleHttpRequest',

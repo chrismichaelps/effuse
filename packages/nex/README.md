@@ -382,6 +382,34 @@ requests that run the same way get the same name even when they were sent from
 different files. Hashing goes through the platform's own crypto, so this works
 in Node, Bun, an edge worker, and a browser alike.
 
+## Running only what a server knows
+
+A store holds the operations a server will run, each under the name
+`requestKey` gives it. A client that ships its operations at build time and a
+server that registered the same ones agree without exchanging anything else:
+
+```ts
+import { createOperationStore, handleHttpRequest } from '@effuse/nex';
+
+const operations = await createOperationStore.from([
+  '{ posts | page first: 10 { title } }',
+  'query Post($id: ID!) { post(id: $id) { title } }',
+]);
+
+await handleHttpRequest(request, {
+  catalog,
+  resolvers,
+  operations,
+  persistedOnly: true,
+});
+```
+
+A client then sends `{ "id": "6f1c…", "variables": { … } }` instead of the
+request itself. With `persistedOnly`, anything sent whole is refused, which
+bounds what a client can ask for to what was registered ahead of time - and
+makes cost analysis a property of the deployment rather than of each request.
+Batches work the same way, by name.
+
 ## Walking a document
 
 `visit` walks any node the parser produces, and rewrites it if the visitor asks:

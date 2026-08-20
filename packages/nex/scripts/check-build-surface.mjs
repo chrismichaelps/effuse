@@ -18,6 +18,7 @@ const REQUIRED = [
 	'buildCatalogFromIntrospection',
 	'buildCatalogFromIntrospectionSafe',
 	'buildCatalogSafe',
+	'createOperationStore',
 	'concatDocuments',
 	'diffValues',
 	'execute',

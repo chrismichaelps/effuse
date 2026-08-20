@@ -32,6 +32,7 @@ import {
 	type Resolvers,
 } from '../../execution/index.js';
 import { NexErrorCode, NexExecutionError } from '../../errors/index.js';
+import type { OperationStore } from '../../api/operation-store.js';
 import type { DocumentNode } from '../../language/ast/index.js';
 import type { OperationType } from '../../language/kinds/index.js';
 import { execute, formatErrors } from '../../api/execute.js';
@@ -65,6 +66,15 @@ export interface HttpHandlerOptions {
 	readonly limits?: RequestLimits | undefined;
 	/** How many requests one batch may carry. Defaults to 10. */
 	readonly maxBatchSize?: number | undefined;
+	/** The operations this server holds, so a client may send a name. */
+	readonly operations?: OperationStore | undefined;
+	/**
+	 * Run nothing but the operations the store holds.
+	 *
+	 * A request sent whole is refused, which bounds what a client can ask for
+	 * to what was registered ahead of time.
+	 */
+	readonly persistedOnly?: boolean | undefined;
 	/** Whether `__schema` and `__type` may be asked for. Defaults to `true`. */
 	readonly introspection?: boolean | undefined;
 	/** Rewrite every error before it goes on the wire. */
@@ -133,11 +143,46 @@ const refused = (
 	requestError: true,
 });
 
+/**
+ * Resolve what a request asked to run.
+ *
+ * A name is looked up in the store; a request sent whole is taken as it is,
+ * unless the server only runs what it already knows.
+ */
+const resolveBody = (
+	body: HttpRequestBody,
+	options: HttpHandlerOptions
+): HttpRequestBody | string => {
+	if (body.id !== undefined) {
+		const held = options.operations?.get(body.id);
+		if (held === undefined) {
+			return `No operation is registered under "${body.id}"`;
+		}
+		return { ...body, query: held };
+	}
+
+	if (options.persistedOnly === true) {
+		return 'This server only runs operations it knows: send an "id" rather than a request';
+	}
+
+	return body;
+};
+
 const runOne = async (
 	body: HttpRequestBody,
 	options: HttpHandlerOptions,
-	read = readOperation(body)
+	read?: ReturnType<typeof readOperation>
 ): Promise<RanRequest> => {
+	const resolved = resolveBody(body, options);
+	if (typeof resolved === 'string') {
+		return refused(
+			[{ message: resolved, code: NexErrorCode.VALIDATION }],
+			options
+		);
+	}
+
+	body = resolved;
+	read = read ?? readOperation(body);
 	if (read === undefined) {
 		const parsed = parseSafe(body.query);
 		return refused(
@@ -261,7 +306,11 @@ export const handleHttpRequest = async (
 		return errorResponse(400, ['A batch must hold at least one request']);
 	}
 
-	const read = readOperation(first);
+	const resolvedFirst = resolveBody(first, options);
+	const read =
+		typeof resolvedFirst === 'string'
+			? undefined
+			: readOperation(resolvedFirst);
 	const live = read?.operation === 'live';
 	const safe = read === undefined || read.operation === 'query';
 
@@ -276,6 +325,10 @@ export const handleHttpRequest = async (
 	if (live) {
 		if (parsed.batch.length > 1) {
 			return errorResponse(400, ['A live operation cannot be batched']);
+		}
+
+		if (typeof resolvedFirst === 'string') {
+			return errorResponse(400, [resolvedFirst]);
 		}
 
 		return {

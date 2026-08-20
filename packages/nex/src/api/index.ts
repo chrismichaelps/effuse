@@ -58,3 +58,7 @@ export {
 	requestKey,
 	type NormalizeOptions,
 } from './persisted.js';
+export {
+	createOperationStore,
+	type OperationStore,
+} from './operation-store.js';

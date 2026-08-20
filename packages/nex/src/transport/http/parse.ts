@@ -39,9 +39,14 @@ const readOne = (value: unknown): HttpRequestBody | string => {
 	const record = asRecord(value);
 	if (record === undefined) return 'A request must be an object';
 
+	const id = record.id;
+	if (id !== undefined && typeof id !== 'string') {
+		return '"id" must be a string';
+	}
+
 	const query = record.query;
-	if (typeof query !== 'string' || query.trim() === '') {
-		return 'A request must carry a "query" string';
+	if (id === undefined && (typeof query !== 'string' || query.trim() === '')) {
+		return 'A request must carry a "query" string or an "id"';
 	}
 
 	const variables = record.variables;
@@ -63,7 +68,8 @@ const readOne = (value: unknown): HttpRequestBody | string => {
 	}
 
 	return {
-		query,
+		query: typeof query === 'string' ? query : '',
+		...(typeof id === 'string' ? { id } : {}),
 		...(asRecord(variables) === undefined
 			? {}
 			: { variables: asRecord(variables) }),

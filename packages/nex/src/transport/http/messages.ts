@@ -24,7 +24,10 @@
 
 /** One request, however it arrived. */
 export interface HttpRequestBody {
+	/** The request itself, when it was sent whole. */
 	readonly query: string;
+	/** The name of an operation the server already holds. */
+	readonly id?: string | undefined;
 	readonly variables?: Readonly<Record<string, unknown>> | undefined;
 	readonly operationName?: string | undefined;
 	readonly extensions?: Readonly<Record<string, unknown>> | undefined;
