@@ -9,6 +9,7 @@ const entries = [
 	'packages/core/dist/server.js',
 	'packages/i18n/dist/index.js',
 	'packages/ink/dist/index.js',
+	'packages/nex/dist/index.js',
 	'packages/query/dist/index.js',
 	'packages/router/dist/index.js',
 	'packages/server/dist/index.js',

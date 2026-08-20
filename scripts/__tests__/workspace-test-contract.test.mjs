@@ -65,6 +65,7 @@ test('every tested public package participates in the workspace gate', async () 
 		'@effuse/core',
 		'@effuse/i18n',
 		'@effuse/ink',
+		'@effuse/nex',
 		'@effuse/query',
 		'@effuse/router',
 		'@effuse/server',
