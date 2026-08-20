@@ -426,9 +426,22 @@ export const checkCoherence = (
 		}
 	} else {
 		let hasQuery = false;
+		const named = new Set<string>();
 
 		for (const root of roots) {
 			if (root.operation === OperationType.QUERY) hasQuery = true;
+
+			// Two roots for one operation leaves which one answers up to
+			// whichever is read first, which is not something to decide for a
+			// catalog that clearly means one of them.
+			if (named.has(root.operation)) {
+				report(
+					`The schema block names the ${root.operation} root more than once`,
+					root.loc
+				);
+				continue;
+			}
+			named.add(root.operation);
 
 			const target = typeNamed(root.type.name.value);
 			if (target === undefined) {
