@@ -31,7 +31,7 @@ import { Kind } from '../language/kinds/index.js';
 const AUTH_DIRECTIVE = 'auth';
 
 /** What a server is asked before a guarded field runs. */
-export interface AuthorizeRequest {
+export interface AuthorizeRequest<TContext = unknown> {
 	/** What the catalog requires of the caller. */
 	readonly requires: string | undefined;
 	/** The field being guarded. */
@@ -42,13 +42,13 @@ export interface AuthorizeRequest {
 	readonly coordinate: string;
 	/** Response path to the field. */
 	readonly path: readonly (string | number)[];
-	/** Whatever the run was given as its context. */
-	readonly context: unknown;
+	/** Whatever the run was given as its context, typed as it was given. */
+	readonly context: TContext;
 }
 
 /** Decide whether a caller may have a guarded field. */
-export type Authorize = (
-	request: AuthorizeRequest
+export type Authorize<TContext = unknown> = (
+	request: AuthorizeRequest<TContext>
 ) => boolean | Promise<boolean>;
 
 /**

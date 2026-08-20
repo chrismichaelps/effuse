@@ -29,10 +29,10 @@ import type { ResolverInfo, Resolvers } from '../resolvers.js';
 import { resolverFor } from '../resolvers.js';
 
 /** What reading a path needs to know about the run it belongs to. */
-export interface PathReader {
+export interface PathReader<TContext = unknown> {
 	readonly catalog: Catalog;
-	readonly resolvers: Resolvers;
-	readonly context: unknown;
+	readonly resolvers: Resolvers<TContext>;
+	readonly context: TContext;
 	readonly info: ResolverInfo;
 }
 
@@ -42,8 +42,8 @@ export interface PathReader {
  * A property on the row wins; otherwise the field's resolver runs, so a
  * pipeline can filter or sort on a relation the row only points at.
  */
-export const readPath = async (
-	reader: PathReader,
+export const readPath = async <TContext>(
+	reader: PathReader<TContext>,
 	row: unknown,
 	typeName: string,
 	path: FieldPathNode

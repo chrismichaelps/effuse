@@ -54,13 +54,13 @@ import {
 import { parseGetRequest, parsePostRequest } from './parse.js';
 
 /** How to serve requests that arrive over HTTP. */
-export interface HttpHandlerOptions {
+export interface HttpHandlerOptions<TContext = unknown> {
 	readonly catalog: Catalog;
-	readonly resolvers?: Resolvers | undefined;
+	readonly resolvers?: Resolvers<TContext> | undefined;
 	/** Where live fields get their events, when live operations are served. */
-	readonly sources?: LiveSources | undefined;
+	readonly sources?: LiveSources<TContext> | undefined;
 	/** Passed to every resolver untouched. */
-	readonly context?: unknown;
+	readonly context?: TContext | undefined;
 	/** What to do with a field that fails. */
 	readonly errorPolicy?: ErrorPolicy | undefined;
 	/** Cost and depth limits enforced before anything runs. */
@@ -79,7 +79,7 @@ export interface HttpHandlerOptions {
 	/** Whether `__schema` and `__type` may be asked for. Defaults to `true`. */
 	readonly introspection?: boolean | undefined;
 	/** Decide whether a caller may have a field the catalog guards. */
-	readonly authorize?: Authorize | undefined;
+	readonly authorize?: Authorize<TContext> | undefined;
 	/** Rewrite every error before it goes on the wire. */
 	readonly formatError?:
 		| ((error: NexExecutionError) => NexExecutionError)
@@ -127,7 +127,7 @@ const refused = (
 		readonly message: string;
 		readonly code?: NexErrorCode;
 	}[],
-	options: HttpHandlerOptions
+	format: HttpHandlerOptions<never>['formatError']
 ): RanRequest => ({
 	result: {
 		data: null,
@@ -139,7 +139,7 @@ const refused = (
 						...(problem.code === undefined ? {} : { code: problem.code }),
 					})
 			),
-			options.formatError
+			format
 		),
 		extensions: { cost: 0 },
 	},
@@ -152,9 +152,9 @@ const refused = (
  * A name is looked up in the store; a request sent whole is taken as it is,
  * unless the server only runs what it already knows.
  */
-const resolveBody = (
+const resolveBody = <TContext>(
 	body: HttpRequestBody,
-	options: HttpHandlerOptions
+	options: HttpHandlerOptions<TContext>
 ): HttpRequestBody | string => {
 	if (body.id !== undefined) {
 		const held = options.operations?.get(body.id);
@@ -171,16 +171,16 @@ const resolveBody = (
 	return body;
 };
 
-const runOne = async (
+const runOne = async <TContext>(
 	body: HttpRequestBody,
-	options: HttpHandlerOptions,
+	options: HttpHandlerOptions<TContext>,
 	read?: ReturnType<typeof readOperation>
 ): Promise<RanRequest> => {
 	const resolved = resolveBody(body, options);
 	if (typeof resolved === 'string') {
 		return refused(
 			[{ message: resolved, code: NexErrorCode.VALIDATION }],
-			options
+			options.formatError
 		);
 	}
 
@@ -197,7 +197,7 @@ const runOne = async (
 					code: NexErrorCode.SYNTAX,
 				},
 			],
-			options
+			options.formatError
 		);
 	}
 
@@ -212,7 +212,7 @@ const runOne = async (
 			: { operationName: body.operationName }),
 	});
 	if (problems.length > 0) {
-		return refused(problems, options);
+		return refused(problems, options.formatError);
 	}
 
 	const operation = selectOperation(read.document, body.operationName);
@@ -226,7 +226,7 @@ const runOne = async (
 							: `The document defines no operation named "${body.operationName}"`,
 				},
 			],
-			options
+			options.formatError
 		);
 	}
 
@@ -243,7 +243,7 @@ const runOne = async (
 				message,
 				code: NexErrorCode.VARIABLE,
 			})),
-			options
+			options.formatError
 		);
 	}
 
@@ -285,9 +285,9 @@ const runOne = async (
  * way is refused with the methods that would work. A live operation answers
  * with an event stream instead of a body.
  */
-export const handleProtocolRequest = async (
+export const handleProtocolRequest = async <TContext>(
 	request: HttpRequest,
-	options: HttpHandlerOptions
+	options: HttpHandlerOptions<TContext>
 ): Promise<HttpResponse> => {
 	const method = request.method.toUpperCase();
 

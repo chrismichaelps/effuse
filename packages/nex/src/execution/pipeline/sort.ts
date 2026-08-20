@@ -50,8 +50,8 @@ const rank = (left: unknown, right: unknown): number => {
  * Keys are read once per row up front, so a sort costs one read per row even
  * when the path goes through a resolver.
  */
-export const sortRows = async (
-	reader: PathReader,
+export const sortRows = async <TContext>(
+	reader: PathReader<TContext>,
 	rows: readonly unknown[],
 	typeName: string,
 	path: FieldPathNode,

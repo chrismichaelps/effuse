@@ -41,15 +41,15 @@ import type { ResolverInfo } from './resolvers.js';
 import { coerceArgumentValues } from './values.js';
 
 /** Where the events of a live field come from. */
-export type LiveSource = (
+export type LiveSource<TContext = unknown> = (
 	args: Readonly<Record<string, unknown>>,
-	context: unknown,
+	context: TContext,
 	info: ResolverInfo
 ) => AsyncIterable<unknown> | Promise<AsyncIterable<unknown>>;
 
 /** Live sources by type name, then field name. */
-export type LiveSources = Readonly<
-	Record<string, Readonly<Record<string, LiveSource>>>
+export type LiveSources<TContext = unknown> = Readonly<
+	Record<string, Readonly<Record<string, LiveSource<TContext>>>>
 >;
 
 /** The one field a live operation watches, once fragments are flattened. */
@@ -83,9 +83,9 @@ export const liveRootField = (
  * Differential updates are a transport concern; what this produces is the
  * same response shape a query would, over and over.
  */
-export const executeLive = async function* (
-	plan: ExecutionPlan,
-	sources: LiveSources
+export const executeLive = async function* <TContext>(
+	plan: ExecutionPlan<TContext>,
+	sources: LiveSources<TContext>
 ): AsyncGenerator<Awaited<ReturnType<typeof executeOperation>>> {
 	const rootType = plan.catalog.getRootType(plan.operation.operation);
 	if (rootType === undefined) {

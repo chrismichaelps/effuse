@@ -73,17 +73,17 @@ class Abort extends Error {
 }
 
 /** Everything one run needs, gathered once. */
-export interface ExecutionPlan {
+export interface ExecutionPlan<TContext = unknown> {
 	readonly catalog: Catalog;
-	readonly resolvers: Resolvers;
+	readonly resolvers: Resolvers<TContext>;
 	readonly fragments: ReadonlyMap<string, FragmentDefinitionNode>;
 	readonly operation: OperationDefinitionNode;
 	readonly variables: Readonly<Record<string, unknown>>;
-	readonly context: unknown;
+	readonly context: TContext;
 	readonly rootValue: unknown;
 	readonly errorPolicy: ErrorPolicy;
 	/** Decides whether a caller may have a field the catalog guards. */
-	readonly authorize?: Authorize | undefined;
+	readonly authorize?: Authorize<TContext> | undefined;
 }
 
 /** What a run produced, before it is dressed up as a response. */
@@ -99,8 +99,8 @@ const isSerialRoot = (operation: OperationDefinitionNode): boolean =>
 	operation.operation === 'mutation';
 
 /** Run one operation against its resolvers. */
-export const executeOperation = async (
-	plan: ExecutionPlan
+export const executeOperation = async <TContext>(
+	plan: ExecutionPlan<TContext>
 ): Promise<ExecutionOutcome> => {
 	const errors: NexExecutionError[] = [];
 
@@ -110,7 +110,7 @@ export const executeOperation = async (
 		errors.push(error);
 	};
 
-	const readerFor = (info: ResolverInfo): PathReader => ({
+	const readerFor = (info: ResolverInfo): PathReader<TContext> => ({
 		catalog: plan.catalog,
 		resolvers: plan.resolvers,
 		context: plan.context,

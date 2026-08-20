@@ -71,8 +71,8 @@ const isValueNode = (node: ExpressionNode): node is ValueNode =>
 	node.kind !== Kind.FIELD_PATH;
 
 /** Work out what one side of a comparison holds for this row. */
-const operandValue = async (
-	reader: PathReader,
+const operandValue = async <TContext>(
+	reader: PathReader<TContext>,
 	row: unknown,
 	typeName: string,
 	node: ExpressionNode,
@@ -86,8 +86,8 @@ const operandValue = async (
 };
 
 /** Decide whether a row survives a `| filter` condition. */
-export const evaluateCondition = async (
-	reader: PathReader,
+export const evaluateCondition = async <TContext>(
+	reader: PathReader<TContext>,
 	row: unknown,
 	typeName: string,
 	condition: ExpressionNode,

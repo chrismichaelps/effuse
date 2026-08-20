@@ -41,28 +41,38 @@ export interface ResolverInfo {
 	readonly catalog: Catalog;
 }
 
-/** Produce the value of one field. */
-export type FieldResolver = (
+/**
+ * Produce the value of one field.
+ *
+ * `TContext` is whatever the run was given as its context, so a resolver reads
+ * it as itself rather than casting `unknown` back into shape.
+ */
+export type FieldResolver<TContext = unknown> = (
 	source: unknown,
 	args: Readonly<Record<string, unknown>>,
-	context: unknown,
+	context: TContext,
 	info: ResolverInfo
 ) => unknown;
 
 /** Decide which object type a value of an interface or union type is. */
-export type TypeNameResolver = (
+export type TypeNameResolver<TContext = unknown> = (
 	value: unknown,
-	context: unknown
+	context: TContext
 ) => string | undefined;
 
 /** The resolvers for one type: its fields, and how to narrow it. */
-export interface TypeResolvers {
-	readonly __resolveType?: TypeNameResolver;
-	readonly [fieldName: string]: FieldResolver | TypeNameResolver | undefined;
+export interface TypeResolvers<TContext = unknown> {
+	readonly __resolveType?: TypeNameResolver<TContext>;
+	readonly [fieldName: string]:
+		| FieldResolver<TContext>
+		| TypeNameResolver<TContext>
+		| undefined;
 }
 
 /** Resolvers by type name. Types and fields left out fall back to defaults. */
-export type Resolvers = Readonly<Record<string, TypeResolvers>>;
+export type Resolvers<TContext = unknown> = Readonly<
+	Record<string, TypeResolvers<TContext>>
+>;
 
 /**
  * Read a field straight off the source value.
@@ -85,15 +95,15 @@ export const defaultFieldResolver: FieldResolver = (
 };
 
 /** The resolver for a field, or the default when none was supplied. */
-export const resolverFor = (
-	resolvers: Resolvers,
+export const resolverFor = <TContext>(
+	resolvers: Resolvers<TContext>,
 	typeName: string,
 	fieldName: string
-): FieldResolver => {
+): FieldResolver<TContext> => {
 	const candidate = resolvers[typeName]?.[fieldName];
 	return typeof candidate === 'function'
-		? (candidate as FieldResolver)
-		: defaultFieldResolver;
+		? (candidate as FieldResolver<TContext>)
+		: (defaultFieldResolver as FieldResolver<TContext>);
 };
 
 /**
@@ -102,12 +112,12 @@ export const resolverFor = (
  * A `__typename` on the value wins, then the type's own `__resolveType`, then
  * the only possible type when the catalog leaves no choice.
  */
-export const resolveTypeName = (
+export const resolveTypeName = <TContext>(
 	catalog: Catalog,
-	resolvers: Resolvers,
+	resolvers: Resolvers<TContext>,
 	abstractTypeName: string,
 	value: unknown,
-	context: unknown
+	context: TContext
 ): string | undefined => {
 	if (value !== null && typeof value === 'object') {
 		const declared = (value as Record<string, unknown>).__typename;

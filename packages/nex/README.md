@@ -627,6 +627,34 @@ the same key a persisted-operation store uses.
 Point the client at an operation store and it sends the name rather than the
 request, which pairs with a server running `persistedOnly`.
 
+## The context a server passes
+
+Whatever is passed as `context` is what resolvers, the authorizer, and live
+sources receive - typed as itself, inferred from the call:
+
+```ts
+interface Session {
+  userId: string;
+  roles: string[];
+}
+
+await execute({
+  request: '{ me secret }',
+  catalog,
+  context: session, // Session
+  resolvers: {
+    Query: { me: (_source, _args, context) => context.userId }, // Session
+  },
+  authorize: ({ requires, context }) => context.roles.includes(requires ?? ''),
+});
+```
+
+Nothing casts, and a context that changes shape is caught where it is read
+rather than where it fails. `Resolvers<Session>`, `Authorize<Session>`,
+`LiveSources<Session>`, and `createNexHandler<Session>` are there for the
+places a type has to be written out, and `generateCatalogTypes` emits a
+`CatalogResolvers<TContext>` that lines up with them.
+
 ## Serving requests
 
 `createNexHandler` builds the request handler a server mounts. It answers web
@@ -677,8 +705,7 @@ const answer = await handleHttpRequest(request, {
   resolvers,
   sources,
   context: { user },
-  authorize: ({ requires, context }) =>
-    (context as Session).roles.includes(requires ?? ''),
+  authorize: ({ requires, context }) => context.roles.includes(requires ?? ''),
   introspection: process.env.NODE_ENV !== 'production',
   limits: { maxCost: 5_000, maxDepth: 12 },
   maxBatchSize: 5,

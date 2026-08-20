@@ -43,9 +43,12 @@ import { formatErrors, type ExecuteOptions } from './execute.js';
 import { validateRequest } from './validate-request.js';
 
 /** Everything a live run needs. */
-export interface SubscribeOptions extends Omit<ExecuteOptions, 'rootValue'> {
+export interface SubscribeOptions<TContext = unknown> extends Omit<
+	ExecuteOptions<TContext>,
+	'rootValue'
+> {
 	/** Where each live field's events come from, by type then field name. */
-	readonly sources: LiveSources;
+	readonly sources: LiveSources<TContext>;
 	/**
 	 * Whether every event carries the whole response, or only what changed.
 	 *
@@ -73,7 +76,7 @@ const fragmentsOf = (
 
 const refusal = (
 	message: string,
-	format: SubscribeOptions['formatError'],
+	format: SubscribeOptions<never>['formatError'],
 	code: NexErrorCode = NexErrorCode.INTERNAL
 ): ExecutionResult => ({
 	data: null,
@@ -87,8 +90,8 @@ const refusal = (
  * Returns a stream of full snapshots, one per event, each shaped like any
  * other response. Stop reading the stream and the source is closed with it.
  */
-export const subscribe = async function* (
-	options: SubscribeOptions
+export const subscribe = async function* <TContext = unknown>(
+	options: SubscribeOptions<TContext>
 ): AsyncGenerator<ExecutionResult> {
 	const parsed =
 		typeof options.request === 'string'
@@ -185,7 +188,9 @@ export const subscribe = async function* (
 			fragments: fragmentsOf(document),
 			operation,
 			variables: coerced.variables,
-			context: options.context,
+			// The one place absent meets typed: a run with no context given
+			// carries `undefined`, which is what `unknown` means here.
+			context: options.context as TContext,
 			rootValue: {},
 			errorPolicy: options.errorPolicy ?? ErrorPolicy.PARTIAL,
 			...(options.authorize === undefined

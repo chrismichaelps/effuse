@@ -45,8 +45,8 @@ const readCount = (value: unknown, fallback: number): number =>
  * A `| page` stage ends the pipeline and turns the rows into a page, which is
  * why the result says which of the two it is.
  */
-export const applyPipeline = async (
-	reader: PathReader,
+export const applyPipeline = async <TContext>(
+	reader: PathReader<TContext>,
 	rows: readonly unknown[],
 	itemTypeName: string,
 	stages: readonly PipelineStageNode[],

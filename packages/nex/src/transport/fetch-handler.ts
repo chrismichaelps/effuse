@@ -28,7 +28,8 @@ import {
 } from './http/handle.js';
 
 /** How to serve Nex requests. The same options the protocol mapping reads. */
-export type NexHandlerOptions = HttpHandlerOptions;
+export type NexHandlerOptions<TContext = unknown> =
+	HttpHandlerOptions<TContext>;
 
 /**
  * Turn an async iterable of frames into a body a runtime can stream.
@@ -107,8 +108,8 @@ const streamOf = (
  * Nothing about HTTP itself lives here: the runtime owns listening, body
  * limits, and shutdown, while this owns what a Nex request means.
  */
-export const createNexHandler = (
-	options: NexHandlerOptions
+export const createNexHandler = <TContext = unknown>(
+	options: NexHandlerOptions<TContext>
 ): ((request: Request) => Promise<Response>) => {
 	return async (request: Request): Promise<Response> => {
 		const method = request.method.toUpperCase();

@@ -47,14 +47,20 @@ import {
 	type RequestLimits,
 } from './validate-request.js';
 
-/** Everything a run needs. */
-export interface ExecuteOptions {
+/**
+ * Everything a run needs.
+ *
+ * `TContext` is inferred from whatever is passed as `context`, so resolvers
+ * and the authorizer read it as itself: no casting, and a context that changes
+ * shape is caught where it is used rather than where it fails.
+ */
+export interface ExecuteOptions<TContext = unknown> {
 	/** The request: source text, or a document already parsed. */
 	readonly request: RequestInput;
 	/** The catalog the request is checked and run against. */
 	readonly catalog: Catalog;
 	/** Field resolvers, by type name. Anything missing reads the source value. */
-	readonly resolvers?: Resolvers | undefined;
+	readonly resolvers?: Resolvers<TContext> | undefined;
 	/** Variable values supplied alongside the request. */
 	readonly variables?: Readonly<Record<string, unknown>> | undefined;
 	/** Which operation to run, when the document holds several. */
@@ -62,7 +68,7 @@ export interface ExecuteOptions {
 	/** The value the root fields resolve against. */
 	readonly rootValue?: unknown;
 	/** Passed to every resolver untouched: a request, a session, a loader set. */
-	readonly context?: unknown;
+	readonly context?: TContext | undefined;
 	/** What to do with a field that fails. Defaults to `partial`. */
 	readonly errorPolicy?: ErrorPolicy | undefined;
 	/** Check the request against the catalog first. Defaults to `true`. */
@@ -77,7 +83,7 @@ export interface ExecuteOptions {
 	 * Without one, a guarded field is refused rather than quietly resolved: a
 	 * guard the server never checks is worse than no guard at all.
 	 */
-	readonly authorize?: Authorize | undefined;
+	readonly authorize?: Authorize<TContext> | undefined;
 	/**
 	 * Rewrite every error before it leaves.
 	 *
@@ -127,8 +133,8 @@ const refuse = (
  * The response follows specification section 7: the data that resolved, the
  * problems that stopped the rest, and what the request cost.
  */
-export const execute = async (
-	options: ExecuteOptions
+export const execute = async <TContext = unknown>(
+	options: ExecuteOptions<TContext>
 ): Promise<ExecutionResult> => {
 	const parsed =
 		typeof options.request === 'string'
@@ -227,7 +233,9 @@ export const execute = async (
 				fragments: fragmentsOf(document),
 				operation,
 				variables: coerced.variables,
-				context: options.context,
+				// The one place absent meets typed: a run with no context given
+				// carries `undefined`, which is what `unknown` means here.
+				context: options.context as TContext,
 				rootValue: options.rootValue ?? {},
 				errorPolicy: options.errorPolicy ?? ErrorPolicy.PARTIAL,
 				...(options.authorize === undefined

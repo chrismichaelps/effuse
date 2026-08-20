@@ -29,6 +29,8 @@ import type { ExecutionOutcome, ExecutionPlan } from '../execution/index.js';
 export class ExecutorService extends Context.Tag('@effuse/nex/ExecutorService')<
 	ExecutorService,
 	{
-		readonly run: (plan: ExecutionPlan) => Effect.Effect<ExecutionOutcome>;
+		readonly run: <TContext>(
+			plan: ExecutionPlan<TContext>
+		) => Effect.Effect<ExecutionOutcome>;
 	}
 >() {}
