@@ -753,6 +753,34 @@ two spellings of one request share an answer. Two callers asking at once share
 one request in flight, and a request that failed is never kept - it is asked
 again rather than remembered.
 
+A client also keeps what it has been told about each object that carries a
+`__ref`, joined across every answer that mentioned it - which is what makes
+one object something an application can talk about rather than a field of
+whichever request happened to fetch it:
+
+```ts
+await nex.request('{ people { __ref name } }');
+await nex.request('{ person(id: "1") { __ref age } }');
+
+nex.readObject(ada); // { __ref: ada, name: 'Ada', age: 36 }
+```
+
+After a mutation, hand back the object it changed and every answer holding it
+is asked for again - lists, pages, and details alike, without anything having
+to name the requests they came from:
+
+```ts
+const result = await nex.request(
+  'mutation { rename(id: "1", to: "Ada L.") { __ref } }'
+);
+
+nex.evict(result.data.rename.__ref);
+```
+
+This survives the handoff: a browser that hydrates what a render resolved
+knows the same objects, because the index is rebuilt from the answers rather
+than shipped alongside them.
+
 Pass `batch: true` and requests made in the same tick travel as one round trip,
 which the handler already understands. Membership is decided the moment each
 request is made rather than on a timer, so nothing is ever held waiting for a
