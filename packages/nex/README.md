@@ -526,6 +526,38 @@ export type CatalogResolvers<TContext = unknown> = {
 An interface or union entry also takes `__resolveType`, and every part is
 optional, since a field with no resolver reads its own property.
 
+## Building one catalog out of several
+
+A graph is rarely written in one place. `mergeCatalogs` takes the catalogs each
+part of a system defines and produces the single one a client sees.
+
+```ts
+const catalog = mergeCatalogs(peopleCatalog, postsCatalog, billingCatalog);
+```
+
+What the sources share joins rather than collides. Object types, interfaces,
+and unions compose - a source describes the part of a type it serves, and the
+parts add up. The roots compose the same way, so every source's query fields
+answer from one root however each source named its own.
+
+Input types and enums have to be written the same way everywhere. Joining them
+would hand a source a field or a value it never declared and has no idea what
+to do with, which is a failure at run time rather than at build time.
+
+A source that disagrees with another is refused, not guessed at:
+
+```ts
+const merged = mergeCatalogsSafe(left, right);
+if (!merged.success) {
+  // "Query.thing" is declared differently by two sources
+  console.error(merged.errors.map((error) => error.message));
+}
+```
+
+Every disagreement is reported at once, and the result is checked for
+coherence the same way a catalog written by hand is - so a merge that produces
+something that does not hang together says so here rather than failing later.
+
 ## Changing a catalog without breaking clients
 
 `compareCatalogs` reads two catalogs and says what each difference asks of the
@@ -852,6 +884,7 @@ Each capability, and what keeps it honest:
 | Evolution              | `compareCatalogs` grades a change, `findBrokenOperations` names what stops working                                        |
 | Observability          | A trace on every run, operation and field-error hooks that cannot break a run                                             |
 | Performance            | `pnpm bench:nex` with budgets over a scalar field, a large list, and a paged list                                         |
+| Composition            | One catalog built from several, with every disagreement between sources reported                                          |
 | Spending limits        | A budget that refills, charged per request, refusing with `429` and a `Retry-After`                                       |
 | Public surface         | Pinned by a test and by a build-time check that imports the built entry and runs a request                                |
 
