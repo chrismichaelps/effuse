@@ -44,6 +44,8 @@ const REQUIRED = [
 	'parseSafe',
 	'print',
 	'printCatalog',
+	'mergeCatalogs',
+	'mergeCatalogsSafe',
 	'sortCatalog',
 	'valueToNode',
 	'visitWithTypes',

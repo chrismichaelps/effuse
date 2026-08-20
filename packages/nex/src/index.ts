@@ -78,7 +78,11 @@ export type {
 	RequestAnalysis,
 } from './analysis/index.js';
 
-export { sortCatalog } from './catalog/index.js';
+export {
+	mergeCatalogs,
+	mergeCatalogsSafe,
+	sortCatalog,
+} from './catalog/index.js';
 export {
 	BUILT_IN_SCALARS,
 	ChangeSeverity,
