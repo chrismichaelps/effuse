@@ -27,6 +27,7 @@ export { createCatalog, type Catalog } from './catalog.js';
 export { BUILT_IN_SCALARS } from './built-in-scalars.js';
 export { unwrapType } from './named-type.js';
 export { printCatalog } from './print.js';
+export { mergeCatalogs, mergeCatalogsSafe } from './merge.js';
 export {
 	resolveCoordinate,
 	type CoordinateTarget,
