@@ -26,6 +26,23 @@ import type { Catalog } from '../catalog/index.js';
 import type { OperationType } from '../language/kinds/index.js';
 
 /** What a resolver is told about the field it is resolving. */
+/**
+ * One field a request asked for, below the field being resolved.
+ *
+ * Fragments have been followed and `@skip` and `@include` applied, so this is
+ * what the response will actually carry rather than what was typed.
+ */
+export interface SelectedField {
+	/** The field's name in the catalog. */
+	readonly name: string;
+	/** The key it answers under, which is its alias when it has one. */
+	readonly alias: string;
+	/** What it was asked with, already read. */
+	readonly arguments: Readonly<Record<string, unknown>>;
+	/** What was asked for below it. */
+	readonly fields: readonly SelectedField[];
+}
+
 export interface ResolverInfo {
 	/** The field being resolved, by its name in the catalog. */
 	readonly fieldName: string;
@@ -39,6 +56,16 @@ export interface ResolverInfo {
 	readonly variables: Readonly<Record<string, unknown>>;
 	/** The catalog the request was checked against. */
 	readonly catalog: Catalog;
+	/**
+	 * What the request asked for below this field.
+	 *
+	 * A resolver that reads rows can select the columns that were asked for
+	 * rather than every column there is, and one that stands in front of
+	 * another service can forward what it was asked rather than guess. Worked
+	 * out when called and not before, so a resolver that does not care pays
+	 * nothing for it.
+	 */
+	readonly selection: () => readonly SelectedField[];
 }
 
 /**

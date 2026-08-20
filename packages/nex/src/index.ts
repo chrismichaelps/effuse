@@ -141,6 +141,7 @@ export {
 	type OperationTrace,
 	type Page,
 	type ResolverInfo,
+	type SelectedField,
 	type Resolvers,
 	type TypeNameResolver,
 	type TypeResolvers,

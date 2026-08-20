@@ -56,6 +56,7 @@ import {
 	resolveTypeName,
 	type FieldResolver,
 	type ResolverInfo,
+	type SelectedField,
 	type Resolvers,
 } from './resolvers.js';
 import { notify, type Instrumentation } from './instrumentation.js';
@@ -312,6 +313,62 @@ export const executeOperation = async <TContext>(
 		}
 	};
 
+	/**
+	 * What a request asked for below one field, as plain values.
+	 *
+	 * The catalog says what type each step is, so nested selections are read
+	 * against the type they belong to rather than against whatever was last
+	 * seen. A field with nothing below it ends the walk.
+	 */
+	const selectionUnder = (
+		typeName: string,
+		selectionSet: SelectionSetNode | undefined
+	): readonly SelectedField[] => {
+		if (selectionSet === undefined) return [];
+
+		const collected = collectFields(
+			plan.catalog,
+			typeName,
+			selectionSet,
+			plan.variables,
+			plan.fragments
+		);
+
+		const selected: SelectedField[] = [];
+
+		for (const [responseKey, nodes] of collected) {
+			const node = nodes[0];
+			if (node === undefined) continue;
+
+			const name = node.name.value;
+			const declared = plan.catalog.getField(typeName, name);
+
+			selected.push({
+				name,
+				alias: responseKey,
+				arguments:
+					declared === undefined
+						? NO_ARGUMENTS
+						: coerceArgumentValues(
+								declared,
+								node.arguments,
+								plan.variables,
+								plan.catalog,
+								plan.scalars ?? {}
+							),
+				fields:
+					declared === undefined
+						? []
+						: selectionUnder(
+								namedTypeOf(declared.type),
+								mergeSelectionSets(nodes)
+							),
+			});
+		}
+
+		return selected;
+	};
+
 	const completeValue = async (
 		value: unknown,
 		type: TypeNode,
@@ -547,6 +604,11 @@ export const executeOperation = async <TContext>(
 			operation: plan.operation.operation,
 			variables: plan.variables,
 			catalog: plan.catalog,
+			selection: () =>
+				selectionUnder(
+					namedTypeOf(definition.type),
+					mergeSelectionSets(fields)
+				),
 		});
 
 		// A guarded field is asked about before anything of it runs, so a

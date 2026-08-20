@@ -208,6 +208,9 @@ export const executeLive = async function* <TContext>(
 		operation: plan.operation.operation,
 		variables: plan.variables,
 		catalog: plan.catalog,
+		// A live source is opened before anything of the field is resolved, so
+		// what was asked for below it is not yet worked out here.
+		selection: () => [],
 	};
 
 	const args = coerceArgumentValues(

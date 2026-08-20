@@ -34,6 +34,7 @@ export {
 	resolverFor,
 	type FieldResolver,
 	type ResolverInfo,
+	type SelectedField,
 	type Resolvers,
 	type TypeNameResolver,
 	type TypeResolvers,
