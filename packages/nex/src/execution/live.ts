@@ -233,8 +233,37 @@ export const executeLive = async function* <TContext>(
 		return;
 	}
 
-	for await (const event of events) {
-		if (calledOffNow()) return;
+	// A source that fails part way through has to be reported the way a field
+	// failure is: a broker dropping its connection ends the stream, it does not
+	// throw out of the loop a server is reading.
+	const reading = events[Symbol.asyncIterator]();
+
+	for (;;) {
+		if (calledOffNow()) {
+			await reading.return?.().catch(() => undefined);
+			return;
+		}
+
+		let step: IteratorResult<unknown>;
+		try {
+			step = await reading.next();
+		} catch (cause) {
+			yield {
+				data: null,
+				errors: [
+					new NexExecutionError({
+						message: cause instanceof Error ? cause.message : String(cause),
+						path: [selected.responseKey],
+						code: NexErrorCode.INTERNAL,
+						cause,
+					}),
+				],
+			};
+			return;
+		}
+
+		if (step.done === true) return;
+		const event = step.value;
 
 		// Each event stands in for the field's own value, so the snapshot runs
 		// with a root that already holds it.

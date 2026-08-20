@@ -120,8 +120,19 @@ export interface ExecuteOptions<TContext = unknown> {
 export const formatErrors = (
 	errors: readonly NexExecutionError[],
 	format: ((error: NexExecutionError) => NexExecutionError) | undefined
-): readonly NexExecutionError[] =>
-	format === undefined ? errors : errors.map((error) => format(error));
+): readonly NexExecutionError[] => {
+	if (format === undefined) return errors;
+
+	return errors.map((error) => {
+		try {
+			return format(error);
+		} catch {
+			// A formatter is a server's own code, and a broken one must not
+			// swallow what it was given: the error goes out as it arrived.
+			return error;
+		}
+	});
+};
 
 const fragmentsOf = (
 	document: DocumentNode

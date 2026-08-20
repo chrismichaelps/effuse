@@ -389,6 +389,16 @@ export const executeOperation = async <TContext>(
 			});
 		}
 
+		// A name is not enough: a value said to be of a type the catalog does
+		// not hold cannot have its fields completed, and answering with the
+		// name alone would tell a client something untrue.
+		if (plan.catalog.getType(runtimeTypeName) === undefined) {
+			throw new NexExecutionError({
+				message: `"${typeName}" resolved to "${runtimeTypeName}", which the catalog does not define`,
+				path: pathToArray(path),
+			});
+		}
+
 		const selectionSet = mergeSelectionSets(fields);
 		if (selectionSet === undefined) return {};
 
