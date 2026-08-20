@@ -1147,8 +1147,8 @@ where each is answered here - including the ones deliberately left out.
 | Robust applications          | Response types that still read when a catalog gains a value or a member        |
 | Schema design                | `reviewCatalog`, on what a working catalog makes impossible later              |
 | Schema review                | The same, named by coordinate so a review can point at it                      |
-| Naming and design            | Left to the catalog: this package refuses what breaks, and advises on the rest |
-| Thinking in graphs           | Guidance rather than machinery; the catalog is where it lands                  |
+| Naming and design            | `reviewCatalog`: case conventions, and root fields that repeat themselves      |
+| Thinking in graphs           | `reviewCatalog` names the type a field holding a key could answer with instead |
 | Versioning                   | `compareCatalogs`, `findBrokenOperations`, `findDeprecations`                  |
 | Ownership and governance     | A deployment concern: `mergeCatalogs` is what makes split ownership work       |
 | Tooling                      | `generateTypes`, `generateCatalogTypes`, `minifyRequest`, `visitWithTypes`     |
