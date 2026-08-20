@@ -22,6 +22,7 @@
  * SOFTWARE.
  */
 
+import { NexErrorCode } from './codes.js';
 import type { SourceLocation } from './syntax-error.js';
 
 /**
@@ -33,6 +34,8 @@ import type { SourceLocation } from './syntax-error.js';
 export class NexCatalogError extends Error {
 	/** Discriminant for exhaustive matching without `instanceof`. */
 	readonly _tag = 'NexCatalogError';
+	/** What kind of problem this is, for a client that branches on it. */
+	readonly code: NexErrorCode = NexErrorCode.CATALOG;
 	/** Where the offending node sits, when the node carried a location. */
 	readonly location: SourceLocation | undefined;
 

@@ -271,6 +271,26 @@ await execute({
 });
 ```
 
+## What kind of problem an error is
+
+Every error carries a `code`, so a client branches on that rather than on a
+message written for people:
+
+| Code                        | Raised when                                                  |
+| --------------------------- | ------------------------------------------------------------ |
+| `SYNTAX`                    | The source could not be read as a document                   |
+| `CATALOG`                   | The catalog itself does not hold together                    |
+| `VALIDATION`                | The request does not agree with the catalog                  |
+| `COST_LIMIT`, `DEPTH_LIMIT` | The request is priced or nested above what the server allows |
+| `VARIABLE`                  | A variable was missing, or its value does not fit its type   |
+| `RESOLVER`                  | A resolver threw                                             |
+| `NON_NULL`                  | A field the catalog declares non-null produced null          |
+| `CURSOR`                    | A cursor was not one this server handed out                  |
+| `INTERNAL`                  | Anything else that went wrong while running                  |
+
+The code travels in the response, under `extensions.code`, alongside whatever
+extensions a server adds of its own.
+
 ## Errors that point at the source
 
 Every error the lexer and parser raise carries an excerpt of what it was reading:

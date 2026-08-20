@@ -23,7 +23,7 @@
  */
 
 import { analyzeDocument, selectOperation } from '../analysis/index.js';
-import { NexExecutionError } from '../errors/index.js';
+import { NexErrorCode, NexExecutionError } from '../errors/index.js';
 import type {
 	DocumentNode,
 	FragmentDefinitionNode,
@@ -73,10 +73,11 @@ const fragmentsOf = (
 
 const refusal = (
 	message: string,
-	format: SubscribeOptions['formatError']
+	format: SubscribeOptions['formatError'],
+	code: NexErrorCode = NexErrorCode.INTERNAL
 ): ExecutionResult => ({
 	data: null,
-	errors: formatErrors([new NexExecutionError({ message })], format),
+	errors: formatErrors([new NexExecutionError({ message, code })], format),
 	extensions: { cost: 0 },
 });
 
@@ -97,7 +98,7 @@ export const subscribe = async function* (
 	const format = options.formatError;
 
 	if (!parsed.success) {
-		yield refusal(parsed.error.message, format);
+		yield refusal(parsed.error.message, format, NexErrorCode.SYNTAX);
 		return;
 	}
 
@@ -159,7 +160,10 @@ export const subscribe = async function* (
 		yield {
 			data: null,
 			errors: formatErrors(
-				coerced.errors.map((message) => new NexExecutionError({ message })),
+				coerced.errors.map(
+					(message) =>
+						new NexExecutionError({ message, code: NexErrorCode.VARIABLE })
+				),
 				format
 			),
 			extensions: { cost: 0 },

@@ -48,6 +48,7 @@ const REQUIRED = [
 	'OPTIONAL_FEATURES',
 	'Kind',
 	'NexCatalogError',
+	'NexErrorCode',
 	'NexExecutionError',
 	'NexSyntaxError',
 	'NexValidationError',

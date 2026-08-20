@@ -31,7 +31,7 @@ import {
 	type LiveSources,
 	type Resolvers,
 } from '../../execution/index.js';
-import { NexExecutionError } from '../../errors/index.js';
+import { NexErrorCode, NexExecutionError } from '../../errors/index.js';
 import type { DocumentNode } from '../../language/ast/index.js';
 import type { OperationType } from '../../language/kinds/index.js';
 import { execute, formatErrors } from '../../api/execute.js';
@@ -110,13 +110,22 @@ const readOperation = (
 };
 
 const refused = (
-	messages: readonly string[],
+	problems: readonly {
+		readonly message: string;
+		readonly code?: NexErrorCode;
+	}[],
 	options: HttpHandlerOptions
 ): RanRequest => ({
 	result: {
 		data: null,
 		errors: formatErrors(
-			messages.map((message) => new NexExecutionError({ message })),
+			problems.map(
+				(problem) =>
+					new NexExecutionError({
+						message: problem.message,
+						...(problem.code === undefined ? {} : { code: problem.code }),
+					})
+			),
 			options.formatError
 		),
 		extensions: { cost: 0 },
@@ -132,7 +141,14 @@ const runOne = async (
 	if (read === undefined) {
 		const parsed = parseSafe(body.query);
 		return refused(
-			[parsed.success ? 'The request could not be read' : parsed.error.message],
+			[
+				{
+					message: parsed.success
+						? 'The request could not be read'
+						: parsed.error.message,
+					code: NexErrorCode.SYNTAX,
+				},
+			],
 			options
 		);
 	}
@@ -148,19 +164,19 @@ const runOne = async (
 			: { operationName: body.operationName }),
 	});
 	if (problems.length > 0) {
-		return refused(
-			problems.map((problem) => problem.message),
-			options
-		);
+		return refused(problems, options);
 	}
 
 	const operation = selectOperation(read.document, body.operationName);
 	if (operation === undefined) {
 		return refused(
 			[
-				body.operationName === undefined
-					? 'The document defines no operation to run'
-					: `The document defines no operation named "${body.operationName}"`,
+				{
+					message:
+						body.operationName === undefined
+							? 'The document defines no operation to run'
+							: `The document defines no operation named "${body.operationName}"`,
+				},
 			],
 			options
 		);
@@ -173,7 +189,15 @@ const runOne = async (
 		operation,
 		body.variables ?? {}
 	);
-	if ('errors' in coerced) return refused(coerced.errors, options);
+	if ('errors' in coerced) {
+		return refused(
+			coerced.errors.map((message) => ({
+				message,
+				code: NexErrorCode.VARIABLE,
+			})),
+			options
+		);
+	}
 
 	const result = await execute({
 		request: read.document,

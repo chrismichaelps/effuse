@@ -22,6 +22,7 @@
  * SOFTWARE.
  */
 
+import { NexErrorCode } from './codes.js';
 import type { SourceLocation } from './syntax-error.js';
 
 /**
@@ -34,6 +35,8 @@ import type { SourceLocation } from './syntax-error.js';
 export class NexExecutionError extends Error {
 	/** Discriminant for exhaustive matching without `instanceof`. */
 	readonly _tag = 'NexExecutionError';
+	/** What kind of problem this is, for a client that branches on it. */
+	readonly code: NexErrorCode;
 	/** Response path to the field that failed, including list indices. */
 	readonly path: readonly (string | number)[];
 	/** Where the field was written, when the node carried a location. */
@@ -46,6 +49,7 @@ export class NexExecutionError extends Error {
 		readonly path?: readonly (string | number)[] | undefined;
 		readonly location?: SourceLocation | undefined;
 		readonly cause?: unknown;
+		readonly code?: NexErrorCode | undefined;
 		readonly extensions?: Readonly<Record<string, unknown>> | undefined;
 	}) {
 		super(
@@ -53,6 +57,7 @@ export class NexExecutionError extends Error {
 			options.cause === undefined ? {} : { cause: options.cause }
 		);
 		this.name = 'NexExecutionError';
+		this.code = options.code ?? NexErrorCode.INTERNAL;
 		this.path = options.path ?? [];
 		this.location = options.location;
 		this.extensions = options.extensions ?? {};
@@ -63,9 +68,7 @@ export class NexExecutionError extends Error {
 		return {
 			message: this.message,
 			path: this.path,
-			...(Object.keys(this.extensions).length === 0
-				? {}
-				: { extensions: this.extensions }),
+			extensions: { code: this.code, ...this.extensions },
 		};
 	}
 }

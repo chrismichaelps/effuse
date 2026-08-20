@@ -166,6 +166,7 @@ describe('public API', () => {
 		expect(surface).toEqual(
 			expect.arrayContaining([
 				'NexCatalogError',
+				'NexErrorCode',
 				'NexExecutionError',
 				'NexSyntaxError',
 				'NexValidationError',

@@ -22,6 +22,8 @@
  * SOFTWARE.
  */
 
+import { NexErrorCode } from './codes.js';
+
 /** A position inside a Nex source document. */
 export interface SourceLocation {
 	/** Zero-based offset of the character the error points at. */
@@ -41,6 +43,8 @@ export interface SourceLocation {
 export class NexSyntaxError extends Error {
 	/** Discriminant for exhaustive matching without `instanceof`. */
 	readonly _tag = 'NexSyntaxError';
+	/** What kind of problem this is, for a client that branches on it. */
+	readonly code: NexErrorCode = NexErrorCode.SYNTAX;
 	readonly location: SourceLocation;
 	/**
 	 * The source around the problem, with a caret under it.

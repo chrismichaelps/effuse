@@ -26,7 +26,11 @@ import { Effect } from 'effect';
 import { analyzeDocument, type AnalysisOptions } from '../analysis/index.js';
 import type { ValidationOptions } from '../validation/index.js';
 import type { Catalog } from '../catalog/index.js';
-import { NexValidationError, type NexSyntaxError } from '../errors/index.js';
+import {
+	NexErrorCode,
+	NexValidationError,
+	type NexSyntaxError,
+} from '../errors/index.js';
 import type { DocumentNode } from '../language/ast/index.js';
 import { RequestValidatorService } from '../services/index.js';
 import { parseSafe } from './parse.js';
@@ -105,6 +109,7 @@ const checkLimits = (
 		problems.push(
 			new NexValidationError({
 				message: `Request depth ${String(analysis.depth)} exceeds the maximum of ${String(limits.maxDepth)}`,
+				code: NexErrorCode.DEPTH_LIMIT,
 			})
 		);
 	}
@@ -113,6 +118,7 @@ const checkLimits = (
 		problems.push(
 			new NexValidationError({
 				message: `Request cost ${String(analysis.cost)} exceeds the maximum of ${String(limits.maxCost)}`,
+				code: NexErrorCode.COST_LIMIT,
 			})
 		);
 	}

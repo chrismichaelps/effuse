@@ -23,7 +23,7 @@
  */
 
 import type { Catalog } from '../catalog/index.js';
-import { NexExecutionError } from '../errors/index.js';
+import { NexErrorCode, NexExecutionError } from '../errors/index.js';
 import type {
 	FieldNode,
 	FragmentDefinitionNode,
@@ -188,6 +188,7 @@ export const executeOperation = async (
 				throw new NexExecutionError({
 					message: `Cannot return null for non-null field "${fields[0]?.name.value ?? String(path.at(-1))}"`,
 					path,
+					code: NexErrorCode.NON_NULL,
 				});
 			}
 			return completed;
@@ -415,6 +416,7 @@ export const executeOperation = async (
 					: new NexExecutionError({
 							message: cause instanceof Error ? cause.message : String(cause),
 							path: fieldPath,
+							code: NexErrorCode.RESOLVER,
 							...(fields[0]?.loc === undefined
 								? {}
 								: {

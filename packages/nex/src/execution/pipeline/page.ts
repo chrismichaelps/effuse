@@ -23,7 +23,7 @@
  */
 
 import type { PageStageNode } from '../../language/ast/index.js';
-import { NexExecutionError } from '../../errors/index.js';
+import { NexErrorCode, NexExecutionError } from '../../errors/index.js';
 import { valueFromNode } from '../values.js';
 import { decodeCursor, encodeCursor } from './cursor.js';
 
@@ -53,6 +53,7 @@ const readOffset = (
 		throw new NexExecutionError({
 			message: `"| page ${argument}" needs a cursor, received ${JSON.stringify(value)}`,
 			path,
+			code: NexErrorCode.CURSOR,
 		});
 	}
 
@@ -61,6 +62,7 @@ const readOffset = (
 		throw new NexExecutionError({
 			message: `"| page ${argument}" was given a cursor this server did not hand out`,
 			path,
+			code: NexErrorCode.CURSOR,
 		});
 	}
 

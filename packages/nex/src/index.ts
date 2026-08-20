@@ -88,6 +88,7 @@ export {
 
 export {
 	NexCatalogError,
+	NexErrorCode,
 	NexExecutionError,
 	NexSyntaxError,
 	NexValidationError,

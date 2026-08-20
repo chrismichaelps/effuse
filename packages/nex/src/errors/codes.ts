@@ -22,12 +22,33 @@
  * SOFTWARE.
  */
 
-export {
-	NexSyntaxError,
-	toSyntaxError,
-	type SourceLocation,
-} from './syntax-error.js';
-export { NexCatalogError } from './catalog-error.js';
-export { NexValidationError } from './validation-error.js';
-export { NexExecutionError } from './execution-error.js';
-export { NexErrorCode } from './codes.js';
+/**
+ * What kind of problem an error reports.
+ *
+ * A client branches on the code, never on the message: messages are written
+ * for people and change as they are improved, while a code is a promise.
+ */
+export const NexErrorCode = {
+	/** The source could not be read as a document. */
+	SYNTAX: 'SYNTAX',
+	/** The catalog itself does not hold together. */
+	CATALOG: 'CATALOG',
+	/** The request does not agree with the catalog. */
+	VALIDATION: 'VALIDATION',
+	/** The request is priced above what the server allows. */
+	COST_LIMIT: 'COST_LIMIT',
+	/** The request nests deeper than the server allows. */
+	DEPTH_LIMIT: 'DEPTH_LIMIT',
+	/** A variable was missing, or its value does not fit its type. */
+	VARIABLE: 'VARIABLE',
+	/** A resolver threw. */
+	RESOLVER: 'RESOLVER',
+	/** A field the catalog declares non-null produced null. */
+	NON_NULL: 'NON_NULL',
+	/** A cursor was not one this server handed out. */
+	CURSOR: 'CURSOR',
+	/** Anything else that went wrong while running. */
+	INTERNAL: 'INTERNAL',
+} as const;
+
+export type NexErrorCode = (typeof NexErrorCode)[keyof typeof NexErrorCode];

@@ -22,6 +22,7 @@
  * SOFTWARE.
  */
 
+import { NexErrorCode } from './codes.js';
 import type { SourceLocation } from './syntax-error.js';
 
 /**
@@ -34,6 +35,8 @@ import type { SourceLocation } from './syntax-error.js';
 export class NexValidationError extends Error {
 	/** Discriminant for exhaustive matching without `instanceof`. */
 	readonly _tag = 'NexValidationError';
+	/** What kind of problem this is, for a client that branches on it. */
+	readonly code: NexErrorCode;
 	/** Where the offending node sits, when the node carried a location. */
 	readonly location: SourceLocation | undefined;
 	/** Response path to the offending node, by field name. */
@@ -43,9 +46,11 @@ export class NexValidationError extends Error {
 		readonly message: string;
 		readonly location?: SourceLocation | undefined;
 		readonly path?: readonly string[] | undefined;
+		readonly code?: NexErrorCode | undefined;
 	}) {
 		super(options.message);
 		this.name = 'NexValidationError';
+		this.code = options.code ?? NexErrorCode.VALIDATION;
 		this.location = options.location;
 		this.path = options.path ?? [];
 	}

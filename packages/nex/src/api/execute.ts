@@ -25,7 +25,7 @@
 import { Effect } from 'effect';
 import { analyzeDocument, selectOperation } from '../analysis/index.js';
 import type { Catalog } from '../catalog/index.js';
-import { NexExecutionError } from '../errors/index.js';
+import { NexErrorCode, NexExecutionError } from '../errors/index.js';
 import type {
 	DocumentNode,
 	FragmentDefinitionNode,
@@ -135,6 +135,7 @@ export const execute = async (
 				new NexExecutionError({
 					message: parsed.error.message,
 					location: parsed.error.location,
+					code: NexErrorCode.SYNTAX,
 				}),
 			],
 			format
@@ -164,6 +165,7 @@ export const execute = async (
 							message: problem.message,
 							path: problem.path,
 							location: problem.location,
+							code: problem.code,
 						})
 				),
 				format
@@ -193,7 +195,10 @@ export const execute = async (
 	);
 	if ('errors' in coerced) {
 		return refuse(
-			coerced.errors.map((message) => new NexExecutionError({ message })),
+			coerced.errors.map(
+				(message) =>
+					new NexExecutionError({ message, code: NexErrorCode.VARIABLE })
+			),
 			format
 		);
 	}
