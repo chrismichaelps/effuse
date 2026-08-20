@@ -46,6 +46,12 @@ export const ReviewCode = {
 	UNREACHABLE_TYPE: 'UNREACHABLE_TYPE',
 	/** A warning nobody can act on. */
 	DEPRECATED_WITHOUT_REASON: 'DEPRECATED_WITHOUT_REASON',
+	/** A key where the thing itself could be. */
+	FOREIGN_KEY: 'FOREIGN_KEY',
+	/** A name written unlike the rest of the catalog. */
+	UNCONVENTIONAL_NAME: 'UNCONVENTIONAL_NAME',
+	/** A name saying again what asking for it already means. */
+	REDUNDANT_NAME: 'REDUNDANT_NAME',
 } as const;
 
 /** One of the things a review can find. */
@@ -63,7 +69,50 @@ export interface ReviewNotice {
 	readonly location?: Location | undefined;
 }
 
+/** What to look at, for a catalog that means something a review would flag. */
+export interface ReviewOptions {
+	/**
+	 * Whether to say anything about how things are named. Defaults to `true`.
+	 *
+	 * Naming is the one part of this a catalog can reasonably disagree with -
+	 * a package ported from elsewhere, or one whose house style is its own -
+	 * so it can be turned off without losing what would actually break.
+	 */
+	readonly naming?: boolean | undefined;
+}
+
 const CONNECTION = 'connection';
+const PascalCase = /^[A-Z][A-Za-z0-9]*$/u;
+const camelCase = /^[a-z][A-Za-z0-9]*$/u;
+const SCREAMING_SNAKE_CASE = /^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*$/u;
+
+/**
+ * Words a field on a root repeats by being there at all.
+ *
+ * Asking for a field is already asking to get it, so the verb says nothing
+ * the request did not. The word has to end there - `getaway` is a noun.
+ */
+const REDUNDANT_PREFIXES: readonly string[] = ['get', 'fetch', 'list', 'query'];
+
+const startsWithWord = (name: string, word: string): boolean =>
+	name.length > word.length &&
+	name.startsWith(word) &&
+	name[word.length] === name[word.length]?.toUpperCase();
+
+/**
+ * The type a field named after a key would return instead.
+ *
+ * `authorId` on a type that also knows about `Author` is a table's way of
+ * saying what a graph says by returning the thing: a client holding an
+ * identifier has to ask again to do anything with it.
+ */
+const keyedType = (fieldName: string): string | undefined => {
+	const stem = /^(?<name>[a-z][A-Za-z0-9]*?)(?:Id|Ids)$/u.exec(fieldName)
+		?.groups?.name;
+	if (stem === undefined || stem.length === 0) return undefined;
+
+	return `${stem[0]?.toUpperCase() ?? ''}${stem.slice(1)}`;
+};
 const DEPRECATED = 'deprecated';
 const OPERATIONS: readonly OperationType[] = ['query', 'mutation', 'live'];
 
@@ -94,7 +143,11 @@ const isList = (type: TypeNode): boolean => {
  * pointed at, and it is advice rather than a verdict: a catalog is free to
  * mean it.
  */
-export const reviewCatalog = (catalog: Catalog): readonly ReviewNotice[] => {
+export const reviewCatalog = (
+	catalog: Catalog,
+	options: ReviewOptions = {}
+): readonly ReviewNotice[] => {
+	const naming = options.naming !== false;
 	const notices: ReviewNotice[] = [];
 
 	const say = (
@@ -190,13 +243,32 @@ export const reviewCatalog = (catalog: Catalog): readonly ReviewNotice[] => {
 		typeName: string,
 		definition: TypeDefinitionNode
 	): void {
+		if (naming && !PascalCase.test(typeName)) {
+			say(
+				ReviewCode.UNCONVENTIONAL_NAME,
+				typeName,
+				`"${typeName}" is a type, and types in this catalog are written in PascalCase`,
+				definition.loc
+			);
+		}
+
 		if (definition.kind === Kind.ENUM_TYPE_DEFINITION) {
 			for (const value of definition.values ?? []) {
+				const valueName = value.name.value;
 				checkDeprecation(
-					`${typeName}.${value.name.value}`,
+					`${typeName}.${valueName}`,
 					value.directives,
 					value.loc
 				);
+
+				if (naming && !SCREAMING_SNAKE_CASE.test(valueName)) {
+					say(
+						ReviewCode.UNCONVENTIONAL_NAME,
+						`${typeName}.${valueName}`,
+						`"${valueName}" is an enum value, and enum values in this catalog are written in SCREAMING_SNAKE_CASE`,
+						value.loc
+					);
+				}
 			}
 			return;
 		}
@@ -227,8 +299,59 @@ export const reviewCatalog = (catalog: Catalog): readonly ReviewNotice[] => {
 		}
 
 		for (const field of fields) {
-			const coordinate = `${typeName}.${field.name.value}`;
+			const fieldName = field.name.value;
+			const coordinate = `${typeName}.${fieldName}`;
 			checkDeprecation(coordinate, field.directives, field.loc);
+
+			if (naming) {
+				if (!camelCase.test(fieldName)) {
+					say(
+						ReviewCode.UNCONVENTIONAL_NAME,
+						coordinate,
+						`"${fieldName}" is a field, and fields in this catalog are written in camelCase`,
+						field.loc
+					);
+				}
+
+				for (const argument of field.arguments ?? []) {
+					if (camelCase.test(argument.name.value)) continue;
+					say(
+						ReviewCode.UNCONVENTIONAL_NAME,
+						`${coordinate}(${argument.name.value}:)`,
+						`"${argument.name.value}" is an argument, and arguments in this catalog are written in camelCase`,
+						argument.loc
+					);
+				}
+
+				const redundant = REDUNDANT_PREFIXES.find((word) =>
+					startsWithWord(fieldName, word)
+				);
+				if (redundant !== undefined && roots.has(typeName)) {
+					say(
+						ReviewCode.REDUNDANT_NAME,
+						coordinate,
+						`"${fieldName}" says "${redundant}", which asking for it already means; name it after what it answers with`,
+						field.loc
+					);
+				}
+			}
+
+			// A key where the thing itself could be: a client holding an
+			// identifier has to ask again before it can do anything with it.
+			const keyed = keyedType(fieldName);
+			if (
+				keyed !== undefined &&
+				keyed !== typeName &&
+				BUILT_IN_SCALARS.has(namedTypeOf(field.type)) &&
+				catalog.getType(keyed)?.kind === Kind.OBJECT_TYPE_DEFINITION
+			) {
+				say(
+					ReviewCode.FOREIGN_KEY,
+					coordinate,
+					`"${coordinate}" answers with a key; answer with "${keyed}" so a caller does not have to ask again`,
+					field.loc
+				);
+			}
 
 			if (isList(field.type) && !hasDirective(field.directives, CONNECTION)) {
 				say(

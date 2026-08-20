@@ -74,6 +74,7 @@ export {
 } from './analysis/index.js';
 export type {
 	ReviewNotice,
+	ReviewOptions,
 	BudgetDecision,
 	CostBudget,
 	CostBudgetOptions,
