@@ -1187,6 +1187,58 @@ The command is a thin shell around `runNexCommand`, which takes everything it
 touches - reading, writing, and saying things - as an argument. What a build
 runs and what the tests run are the same code.
 
+## Watching a server work
+
+Every run carries a trace, and `instrumentation.onOperation` says what it cost
+and how long it took. That says a request was slow; `onField` says which field
+made it slow, which is the question actually being asked:
+
+```ts
+createNexHandler({
+  catalog,
+  resolvers,
+  instrumentation: {
+    onOperation: (trace) => log.info(trace),
+    onField: (trace) => span(trace.traceId, trace.path, trace.durationMs),
+    onFieldError: (error) => log.error(error),
+  },
+});
+```
+
+Only fields with a resolver are reported: reading a property off a value is
+free, and timing every one of them would swamp both the trace and the run
+producing it. Nothing is measured unless a watcher is given, so a server that
+does not watch pays nothing for the option. A watcher that throws never breaks
+the run it watches.
+
+`createMetrics` turns those reports into numbers a server can read, without
+deciding where they go:
+
+```ts
+const metrics = createMetrics();
+
+createNexHandler({
+  catalog,
+  resolvers,
+  instrumentation: metrics.instrumentation,
+});
+
+app.get('/metrics', () => metrics.snapshot());
+```
+
+```ts
+{
+  operations: { total: 1284, failed: 3, totalCost: 41902, slowestMs: 812, byName: {} },
+  fields: { 'Query.posts': { total: 1284, failed: 0, slowestMs: 611 } },
+}
+```
+
+Nothing here is a timer or a background task: counting happens on the run that
+is already happening, and reading is a copy of what has been counted. An
+operation name comes from whoever sent the request, so the per-name breakdown
+is bounded - `maxNames` defaults to 200, and the totals still count everything
+once it fills.
+
 ## Running this in production
 
 The defaults are safe to start from; these are the knobs a server should reach for.
@@ -1286,7 +1338,7 @@ Each capability, and what keeps it honest:
 | Client                 | Caching by request identity, in-flight sharing, request batching, SSR handoff                                             |
 | Types                  | Context and response shape carried as parameters; `generateTypes` and `generateCatalogTypes` write both ends              |
 | Evolution              | `compareCatalogs` grades a change, `findBrokenOperations` names what stops working                                        |
-| Observability          | A trace on every run, operation and field-error hooks that cannot break a run                                             |
+| Observability          | A trace on every run, per-field timing, and `createMetrics` to read the numbers back                                      |
 | Performance            | `pnpm bench:nex` with budgets over a scalar field, a large list, and a paged list                                         |
 | Catalog review         | Advice on what a working catalog makes impossible later, named by coordinate                                              |
 | Schema evolution       | Response types that still read when a catalog gains an enum value or a union member                                       |
