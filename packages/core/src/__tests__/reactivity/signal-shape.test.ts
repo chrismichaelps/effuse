@@ -11,11 +11,31 @@ import { watchEffect } from '../../effects/effect.js';
 import { Dep } from '../../reactivity/dep.js';
 import { isEffuseNode } from '../../render/node.js';
 
+/** How many times each measurement is taken before the best one is believed. */
+const SAMPLES = 5;
+
+/**
+ * Nanoseconds per operation, measured as the best of several runs.
+ *
+ * A single run measures the machine as much as the code: another process, a
+ * garbage collection, or the scheduler taking the core away inflates it by an
+ * arbitrary amount. Interference can only ever make a run slower, so the
+ * fastest of several is the one that says what the code costs - which is what
+ * keeps these comparisons from failing when the suite runs under load.
+ */
 const nsPerOp = (iterations: number, fn: () => void): number => {
 	for (let index = 0; index < iterations; index++) fn();
-	const start = process.hrtime.bigint();
-	for (let index = 0; index < iterations; index++) fn();
-	return Number(process.hrtime.bigint() - start) / iterations;
+
+	let best = Number.POSITIVE_INFINITY;
+
+	for (let sample = 0; sample < SAMPLES; sample++) {
+		const start = process.hrtime.bigint();
+		for (let index = 0; index < iterations; index++) fn();
+		const cost = Number(process.hrtime.bigint() - start) / iterations;
+		if (cost < best) best = cost;
+	}
+
+	return best;
 };
 
 const ITERATIONS = 100_000;
@@ -142,9 +162,7 @@ const perInstanceAccessorShape = (initial: number): object => {
 
 describe('reactive hot paths', () => {
 	it('creates a signal several times faster than a per-instance shape', () => {
-		const shapeCost = nsPerOp(ITERATIONS, () =>
-			perInstanceAccessorShape(0)
-		);
+		const shapeCost = nsPerOp(ITERATIONS, () => perInstanceAccessorShape(0));
 		const signalCost = nsPerOp(ITERATIONS, () => void signal(0));
 
 		expect(signalCost).toBeLessThan(shapeCost / 3);
@@ -168,9 +186,7 @@ describe('reactive hot paths', () => {
 
 	it('creates a computed faster than a per-instance shape', () => {
 		const source = signal(0);
-		const shapeCost = nsPerOp(ITERATIONS, () =>
-			perInstanceAccessorShape(0)
-		);
+		const shapeCost = nsPerOp(ITERATIONS, () => perInstanceAccessorShape(0));
 		const computedCost = nsPerOp(
 			ITERATIONS,
 			() => void computed(() => source.value)
