@@ -94,6 +94,10 @@ export {
 export {
 	ErrorPolicy,
 	LiveDelivery,
+	createLoader,
+	type LoadMany,
+	type Loader,
+	type LoaderOptions,
 	type Authorize,
 	type AuthorizeRequest,
 	applyPatch,

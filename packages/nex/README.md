@@ -585,6 +585,37 @@ analyzeRequest('{ posts | page first: 10 { title } }', catalog); // { cost: 11, 
 validateRequest(request, catalog, { maxCost: 500, maxDepth: 8 });
 ```
 
+## Asking a source once
+
+A field on fifty rows asks fifty times for the same handful of things, and a
+source answering one at a time turns one request into fifty queries. A loader
+gathers what a run asks for and asks once:
+
+```ts
+import { createLoader } from '@effuse/nex';
+
+const handler = createNexHandler({
+  catalog,
+  resolvers: {
+    Post: {
+      author: (post, _args, context) => context.authors.load(post.authorId),
+    },
+  },
+});
+
+// One loader per request, never one per server: what a loader remembers is
+// what that request has already seen.
+const context = () => ({
+  authors: createLoader({
+    load: (ids) => db.users.whereIn('id', ids),
+  }),
+});
+```
+
+Rows of a list resolve together rather than one after another, which is what
+gives a loader something to gather: the fifty rows above reach it in the same
+turn, and the source is asked once for the three authors they share.
+
 ## Talking to a server
 
 `createNexClient` is the other side of `handleHttpRequest`: it sends requests,

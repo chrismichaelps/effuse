@@ -66,3 +66,9 @@ export {
 	type Instrumentation,
 	type OperationTrace,
 } from './instrumentation.js';
+export {
+	createLoader,
+	type LoadMany,
+	type Loader,
+	type LoaderOptions,
+} from './loader.js';

@@ -135,6 +135,7 @@ describe('public API', () => {
 				'buildCatalogFromIntrospectionSafe',
 				'buildCatalogSafe',
 				'compareCatalogs',
+				'createLoader',
 				'createNexClient',
 				'createOperationStore',
 				'concatDocuments',
