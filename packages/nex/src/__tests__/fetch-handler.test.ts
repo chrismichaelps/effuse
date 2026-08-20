@@ -5,6 +5,7 @@
  */
 
 import { describe, expect, it, vi } from 'vitest';
+import type { FetchHandler } from '@effuse/server';
 import { buildCatalog, createNexHandler } from '../index.js';
 import type { LiveSources, Resolvers } from '../index.js';
 
@@ -12,7 +13,6 @@ import type { LiveSources, Resolvers } from '../index.js';
  * The contract `@effuse/server` binds a handler to. Written out rather than
  * imported so the language package stays free of a dependency on the server.
  */
-type FetchHandler = (request: Request) => Response | Promise<Response>;
 
 const catalog = buildCatalog(`
 	schema { query: Query mutation: Mutation live: Live }
@@ -51,6 +51,8 @@ const post = (body: unknown, headers: Record<string, string> = {}) =>
 
 describe('what a server mounts', () => {
 	it('is the handler shape the ecosystem binds', () => {
+		// The real type, not a copy of it: a handler that stopped fitting what
+		// a server mounts would otherwise still pass here.
 		const mounted: FetchHandler = handler;
 
 		expect(typeof mounted).toBe('function');
