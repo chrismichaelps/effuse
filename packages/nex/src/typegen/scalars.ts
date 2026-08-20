@@ -39,3 +39,26 @@ export const SCALAR_TYPES: Readonly<Record<string, string>> = {
  * is, and a caller should have to say what they expect before using it.
  */
 export const CUSTOM_SCALAR_TYPE = 'unknown';
+
+/**
+ * How to write the scalars a catalog names, in TypeScript.
+ *
+ * A scalar the language does not define is whatever its server says it is, so
+ * only whoever wrote that server can say what it reads as here. Anything not
+ * named stays `unknown`, which is a caller having to say what they expect
+ * before using it rather than being handed `any` and finding out later.
+ */
+export type ScalarTypes = Readonly<Record<string, string>>;
+
+/** What a scalar reads as: what the caller said, or what the language says. */
+export const scalarTypeOf = (
+	typeName: string,
+	written: ScalarTypes
+): string => {
+	// The language's own scalars mean one thing everywhere, and a catalog
+	// cannot redefine them - so neither can this.
+	const builtIn = SCALAR_TYPES[typeName];
+	if (builtIn !== undefined) return builtIn;
+
+	return written[typeName] ?? CUSTOM_SCALAR_TYPE;
+};

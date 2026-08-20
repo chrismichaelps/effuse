@@ -53,6 +53,7 @@ export {
 	type CatalogInput,
 	type CatalogResult,
 	type ExecuteOptions,
+	type CatalogTypesOptions,
 	type GenerateTypesOptions,
 	type IntrospectionResult,
 	type NexBudgetOptions,

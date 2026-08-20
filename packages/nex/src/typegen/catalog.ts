@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-import { BUILT_IN_SCALARS, type Catalog } from '../catalog/index.js';
+import type { Catalog } from '../catalog/index.js';
 import type {
 	InputValueDefinitionNode,
 	InterfaceTypeDefinitionNode,
@@ -31,7 +31,7 @@ import type {
 	TypeNode,
 } from '../language/ast/index.js';
 import { Kind } from '../language/kinds/index.js';
-import { CUSTOM_SCALAR_TYPE, SCALAR_TYPES } from './scalars.js';
+import { scalarTypeOf, type ScalarTypes } from './scalars.js';
 import { objectType, propertyName } from './write.js';
 
 const HEADER_COMMENT = `/**
@@ -57,12 +57,15 @@ const describe = (definition: {
 		: `/** ${definition.description.value} */\n`;
 
 /** Write the TypeScript for everything a catalog holds. */
-export const generateCatalogTypes = (catalog: Catalog): string => {
+export const generateCatalogTypes = (
+	catalog: Catalog,
+	options: { readonly scalars?: ScalarTypes | undefined } = {}
+): string => {
+	const scalars = options.scalars ?? {};
+
 	const named = (typeName: string): string => {
 		if (catalog.getType(typeName) !== undefined) return typeName;
-		return BUILT_IN_SCALARS.has(typeName)
-			? (SCALAR_TYPES[typeName] ?? CUSTOM_SCALAR_TYPE)
-			: CUSTOM_SCALAR_TYPE;
+		return scalarTypeOf(typeName, scalars);
 	};
 
 	/** A type reference, as a value of it reads in TypeScript. */
@@ -103,7 +106,7 @@ export const generateCatalogTypes = (catalog: Catalog): string => {
 
 			case Kind.SCALAR_TYPE_DEFINITION:
 				blocks.push(
-					`${describe(definition)}export type ${name} = ${CUSTOM_SCALAR_TYPE};`
+					`${describe(definition)}export type ${name} = ${scalarTypeOf(name, scalars)};`
 				);
 				break;
 

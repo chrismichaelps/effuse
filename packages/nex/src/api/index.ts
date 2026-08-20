@@ -64,6 +64,7 @@ export { findDeprecations } from './deprecations.js';
 export {
 	generateCatalogTypes,
 	generateTypes,
+	type CatalogTypesOptions,
 	type GenerateTypesOptions,
 } from './typegen.js';
 export {

@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-import { BUILT_IN_SCALARS, type Catalog } from '../catalog/index.js';
+import type { Catalog } from '../catalog/index.js';
 import type {
 	FragmentDefinitionNode,
 	OperationDefinitionNode,
@@ -35,7 +35,7 @@ import {
 	listItemType,
 	namedTypeOf,
 } from '../validation/type-utils.js';
-import { CUSTOM_SCALAR_TYPE, SCALAR_TYPES } from './scalars.js';
+import { scalarTypeOf, type ScalarTypes } from './scalars.js';
 import { objectType, propertyName, typeNameFor } from './write.js';
 
 /** What a page looks like in TypeScript, whatever it holds. */
@@ -65,7 +65,8 @@ const UNKNOWN_VALUE = '(string & {})';
 export const generateOperationTypes = (
 	catalog: Catalog,
 	operation: OperationDefinitionNode,
-	fragments: ReadonlyMap<string, FragmentDefinitionNode>
+	fragments: ReadonlyMap<string, FragmentDefinitionNode>,
+	scalars: ScalarTypes = {}
 ): string => {
 	/**
 	 * Whatever a name stands for, as TypeScript.
@@ -90,11 +91,7 @@ export const generateOperationTypes = (
 			return open ? `${known} | ${UNKNOWN_VALUE}` : known;
 		}
 
-		if (BUILT_IN_SCALARS.has(typeName)) {
-			return SCALAR_TYPES[typeName] ?? CUSTOM_SCALAR_TYPE;
-		}
-
-		return CUSTOM_SCALAR_TYPE;
+		return scalarTypeOf(typeName, scalars);
 	};
 
 	/** An input type, as a caller has to write it. */

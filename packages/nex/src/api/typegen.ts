@@ -29,6 +29,7 @@ import { Kind } from '../language/kinds/index.js';
 import {
 	generateCatalogTypes as writeCatalogTypes,
 	generateOperationTypes,
+	type ScalarTypes,
 } from '../typegen/index.js';
 import { parse } from './parse.js';
 import { validateRequest, type RequestInput } from './validate-request.js';
@@ -37,6 +38,16 @@ import { validateRequest, type RequestInput } from './validate-request.js';
 export interface GenerateTypesOptions {
 	/** Check the request against the catalog first. Defaults to `true`. */
 	readonly validate?: boolean | undefined;
+	/**
+	 * How to write the scalars the language does not define, in TypeScript.
+	 *
+	 * A custom scalar is whatever its server says it is, so only whoever wrote
+	 * that server can say what it reads as: `{ Money: 'number' }` for a scalar
+	 * held as cents, `{ Json: 'Record<string, unknown>' }` for one that is a
+	 * document. Anything not named stays `unknown`, which is a caller having
+	 * to say what they expect rather than being handed `any`.
+	 */
+	readonly scalars?: ScalarTypes | undefined;
 }
 
 /**
@@ -76,7 +87,12 @@ export const generateTypes = (
 	for (const definition of document.definitions) {
 		if (definition.kind !== Kind.OPERATION_DEFINITION) continue;
 
-		const written = generateOperationTypes(catalog, definition, fragments);
+		const written = generateOperationTypes(
+			catalog,
+			definition,
+			fragments,
+			options.scalars ?? {}
+		);
 		if (written !== '') blocks.push(written);
 	}
 
@@ -89,6 +105,12 @@ export const generateTypes = (
 	return `${blocks.join('\n\n')}\n`;
 };
 
+/** How to write a catalog's own types. */
+export interface CatalogTypesOptions {
+	/** How to write the scalars the language does not define, in TypeScript. */
+	readonly scalars?: ScalarTypes | undefined;
+}
+
 /**
  * Write the TypeScript for everything a catalog holds.
  *
@@ -96,5 +118,11 @@ export const generateTypes = (
  * each resolver is given and what it must return, so a server is checked
  * against its own catalog rather than against a comment.
  */
-export const generateCatalogTypes = (catalog: Catalog): string =>
-	writeCatalogTypes(catalog);
+export const generateCatalogTypes = (
+	catalog: Catalog,
+	options: CatalogTypesOptions = {}
+): string =>
+	writeCatalogTypes(
+		catalog,
+		options.scalars === undefined ? {} : { scalars: options.scalars }
+	);
