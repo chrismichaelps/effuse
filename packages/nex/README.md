@@ -459,6 +459,47 @@ extend enum Status { SCHEDULED }
 extend schema { live: Live }
 ```
 
+## Typing a request
+
+`generateTypes` writes the TypeScript a request comes back as, and the
+variables it takes, so a client is typed without a runtime in between:
+
+```ts
+generateTypes(
+  'query Feed($status: Status) { posts(status: $status) | page first: 2 { title } }',
+  catalog
+);
+```
+
+```ts
+export type FeedVariables = {
+  status?: 'DRAFT' | 'PUBLISHED' | null;
+};
+
+export type FeedData = {
+  posts: {
+    items: {
+      title: string;
+    }[];
+    pageInfo: {
+      hasNextPage: boolean;
+      hasPreviousPage: boolean;
+      startCursor: string | null;
+      endCursor: string | null;
+    };
+    totalCount: number;
+  };
+};
+```
+
+Nullability follows the catalog, enums become the values they can take, a
+paged field takes the page shape, and a selection on an interface or a union
+becomes one variant per branch, discriminated by `__typename`. A custom scalar
+is `unknown`, so a caller has to say what they expect before using it.
+
+The request is validated first: types written from a request that cannot run
+would lie about what comes back.
+
 ## What a request still leans on
 
 A request can validate cleanly and still ask for things on their way out.

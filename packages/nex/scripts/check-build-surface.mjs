@@ -23,6 +23,7 @@ const REQUIRED = [
 	'diffValues',
 	'execute',
 	'findDeprecations',
+	'generateTypes',
 	'handleHttpRequest',
 	'isDocument',
 	'isValidRequest',
