@@ -77,8 +77,10 @@ describe('the shape a request comes back as', () => {
 	});
 
 	it('writes an enum as the values it can take', () => {
+		// Open, because a response may carry a value added since: see
+		// typegen-evolution.test.ts for what that is for.
 		expect(generated('query A { posts { status } }')).toContain(
-			"status: 'DRAFT' | 'PUBLISHED';"
+			"status: 'DRAFT' | 'PUBLISHED' | (string & {});"
 		);
 	});
 
