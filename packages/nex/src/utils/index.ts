@@ -24,3 +24,4 @@
 
 export { INDENT_STEP, pad } from './indent.js';
 export { printBlockString, printString } from './escape.js';
+export { decodeBase64, encodeBase64 } from './base64.js';
