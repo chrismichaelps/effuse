@@ -498,10 +498,36 @@ export type FeedData = {
 };
 ```
 
-Nullability follows the catalog, enums become the values they can take, a
-paged field takes the page shape, and a selection on an interface or a union
-becomes one variant per branch, discriminated by `__typename`. A custom scalar
-is `unknown`, so a caller has to say what they expect before using it.
+Nullability follows the catalog, a paged field takes the page shape, and a
+selection on an interface or a union becomes one variant per branch,
+discriminated by `__typename`. A custom scalar is `unknown`, so a caller has
+to say what they expect before using it.
+
+Enums and variants are written to survive a catalog that grows. A server may
+add an enum value or a union member at any time, and a client built before
+that still has to read what comes back, so what a response may hold stays
+open:
+
+```ts
+export type FeedData = {
+  posts: {
+    status: 'DRAFT' | 'PUBLISHED' | (string & {});
+  }[];
+};
+```
+
+Known values still complete in an editor, a value added since still reads, and
+an exhaustive `switch` no longer typechecks as complete when it is not - so
+the missing default branch is a build error rather than a silent fall-through
+in front of a user. A selection on an interface or a union gets the same
+treatment: one variant per branch, plus one for a member added later, carrying
+whatever was selected on the type itself.
+
+What a caller writes stays closed. Arguments, variables, and input types are
+exactly the values the catalog declares, since a client must not be able to
+send one the server has never heard of. `generateCatalogTypes` is closed for
+the same reason: it describes the catalog as written, and input types refer to
+those same names.
 
 The request is validated first: types written from a request that cannot run
 would lie about what comes back.
@@ -982,6 +1008,7 @@ Each capability, and what keeps it honest:
 | Evolution              | `compareCatalogs` grades a change, `findBrokenOperations` names what stops working                                        |
 | Observability          | A trace on every run, operation and field-error hooks that cannot break a run                                             |
 | Performance            | `pnpm bench:nex` with budgets over a scalar field, a large list, and a paged list                                         |
+| Schema evolution       | Response types that still read when a catalog gains an enum value or a union member                                       |
 | Object identity        | A reference per object, opaque and unique across the graph, refused when it came from elsewhere                           |
 | Composition            | One catalog built from several, with every disagreement between sources reported                                          |
 | Spending limits        | A budget that refills, charged per request, refusing with `429` and a `Retry-After`                                       |
