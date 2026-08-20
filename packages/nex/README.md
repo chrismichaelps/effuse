@@ -646,6 +646,55 @@ A budget fills back up steadily rather than resetting on a schedule, so a
 caller who spends carefully is never made to wait for a window to turn over.
 It holds one number and one timestamp per caller, and no timers.
 
+## What identifies an object
+
+A client caching what it has seen needs one key per object. A bare `id` is
+only unique inside its own type - two types both numbering from one collide
+the moment they share a cache - so a type says what identifies it and every
+object of it answers `__ref`:
+
+```nex
+type Person @identity { id: ID! name: String! }
+type Book @identity(field: "isbn") { isbn: String! title: String! }
+```
+
+```nex
+{
+  people {
+    __ref
+    name
+  }
+}
+```
+
+Nothing is added to the type and nothing has to be implemented: `__ref`
+answers alongside `__typename` wherever a type is marked, on every row of a
+list, and a type that says nothing has no `__ref` to ask for - a request that
+tries is refused during validation rather than answering null.
+
+A reference is opaque, and carries the type with the value. The server reads
+one back with `parseRef`, which is what a refetch field is built from:
+
+```ts
+import { parseRef } from '@effuse/nex';
+
+const resolvers = {
+  Query: {
+    lookup: (_source, args) => {
+      const reference = parseRef(args.ref);
+      if (reference === undefined) return null;
+      return load(reference.type, reference.id);
+    },
+  },
+};
+```
+
+`parseRef` answers only for references this package handed out, so a cursor,
+an opaque token from somewhere else, or a value a client made up is refused
+rather than looked up. `refFor(type, id)` builds the same reference, for a
+server that wants to hand one out itself. A catalog naming a field the type
+does not declare is refused when it is built, not when a row reaches it.
+
 ## Asking a source once
 
 A field on fifty rows asks fifty times for the same handful of things, and a
@@ -905,6 +954,7 @@ Each capability, and what keeps it honest:
 | Evolution              | `compareCatalogs` grades a change, `findBrokenOperations` names what stops working                                        |
 | Observability          | A trace on every run, operation and field-error hooks that cannot break a run                                             |
 | Performance            | `pnpm bench:nex` with budgets over a scalar field, a large list, and a paged list                                         |
+| Object identity        | A reference per object, opaque and unique across the graph, refused when it came from elsewhere                           |
 | Composition            | One catalog built from several, with every disagreement between sources reported                                          |
 | Spending limits        | A budget that refills, charged per request, refusing with `429` and a `Retry-After`                                       |
 | Public surface         | Pinned by a test and by a build-time check that imports the built entry and runs a request                                |
@@ -915,6 +965,8 @@ binary transports and multipart uploads belong to whatever serves the package.
 ## Specification coverage
 
 Implemented: section 2 (the language in full), section 3 (the type system and the catalog it builds), section 4 (introspection, including pipeline operators, cost, and authorization), section 5 (validation, cost, and depth limits), section 6 (execution and error policies), section 7 (the response shape), section 8 (the page shape), and the schema extensions of section 10.
+
+Beyond the specification: object identity (`@identity` and `__ref`), catalog composition (`mergeCatalogs`), and per-caller spending limits, which the specification leaves to an implementation.
 
 Section 9 is covered for HTTP, including batching and server-sent events for live operations; binary protocols and multipart uploads are not. Federation, which the specification lists as future work, is not implemented.
 
