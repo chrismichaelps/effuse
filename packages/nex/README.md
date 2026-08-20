@@ -1117,6 +1117,49 @@ trace is for reading logs afterwards, and no request should fail over one.
 URL-encoded JSON parameter on a GET; it has to be an object, and a request
 sending something else is refused rather than quietly ignored.
 
+## On the command line
+
+Checking a catalog, reviewing it, and writing its types are things a build
+does, so they ship as a command rather than as something every project writes
+a script around:
+
+```bash
+nex check schema.nex
+```
+
+```bash
+nex review schema.nex
+```
+
+```bash
+nex diff main.nex branch.nex
+```
+
+```bash
+nex typegen schema.nex --scalar Money=number --out src/catalog.ts
+```
+
+| Command   | What it does                                                             |
+| --------- | ------------------------------------------------------------------------ |
+| `check`   | Builds the catalog and reports everything that does not hold together    |
+| `review`  | Says what a working catalog makes impossible later                       |
+| `diff`    | Says what changed between two catalogs                                   |
+| `typegen` | Writes the TypeScript for a catalog, or for one request with `--request` |
+
+Exit codes are what a build reads: zero means nothing to act on, one means
+something worth stopping for - a catalog that does not hold together, a review
+with something to say, a change that breaks a client. `diff` prints every
+change and fails only on the breaking ones, since the rest are worth reading
+and worth shipping.
+
+`--no-naming` leaves names out of a review, `--out` writes to a file rather
+than saying it, and `--scalar Name=Type` says what a scalar reads as and may
+be given more than once.
+
+The command is a thin shell around `runNexCommand`, which takes everything it
+touches - reading, writing, and saying things - as an argument. What a build
+runs and what the tests run are the same code.
+
 ## Running this in production
 
 The defaults are safe to start from; these are the knobs a server should reach for.
@@ -1282,6 +1325,7 @@ where each is answered here - including the ones deliberately left out.
 | Thinking in graphs           | `reviewCatalog` names the type a field holding a key could answer with instead  |
 | Versioning                   | `compareCatalogs`, `findBrokenOperations`, `findDeprecations`                   |
 | Ownership and governance     | A deployment concern: `mergeCatalogs` is what makes split ownership work        |
+| On the command line          | `nex check`, `review`, `diff`, and `typegen`, with exit codes a build reads     |
 | Tooling                      | `generateTypes`, `generateCatalogTypes`, `minifyRequest`, `visitWithTypes`      |
 | Composition                  | `mergeCatalogs`, with every disagreement between sources reported               |
 | Federation                   | Not implemented: future work in the specification                               |
