@@ -802,6 +802,33 @@ rather than looked up. `refFor(type, id)` builds the same reference, for a
 server that wants to hand one out itself. A catalog naming a field the type
 does not declare is refused when it is built, not when a row reaches it.
 
+## Fetching only what was asked for
+
+A loader stops a field being asked for fifty times. This stops each of those
+asks being for more than it needs: a resolver can see what the request wanted
+below it, so it can select those columns rather than every column there is.
+
+```ts
+const resolvers = {
+  Query: {
+    people: (_source, _args, _context, info) => {
+      const columns = info.selection().map((field) => field.name);
+      return db.people.select(columns);
+    },
+  },
+};
+```
+
+Each entry says the field's `name` in the catalog, the `alias` it answers
+under, what it was `arguments`, and the `fields` asked for below it - so a
+resolver standing in front of another service can forward what it was asked
+rather than guess at it.
+
+Fragments have been followed and `@skip` and `@include` applied, so this is
+what the response will carry rather than what was typed. It is worked out when
+called and not before: a resolver that does not care pays nothing, which is
+what keeps the field that has no resolver at all free.
+
 ## Asking a source once
 
 A field on fifty rows asks fifty times for the same handful of things, and a
