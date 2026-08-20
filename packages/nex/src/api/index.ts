@@ -44,6 +44,7 @@ export { subscribe, type SubscribeOptions } from './subscribe.js';
 export {
 	createNexHandler,
 	toEventStream,
+	type NexBudgetOptions,
 	type NexHandlerOptions,
 } from '../transport/index.js';
 export {

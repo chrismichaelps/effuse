@@ -55,6 +55,7 @@ export {
 	type ExecuteOptions,
 	type GenerateTypesOptions,
 	type IntrospectionResult,
+	type NexBudgetOptions,
 	type NexHandlerOptions,
 	type NormalizeOptions,
 	type BrokenOperation,
@@ -66,7 +67,11 @@ export {
 	type SubscribeOptions,
 } from './api/index.js';
 
+export { createCostBudget } from './analysis/index.js';
 export type {
+	BudgetDecision,
+	CostBudget,
+	CostBudgetOptions,
 	AnalysisOptions,
 	DeprecationNotice,
 	DeprecationOptions,

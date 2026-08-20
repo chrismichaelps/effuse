@@ -22,7 +22,12 @@
  * SOFTWARE.
  */
 
-import { selectOperation } from '../../analysis/index.js';
+import {
+	analyzeDocument,
+	selectOperation,
+	type BudgetDecision,
+	type CostBudget,
+} from '../../analysis/index.js';
 import type { Catalog } from '../../catalog/index.js';
 import {
 	coerceVariableValues,
@@ -53,6 +58,18 @@ import {
 } from './messages.js';
 import { parseGetRequest, parsePostRequest } from './parse.js';
 
+/**
+ * A caller, and what they may spend.
+ *
+ * The caller is worked out before the request is read, so who is asking and
+ * what they are asking for stay separate concerns.
+ */
+export interface SpendingLimit {
+	readonly budget: CostBudget;
+	/** Who this request is charged to. */
+	readonly caller: string;
+}
+
 /** How to serve requests that arrive over HTTP. */
 export interface HttpHandlerOptions<TContext = unknown> {
 	readonly catalog: Catalog;
@@ -65,6 +82,8 @@ export interface HttpHandlerOptions<TContext = unknown> {
 	readonly errorPolicy?: ErrorPolicy | undefined;
 	/** Cost and depth limits enforced before anything runs. */
 	readonly limits?: RequestLimits | undefined;
+	/** What the caller may spend over time, charged what each request costs. */
+	readonly budget?: SpendingLimit | undefined;
 	/** How many requests one batch may carry. Defaults to 10. */
 	readonly maxBatchSize?: number | undefined;
 	/** The operations this server holds, so a client may send a name. */
@@ -101,6 +120,8 @@ const DEFAULT_MAX_BATCH_SIZE = 10;
 interface RanRequest {
 	readonly result: ExecutionResult;
 	readonly requestError: boolean;
+	/** Set when the caller could not afford the request, so it never ran. */
+	readonly overBudget?: BudgetDecision | undefined;
 }
 
 /**
@@ -172,6 +193,50 @@ const resolveBody = <TContext>(
 
 	return body;
 };
+
+/**
+ * Charge the caller for what a request costs, if the server keeps a budget.
+ *
+ * Cost and depth limits bound any one request; this bounds what a caller may
+ * ask for over time, which is the load a server actually feels. The charge
+ * happens after the request is known to be valid and before it runs, so a
+ * refusal costs a parse rather than a database.
+ */
+const charge = <TContext>(
+	document: DocumentNode,
+	body: HttpRequestBody,
+	options: HttpHandlerOptions<TContext>
+): BudgetDecision | undefined => {
+	const limit = options.budget;
+	if (limit === undefined) return undefined;
+
+	const { cost } = analyzeDocument(document, options.catalog, {
+		...(body.variables === undefined ? {} : { variables: body.variables }),
+		...(body.operationName === undefined
+			? {}
+			: { operationName: body.operationName }),
+	});
+
+	const decision = limit.budget.take(limit.caller, cost);
+	return decision.allowed ? undefined : decision;
+};
+
+const overBudget = <TContext>(
+	decision: BudgetDecision,
+	options: HttpHandlerOptions<TContext>
+): RanRequest => ({
+	...refused(
+		[
+			{
+				message:
+					'This request costs more than is left of what you may spend right now',
+				code: NexErrorCode.OVER_BUDGET,
+			},
+		],
+		options.formatError
+	),
+	overBudget: decision,
+});
 
 const runOne = async <TContext>(
 	body: HttpRequestBody,
@@ -249,6 +314,9 @@ const runOne = async <TContext>(
 		);
 	}
 
+	const spent = charge(read.document, body, options);
+	if (spent !== undefined) return overBudget(spent, options);
+
 	const result = await execute({
 		request: read.document,
 		catalog: options.catalog,
@@ -274,6 +342,23 @@ const runOne = async <TContext>(
 	});
 
 	return { result, requestError: false };
+};
+
+/**
+ * Answer a caller who has spent what they had.
+ *
+ * `Retry-After` is sent only when waiting would actually help - a budget that
+ * never fills back up has nothing to promise.
+ */
+const budgetResponse = (ran: RanRequest): HttpResponse => {
+	const seconds = ran.overBudget?.retryAfterSeconds;
+	const answer = jsonResponse(429, ran.result);
+
+	if (seconds === undefined) return answer;
+	return {
+		...answer,
+		headers: { ...answer.headers, 'retry-after': String(Math.ceil(seconds)) },
+	};
 };
 
 /**
@@ -342,6 +427,13 @@ export const handleProtocolRequest = async <TContext>(
 			return errorResponse(400, [resolvedFirst]);
 		}
 
+		if (read !== undefined) {
+			const spent = charge(read.document, resolvedFirst, options);
+			if (spent !== undefined) {
+				return budgetResponse(overBudget(spent, options));
+			}
+		}
+
 		return {
 			status: 200,
 			headers: {
@@ -393,5 +485,7 @@ export const handleProtocolRequest = async <TContext>(
 	}
 
 	const ran = await runOne(first, options, read);
+	if (ran.overBudget !== undefined) return budgetResponse(ran);
+
 	return jsonResponse(ran.requestError ? 400 : 200, ran.result);
 };

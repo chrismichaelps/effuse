@@ -22,14 +22,34 @@
  * SOFTWARE.
  */
 
+import type { CostBudget } from '../analysis/index.js';
 import {
 	handleProtocolRequest,
 	type HttpHandlerOptions,
 } from './http/handle.js';
 
+/** What a caller may spend, and how to tell one caller from another. */
+export interface NexBudgetOptions {
+	/** The budget every caller is charged against. */
+	readonly budget: CostBudget;
+	/**
+	 * Name the caller a request is charged to.
+	 *
+	 * Whatever the server already uses to tell callers apart - an API key, a
+	 * session, an address - is the right answer here, so the budget follows the
+	 * same identity as the rest of the server rather than inventing one.
+	 */
+	readonly callerFor: (request: Request) => string;
+}
+
 /** How to serve Nex requests. The same options the protocol mapping reads. */
-export type NexHandlerOptions<TContext = unknown> =
-	HttpHandlerOptions<TContext>;
+export interface NexHandlerOptions<TContext = unknown> extends Omit<
+	HttpHandlerOptions<TContext>,
+	'budget'
+> {
+	/** What each caller may spend over time, charged what their requests cost. */
+	readonly budget?: NexBudgetOptions | undefined;
+}
 
 /**
  * Turn an async iterable of frames into a body a runtime can stream.
@@ -127,7 +147,18 @@ export const createNexHandler = <TContext = unknown>(
 			},
 			// The request's own signal calls the run off, so a caller that
 			// disconnects stops the work it started.
-			{ ...options, signal: request.signal }
+			{
+				...options,
+				signal: request.signal,
+				...(options.budget === undefined
+					? { budget: undefined }
+					: {
+							budget: {
+								budget: options.budget.budget,
+								caller: options.budget.callerFor(request),
+							},
+						}),
+			}
 		);
 
 		if (answer.stream !== undefined) {

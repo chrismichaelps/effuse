@@ -33,6 +33,7 @@ const REQUIRED = [
 	'generateTypes',
 	'introspectionFromCatalog',
 	'minifyRequest',
+	'createCostBudget',
 	'createNexHandler',
 	'isDocument',
 	'isValidRequest',

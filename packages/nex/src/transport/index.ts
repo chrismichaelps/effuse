@@ -22,7 +22,11 @@
  * SOFTWARE.
  */
 
-export { createNexHandler, type NexHandlerOptions } from './fetch-handler.js';
+export {
+	createNexHandler,
+	type NexBudgetOptions,
+	type NexHandlerOptions,
+} from './fetch-handler.js';
 export { toEventStream } from './http/event-stream.js';
 export {
 	handleProtocolRequest,
