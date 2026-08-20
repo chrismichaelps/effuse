@@ -20,6 +20,7 @@ const REQUIRED = [
 	'buildCatalogSafe',
 	'ChangeSeverity',
 	'compareCatalogs',
+	'composeServices',
 	'createLoader',
 	'createNexClient',
 	'loadNexState',

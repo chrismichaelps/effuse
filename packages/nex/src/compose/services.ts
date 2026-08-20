@@ -1,0 +1,210 @@
+/**
+ * MIT License
+ *
+ * Copyright (c) 2025 Chris M. Perez
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
+import { mergeCatalogs } from '../catalog/merge.js';
+import type { Catalog } from '../catalog/index.js';
+import { NexErrorCode, NexExecutionError } from '../errors/index.js';
+import type { ExecutionResult, Resolvers } from '../execution/index.js';
+import type { SelectedField } from '../execution/resolvers.js';
+import type { OperationType } from '../language/kinds/index.js';
+import { printValue } from '../language/printer/index.js';
+import { valueToNode } from '../language/value-to-node.js';
+
+/** How to ask one service for something. */
+export type NexServiceRequest = (payload: {
+	readonly query: string;
+	readonly variables?: Readonly<Record<string, unknown>> | undefined;
+}) => Promise<ExecutionResult> | ExecutionResult;
+
+/** One service, and the part of the graph it serves. */
+export interface NexService {
+	/** What this service can answer, as its own catalog. */
+	readonly catalog: Catalog;
+	/** How to reach it. Anything that takes a request and answers. */
+	readonly request: NexServiceRequest;
+}
+
+/** What composing produced: one graph, and how to answer from it. */
+export interface ComposedServices<TContext = unknown> {
+	/** Every service's catalog, joined into the one a client sees. */
+	readonly catalog: Catalog;
+	/** Resolvers that send each root field to whichever service owns it. */
+	readonly resolvers: Resolvers<TContext>;
+}
+
+const OPERATIONS: readonly OperationType[] = ['query', 'mutation', 'live'];
+
+/**
+ * Write a selection back out as source.
+ *
+ * What a service is sent is what the caller asked for and nothing else, so
+ * the selection a resolver was handed is rendered rather than the whole field
+ * being fetched and thrown away. Arguments go out as the values they already
+ * are, so a service is never sent a variable it would have to be told about.
+ */
+const renderArguments = (args: Readonly<Record<string, unknown>>): string => {
+	const written = Object.entries(args);
+	if (written.length === 0) return '';
+
+	return `(${written
+		.map(([key, value]) => `${key}: ${printValue(valueToNode(value))}`)
+		.join(', ')})`;
+};
+
+const renderSelection = (fields: readonly SelectedField[]): string => {
+	if (fields.length === 0) return '';
+
+	// The answer comes back and is completed by the executor here, which reads
+	// each field by its name in the catalog - so what a service is sent uses
+	// those names, and the caller's own aliasing is applied on this side.
+	const seen = new Set<string>();
+
+	const written = fields.map((field) => {
+		if (seen.has(field.name)) {
+			throw new NexExecutionError({
+				message: `"${field.name}" is asked for more than once under different names, which a field answered by another service cannot carry`,
+				code: NexErrorCode.INTERNAL,
+			});
+		}
+		seen.add(field.name);
+
+		return `${field.name}${renderArguments(field.arguments)}${renderSelection(
+			field.fields
+		)}`;
+	});
+
+	return ` { ${written.join(' ')} }`;
+};
+
+/** What a service said, as something a resolver can hand back or throw. */
+const answerOf = (result: ExecutionResult, responseKey: string): unknown => {
+	const [problem] = result.errors ?? [];
+	if (problem !== undefined) {
+		throw new NexExecutionError({
+			message: problem.message,
+			code: NexErrorCode.INTERNAL,
+		});
+	}
+
+	return result.data?.[responseKey] ?? null;
+};
+
+/**
+ * Make one graph out of several services.
+ *
+ * Each service describes and answers the part it owns, and what they share -
+ * an interface, a union, the roots - joins the way `mergeCatalogs` joins it.
+ * A root field is answered by whichever service declares it: the field's own
+ * selection is rendered back out and sent there, so a service is asked for
+ * what the caller wanted rather than for everything it could give.
+ *
+ * A service is reached through whatever `request` does, so an HTTP client, a
+ * handler in this process, and a queue all compose the same way and none of
+ * them is what this depends on.
+ *
+ * Fields that reach across services - a type owned here holding a field owned
+ * there - are not resolved for you: give the composed graph a resolver of its
+ * own for those, using `parseRef` to say which object is wanted.
+ */
+export const composeServices = <TContext = unknown>(
+	services: Readonly<Record<string, NexService>>
+): ComposedServices<TContext> => {
+	const entries = Object.values(services);
+	if (entries.length === 0) {
+		throw new NexExecutionError({
+			message: 'Composing needs at least one service to compose',
+			code: NexErrorCode.INTERNAL,
+		});
+	}
+
+	const catalog = mergeCatalogs(...entries.map((service) => service.catalog));
+	const resolvers: Record<
+		string,
+		Record<string, (...args: never[]) => unknown>
+	> = {};
+
+	for (const service of entries) {
+		for (const operation of OPERATIONS) {
+			const root = service.catalog.getRootType(operation);
+			if (root === undefined) continue;
+
+			// The composed graph may have joined this service's root onto
+			// another's, so what a field is declared on here is not
+			// necessarily what it answers under there.
+			const answering = catalog.getRootType(operation)?.name.value;
+			if (answering === undefined) continue;
+
+			const owned = (resolvers[answering] ??= {});
+
+			for (const field of root.fields ?? []) {
+				const fieldName = field.name.value;
+
+				// Two services answering one field is an ownership question
+				// nobody here can settle, and picking whichever was listed
+				// first would settle it by accident.
+				if (fieldName in owned) {
+					throw new NexExecutionError({
+						message: `More than one service answers "${answering}.${fieldName}"; exactly one has to own it`,
+						code: NexErrorCode.INTERNAL,
+					});
+				}
+
+				owned[fieldName] = ((
+					_source: unknown,
+					args: Readonly<Record<string, unknown>>,
+					_context: unknown,
+					info: { readonly selection: () => readonly SelectedField[] }
+				) => sendTo(service, operation, fieldName, args, info)) as never;
+			}
+		}
+	}
+
+	return { catalog, resolvers: resolvers as Resolvers<TContext> };
+};
+
+/** Ask one service for one field, exactly as it was asked of us. */
+const sendTo = async (
+	service: NexService,
+	operation: OperationType,
+	fieldName: string,
+	args: Readonly<Record<string, unknown>>,
+	info: { readonly selection: () => readonly SelectedField[] }
+): Promise<unknown> => {
+	const query = `${operation} { ${fieldName}${renderArguments(args)}${renderSelection(
+		info.selection()
+	)} }`;
+
+	let result: ExecutionResult;
+	try {
+		result = await service.request({ query });
+	} catch (cause) {
+		throw new NexExecutionError({
+			message: cause instanceof Error ? cause.message : String(cause),
+			code: NexErrorCode.INTERNAL,
+			cause,
+		});
+	}
+
+	return answerOf(result, fieldName);
+};

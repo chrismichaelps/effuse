@@ -87,6 +87,12 @@ export type {
 
 export { runNexCommand, type NexCommandIO } from './cli/index.js';
 export {
+	composeServices,
+	type ComposedServices,
+	type NexService,
+	type NexServiceRequest,
+} from './compose/index.js';
+export {
 	mergeCatalogs,
 	mergeCatalogsSafe,
 	sortCatalog,
