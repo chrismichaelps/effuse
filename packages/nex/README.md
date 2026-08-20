@@ -300,6 +300,31 @@ getOperation(document, 'A');
 
 `separateOperations` gives each operation its own document carrying only the fragments it reaches, which is what a persisted-operation store wants; an anonymous operation is keyed by the empty string.
 
+## Naming a request
+
+A persisted-operation store, a response cache, and a request log all need one
+name for one request, whatever formatting it arrived in:
+
+```ts
+import { normalizeRequest, requestKey } from '@effuse/nex';
+
+normalizeRequest('query Feed{posts|take 2{title}}');
+// query Feed {
+//   posts
+//     | take 2 {
+//     title
+//   }
+// }
+
+await requestKey('query Feed { posts | take 2 { title } }');
+// "6f1c…" - the SHA-256 of the normalized request
+```
+
+Both keep only the operation asked for, with the fragments it reaches, so two
+requests that run the same way get the same name even when they were sent from
+different files. Hashing goes through the platform's own crypto, so this works
+in Node, Bun, an edge worker, and a browser alike.
+
 ## Walking a document
 
 `visit` walks any node the parser produces, and rewrites it if the visitor asks:

@@ -53,3 +53,8 @@ export {
 	buildCatalogFromIntrospection,
 	buildCatalogFromIntrospectionSafe,
 } from './introspection-catalog.js';
+export {
+	normalizeRequest,
+	requestKey,
+	type NormalizeOptions,
+} from './persisted.js';
