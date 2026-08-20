@@ -288,6 +288,9 @@ importers:
         specifier: ^3.21.5
         version: 3.22.0
     devDependencies:
+      '@effuse/core':
+        specifier: workspace:*
+        version: link:../core
       '@effuse/server':
         specifier: workspace:*
         version: link:../server
