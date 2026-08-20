@@ -59,7 +59,11 @@ import {
 	type SelectedField,
 	type Resolvers,
 } from './resolvers.js';
-import { notify, type Instrumentation } from './instrumentation.js';
+import {
+	notify,
+	type FieldTrace,
+	type Instrumentation,
+} from './instrumentation.js';
 import { addPath, pathToArray, type ResponsePath } from './path.js';
 import { ErrorPolicy } from './result.js';
 import { coerceArgumentValues } from './values.js';
@@ -138,6 +142,8 @@ export interface ExecutionPlan<TContext = unknown> {
 	readonly signal?: AbortSignal | undefined;
 	/** Where the run reports what it did. */
 	readonly instrumentation?: Instrumentation | undefined;
+	/** The trace this run belongs to, carried onto everything it reports. */
+	readonly traceId?: string | undefined;
 	/** How the server writes and reads the scalars it names. */
 	readonly scalars?: NexScalars | undefined;
 }
@@ -367,6 +373,30 @@ export const executeOperation = async <TContext>(
 		}
 
 		return selected;
+	};
+
+	/** Tell a watcher what one field cost, without letting it break the run. */
+	const reportField = (
+		watcher: ((trace: FieldTrace) => void) | undefined,
+		parentTypeName: string,
+		fieldName: string,
+		path: ResponsePath | undefined,
+		startedAt: number,
+		failed: boolean
+	): void => {
+		if (watcher === undefined) return;
+
+		const durationMs = performance.now() - startedAt;
+		notify(() =>
+			watcher({
+				traceId: plan.traceId ?? '',
+				parentTypeName,
+				fieldName,
+				path: pathToArray(path),
+				durationMs,
+				failed,
+			})
+		);
 	};
 
 	const completeValue = async (
@@ -657,11 +687,31 @@ export const executeOperation = async <TContext>(
 						plan.scalars ?? {}
 					);
 
-		const produced =
-			supplied === undefined
-				? readProperty(source, fieldName, args, infoFor)
-				: resolveFieldValue(parentTypeName, fieldName, source, args, infoFor());
-		const resolved = await produced;
+		let resolved: unknown;
+
+		if (supplied === undefined) {
+			resolved = await readProperty(source, fieldName, args, infoFor);
+		} else {
+			// Only a field with a resolver is timed, and only when someone
+			// asked to be told: a run nobody watches does no measuring at all.
+			const watcher = plan.instrumentation?.onField;
+			const startedAt = watcher === undefined ? 0 : performance.now();
+
+			try {
+				resolved = await resolveFieldValue(
+					parentTypeName,
+					fieldName,
+					source,
+					args,
+					infoFor()
+				);
+			} catch (cause) {
+				reportField(watcher, parentTypeName, fieldName, path, startedAt, true);
+				throw cause;
+			}
+
+			reportField(watcher, parentTypeName, fieldName, path, startedAt, false);
+		}
 
 		// A transaction runs its fields in order; everything below a mutation
 		// root is otherwise free to resolve concurrently.

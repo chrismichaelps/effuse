@@ -190,6 +190,7 @@ export const subscribe = async function* <
 	const snapshots = executeLive(
 		{
 			catalog: options.catalog,
+			traceId,
 			...(options.scalars === undefined ? {} : { scalars: options.scalars }),
 			resolvers: options.resolvers ?? {},
 			fragments: fragmentsOf(document),

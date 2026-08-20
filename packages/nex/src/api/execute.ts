@@ -320,6 +320,7 @@ export const execute = async <
 			const executor = yield* ExecutorService;
 			return yield* executor.run({
 				catalog: options.catalog,
+				traceId,
 				...(options.scalars === undefined ? {} : { scalars: options.scalars }),
 				resolvers: options.resolvers ?? {},
 				fragments: fragmentsOf(document),

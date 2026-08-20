@@ -43,6 +43,22 @@ export interface OperationTrace {
 	readonly ran: boolean;
 }
 
+/** What one field cost, once it is done. */
+export interface FieldTrace {
+	/** The trace the run was carried under. */
+	readonly traceId: string;
+	/** The type that declares the field. */
+	readonly parentTypeName: string;
+	/** The field, by its name in the catalog. */
+	readonly fieldName: string;
+	/** Where in the response it was, including list indices. */
+	readonly path: readonly (string | number)[];
+	/** How long its resolver took, in milliseconds. */
+	readonly durationMs: number;
+	/** Whether it ended in a problem. */
+	readonly failed: boolean;
+}
+
 /**
  * Where a server watches its own runs.
  *
@@ -55,6 +71,19 @@ export interface Instrumentation {
 	readonly onOperation?: ((trace: OperationTrace) => void) | undefined;
 	/** Called for each field that failed, as it fails. */
 	readonly onFieldError?: ((error: NexExecutionError) => void) | undefined;
+	/**
+	 * Called for each field a resolver ran for, once it is done.
+	 *
+	 * One number for a whole run says a request was slow; this says which
+	 * field made it slow, which is the question actually being asked. Only
+	 * fields with a resolver are reported: reading a property off a value is
+	 * free, and timing every one of them would swamp the trace and the run
+	 * producing it.
+	 *
+	 * Nothing is measured unless this is given, so a server that does not
+	 * watch pays nothing for the option of watching.
+	 */
+	readonly onField?: ((trace: FieldTrace) => void) | undefined;
 }
 
 /**
