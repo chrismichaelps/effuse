@@ -288,6 +288,9 @@ importers:
         specifier: ^3.21.5
         version: 3.22.0
     devDependencies:
+      '@effuse/server':
+        specifier: workspace:*
+        version: link:../server
       '@eslint/js':
         specifier: ^9.39.4
         version: 9.39.4
