@@ -224,3 +224,190 @@ describe('what a review hands back', () => {
 		).toEqual([]);
 	});
 });
+
+describe('a graph shaped like a table', () => {
+	it('says a field holding a key should hold the thing', () => {
+		expect(
+			review(`
+				type Author @identity { id: ID! }
+				type Post @identity { id: ID! authorId: ID! }
+				type Query { post: Post! }
+				schema { query: Query }
+			`)
+		).toContain('FOREIGN_KEY');
+	});
+
+	it('names what to return instead', () => {
+		const [notice] = notices(`
+			type Author @identity { id: ID! }
+			type Post @identity { id: ID! authorId: ID! }
+			type Query { post: Post! }
+			schema { query: Query }
+		`).filter((one) => one.code === 'FOREIGN_KEY');
+
+		expect(notice?.coordinate).toBe('Post.authorId');
+		expect(notice?.message).toMatch(/"Author"/);
+	});
+
+	it('says the same about a list of keys', () => {
+		expect(
+			review(`
+				type Tag @identity { id: ID! }
+				type Post @identity { id: ID! tagIds: [ID!]! }
+				type Query { post: Post! }
+				schema { query: Query }
+			`)
+		).toContain('FOREIGN_KEY');
+	});
+
+	it('says nothing when there is no such type to return', () => {
+		expect(
+			review(`
+				type Post @identity { id: ID! externalId: ID! }
+				type Query { post: Post! }
+				schema { query: Query }
+			`)
+		).not.toContain('FOREIGN_KEY');
+	});
+
+	it('does not tell a type to answer with itself', () => {
+		// "Person.personId" is the type's own identifier under a longer name;
+		// answering with "Person" is not something to suggest.
+		expect(
+			review(`
+				type Person @identity { id: ID! personId: ID! }
+				type Query { person: Person! }
+				schema { query: Query }
+			`)
+		).not.toContain('FOREIGN_KEY');
+	});
+
+	it('leaves a type its own identifier', () => {
+		expect(
+			review(`
+				type Post @identity { id: ID! }
+				type Query { post: Post! }
+				schema { query: Query }
+			`)
+		).not.toContain('FOREIGN_KEY');
+	});
+});
+
+describe('names that do not read like the rest', () => {
+	it('says a type should be written like a type', () => {
+		expect(
+			review(`
+				type person @identity { id: ID! }
+				type Query { person: person! }
+				schema { query: Query }
+			`)
+		).toContain('UNCONVENTIONAL_NAME');
+	});
+
+	it('says a field should be written like a field', () => {
+		expect(
+			review(`
+				type Person @identity { id: ID! FullName: String! }
+				type Query { person: Person! }
+				schema { query: Query }
+			`)
+		).toContain('UNCONVENTIONAL_NAME');
+	});
+
+	it('says an enum value should be written like one', () => {
+		expect(
+			review(`
+				enum Colour { Red }
+				type Person @identity { id: ID! colour: Colour! }
+				type Query { person: Person! }
+				schema { query: Query }
+			`)
+		).toContain('UNCONVENTIONAL_NAME');
+	});
+
+	it('says an argument should be written like a field', () => {
+		expect(
+			review(`
+				type Person @identity { id: ID! name(Upper: Boolean?): String! }
+				type Query { person: Person! }
+				schema { query: Query }
+			`)
+		).toContain('UNCONVENTIONAL_NAME');
+	});
+
+	it('says a field should not repeat what asking already means', () => {
+		expect(
+			review(`
+				type Person @identity { id: ID! }
+				type Query { getPerson: Person! }
+				schema { query: Query }
+			`)
+		).toContain('REDUNDANT_NAME');
+	});
+
+	it('says it only where asking is the whole point', () => {
+		// On a root, the verb repeats the request. Further in, a field named
+		// this way is a house style rather than a redundancy.
+		expect(
+			review(`
+				type Address { city: String! }
+				type Person @identity { id: ID! getAddress: Address! }
+				type Query { person: Person! }
+				schema { query: Query }
+			`)
+		).not.toContain('REDUNDANT_NAME');
+	});
+
+	it('leaves a name that happens to start with those letters alone', () => {
+		expect(
+			review(`
+				type Person @identity { id: ID! }
+				type Query { getaway: Person! settings: Person! }
+				schema { query: Query }
+			`)
+		).not.toContain('REDUNDANT_NAME');
+	});
+
+	it('says nothing about a catalog that reads the same way throughout', () => {
+		expect(
+			review(`
+				enum Colour { RED DEEP_BLUE }
+				type Person @identity { id: ID! fullName(upper: Boolean?): String! colour: Colour! }
+				type Query { person: Person! }
+				schema { query: Query }
+			`)
+		).toEqual([]);
+	});
+});
+
+describe('a review a catalog can disagree with', () => {
+	const source = `
+		type person @identity { id: ID! }
+		type Query { getPerson: person! }
+		schema { query: Query }
+	`;
+
+	it('leaves names alone when asked to', () => {
+		const found = reviewCatalog(buildCatalog(source), { naming: false }).map(
+			(one) => one.code
+		);
+
+		expect(found).not.toContain('UNCONVENTIONAL_NAME');
+		expect(found).not.toContain('REDUNDANT_NAME');
+	});
+
+	it('still says what would actually break', () => {
+		const relational = `
+			type Author @identity { id: ID! }
+			type Post @identity { id: ID! authorId: ID! }
+			type Query { posts: [Post!]! }
+			schema { query: Query }
+		`;
+		const found = reviewCatalog(buildCatalog(relational), {
+			naming: false,
+		}).map((one) => one.code);
+
+		expect(found).toContain('UNBOUNDED_LIST');
+		expect(found).toContain('FOREIGN_KEY');
+	});
+});
