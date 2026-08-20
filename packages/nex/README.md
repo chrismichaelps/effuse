@@ -1049,7 +1049,7 @@ binary transports and multipart uploads belong to whatever serves the package.
 
 Implemented: section 2 (the language in full), section 3 (the type system and the catalog it builds), section 4 (introspection, including pipeline operators, cost, and authorization), section 5 (validation, cost, and depth limits), section 6 (execution and error policies), section 7 (the response shape), section 8 (the page shape), and the schema extensions of section 10.
 
-Beyond the specification: object identity (`@identity` and `__ref`), catalog composition (`mergeCatalogs`), and per-caller spending limits, which the specification leaves to an implementation.
+Beyond the specification: object identity (`@identity` and `__ref`), catalog composition (`mergeCatalogs`), per-caller spending limits, and catalog review (`reviewCatalog`), which the specification leaves to an implementation.
 
 Section 9 is covered for HTTP, including batching and server-sent events for live operations; binary protocols and multipart uploads are not. Federation, which the specification lists as future work, is not implemented.
 
