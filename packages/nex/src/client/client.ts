@@ -24,6 +24,7 @@
 
 import type { OperationStore } from '../api/operation-store.js';
 import { requestKey } from '../api/persisted.js';
+import { REFERENCE_FIELD } from '../catalog/index.js';
 import { print } from '../api/print.js';
 import { NexErrorCode, NexExecutionError } from '../errors/index.js';
 import type { ExecutionResult } from '../execution/index.js';
@@ -103,6 +104,23 @@ export interface NexClient {
 		input: string | DocumentNode,
 		options?: Pick<NexRequestOptions, 'operationName'>
 	) => Promise<ExecutionResult<TData> | undefined>;
+	/**
+	 * What the client knows about one object, joined across every answer that
+	 * carried it. `undefined` when it has never been told about it.
+	 */
+	readonly readObject: <
+		TObject extends Record<string, unknown> = Record<string, unknown>,
+	>(
+		reference: string
+	) => TObject | undefined;
+	/**
+	 * Forget an object, and every answer that carried it.
+	 *
+	 * A mutation that returns the object it changed is all an application needs
+	 * to hand over: whatever lists and pages held that object are asked for
+	 * again, without anything having to name the requests they came from.
+	 */
+	readonly evict: (reference: string) => void;
 	/** Everything the client holds, ready to send to a browser. */
 	readonly dehydrate: () => DehydratedNexState;
 	/** Take what a server resolved during a render. */
@@ -135,6 +153,77 @@ export const createNexClient = (options: NexClientOptions): NexClient => {
 		typeof options.batch === 'object' ? (options.batch.size ?? 25) : 25;
 	const keeps = options.cache !== false;
 	const held = new Map<string, ExecutionResult>();
+
+	/** What the client knows about each object it has been told about. */
+	const objects = new Map<string, Record<string, unknown>>();
+	/** Which answers carried each object, so forgetting one drops them all. */
+	const holders = new Map<string, Set<string>>();
+	/** Which objects each answer carried, so a dropped answer leaves nothing. */
+	const carried = new Map<string, Set<string>>();
+
+	/**
+	 * Collect every object an answer identified itself with.
+	 *
+	 * Only the objects a server marked `@identity` carry a reference, so this
+	 * walks what came back and takes them wherever they are - a root field, a
+	 * row of a list, something nested several levels down.
+	 */
+	const referencesIn = (
+		value: unknown,
+		found: Map<string, Record<string, unknown>>
+	): Map<string, Record<string, unknown>> => {
+		if (Array.isArray(value)) {
+			for (const item of value) referencesIn(item, found);
+			return found;
+		}
+
+		if (typeof value !== 'object' || value === null) return found;
+
+		const record = value as Record<string, unknown>;
+		const reference = record[REFERENCE_FIELD];
+
+		if (typeof reference === 'string') {
+			found.set(reference, { ...found.get(reference), ...record });
+		}
+
+		for (const nested of Object.values(record)) referencesIn(nested, found);
+		return found;
+	};
+
+	/**
+	 * Keep an answer, and note every object it carried.
+	 *
+	 * Every path that keeps something goes through here, so what the client
+	 * holds and what it knows about objects can never disagree.
+	 */
+	const remember = (key: string, result: ExecutionResult): void => {
+		held.set(key, result);
+
+		const found = referencesIn(result.data, new Map());
+		if (found.size === 0) return;
+
+		const mine = carried.get(key) ?? new Set<string>();
+		carried.set(key, mine);
+
+		for (const [reference, fields] of found) {
+			objects.set(reference, { ...objects.get(reference), ...fields });
+
+			const holding = holders.get(reference) ?? new Set<string>();
+			holding.add(key);
+			holders.set(reference, holding);
+			mine.add(reference);
+		}
+	};
+
+	/** Drop an answer, and stop counting it as holding anything. */
+	const forget = (key: string): void => {
+		held.delete(key);
+
+		for (const reference of carried.get(key) ?? []) {
+			holders.get(reference)?.delete(key);
+		}
+		carried.delete(key);
+	};
 	const inFlight = new Map<string, Promise<ExecutionResult>>();
 
 	const headersFor = (
@@ -477,7 +566,7 @@ export const createNexClient = (options: NexClientOptions): NexClient => {
 
 		// Only an answer worth reusing is kept: a failure should be asked again
 		// rather than remembered.
-		if (keeps && result.errors === undefined) held.set(key, result);
+		if (keeps && result.errors === undefined) remember(key, result);
 		return result;
 	};
 
@@ -505,7 +594,7 @@ export const createNexClient = (options: NexClientOptions): NexClient => {
 				},
 				settle: (result) => {
 					if (keeps && result.errors === undefined) {
-						void keyFor(input, request).then((key) => held.set(key, result));
+						void keyFor(input, request).then((key) => remember(key, result));
 					}
 					resolve(result);
 				},
@@ -588,10 +677,22 @@ export const createNexClient = (options: NexClientOptions): NexClient => {
 		}),
 		hydrate: (state) => {
 			for (const entry of state.results ?? [])
-				held.set(entry.key, entry.result);
+				remember(entry.key, entry.result);
+		},
+		readObject: (reference) => objects.get(reference) as never,
+		evict: (reference) => {
+			// Every answer that carried the object is now out of date, whatever
+			// else it also carried: an object is not a field of one request.
+			for (const key of [...(holders.get(reference) ?? [])]) forget(key);
+
+			holders.delete(reference);
+			objects.delete(reference);
 		},
 		clear: () => {
 			held.clear();
+			objects.clear();
+			holders.clear();
+			carried.clear();
 			inFlight.clear();
 		},
 	};
