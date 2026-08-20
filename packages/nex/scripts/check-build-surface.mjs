@@ -22,6 +22,7 @@ const REQUIRED = [
 	'compareCatalogs',
 	'composeServices',
 	'createLoader',
+	'createMetrics',
 	'createNexClient',
 	'loadNexState',
 	'nexMutation',

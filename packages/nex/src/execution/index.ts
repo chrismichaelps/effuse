@@ -64,6 +64,7 @@ export {
 export {
 	newTraceId,
 	notify,
+	type FieldTrace,
 	type Instrumentation,
 	type OperationTrace,
 } from './instrumentation.js';
@@ -75,3 +76,10 @@ export {
 } from './loader.js';
 export { parseRef, refFor, type ObjectReference } from './reference.js';
 export type { NexScalar, NexScalars } from './scalars.js';
+export {
+	createMetrics,
+	type Metrics,
+	type MetricsOptions,
+	type MetricsSnapshot,
+	type Tally,
+} from './metrics.js';
