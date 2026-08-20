@@ -584,6 +584,33 @@ Every disagreement is reported at once, and the result is checked for
 coherence the same way a catalog written by hand is - so a merge that produces
 something that does not hang together says so here rather than failing later.
 
+## Looking over a catalog before it ships
+
+`buildCatalog` refuses a catalog that cannot work. `reviewCatalog` looks at
+one that can, for the things that will be felt later:
+
+```ts
+for (const notice of reviewCatalog(catalog)) {
+  console.warn(`${notice.coordinate}: ${notice.message}`);
+}
+// Query.people: "Query.people" answers with every row there is;
+//   mark it @connection so a caller can page it
+```
+
+| Code                        | What it means                                                            |
+| --------------------------- | ------------------------------------------------------------------------ |
+| `UNBOUNDED_LIST`            | A list field a caller cannot page, so it answers with every row there is |
+| `UNIDENTIFIED_OBJECT`       | A type with an `id` that never says so, so a client cannot cache it      |
+| `OPAQUE_MUTATION`           | A change that answers with a scalar, so a client cannot see what it did  |
+| `UNREACHABLE_TYPE`          | A type no request can get to from any root                               |
+| `DEPRECATED_WITHOUT_REASON` | A warning that does not say what to use instead                          |
+
+None of this is style, and none of it stops a catalog from working. Each is a
+way a catalog that runs today makes something impossible later - a list that
+grows without bound, an object that can only be cached per request, a change a
+client has to guess the result of. Everything found is reported at once, named
+by coordinate, and it is advice: a catalog is free to mean it.
+
 ## Changing a catalog without breaking clients
 
 `compareCatalogs` reads two catalogs and says what each difference asks of the
@@ -1008,6 +1035,7 @@ Each capability, and what keeps it honest:
 | Evolution              | `compareCatalogs` grades a change, `findBrokenOperations` names what stops working                                        |
 | Observability          | A trace on every run, operation and field-error hooks that cannot break a run                                             |
 | Performance            | `pnpm bench:nex` with budgets over a scalar field, a large list, and a paged list                                         |
+| Catalog review         | Advice on what a working catalog makes impossible later, named by coordinate                                              |
 | Schema evolution       | Response types that still read when a catalog gains an enum value or a union member                                       |
 | Object identity        | A reference per object, opaque and unique across the graph, refused when it came from elsewhere                           |
 | Composition            | One catalog built from several, with every disagreement between sources reported                                          |
