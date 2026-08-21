@@ -22,6 +22,7 @@
  * SOFTWARE.
  */
 
+import { NexErrorCode, NexExecutionError } from '../../errors/index.js';
 import type { PipelineStageNode } from '../../language/ast/index.js';
 import { Kind } from '../../language/kinds/index.js';
 import { valueFromNode } from '../values.js';
@@ -36,8 +37,27 @@ export type PipelineResult =
 	| { readonly kind: 'rows'; readonly rows: readonly unknown[] }
 	| { readonly kind: 'page'; readonly page: Page };
 
-const readCount = (value: unknown, fallback: number): number =>
-	typeof value === 'number' && Number.isInteger(value) ? value : fallback;
+/**
+ * A count a stage was given, or the reason it cannot be used.
+ *
+ * A negative one is refused rather than passed to `slice`, where it means
+ * counting from the end: `take -1` would keep all but the last row and
+ * `skip -1` only the last, neither of which is what anyone wrote. A literal
+ * is caught before the request runs; this is where one that arrived in a
+ * variable is caught.
+ */
+const readCount = (value: unknown, fallback: number, stage: string): number => {
+	if (typeof value !== 'number' || !Number.isInteger(value)) return fallback;
+
+	if (value < 0) {
+		throw new NexExecutionError({
+			message: `"| ${stage}" needs a count of none or more, found ${String(value)}`,
+			code: NexErrorCode.VALIDATION,
+		});
+	}
+
+	return value;
+};
 
 /**
  * Run the stages a field declared, in the order they were written.
@@ -86,13 +106,17 @@ export const applyPipeline = async <TContext>(
 			case Kind.TAKE_STAGE:
 				current = current.slice(
 					0,
-					readCount(valueFromNode(stage.count, variables), current.length)
+					readCount(
+						valueFromNode(stage.count, variables),
+						current.length,
+						'take'
+					)
 				);
 				break;
 
 			case Kind.SKIP_STAGE:
 				current = current.slice(
-					readCount(valueFromNode(stage.count, variables), 0)
+					readCount(valueFromNode(stage.count, variables), 0, 'skip')
 				);
 				break;
 

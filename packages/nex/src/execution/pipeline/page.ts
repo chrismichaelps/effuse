@@ -39,6 +39,27 @@ export interface Page {
 	readonly totalCount: number;
 }
 
+/**
+ * How many rows a page was asked for, or the reason it cannot be that many.
+ *
+ * A negative size widens the window rather than narrowing it, so a caller
+ * asking for fewer than none was answered with everything - whatever the
+ * server had set as a limit. A literal is refused before the request runs;
+ * one that arrived in a variable is refused here.
+ */
+const readSize = (value: unknown, which: string): number | undefined => {
+	// Read before narrowing: a negative one used to fall through as "no size
+	// given", which is the widest answer there is rather than the narrowest.
+	if (typeof value === 'number' && Number.isInteger(value) && value < 0) {
+		throw new NexExecutionError({
+			message: `"| page ${which}" needs a count of none or more, found ${String(value)}`,
+			code: NexErrorCode.VALIDATION,
+		});
+	}
+
+	return readInt(value);
+};
+
 const readInt = (value: unknown): number | undefined =>
 	typeof value === 'number' && Number.isInteger(value) && value >= 0
 		? value
@@ -101,10 +122,10 @@ export const paginate = (
 		end = Math.max(readOffset(before, 'before', path), start);
 	}
 
-	const first = readInt(args.get('first'));
+	const first = readSize(args.get('first'), 'first');
 	if (first !== undefined) end = Math.min(end, start + first);
 
-	const last = readInt(args.get('last'));
+	const last = readSize(args.get('last'), 'last');
 	if (last !== undefined) start = Math.max(start, end - last);
 
 	const items = rows.slice(start, end);

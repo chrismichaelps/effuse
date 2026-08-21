@@ -71,6 +71,17 @@ const checkCount = (
 			`${subject} needs an Int count, found ${displayValue(value)}`,
 			node
 		);
+		return;
+	}
+
+	// A negative count is nonsense, and each stage made a different kind of
+	// nonsense of it: taking all but the last, keeping only the last, or
+	// answering with everything whatever the server allows.
+	if (value.kind === Kind.INT && Number(value.value) < 0) {
+		context.report(
+			`${subject} needs a count of none or more, found ${displayValue(value)}`,
+			node
+		);
 	}
 };
 
