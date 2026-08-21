@@ -35,6 +35,14 @@ import {
 	parseValue,
 } from './values.js';
 
+/** What someone writes when they mean to pass a stage something. */
+const ARGUMENT_LIKE: ReadonlySet<TokenKind> = new Set([
+	TokenKind.NAME,
+	TokenKind.INT,
+	TokenKind.FLOAT,
+	TokenKind.STRING,
+]);
+
 export const parsePipelineStage = (cursor: ParserCursor): PipelineStageNode => {
 	const startToken = cursor.expect(TokenKind.PIPE);
 	const nameToken = cursor.peek();
@@ -45,9 +53,29 @@ export const parsePipelineStage = (cursor: ParserCursor): PipelineStageNode => {
 		);
 	}
 
+	/**
+	 * Say what a stage needed, rather than what the next token was not.
+	 *
+	 * A stage missing its argument runs into whatever follows - usually the
+	 * selection set - and the parser's own account of that names the bracket
+	 * rather than the stage, which is the thing that was actually wrong.
+	 */
+	const needs = (what: string): never => {
+		const found = cursor.peek();
+		return cursor.fail(
+			`"| ${String(nameToken.value)}" ${what}, found ${cursor.describe(found)}`,
+			found
+		);
+	};
+
+	const wanting = (kind: TokenKind, what: string): void => {
+		if (!cursor.at(kind)) needs(what);
+	};
+
 	switch (nameToken.value) {
 		case KEYWORD.FILTER:
 			cursor.advance();
+			if (cursor.at(TokenKind.BRACE_L)) needs('needs something to test');
 			return {
 				kind: Kind.FILTER_STAGE,
 				condition: parseExpression(cursor),
@@ -55,6 +83,7 @@ export const parsePipelineStage = (cursor: ParserCursor): PipelineStageNode => {
 			};
 		case KEYWORD.SORT: {
 			cursor.advance();
+			wanting(TokenKind.NAME, 'needs a field to sort by');
 			const field = parseFieldPath(cursor);
 			const direction: SortDirection = cursor.atKeyword(KEYWORD.DESC)
 				? 'desc'
@@ -70,6 +99,7 @@ export const parsePipelineStage = (cursor: ParserCursor): PipelineStageNode => {
 		}
 		case KEYWORD.TAKE:
 			cursor.advance();
+			if (cursor.at(TokenKind.BRACE_L)) needs('needs a count');
 			return {
 				kind: Kind.TAKE_STAGE,
 				count: parseValue(cursor),
@@ -77,6 +107,7 @@ export const parsePipelineStage = (cursor: ParserCursor): PipelineStageNode => {
 			};
 		case KEYWORD.SKIP:
 			cursor.advance();
+			if (cursor.at(TokenKind.BRACE_L)) needs('needs a count');
 			return {
 				kind: Kind.SKIP_STAGE,
 				count: parseValue(cursor),
@@ -91,6 +122,14 @@ export const parsePipelineStage = (cursor: ParserCursor): PipelineStageNode => {
 			};
 		case KEYWORD.UNIQUE:
 			cursor.advance();
+
+			// A stage may be followed by the next one, by a selection set, or
+			// by the end of the field - a list of scalars has no selection.
+			// What it may not be followed by is something written as an
+			// argument, which it does not take and which would otherwise be
+			// left to derail the rest of the parse.
+			if (ARGUMENT_LIKE.has(cursor.peek().kind)) needs('takes nothing');
+
 			return { kind: Kind.UNIQUE_STAGE, loc: cursor.locate(startToken) };
 		default: {
 			const name = parseName(cursor);
