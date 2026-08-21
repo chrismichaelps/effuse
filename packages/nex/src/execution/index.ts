@@ -89,3 +89,4 @@ export type {
 	NexDirectives,
 } from './directives.js';
 export { selectionUnder, type SelectionContext } from './selection.js';
+export { alreadyNarrowed } from './narrowed.js';

@@ -12,6 +12,7 @@ const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const entry = pathToFileURL(resolve(packageRoot, 'dist/index.js')).href;
 
 const REQUIRED = [
+	'alreadyNarrowed',
 	'analyzeRequest',
 	'applyPatch',
 	'buildCatalog',

@@ -25,6 +25,7 @@
 import type { Catalog } from '../catalog/index.js';
 import { NexErrorCode, NexExecutionError } from '../errors/index.js';
 import { selectionUnder } from './selection.js';
+import { printStage } from '../language/printer/pipeline.js';
 import { namedTypeOf } from '../validation/type-utils.js';
 import type {
 	FieldNode,
@@ -211,6 +212,7 @@ export const executeLive = async function* <TContext>(
 		variables: plan.variables,
 		catalog: plan.catalog,
 		...(plan.signal === undefined ? {} : { signal: plan.signal }),
+		pipeline: (selected.field.pipeline ?? []).map(printStage),
 		// What a request asked for is a property of the request, known before
 		// anything resolves - so a source is told it, and can ask its own
 		// source for those fields rather than for everything.

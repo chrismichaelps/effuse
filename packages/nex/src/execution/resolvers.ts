@@ -39,6 +39,14 @@ export interface SelectedField {
 	readonly alias: string;
 	/** What it was asked with, already read. */
 	readonly arguments: Readonly<Record<string, unknown>>;
+	/**
+	 * The pipeline stages written on it, as they were written.
+	 *
+	 * Source rather than structure: this is here so a resolver standing in
+	 * front of something else can pass on the narrowing it was asked for
+	 * rather than fetch everything and narrow afterwards.
+	 */
+	readonly pipeline: readonly string[];
 	/** What was asked for below it. */
 	readonly fields: readonly SelectedField[];
 }
@@ -56,6 +64,8 @@ export interface ResolverInfo {
 	readonly variables: Readonly<Record<string, unknown>>;
 	/** The catalog the request was checked against. */
 	readonly catalog: Catalog;
+	/** The pipeline stages written on this field, as they were written. */
+	readonly pipeline: readonly string[];
 	/**
 	 * Calls the run off: the caller went away, or a deadline passed.
 	 *

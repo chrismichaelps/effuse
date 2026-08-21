@@ -37,6 +37,8 @@ import { BUILT_IN_SCALARS, REFERENCE_FIELD } from '../catalog/index.js';
 import { refFor } from './reference.js';
 import type { NexScalars } from './scalars.js';
 import { selectionUnder } from './selection.js';
+import { readNarrowed } from './narrowed.js';
+import { printStage } from '../language/printer/pipeline.js';
 import type { NexDirectives } from './directives.js';
 import {
 	isCompositeName,
@@ -646,6 +648,7 @@ export const executeOperation = async <TContext>(
 			variables: plan.variables,
 			catalog: plan.catalog,
 			...(plan.signal === undefined ? {} : { signal: plan.signal }),
+			pipeline: (field.pipeline ?? []).map(printStage),
 			selection: () =>
 				selectionUnder(
 					plan,
@@ -777,6 +780,45 @@ export const executeOperation = async <TContext>(
 				path,
 				childrenSerial
 			);
+		}
+
+		// A resolver given the stages may have pushed them down to whatever it
+		// read from. Narrowing what is already narrowed would answer with a
+		// page of a page, so it says so and this leaves it alone.
+		const handled = readNarrowed(resolved);
+		if (handled.narrowed) {
+			const already = handled.value;
+
+			// What came back is the finished shape of the field, which for a
+			// paged one is the page itself: its rows are still completed the
+			// way any rows are, and the rest of the page is what it says.
+			if (Array.isArray(already)) {
+				return completeValue(
+					already,
+					definition.type,
+					fields,
+					path,
+					childrenSerial
+				);
+			}
+
+			const page = already as {
+				readonly items?: unknown;
+				readonly pageInfo?: unknown;
+				readonly totalCount?: unknown;
+			};
+
+			return {
+				items: await completeValue(
+					Array.isArray(page.items) ? page.items : [],
+					definition.type,
+					fields,
+					addPath(path, 'items'),
+					childrenSerial
+				),
+				pageInfo: page.pageInfo,
+				totalCount: page.totalCount,
+			};
 		}
 
 		const rows = Array.isArray(resolved) ? resolved : [];

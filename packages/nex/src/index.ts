@@ -127,6 +127,7 @@ export {
 export {
 	ErrorPolicy,
 	LiveDelivery,
+	alreadyNarrowed,
 	createLoader,
 	createMetrics,
 	type FieldTrace,

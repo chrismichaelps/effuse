@@ -27,6 +27,7 @@ import type {
 	FragmentDefinitionNode,
 	SelectionSetNode,
 } from '../language/ast/index.js';
+import { printStage } from '../language/printer/pipeline.js';
 import { namedTypeOf } from '../validation/type-utils.js';
 import { collectFields, mergeSelectionSets } from './collect.js';
 import type { SelectedField } from './resolvers.js';
@@ -84,6 +85,7 @@ export const selectionUnder = (
 		selected.push({
 			name,
 			alias: responseKey,
+			pipeline: (node.pipeline ?? []).map(printStage),
 			arguments:
 				declared === undefined
 					? NOTHING
