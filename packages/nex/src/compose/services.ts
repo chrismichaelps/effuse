@@ -23,6 +23,7 @@
  */
 
 import { mergeCatalogs } from '../catalog/merge.js';
+import { alreadyNarrowed } from '../execution/narrowed.js';
 import type { Catalog } from '../catalog/index.js';
 import { NexErrorCode, NexExecutionError } from '../errors/index.js';
 import type {
@@ -125,6 +126,13 @@ const renderArguments = (args: Readonly<Record<string, unknown>>): string => {
 		.join(', ')})`;
 };
 
+/**
+ * Write pipeline stages back out, so a service is asked for what the caller
+ * asked for rather than for everything and narrowed afterwards.
+ */
+const renderPipeline = (stages: readonly string[]): string =>
+	stages.length === 0 ? '' : ` | ${stages.join(' | ')}`;
+
 const renderSelection = (fields: readonly SelectedField[]): string => {
 	if (fields.length === 0) return '';
 
@@ -142,9 +150,9 @@ const renderSelection = (fields: readonly SelectedField[]): string => {
 		}
 		seen.add(field.name);
 
-		return `${field.name}${renderArguments(field.arguments)}${renderSelection(
-			field.fields
-		)}`;
+		return `${field.name}${renderArguments(field.arguments)}${renderPipeline(
+			field.pipeline
+		)}${renderSelection(field.fields)}`;
 	});
 
 	return ` { ${written.join(' ')} }`;
@@ -249,13 +257,20 @@ export const composeServices = <TContext = unknown>(
 								args: Readonly<Record<string, unknown>>,
 								_context: unknown,
 								info: Forwarding
-							) =>
-								bringHome(
+							) => {
+								const answer = bringHome(
 									await sendTo(service, operation, fieldName, args, info),
 									field.type,
 									catalog,
 									scalars
-								)
+								);
+
+								// The stages went out with the request, so what came
+								// back is already narrowed.
+								return info.pipeline.length === 0
+									? answer
+									: alreadyNarrowed(answer);
+							}
 				) as never;
 			}
 		}
@@ -396,6 +411,7 @@ const bringHome = (
 /** What forwarding needs from the run it is part of. */
 interface Forwarding {
 	readonly selection: () => readonly SelectedField[];
+	readonly pipeline: readonly string[];
 	readonly signal?: AbortSignal | undefined;
 }
 
@@ -417,9 +433,9 @@ const watchOn = async function* (
 	const watch = service.subscribe;
 	if (watch === undefined) return;
 
-	const query = `live { ${fieldName}${renderArguments(args)}${renderSelection(
-		info.selection()
-	)} }`;
+	const query = `live { ${fieldName}${renderArguments(args)}${renderPipeline(
+		info.pipeline
+	)}${renderSelection(info.selection())} }`;
 
 	const frames = await watch({
 		query,
@@ -437,14 +453,11 @@ const sendTo = async (
 	operation: OperationType,
 	fieldName: string,
 	args: Readonly<Record<string, unknown>>,
-	info: {
-		readonly selection: () => readonly SelectedField[];
-		readonly signal?: AbortSignal | undefined;
-	}
+	info: Forwarding
 ): Promise<unknown> => {
-	const query = `${operation} { ${fieldName}${renderArguments(args)}${renderSelection(
-		info.selection()
-	)} }`;
+	const query = `${operation} { ${fieldName}${renderArguments(
+		args
+	)}${renderPipeline(info.pipeline)}${renderSelection(info.selection())} }`;
 
 	const deadline = deadlineFor(info.signal, service.timeoutMs);
 

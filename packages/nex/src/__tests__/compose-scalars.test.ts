@@ -69,10 +69,19 @@ describe('a scalar that crossed a service boundary', () => {
 	});
 
 	it('is not written twice on every row of a list', async () => {
-		// The pipeline is applied here rather than there, so what a service
-		// sends is the rows themselves.
+		// The pipeline went out with the request, so the service answers with
+		// the page rather than the rows.
 		const result = await run('{ items | page first: 2 { price } }', {
-			items: [{ price: '1.00' }, { price: '2.00' }],
+			items: {
+				items: [{ price: '1.00' }, { price: '2.00' }],
+				pageInfo: {
+					hasNextPage: false,
+					hasPreviousPage: false,
+					startCursor: null,
+					endCursor: null,
+				},
+				totalCount: 2,
+			},
 		});
 
 		expect(result.errors).toBeUndefined();
