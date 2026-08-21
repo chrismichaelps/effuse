@@ -283,3 +283,93 @@ describe('what composing refuses', () => {
 		).toThrow(/More than one service answers "Query\.person"/);
 	});
 });
+
+describe('a service that does not answer', () => {
+	const slowService = (delayMs: number) => {
+		const request: NexServiceRequest = async () => {
+			await new Promise((resolve) => setTimeout(resolve, delayMs));
+			return {
+				data: { people: { items: [], pageInfo: {}, totalCount: 0 } },
+				extensions: { cost: 0 },
+			} as never;
+		};
+		return { catalog: peopleCatalog, request };
+	};
+
+	it('gives up on one that takes longer than it was given', async () => {
+		const { catalog, resolvers } = composeServices({
+			people: { ...slowService(5_000), timeoutMs: 20 },
+		});
+
+		const result = await execute({
+			request: '{ people | page first: 1 { name } }',
+			catalog,
+			resolvers,
+		});
+
+		expect(result.errors?.[0]?.message).toMatch(/did not answer within/);
+	});
+
+	it('waits when it was given no deadline', async () => {
+		const { catalog, resolvers } = composeServices({
+			people: slowService(10),
+		});
+
+		const result = await execute({
+			request: '{ people | page first: 1 { name } }',
+			catalog,
+			resolvers,
+		});
+
+		expect(result.errors).toBeUndefined();
+	});
+
+	it('tells a service the run was called off', async () => {
+		const controller = new AbortController();
+		let seen: AbortSignal | undefined;
+
+		const request: NexServiceRequest = async (payload) => {
+			seen = payload.signal;
+			return { data: { person: null }, extensions: { cost: 0 } } as never;
+		};
+
+		const { catalog, resolvers } = composeServices({
+			people: { catalog: peopleCatalog, request },
+		});
+
+		await execute({
+			request: '{ person(id: "1") { name } }',
+			catalog,
+			resolvers,
+			signal: controller.signal,
+		});
+
+		expect(seen).toBe(controller.signal);
+	});
+
+	it('calls a service off when its own deadline passes', async () => {
+		let aborted = false;
+
+		const request: NexServiceRequest = (payload) =>
+			new Promise((_resolve, reject) => {
+				payload.signal?.addEventListener('abort', () => {
+					aborted = true;
+					reject(new Error('called off'));
+				});
+			});
+
+		const { catalog, resolvers } = composeServices({
+			people: { catalog: peopleCatalog, request, timeoutMs: 20 },
+		});
+
+		await execute({
+			request: '{ person(id: "1") { name } }',
+			catalog,
+			resolvers,
+		});
+
+		// Giving up on the answer is not the same as stopping the work: a
+		// service left running is a request nobody will ever read.
+		expect(aborted).toBe(true);
+	});
+});

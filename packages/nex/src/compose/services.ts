@@ -35,6 +35,14 @@ import { valueToNode } from '../language/value-to-node.js';
 export type NexServiceRequest = (payload: {
 	readonly query: string;
 	readonly variables?: Readonly<Record<string, unknown>> | undefined;
+	/**
+	 * Calls this one request off.
+	 *
+	 * Set when the run itself was called off, or when the service was given a
+	 * deadline and it passed. Hand it to whatever actually does the sending,
+	 * or the work carries on for an answer nobody will read.
+	 */
+	readonly signal?: AbortSignal | undefined;
 }) => Promise<ExecutionResult> | ExecutionResult;
 
 /** One service, and the part of the graph it serves. */
@@ -43,6 +51,14 @@ export interface NexService {
 	readonly catalog: Catalog;
 	/** How to reach it. Anything that takes a request and answers. */
 	readonly request: NexServiceRequest;
+	/**
+	 * How long to wait for it, in milliseconds.
+	 *
+	 * A gateway with no deadline is one slow service away from holding every
+	 * request that touches it. Left out, this waits as long as the service
+	 * takes, which is right only when something else is imposing the limit.
+	 */
+	readonly timeoutMs?: number | undefined;
 }
 
 /** What composing produced: one graph, and how to answer from it. */
@@ -174,7 +190,10 @@ export const composeServices = <TContext = unknown>(
 					_source: unknown,
 					args: Readonly<Record<string, unknown>>,
 					_context: unknown,
-					info: { readonly selection: () => readonly SelectedField[] }
+					info: {
+						readonly selection: () => readonly SelectedField[];
+						readonly signal?: AbortSignal | undefined;
+					}
 				) => sendTo(service, operation, fieldName, args, info)) as never;
 			}
 		}
@@ -183,27 +202,112 @@ export const composeServices = <TContext = unknown>(
 	return { catalog, resolvers: resolvers as Resolvers<TContext> };
 };
 
+/**
+ * One signal for the run being called off and the deadline running out.
+ *
+ * Written out rather than reaching for `AbortSignal.any` and
+ * `AbortSignal.timeout`, so this behaves the same on a runtime that predates
+ * them - the same reason cursors carry their own base64.
+ */
+const deadlineFor = (
+	upstream: AbortSignal | undefined,
+	timeoutMs: number | undefined
+): { readonly signal: AbortSignal | undefined; readonly done: () => void } => {
+	if (timeoutMs === undefined)
+		return { signal: upstream, done: () => undefined };
+
+	const controller = new AbortController();
+	const timer = setTimeout(() => {
+		controller.abort(new Error(`did not answer within ${String(timeoutMs)}ms`));
+	}, timeoutMs);
+
+	const passOn = (): void => {
+		controller.abort(upstream?.reason);
+	};
+
+	if (upstream !== undefined) {
+		if (upstream.aborted) passOn();
+		else upstream.addEventListener('abort', passOn, { once: true });
+	}
+
+	return {
+		signal: controller.signal,
+		done: () => {
+			clearTimeout(timer);
+			upstream?.removeEventListener('abort', passOn);
+		},
+	};
+};
+
+/** A promise that ends as soon as the signal says to, and never otherwise. */
+const refusedWhenCalledOff = (signal: AbortSignal): Promise<never> =>
+	new Promise<never>((_resolve, reject) => {
+		if (signal.aborted) {
+			reject(signal.reason ?? new Error('called off'));
+			return;
+		}
+
+		signal.addEventListener(
+			'abort',
+			() => reject(signal.reason ?? new Error('called off')),
+			{ once: true }
+		);
+	});
+
 /** Ask one service for one field, exactly as it was asked of us. */
 const sendTo = async (
 	service: NexService,
 	operation: OperationType,
 	fieldName: string,
 	args: Readonly<Record<string, unknown>>,
-	info: { readonly selection: () => readonly SelectedField[] }
+	info: {
+		readonly selection: () => readonly SelectedField[];
+		readonly signal?: AbortSignal | undefined;
+	}
 ): Promise<unknown> => {
 	const query = `${operation} { ${fieldName}${renderArguments(args)}${renderSelection(
 		info.selection()
 	)} }`;
 
+	const deadline = deadlineFor(info.signal, service.timeoutMs);
+
 	let result: ExecutionResult;
 	try {
-		result = await service.request({ query });
+		const answering = Promise.resolve(
+			service.request({
+				query,
+				...(deadline.signal === undefined ? {} : { signal: deadline.signal }),
+			})
+		);
+
+		// A deadline that only works when the service cooperates is not a
+		// deadline: one that ignores the signal must still not hold the
+		// request, so waiting for it ends whether or not it does.
+		result =
+			deadline.signal === undefined
+				? await answering
+				: await Promise.race([
+						answering,
+						refusedWhenCalledOff(deadline.signal),
+					]);
 	} catch (cause) {
+		// A service that was called off says so through whatever it threw; the
+		// reason the deadline gave is the one worth reporting.
+		const reason =
+			deadline.signal?.aborted === true ? deadline.signal.reason : undefined;
+
 		throw new NexExecutionError({
-			message: cause instanceof Error ? cause.message : String(cause),
+			message:
+				reason instanceof Error
+					? `"${fieldName}" ${reason.message}`
+					: cause instanceof Error
+						? cause.message
+						: String(cause),
 			code: NexErrorCode.INTERNAL,
 			cause,
 		});
+	} finally {
+		deadline.done();
 	}
 
 	return answerOf(result, fieldName);
