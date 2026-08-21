@@ -721,6 +721,22 @@ was listed first, and a field asked for twice under different names is
 reported rather than answered once: what comes back is keyed by field name,
 and no single object can carry both.
 
+A service that can stream serves live operations too. Give it a `subscribe`
+alongside `request` and its live fields are watched the same way its query
+fields are answered, with what the caller asked for forwarded and the run
+being called off passed straight through:
+
+```ts
+const { catalog, resolvers, sources } = composeServices({
+  ticks: { catalog: ticksCatalog, request: send, subscribe: watch },
+});
+
+const handler = createNexHandler({ catalog, resolvers, sources });
+```
+
+A service without one contributes no live fields at all, rather than fields
+that look served and never answer.
+
 Fields that reach across services - a type owned here holding a field owned
 there - are not resolved for you. Give the composed graph a resolver of its
 own for those, and `parseRef` says which object is wanted.
