@@ -44,3 +44,8 @@ export {
 	type NexMutationBinding,
 	type NexQueryBinding,
 } from './query-binding.js';
+export {
+	nexLive,
+	type NexLiveListener,
+	type NexLiveSource,
+} from './live-binding.js';
