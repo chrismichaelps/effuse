@@ -643,6 +643,16 @@ reads as that everywhere the catalog names `Json`, in results, variables, and
 input types alike. The scalars the language does define cannot be renamed this
 way, the same way a catalog cannot redefine them.
 
+A selection on an interface or a union becomes one variant per branch. The
+variants are discriminated by `__typename` when the request asked for it, and
+not otherwise: a type naming a key the response will not carry is a type that
+lies about it.
+
+Two branches may answer under one name with different kinds of value - a union
+is worth reading precisely because its members differ - but only where the
+request selects `__typename`, so a reader can tell which it got. Without one
+that request is refused, rather than answering something nobody can interpret.
+
 Enums and variants are written to survive a catalog that grows. A server may
 add an enum value or a union member at any time, and a client built before
 that still has to read what comes back, so what a response may hold stays
