@@ -515,7 +515,9 @@ export const handleProtocolRequest = async <TContext>(
 			},
 			stream: toEventStream(
 				subscribe({
-					request: first.query,
+					// What the store holds when the client sent a name, rather
+					// than the empty query a request without one carries.
+					request: resolvedFirst.query,
 					catalog: options.catalog,
 					...(resumeFrom === undefined ? {} : { resumeFrom }),
 					...(options.scalars === undefined
@@ -528,12 +530,12 @@ export const handleProtocolRequest = async <TContext>(
 					...(options.resolvers === undefined
 						? {}
 						: { resolvers: options.resolvers }),
-					...(first.variables === undefined
+					...(resolvedFirst.variables === undefined
 						? {}
-						: { variables: first.variables }),
-					...(first.operationName === undefined
+						: { variables: resolvedFirst.variables }),
+					...(resolvedFirst.operationName === undefined
 						? {}
-						: { operationName: first.operationName }),
+						: { operationName: resolvedFirst.operationName }),
 					...(options.context === undefined
 						? {}
 						: { context: options.context }),
