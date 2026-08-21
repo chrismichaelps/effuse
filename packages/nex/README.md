@@ -929,6 +929,23 @@ answers from a cache, or refuses outright, is written. It is handed what the
 directive itself was written with, the value the field is resolving from, and
 everything a resolver is told.
 
+A caller may write one too, where the catalog allows it:
+
+```nex
+{ person { name @upper } }
+```
+
+The same `onField` serves both, so a server writes one implementation rather
+than one per place a directive can appear. What the schema says wraps what the
+caller asked for, so a rule the server put on a field sees the final value and
+cannot be got around by writing a directive in the request - a masked field
+stays masked whatever a caller asks for around it.
+
+A directive is only ever reachable where the catalog declared it, so a server
+may implement one and still allow it on field definitions only. `@skip` and
+`@include` are never handed over: whether a field is here at all was settled
+before anything resolved, and asking again would be asking twice.
+
 Several on one field run outermost first, each wrapping the rest. A directive
 that throws fails the field it wraps, reported at that field's path. A field
 carrying no directive the server gave meaning to reaches exactly the code it
