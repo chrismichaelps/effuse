@@ -1172,6 +1172,28 @@ problems, and a cache has one slot for each, so neither is thrown away.
 `nexMutation` does the same for a change, taking its variables from wherever
 it is triggered.
 
+A live operation is the other half of that. `nexLive` turns one into
+something several things can watch, sharing a single connection:
+
+```ts
+const feed = nexLive(nex, 'live Feed { postAdded { title } }');
+
+const stop = feed.subscribe((snapshot) => {
+  queryClient.setQueryData(nexQueryKey(FEED), snapshot.data);
+});
+```
+
+A client's `subscribe` is one stream for one caller, so ten components
+watching one operation would open ten connections and answer the same events
+ten times. This opens when the first listener arrives and closes when the last
+one leaves, and hands a late arrival what it already has rather than making it
+wait for the next event. `subscribe`, `snapshot`, and a way to stop is the
+shape every reactive layer already reads - a signal, a store,
+`useSyncExternalStore` - so nothing here depends on which one is in use.
+
+A listener that throws is its own problem: one broken component does not stop
+the others being told.
+
 Nex's own cache is what answers when nex owns it instead - a render, a script,
 anywhere there is no component runtime to hold state for you.
 
