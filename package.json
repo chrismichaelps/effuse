@@ -34,11 +34,12 @@
 		"lint:packages": "node scripts/run-with-integration-app-lock.mjs -- pnpm -r lint",
 		"prepublishOnly": "pnpm build && pnpm typecheck",
 		"pretest": "node scripts/check-node-version.mjs",
+		"pretypecheck": "node scripts/check-type-declarations.mjs",
 		"release": "semantic-release",
 		"test": "node scripts/run-workspace-tests.mjs",
 		"test:scripts": "node --test scripts/__tests__/*.test.mjs",
 		"test:workspace": "node scripts/run-workspace-tests.mjs",
-		"typecheck": "node scripts/check-type-declarations.mjs && node scripts/run-with-integration-app-lock.mjs -- pnpm -r typecheck",
+		"typecheck": "node scripts/run-with-integration-app-lock.mjs -- pnpm -r typecheck",
 		"update:deps": "sh scripts/update-deps.sh"
 	},
 	"engines": {
