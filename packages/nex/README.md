@@ -63,7 +63,37 @@ if (!result.success) {
 | `NexCatalogError`, `NexValidationError` | The same shape for catalog and request problems, with a `path`.        |
 | AST node types                          | `DocumentNode`, `FieldNode`, `PipelineStageNode`, and the rest.        |
 
+Constants and enums the rest of the surface is described in terms of:
+
+| Export               | What it names                                                        |
+| -------------------- | -------------------------------------------------------------------- |
+| `NexErrorCode`       | What kind of problem an error is, for a client that branches on it.  |
+| `ErrorPolicy`        | What a run does with a field that fails: `partial` or `abort`.       |
+| `LiveDelivery`       | Whether a live event carries a whole snapshot or only what changed.  |
+| `ChangeSeverity`     | How a catalog change grades: breaking, risky, or safe.               |
+| `ReviewCode`         | What a catalog review found, one code per kind of finding.           |
+| `DirectiveLocation`  | Where a directive may be written.                                    |
+| `BUILT_IN_SCALARS`   | The scalars the language defines, usable without declaring them.     |
+| `PIPELINE_OPERATORS` | Every pipeline stage, described for a tool that has only the server. |
+| `OPTIONAL_FEATURES`  | Which optional parts of the specification a server implements.       |
+| `NEX_STATE_KEY`      | Where a render leaves its answers for the browser to pick up.        |
+
+And the pieces a server or client uses to build its own transport:
+
+| Export                              | What it does                                                            |
+| ----------------------------------- | ----------------------------------------------------------------------- |
+| `toEventStream(snapshots, options)` | Frame live snapshots as server-sent events, ids and keep-alive and all. |
+| `readEventStream(response)`         | Read those frames back, on the other side.                              |
+| `introspectionFromCatalog(catalog)` | Describe a catalog the way a server answers `__schema`.                 |
+| `valueToNode(value)`                | Turn a plain value into the AST node that would have been written.      |
+
 The public API is plain TypeScript: no Effect types are exposed, and a build-time check (`scripts/check-public-types.mjs`) fails the build if any leak into the published declarations.
+
+Two more checks run with it. `check-build-surface.mjs` imports the built entry
+and runs a real request, so an export that stopped existing fails the build
+rather than a release. `check-docs-surface.mjs` fails if any public export is
+missing from this README - documentation drifts silently, and nothing else
+notices.
 
 ## Pipelines
 

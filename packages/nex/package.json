@@ -32,7 +32,7 @@
 		"src"
 	],
 	"scripts": {
-		"build": "tsup && node scripts/check-public-types.mjs && node scripts/check-build-surface.mjs",
+		"build": "tsup && node scripts/check-public-types.mjs && node scripts/check-build-surface.mjs && node scripts/check-docs-surface.mjs",
 		"dev": "tsup --watch",
 		"lint": "eslint src",
 		"typecheck": "tsc --noEmit",
