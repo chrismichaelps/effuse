@@ -108,6 +108,17 @@ export const generateOperationTypes = (
 		const definition = catalog.getType(typeName);
 
 		if (definition?.kind === Kind.INPUT_OBJECT_TYPE_DEFINITION) {
+			// A choice is one shape per way of making it, so a caller passing
+			// two of them is wrong where it is written.
+			if (catalog.isChoiceInput(typeName)) {
+				const ways = (definition.fields ?? []).map(
+					(field) =>
+						`{ ${field.name.value}: ${inputType(field.type, indent).replace(/ \| null$/u, '')} }`
+				);
+
+				return `(${ways.join(' | ')}) | null`;
+			}
+
 			const fields = (definition.fields ?? []).map((field) => {
 				const optional =
 					field.type.kind !== Kind.NON_NULL_TYPE ||

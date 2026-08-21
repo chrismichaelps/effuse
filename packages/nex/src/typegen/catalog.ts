@@ -57,6 +57,26 @@ const describe = (definition: {
 		: `/** ${definition.description.value} */\n`;
 
 /** Write the TypeScript for everything a catalog holds. */
+/**
+ * A choice written as one shape per way of making it.
+ *
+ * Every field optional would say a caller may pass all of them or none, which
+ * is the thing a choice exists to rule out - so what comes out is a union,
+ * and passing two is wrong where it is written rather than where it is read.
+ */
+const choiceType = (
+	fields: readonly InputValueDefinitionNode[],
+	writeType: (type: TypeNode) => string
+): string =>
+	fields
+		.map(
+			(field) =>
+				// The field is optional so that the others may be chosen
+				// instead; choosing this one means giving it a value.
+				`\n\t| { ${field.name.value}: ${writeType(field.type).replace(/ \| null$/u, '')} }`
+		)
+		.join('');
+
 export const generateCatalogTypes = (
 	catalog: Catalog,
 	options: { readonly scalars?: ScalarTypes | undefined } = {}
@@ -124,10 +144,15 @@ export const generateCatalogTypes = (
 
 			case Kind.INPUT_OBJECT_TYPE_DEFINITION:
 				blocks.push(
-					`${describe(definition)}export type ${name} = ${objectType(
-						(definition.fields ?? []).map(inputField),
-						0
-					)};`
+					catalog.isChoiceInput(name)
+						? `${describe(definition)}export type ${name} =${choiceType(
+								definition.fields ?? [],
+								write
+							)};`
+						: `${describe(definition)}export type ${name} = ${objectType(
+								(definition.fields ?? []).map(inputField),
+								0
+							)};`
 				);
 				break;
 

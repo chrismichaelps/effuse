@@ -42,6 +42,14 @@ import {
 } from './directive-locations.js';
 
 const IDENTITY_DIRECTIVE = 'identity';
+const CHOICE_DIRECTIVE = 'choice';
+
+const hasDirective = (
+	directives:
+		| readonly { readonly name: { readonly value: string } }[]
+		| undefined,
+	name: string
+): boolean => (directives ?? []).some((one) => one.name.value === name);
 
 /** Where each kind of type definition counts as, for a directive. */
 const TYPE_LOCATIONS: Readonly<Record<string, DirectiveLocation>> = {
@@ -564,6 +572,44 @@ export const checkCoherence = (
 					field.directives,
 					DirectiveLocation.INPUT_FIELD_DEFINITION,
 					`"${name}.${field.name.value}"`
+				);
+			}
+		}
+	}
+
+	/**
+	 * A choice has to be one a caller can actually make.
+	 *
+	 * A field that must always be given is not one among several; a default
+	 * makes the choice for the caller every time; and one option is not a
+	 * choice at all. Each of these would leave a type that reads like a choice
+	 * and cannot behave as one.
+	 */
+	for (const [name, definition] of index.types) {
+		if (definition.kind !== Kind.INPUT_OBJECT_TYPE_DEFINITION) continue;
+		if (!hasDirective(definition.directives, CHOICE_DIRECTIVE)) continue;
+
+		const fields = definition.fields ?? [];
+
+		if (fields.length < 2) {
+			report(
+				`"${name}" offers a choice of ${String(fields.length)}; a choice needs at least two`,
+				definition.loc
+			);
+		}
+
+		for (const field of fields) {
+			if (field.type.kind === Kind.NON_NULL_TYPE) {
+				report(
+					`"${name}.${field.name.value}" must be optional: a field of a choice that is always given leaves nothing to choose`,
+					field.loc
+				);
+			}
+
+			if (field.defaultValue !== undefined) {
+				report(
+					`"${name}.${field.name.value}" cannot carry a default: it would make the choice before the caller does`,
+					field.loc
 				);
 			}
 		}

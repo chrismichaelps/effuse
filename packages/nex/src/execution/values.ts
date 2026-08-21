@@ -141,6 +141,25 @@ export const coerceInputValue = (
 		}
 
 		const source = value as Record<string, unknown>;
+
+		// A choice is one of what it offers, and writing a field at all is
+		// choosing it: leaving a field out and giving it nothing are different
+		// things, so a null written here counts as the choice it was.
+		if (catalog.isChoiceInput(typeName)) {
+			const chosen = (definition.fields ?? [])
+				.map((field) => field.name.value)
+				.filter((name) => name in source);
+
+			if (chosen.length !== 1) {
+				return {
+					errors: [
+						chosen.length === 0
+							? `${subject} of type "${typeName}" needs exactly one of its fields, and was given none`
+							: `${subject} of type "${typeName}" needs exactly one of its fields, and was given ${chosen.length} (${chosen.join(', ')})`,
+					],
+				};
+			}
+		}
 		// Built without a prototype: an input object carries whatever keys the
 		// client sent, and `__proto__` is one a client may send.
 		const fields = Object.create(null) as Record<string, unknown>;

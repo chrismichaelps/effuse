@@ -43,6 +43,7 @@ const CONVENTIONAL_ROOT_NAMES: Readonly<Record<OperationType, string>> = {
 
 const CONNECTION_DIRECTIVE = 'connection';
 const IDENTITY_DIRECTIVE = 'identity';
+const CHOICE_DIRECTIVE = 'choice';
 
 /** The field a type identifies itself by when it does not name one. */
 export const DEFAULT_IDENTITY_FIELD = 'id';
@@ -86,6 +87,14 @@ export interface Catalog {
 	readonly getPossibleTypes: (
 		name: string
 	) => readonly ObjectTypeDefinitionNode[];
+	/**
+	 * Whether an input type takes exactly one of the fields it offers.
+	 *
+	 * A type marked `@choice` is a way of saying one thing among several -
+	 * look someone up by id, or by email, or by handle - rather than a bag
+	 * where every combination has to mean something.
+	 */
+	readonly isChoiceInput: (typeName: string) => boolean;
 	/** A directive definition, by name without the `@`. */
 	readonly getDirective: (name: string) => DirectiveDefinitionNode | undefined;
 }
@@ -220,6 +229,15 @@ export const createCatalog = (index: CatalogIndex): Catalog => {
 				(directive) => directive.name.value === CONNECTION_DIRECTIVE
 			),
 		identityField,
+		isChoiceInput: (typeName) => {
+			const definition = getType(typeName);
+			return (
+				definition?.kind === Kind.INPUT_OBJECT_TYPE_DEFINITION &&
+				(definition.directives ?? []).some(
+					(one) => one.name.value === CHOICE_DIRECTIVE
+				)
+			);
+		},
 		getPossibleTypes,
 		getDirective: (name) => index.directives.get(name),
 	};
