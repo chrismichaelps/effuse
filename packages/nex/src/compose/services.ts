@@ -25,7 +25,11 @@
 import { mergeCatalogs } from '../catalog/merge.js';
 import type { Catalog } from '../catalog/index.js';
 import { NexErrorCode, NexExecutionError } from '../errors/index.js';
-import type { ExecutionResult, Resolvers } from '../execution/index.js';
+import type {
+	ExecutionResult,
+	LiveSources,
+	Resolvers,
+} from '../execution/index.js';
 import type { SelectedField } from '../execution/resolvers.js';
 import type { OperationType } from '../language/kinds/index.js';
 import { printValue } from '../language/printer/index.js';
@@ -52,6 +56,22 @@ export interface NexService {
 	/** How to reach it. Anything that takes a request and answers. */
 	readonly request: NexServiceRequest;
 	/**
+	 * How to watch it, when it serves live operations.
+	 *
+	 * A live field resolves through a source rather than a resolver, and a
+	 * source is a stream: a service that cannot stream contributes no live
+	 * fields at all, rather than one that looks served and never answers.
+	 */
+	readonly subscribe?:
+		| ((payload: {
+				readonly query: string;
+				readonly variables?: Readonly<Record<string, unknown>> | undefined;
+				readonly signal?: AbortSignal | undefined;
+		  }) =>
+				| AsyncIterable<ExecutionResult>
+				| Promise<AsyncIterable<ExecutionResult>>)
+		| undefined;
+	/**
 	 * How long to wait for it, in milliseconds.
 	 *
 	 * A gateway with no deadline is one slow service away from holding every
@@ -67,6 +87,8 @@ export interface ComposedServices<TContext = unknown> {
 	readonly catalog: Catalog;
 	/** Resolvers that send each root field to whichever service owns it. */
 	readonly resolvers: Resolvers<TContext>;
+	/** Live sources that watch whichever service owns each live field. */
+	readonly sources: LiveSources<TContext>;
 }
 
 const OPERATIONS: readonly OperationType[] = ['query', 'mutation', 'live'];
@@ -159,6 +181,10 @@ export const composeServices = <TContext = unknown>(
 		string,
 		Record<string, (...args: never[]) => unknown>
 	> = {};
+	const sources: Record<
+		string,
+		Record<string, (...args: never[]) => unknown>
+	> = {};
 
 	for (const service of entries) {
 		for (const operation of OPERATIONS) {
@@ -171,7 +197,12 @@ export const composeServices = <TContext = unknown>(
 			const answering = catalog.getRootType(operation)?.name.value;
 			if (answering === undefined) continue;
 
-			const owned = (resolvers[answering] ??= {});
+			// A live field is watched rather than resolved, so it belongs to the
+			// sources; a service that cannot stream contributes none.
+			const live = operation === 'live';
+			if (live && service.subscribe === undefined) continue;
+
+			const owned = ((live ? sources : resolvers)[answering] ??= {});
 
 			for (const field of root.fields ?? []) {
 				const fieldName = field.name.value;
@@ -186,20 +217,29 @@ export const composeServices = <TContext = unknown>(
 					});
 				}
 
-				owned[fieldName] = ((
-					_source: unknown,
-					args: Readonly<Record<string, unknown>>,
-					_context: unknown,
-					info: {
-						readonly selection: () => readonly SelectedField[];
-						readonly signal?: AbortSignal | undefined;
-					}
-				) => sendTo(service, operation, fieldName, args, info)) as never;
+				owned[fieldName] = (
+					live
+						? (
+								args: Readonly<Record<string, unknown>>,
+								_context: unknown,
+								info: Forwarding
+							) => watchOn(service, fieldName, args, info)
+						: (
+								_source: unknown,
+								args: Readonly<Record<string, unknown>>,
+								_context: unknown,
+								info: Forwarding
+							) => sendTo(service, operation, fieldName, args, info)
+				) as never;
 			}
 		}
 	}
 
-	return { catalog, resolvers: resolvers as Resolvers<TContext> };
+	return {
+		catalog,
+		resolvers: resolvers as Resolvers<TContext>,
+		sources: sources as LiveSources<TContext>,
+	};
 };
 
 /**
@@ -253,6 +293,43 @@ const refusedWhenCalledOff = (signal: AbortSignal): Promise<never> =>
 			{ once: true }
 		);
 	});
+
+/** What forwarding needs from the run it is part of. */
+interface Forwarding {
+	readonly selection: () => readonly SelectedField[];
+	readonly signal?: AbortSignal | undefined;
+}
+
+/**
+ * Watch one service for one live field, exactly as we were asked to.
+ *
+ * A live source hands back the value of the field it feeds, so each snapshot
+ * the service sends is unwrapped to that field before it is passed on. A
+ * snapshot carrying problems is thrown, which the run above reports the way
+ * it reports any other failed field.
+ */
+const watchOn = async function* (
+	service: NexService,
+	fieldName: string,
+	args: Readonly<Record<string, unknown>>,
+	info: Forwarding
+): AsyncGenerator<unknown> {
+	const watch = service.subscribe;
+	if (watch === undefined) return;
+
+	const query = `live { ${fieldName}${renderArguments(args)}${renderSelection(
+		info.selection()
+	)} }`;
+
+	const frames = await watch({
+		query,
+		...(info.signal === undefined ? {} : { signal: info.signal }),
+	});
+
+	for await (const frame of frames) {
+		yield answerOf(frame, fieldName);
+	}
+};
 
 /** Ask one service for one field, exactly as it was asked of us. */
 const sendTo = async (
