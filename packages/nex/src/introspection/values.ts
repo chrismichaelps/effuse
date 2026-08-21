@@ -51,6 +51,20 @@ const CONNECTION = 'connection';
 const COST = 'cost';
 const AUTH = 'auth';
 
+/**
+ * The directives this shape already carries in its own right.
+ *
+ * Each of these has a field of its own on `__Field` or `__Type`, so listing
+ * it among the written directives too would have a rebuild apply it twice.
+ */
+const MODELLED_DIRECTIVES: ReadonlySet<string> = new Set([
+	CONNECTION,
+	COST,
+	AUTH,
+	'deprecated',
+	'identity',
+]);
+
 /** A value the executor reads with its ordinary field resolution. */
 type Introspected = Record<string, unknown>;
 
@@ -138,6 +152,30 @@ const inputValue = (
 	...deprecation(definition),
 });
 
+/**
+ * The directives a catalog declared, as written on something.
+ *
+ * The ones this shape already carries in its own right - what a field costs,
+ * what it requires, whether it pages, whether it is deprecated, what a type
+ * identifies by - are left out, or rebuilding would write each of them twice.
+ * What is left is whatever the schema author declared themselves, which
+ * nothing else here would carry.
+ */
+const appliedDirectives = (
+	directives: readonly DirectiveNode[] | undefined
+): Introspected[] =>
+	(directives ?? [])
+		.filter((one) => !MODELLED_DIRECTIVES.has(one.name.value))
+		.map((one) => ({
+			__typename: '__AppliedDirective',
+			name: one.name.value,
+			args: (one.arguments ?? []).map((argument) => ({
+				__typename: '__AppliedArgument',
+				name: argument.name.value,
+				value: printValue(argument.value),
+			})),
+		}));
+
 const fieldValue = (
 	catalog: Catalog,
 	definition: FieldDefinitionNode
@@ -161,6 +199,7 @@ const fieldValue = (
 			directiveNamed(definition.directives, CONNECTION) !== undefined,
 		cost: typeof cost === 'number' ? cost : null,
 		auth: typeof auth === 'string' ? auth : null,
+		directives: appliedDirectives(definition.directives),
 		...deprecation(definition),
 	};
 };
@@ -184,9 +223,13 @@ export const namedTypeValue = (
 	const definition = catalog.getType(name);
 
 	if (definition === undefined) {
-		return BUILT_IN_SCALARS.has(name)
-			? { __typename: '__Type', kind: 'SCALAR', name, description: null }
-			: { __typename: '__Type', kind: 'SCALAR', name, description: null };
+		return {
+			__typename: '__Type',
+			kind: 'SCALAR',
+			name,
+			description: null,
+			directives: [],
+		};
 	}
 
 	return typeValue(catalog, definition);
@@ -211,6 +254,7 @@ export const typeValue = (
 		// What a client caches an object under is only useful if it can be
 		// found without being told out of band.
 		identityField: catalog.identityField(definition.name.value) ?? null,
+		directives: appliedDirectives(definition.directives),
 	};
 
 	if (

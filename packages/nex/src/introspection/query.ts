@@ -47,6 +47,7 @@ export const INTROSPECTION_QUERY = `
 					isConnection
 					cost
 					auth
+					directives { name args { name value } }
 					args {
 						name
 						description
@@ -69,6 +70,7 @@ export const INTROSPECTION_QUERY = `
 					deprecationReason
 				}
 				identityField
+				directives { name args { name value } }
 				possibleTypes { name }
 			}
 			directives {

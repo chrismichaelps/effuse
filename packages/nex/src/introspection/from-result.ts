@@ -133,6 +133,48 @@ const directive = (
 			}),
 });
 
+/**
+ * The directives a catalog declared, read back as they were written.
+ *
+ * Arguments travelled as printed source, so they are parsed back rather than
+ * rebuilt from a shape - which is what lets a directive take a value of any
+ * kind without this having to know about it.
+ */
+const writtenDirectives = (value: unknown): readonly DirectiveNode[] => {
+	if (!Array.isArray(value)) return [];
+
+	const written: DirectiveNode[] = [];
+
+	for (const entry of value) {
+		if (typeof entry !== 'object' || entry === null) continue;
+
+		const { name, args } = entry as { name?: unknown; args?: unknown };
+		if (typeof name !== 'string' || name === '') continue;
+
+		const written_: { name: string; value: ValueNode }[] = [];
+
+		for (const argument of Array.isArray(args) ? args : []) {
+			if (typeof argument !== 'object' || argument === null) continue;
+
+			const read = argument as { name?: unknown; value?: unknown };
+			if (typeof read.name !== 'string' || typeof read.value !== 'string') {
+				continue;
+			}
+
+			try {
+				written_.push({ name: read.name, value: parseValueSource(read.value) });
+			} catch {
+				// A value this package did not hand out is not one it can read
+				// back, and a directive is not worth failing a rebuild over.
+			}
+		}
+
+		written.push(directive(name, written_));
+	}
+
+	return written;
+};
+
 /** The directives that carry what a field knows beyond its shape. */
 const fieldDirectives = (
 	field: Record<string, unknown>
@@ -158,6 +200,7 @@ const fieldDirectives = (
 	}
 
 	directives.push(...deprecation(field));
+	directives.push(...writtenDirectives(field.directives));
 
 	return directives;
 };
@@ -287,7 +330,13 @@ const typeDefinition = (raw: unknown): DefinitionNode | undefined => {
 						? Kind.OBJECT_TYPE_DEFINITION
 						: Kind.INTERFACE_TYPE_DEFINITION,
 				...common,
-				...(identity.length === 0 ? {} : { directives: identity }),
+				...((): { directives?: readonly DirectiveNode[] } => {
+					const written = [
+						...identity,
+						...writtenDirectives(record.directives),
+					];
+					return written.length === 0 ? {} : { directives: written };
+				})(),
 				...(interfaces.length === 0 ? {} : { interfaces }),
 				...(fields.length === 0 ? {} : { fields }),
 			};

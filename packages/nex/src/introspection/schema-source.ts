@@ -63,6 +63,8 @@ export const INTROSPECTION_SOURCE = `
 		ofType: __Type
 		"The field this type identifies by, when it says it has one."
 		identityField: String
+		"Directives the catalog declared, as they were written on this type."
+		directives: [__AppliedDirective!]!
 	}
 
 	enum __TypeKind {
@@ -90,6 +92,20 @@ export const INTROSPECTION_SOURCE = `
 		cost: Int
 		"What the field requires of the caller, when it says so."
 		auth: String
+		"Directives the catalog declared, as they were written on this field."
+		directives: [__AppliedDirective!]!
+	}
+
+	"A directive as it was written on something, rather than as declared."
+	type __AppliedDirective {
+		name: String!
+		args: [__AppliedArgument!]!
+	}
+
+	"One argument of a written directive, with its value as source."
+	type __AppliedArgument {
+		name: String!
+		value: String!
 	}
 
 	type __InputValue {
