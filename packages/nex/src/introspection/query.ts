@@ -68,6 +68,7 @@ export const INTROSPECTION_QUERY = `
 					isDeprecated
 					deprecationReason
 				}
+				identityField
 				possibleTypes { name }
 			}
 			directives {

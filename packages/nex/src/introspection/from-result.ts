@@ -22,6 +22,7 @@
  * SOFTWARE.
  */
 
+import { DEFAULT_IDENTITY_FIELD } from '../catalog/index.js';
 import { NexCatalogError } from '../errors/index.js';
 import type {
 	ArgumentNode,
@@ -98,6 +99,20 @@ const typeFromRef = (ref: TypeRef | null | undefined): TypeNode | undefined => {
 				: undefined;
 	}
 };
+
+/**
+ * `@identity`, written back the way the type declared it.
+ *
+ * The argument is left off when the field is the one a type identifies by
+ * without saying, so what comes back out reads the way it went in.
+ */
+const identityDirective = (field: string): DirectiveNode =>
+	directive(
+		'identity',
+		field === DEFAULT_IDENTITY_FIELD
+			? []
+			: [{ name: 'field', value: { kind: Kind.STRING, value: field } }]
+	);
 
 const directive = (
 	directiveName: string,
@@ -259,12 +274,20 @@ const typeDefinition = (raw: unknown): DefinitionNode | undefined => {
 				.filter((field): field is FieldDefinitionNode => field !== undefined);
 			const interfaces = namedTypes(record.interfaces);
 
+			// A type that said what identifies it has to still say so here, or
+			// a catalog rebuilt from a server loses what a client caches by.
+			const identity =
+				record.kind === 'OBJECT' && typeof record.identityField === 'string'
+					? [identityDirective(record.identityField)]
+					: [];
+
 			return {
 				kind:
 					record.kind === 'OBJECT'
 						? Kind.OBJECT_TYPE_DEFINITION
 						: Kind.INTERFACE_TYPE_DEFINITION,
 				...common,
+				...(identity.length === 0 ? {} : { directives: identity }),
 				...(interfaces.length === 0 ? {} : { interfaces }),
 				...(fields.length === 0 ? {} : { fields }),
 			};

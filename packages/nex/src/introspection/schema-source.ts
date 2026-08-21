@@ -61,6 +61,8 @@ export const INTROSPECTION_SOURCE = `
 		enumValues(includeDeprecated: Boolean = false): [__EnumValue!]
 		inputFields: [__InputValue!]
 		ofType: __Type
+		"The field this type identifies by, when it says it has one."
+		identityField: String
 	}
 
 	enum __TypeKind {

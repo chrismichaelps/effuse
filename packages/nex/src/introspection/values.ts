@@ -208,6 +208,9 @@ export const typeValue = (
 		possibleTypes: null,
 		enumValues: null,
 		inputFields: null,
+		// What a client caches an object under is only useful if it can be
+		// found without being told out of band.
+		identityField: catalog.identityField(definition.name.value) ?? null,
 	};
 
 	if (
