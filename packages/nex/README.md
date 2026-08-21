@@ -1625,7 +1625,7 @@ Each capability, and what keeps it honest:
 | Types                  | Context and response shape carried as parameters; `generateTypes` and `generateCatalogTypes` write both ends              |
 | Evolution              | `compareCatalogs` grades a change, `findBrokenOperations` names what stops working                                        |
 | Observability          | A trace on every run, per-field timing, and `createMetrics` to read the numbers back                                      |
-| Performance            | `pnpm bench:nex` with budgets over a scalar field, a large list, and a paged list                                         |
+| Performance            | `pnpm bench:nex` with budgets over execution, paging, loaders, and directives                                             |
 | Catalog review         | Advice on what a working catalog makes impossible later, named by coordinate                                              |
 | Schema evolution       | Response types that still read when a catalog gains an enum value or a union member                                       |
 | Scalars                | A server says how it writes and reads each type the language does not define                                              |

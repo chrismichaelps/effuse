@@ -19,6 +19,24 @@
 			"medianNs": 1500000,
 			"p95Ns": 3000000,
 			"note": "The same 2000 rows sorted and cut to 25. Only the page is completed, so this stays far below the whole list."
+		},
+		"nex.loaded-list": {
+			"medianNs": 15000000,
+			"p95Ns": 25000000,
+			"note": "The same 2000 rows behind a loader. Measured near 5.0ms median on an idle machine - below list-of-relations at 6.4ms, because 2000 asks are gathered into one call rather than awaited apart."
+		},
+		"nex.directive-absent": {
+			"medianNs": 400000,
+			"p95Ns": 1500000,
+			"note": "A field carrying no directive, on a run that has directives configured. The baseline for what wrapping costs."
+		},
+		"nex.directive-wrapped": {
+			"medianNs": 400000,
+			"p95Ns": 1500000,
+			"relativeTo": "nex.directive-absent",
+			"maxMedianRatio": 2,
+			"minBaselineNs": 5000,
+			"note": "The same request with one directive around the field. Both sit near 45us on an idle machine and the medians match, so this holds the claim that a directive costs the field it wraps and nothing else. The baseline is well above the 5us floor, so the ratio here is measuring the code rather than the machine."
 		}
 	}
 }
