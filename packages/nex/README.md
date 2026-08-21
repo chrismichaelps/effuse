@@ -913,6 +913,14 @@ before removing anything.
 
 ## Cost and depth
 
+`Int` is a whole number small enough to still mean itself - anything past that
+is refused, whether a caller sent it, wrote it into a request, or a server
+answered with it. The alternative is answering with a different number than
+the one that was asked about and saying nothing about having done so, which is
+worse than refusing it. The reference implementations of this idea stop at
+what fits in 32 bits; there is no reason to stop that early here, so the limit
+is where numbers actually stop being exact.
+
 `analyzeRequest` prices a request before it runs. A field costs what its `@cost(value:)` says and one unit otherwise, plus everything it selects; a list multiplies its subtree by the rows it is expected to yield, read from `| page first:` or `| take`, and assumed to be 20 when the request leaves it open.
 
 ```ts
