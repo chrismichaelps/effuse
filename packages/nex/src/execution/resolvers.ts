@@ -57,6 +57,17 @@ export interface ResolverInfo {
 	/** The catalog the request was checked against. */
 	readonly catalog: Catalog;
 	/**
+	 * The last event a client saw, when it is coming back to a live operation.
+	 *
+	 * A source knows what it is a stream of and this package does not, so
+	 * nothing is replayed for you: this says where the client got to, and the
+	 * source decides what that means - skipping what was already sent,
+	 * catching up from a log, or starting fresh because it cannot.
+	 *
+	 * Only ever set on a live operation, and only when the client said so.
+	 */
+	readonly resumeFrom?: number | undefined;
+	/**
 	 * What the request asked for below this field.
 	 *
 	 * A resolver that reads rows can select the columns that were asked for

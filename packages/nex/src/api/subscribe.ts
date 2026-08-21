@@ -59,6 +59,13 @@ export interface SubscribeOptions<TContext = unknown> extends Omit<
 	 * a client applies with `applyPatch`.
 	 */
 	readonly delivery?: LiveDelivery | undefined;
+	/**
+	 * The last event a returning client saw.
+	 *
+	 * Handed to the live source, which decides what to do about it: nothing is
+	 * replayed here, since only the source knows what it is a stream of.
+	 */
+	readonly resumeFrom?: number | undefined;
 }
 
 const fragmentsOf = (
@@ -191,6 +198,9 @@ export const subscribe = async function* <
 		{
 			catalog: options.catalog,
 			traceId,
+			...(options.resumeFrom === undefined
+				? {}
+				: { resumeFrom: options.resumeFrom }),
 			...(options.scalars === undefined ? {} : { scalars: options.scalars }),
 			...(options.directives === undefined
 				? {}

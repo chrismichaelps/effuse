@@ -104,6 +104,14 @@ export interface HttpHandlerOptions<TContext = unknown> {
 	readonly scalars?: NexScalars | undefined;
 	/** What the directives the catalog declares actually do. */
 	readonly directives?: NexDirectives<TContext> | undefined;
+	/**
+	 * How long a live connection may go quiet before saying it is still there.
+	 *
+	 * Left out, nothing is sent on an idle connection - which is right behind
+	 * something that keeps its own connections open, and wrong behind a proxy
+	 * that closes what it has seen nothing on.
+	 */
+	readonly keepAliveMs?: number | undefined;
 	/** What the caller may spend over time, charged what each request costs. */
 	readonly budget?: SpendingLimit | undefined;
 	/** How many requests one batch may carry. Defaults to 10. */
@@ -375,6 +383,20 @@ const runOne = async <TContext>(
 };
 
 /**
+ * Where a returning client got to, if it said.
+ *
+ * Anything that is not a number is a client sending something this server did
+ * not hand out, and is treated as a fresh start rather than refused: a live
+ * operation that will not open is worse than one that begins again.
+ */
+const resumePoint = (header: string | undefined): number | undefined => {
+	if (header === undefined) return undefined;
+
+	const read = Number(header);
+	return Number.isSafeInteger(read) && read >= 0 ? read : undefined;
+};
+
+/**
  * Answer a caller that cannot read what this request would produce.
  *
  * The body still goes out as JSON, since a caller has to be able to read why
@@ -480,6 +502,10 @@ export const handleProtocolRequest = async <TContext>(
 			}
 		}
 
+		// A client that dropped and came back says what it last saw, and the
+		// numbering carries on from there rather than starting over.
+		const resumeFrom = resumePoint(request.headers['last-event-id']);
+
 		return {
 			status: 200,
 			headers: {
@@ -491,6 +517,7 @@ export const handleProtocolRequest = async <TContext>(
 				subscribe({
 					request: first.query,
 					catalog: options.catalog,
+					...(resumeFrom === undefined ? {} : { resumeFrom }),
 					...(options.scalars === undefined
 						? {}
 						: { scalars: options.scalars }),
@@ -521,7 +548,13 @@ export const handleProtocolRequest = async <TContext>(
 						? {}
 						: { authorize: options.authorize }),
 					...(options.signal === undefined ? {} : { signal: options.signal }),
-				})
+				}),
+				{
+					...(resumeFrom === undefined ? {} : { startingId: resumeFrom }),
+					...(options.keepAliveMs === undefined
+						? {}
+						: { keepAliveMs: options.keepAliveMs }),
+				}
 			),
 		};
 	}

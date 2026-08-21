@@ -273,7 +273,10 @@ describe('live operations over the wire', () => {
 		for await (const frame of response.stream ?? []) frames.push(frame);
 
 		expect(frames).toHaveLength(3);
-		expect(frames[0]).toMatch(/^event: next\ndata: \{"data":\{"ticks":1\}/);
+		// Each frame carries the number a returning client would send back.
+		expect(frames[0]).toMatch(
+			/^id: 1\nevent: next\ndata: \{"data":\{"ticks":1\}/
+		);
 		expect(frames.at(-1)).toBe('event: complete\ndata: {}\n\n');
 	});
 

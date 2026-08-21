@@ -211,6 +211,7 @@ export const executeLive = async function* <TContext>(
 		// A live source is opened before anything of the field is resolved, so
 		// what was asked for below it is not yet worked out here.
 		selection: () => [],
+		...(plan.resumeFrom === undefined ? {} : { resumeFrom: plan.resumeFrom }),
 	};
 
 	const args = coerceArgumentValues(

@@ -146,6 +146,8 @@ export interface ExecutionPlan<TContext = unknown> {
 	readonly instrumentation?: Instrumentation | undefined;
 	/** The trace this run belongs to, carried onto everything it reports. */
 	readonly traceId?: string | undefined;
+	/** Where a returning client got to, for a live source to pick up from. */
+	readonly resumeFrom?: number | undefined;
 	/** How the server writes and reads the scalars it names. */
 	readonly scalars?: NexScalars | undefined;
 	/** What the directives the catalog declares actually do. */
