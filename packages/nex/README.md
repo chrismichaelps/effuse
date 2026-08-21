@@ -272,6 +272,23 @@ starting fresh because it cannot. A resume point this server did not hand out
 is treated as a fresh start rather than refused, since a live operation that
 will not open is worse than one that begins again.
 
+The client is the other half. Tell it to come back and it reads the number off
+each event, notices a stream that ended without the server saying it was
+finished, and asks again from where it got to:
+
+```ts
+const nex = createNexClient({
+  endpoint: '/nex',
+  live: { retries: 5, backoffMs: 1_000 },
+});
+```
+
+Nothing is retried unless you ask: coming back is a decision about the shape
+of the data, and a stream nobody meant to resume should not be resumed for
+them. A stream the server finished is left alone - an ending is not a drop -
+and a caller that has gone away is never waited on through a backoff it will
+never see.
+
 A connection with nothing coming down it looks exactly like one that has died,
 and a proxy will close it. `keepAliveMs` says how long to leave it before
 sending a comment, which costs one line and every client ignores:
