@@ -39,7 +39,13 @@ export {
 	type TypeNameResolver,
 	type TypeResolvers,
 } from './resolvers.js';
-export { ErrorPolicy, LiveDelivery, type ExecutionResult } from './result.js';
+export {
+	ErrorPolicy,
+	isErrorPolicy,
+	LiveDelivery,
+	unknownErrorPolicy,
+	type ExecutionResult,
+} from './result.js';
 export { applyPatch, diffValues, type PatchOperation } from './patch.js';
 export {
 	executeLive,

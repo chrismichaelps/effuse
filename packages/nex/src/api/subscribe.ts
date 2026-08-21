@@ -31,6 +31,8 @@ import type {
 import { Kind } from '../language/kinds/index.js';
 import {
 	ErrorPolicy,
+	isErrorPolicy,
+	unknownErrorPolicy,
 	LiveDelivery,
 	newTraceId,
 	notify,
@@ -150,6 +152,18 @@ export const subscribe = async function* <
 			};
 			return;
 		}
+	}
+
+	if (
+		options.errorPolicy !== undefined &&
+		!isErrorPolicy(options.errorPolicy)
+	) {
+		yield refusal(
+			unknownErrorPolicy(options.errorPolicy),
+			format,
+			NexErrorCode.VALIDATION
+		);
+		return;
 	}
 
 	const operation = selectOperation(document, options.operationName);

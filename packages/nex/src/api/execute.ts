@@ -33,6 +33,8 @@ import type {
 import { Kind } from '../language/kinds/index.js';
 import {
 	ErrorPolicy,
+	isErrorPolicy,
+	unknownErrorPolicy,
 	newTraceId,
 	notify,
 	type Authorize,
@@ -274,6 +276,25 @@ export const execute = async <
 				false
 			);
 		}
+	}
+
+	if (
+		options.errorPolicy !== undefined &&
+		!isErrorPolicy(options.errorPolicy)
+	) {
+		return finish(
+			refuse(
+				[
+					new NexExecutionError({
+						message: unknownErrorPolicy(options.errorPolicy),
+						code: NexErrorCode.VALIDATION,
+					}),
+				],
+				format,
+				traceId
+			),
+			false
+		);
 	}
 
 	const operation = selectOperation(document, options.operationName);

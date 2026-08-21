@@ -37,6 +37,24 @@ export const ErrorPolicy = {
 
 export type ErrorPolicy = (typeof ErrorPolicy)[keyof typeof ErrorPolicy];
 
+const ERROR_POLICIES: readonly string[] = Object.values(ErrorPolicy);
+
+/**
+ * Whether a value is one of the ways of handling a field that failed.
+ *
+ * Taking an unrecognised one as the default would hand a server that asked to
+ * say nothing about failures the policy that says everything about them -
+ * which is the one thing it asked not to happen. A value that came from a
+ * configuration file rather than from this package is exactly how that
+ * happens, so it is checked rather than assumed.
+ */
+export const isErrorPolicy = (value: unknown): value is ErrorPolicy =>
+	typeof value === 'string' && ERROR_POLICIES.includes(value);
+
+/** What to say about a policy nobody defined. */
+export const unknownErrorPolicy = (value: unknown): string =>
+	`"${String(value)}" is not a way of handling a field that failed; there is ${ERROR_POLICIES.join(', ')}`;
+
 /** How a live operation sends what it produced, per specification section 7. */
 export const LiveDelivery = {
 	/** Every event carries the whole response. */
