@@ -785,9 +785,34 @@ const handler = createNexHandler({ catalog, resolvers, sources });
 A service without one contributes no live fields at all, rather than fields
 that look served and never answer.
 
-Fields that reach across services - a type owned here holding a field owned
-there - are not resolved for you. Give the composed graph a resolver of its
-own for those, and `parseRef` says which object is wanted.
+Fields that reach across services are joined for you. A type described here
+and held there is the ordinary shape of such a graph - a post knows its author
+exists and nothing about what one is - so a service answers that field with a
+reference, and whoever owns the type turns it into an object:
+
+```ts
+composeServices({
+  people: {
+    catalog: peopleCatalog,
+    request: sendToPeople,
+    resolveRef: (reference, selection) => {
+      const { type, id } = parseRef(reference) ?? {};
+      return load(
+        type,
+        id,
+        selection.map((field) => field.name)
+      );
+    },
+  },
+  posts: { catalog: postsCatalog, request: sendToPosts },
+});
+```
+
+`resolveRef` is given what the request wanted of the object, so it can ask for
+that and no more. A service that answered with the object itself is left
+alone, which is what keeps a service holding both sides from making a round
+trip to itself. A reference nobody can resolve reaches the field as it is and
+fails there, rather than quietly becoming nothing.
 
 ## Changing a catalog without breaking clients
 
