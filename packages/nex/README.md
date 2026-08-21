@@ -712,6 +712,43 @@ A budget fills back up steadily rather than resetting on a schedule, so a
 caller who spends carefully is never made to wait for a window to turn over.
 It holds one number and one timestamp per caller, and no timers.
 
+## Directives a server gives meaning to
+
+A catalog can declare a directive, and this package checks it is used where it
+is allowed. That on its own does nothing, and a schema author marking a field
+reasonably expects something to happen:
+
+```nex
+directive @upper on FIELD_DEFINITION
+type Person { name: String! @upper }
+```
+
+```ts
+const directives = {
+  upper: {
+    onField: async (next) => String(await next()).toUpperCase(),
+  },
+};
+
+const handler = createNexHandler({ catalog, resolvers, directives });
+```
+
+`next` produces what the field would have answered with, so a directive may
+change it, replace it, or never call `next` at all - which is how one that
+answers from a cache, or refuses outright, is written. It is handed what the
+directive itself was written with, the value the field is resolving from, and
+everything a resolver is told.
+
+Several on one field run outermost first, each wrapping the rest. A directive
+that throws fails the field it wraps, reported at that field's path. A field
+carrying no directive the server gave meaning to reaches exactly the code it
+did before any of this existed.
+
+A directive a catalog writes has to be one it defines, and has to be written
+where that definition allows. A name nothing defines is refused when the
+catalog is built rather than quietly carrying no meaning - which is what makes
+`@depreacted` a build error rather than a warning nobody ever reads.
+
 ## Scalars a server defines
 
 The language defines `Int`, `Float`, `String`, `Boolean`, `ID`, and
@@ -801,6 +838,15 @@ an opaque token from somewhere else, or a value a client made up is refused
 rather than looked up. `refFor(type, id)` builds the same reference, for a
 server that wants to hand one out itself. A catalog naming a field the type
 does not declare is refused when it is built, not when a row reaches it.
+
+A client can find out which types have one without being told: introspection
+names the field each type identifies by, and a catalog rebuilt from a server
+keeps it, so going out through introspection and back in does not quietly drop
+what a client caches by.
+
+```nex
+{ __type(name: "Person") { identityField } }
+```
 
 ## Fetching only what was asked for
 
