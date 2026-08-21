@@ -721,6 +721,23 @@ was listed first, and a field asked for twice under different names is
 reported rather than answered once: what comes back is keyed by field name,
 and no single object can carry both.
 
+Tell the graph what its scalars are, or a value that crossed a service
+boundary is written twice - once by the service that owns it, once again on
+the way out of here:
+
+```ts
+composeServices({ shop: shopService }, { scalars });
+```
+
+What a service sends has already been written by its own scalars, so it is
+read back into the form this graph holds values in, and written once.
+
+A pipeline is applied here rather than there: a paged field asks its service
+for the rows and pages them at this end. That is correct and it is not free -
+a service is asked for every row a field can answer with, so put the
+narrowing a service can do into its own arguments rather than relying on a
+pipeline to do it after the fact.
+
 A service that can stream serves live operations too. Give it a `subscribe`
 alongside `request` and its live fields are watched the same way its query
 fields are answered, with what the caller asked for forwarded and the run
