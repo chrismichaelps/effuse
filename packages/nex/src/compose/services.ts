@@ -34,6 +34,7 @@ import type {
 } from '../execution/index.js';
 import type { SelectedField } from '../execution/resolvers.js';
 import { Kind, type OperationType } from '../language/kinds/index.js';
+import { namedTypeOf } from '../validation/type-utils.js';
 import type { TypeNode } from '../language/ast/index.js';
 import { printValue } from '../language/printer/index.js';
 import { valueToNode } from '../language/value-to-node.js';
@@ -58,6 +59,24 @@ export interface NexService {
 	readonly catalog: Catalog;
 	/** How to reach it. Anything that takes a request and answers. */
 	readonly request: NexServiceRequest;
+	/**
+	 * Fetch one object of a type this service owns, by its reference.
+	 *
+	 * A type described here and held there is the ordinary shape of a graph
+	 * made of services: a post knows its author exists and nothing about what
+	 * one is. When a service answers such a field with a reference rather than
+	 * an object, whoever owns the type is asked to turn it into one, and this
+	 * is how.
+	 *
+	 * It is given what the request wanted of the object, so it can ask for
+	 * that and no more. Answering `null` says the reference points at nothing.
+	 */
+	readonly resolveRef?:
+		| ((
+				reference: string,
+				selection: readonly SelectedField[]
+		  ) => Promise<unknown> | unknown)
+		| undefined;
 	/**
 	 * How to watch it, when it serves live operations.
 	 *
@@ -202,6 +221,16 @@ export const composeServices = <TContext = unknown>(
 	}
 
 	const catalog = mergeCatalogs(...entries.map((service) => service.catalog));
+
+	/** Which service will turn a reference to each type into an object. */
+	const ownerOf = new Map<string, NexService>();
+	for (const service of entries) {
+		if (service.resolveRef === undefined) continue;
+		for (const name of service.catalog.types.keys()) {
+			if (!ownerOf.has(name)) ownerOf.set(name, service);
+		}
+	}
+
 	const resolvers: Record<
 		string,
 		Record<string, (...args: never[]) => unknown>
@@ -276,11 +305,71 @@ export const composeServices = <TContext = unknown>(
 		}
 	}
 
+	// A field whose type another service owns is answered by that service,
+	// given the reference the first one left in its place.
+	for (const [typeName, definition] of catalog.types) {
+		if (definition.kind !== Kind.OBJECT_TYPE_DEFINITION) continue;
+
+		for (const field of definition.fields ?? []) {
+			const owner = ownerOf.get(namedTypeOf(field.type));
+			if (owner === undefined) continue;
+
+			// Whether the service answering this field also owns the type it
+			// returns needs no deciding here: one that answered with the
+			// object is left alone by the join itself.
+
+			const owned = (resolvers[typeName] ??= {});
+
+			// A root field already has a resolver that forwards it, and its
+			// answer is what needs joining - so this wraps that rather than
+			// replacing it, and reads the source directly when there is none.
+			const forwarding = owned[field.name.value];
+			const fieldName = field.name.value;
+
+			owned[fieldName] = (async (
+				source: unknown,
+				args: never,
+				context: never,
+				info: { readonly selection: () => readonly SelectedField[] }
+			) => {
+				const value =
+					forwarding === undefined
+						? readField(source, fieldName)
+						: await forwarding(source as never, args, context, info as never);
+
+				return join(owner, value, info);
+			}) as never;
+		}
+	}
+
 	return {
 		catalog,
 		resolvers: resolvers as Resolvers<TContext>,
 		sources: sources as LiveSources<TContext>,
 	};
+};
+
+/** Read one field off whatever a service answered with. */
+const readField = (source: unknown, fieldName: string): unknown => {
+	if (typeof source !== 'object' || source === null) return null;
+	return (source as Record<string, unknown>)[fieldName];
+};
+
+/**
+ * Turn the reference a service left behind into the object it stands for.
+ *
+ * A service that answered with the object itself has already done the work,
+ * so only a reference is followed - which also keeps a service that happens
+ * to hold both sides from making a round trip for nothing.
+ */
+const join = async (
+	owner: NexService,
+	value: unknown,
+	info: { readonly selection: () => readonly SelectedField[] }
+): Promise<unknown> => {
+	if (typeof value !== 'string') return value ?? null;
+
+	return (await owner.resolveRef?.(value, info.selection())) ?? null;
 };
 
 /**
