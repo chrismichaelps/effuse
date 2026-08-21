@@ -1394,8 +1394,12 @@ Each capability, and what keeps it honest:
 | Spending limits        | A budget that refills, charged per request, refusing with `429` and a `Retry-After`                                       |
 | Public surface         | Pinned by a test and by a build-time check that imports the built entry and runs a request                                |
 
-Not implemented, and why: federation is future work in the specification;
-binary transports and multipart uploads belong to whatever serves the package.
+Not implemented, and why: cross-service joins are the caller's to resolve -
+root-field routing across services works, and `parseRef` names the object a
+join needs, but nothing here fetches it for you; binary transports and
+multipart uploads belong to whatever serves the package; replaying a live
+stream after a reconnect is the source's, since only it knows what it is a
+stream of.
 
 ### How this was checked
 
