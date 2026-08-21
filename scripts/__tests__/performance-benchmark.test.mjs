@@ -130,3 +130,91 @@ test('rejects invalid sample configuration', () => {
 		/warmup must be a positive integer/
 	);
 });
+
+test('does not read a ratio between two measurements too small to hold one', () => {
+	const results = [
+		{ name: 'baseline', medianNs: 600, p95Ns: 1200 },
+		{ name: 'compared', medianNs: 1400, p95Ns: 2600 },
+	];
+
+	// 2.33x, well past the budget - but 600ns of anything on a shared machine
+	// is the scheduler rather than the code, so the ratio says nothing.
+	const failures = evaluateBudgets(results, {
+		baseline: { medianNs: 10_000, p95Ns: 30_000 },
+		compared: {
+			medianNs: 10_000,
+			p95Ns: 30_000,
+			relativeTo: 'baseline',
+			maxMedianRatio: 2,
+			minBaselineNs: 5_000,
+		},
+	});
+
+	assert.deepEqual(failures, []);
+});
+
+test('still reads a ratio once the measurements are big enough to hold one', () => {
+	const results = [
+		{ name: 'baseline', medianNs: 20_000, p95Ns: 40_000 },
+		{ name: 'compared', medianNs: 60_000, p95Ns: 90_000 },
+	];
+
+	const failures = evaluateBudgets(results, {
+		baseline: { medianNs: 100_000, p95Ns: 200_000 },
+		compared: {
+			medianNs: 100_000,
+			p95Ns: 200_000,
+			relativeTo: 'baseline',
+			maxMedianRatio: 2,
+			minBaselineNs: 5_000,
+		},
+	});
+
+	assert.deepEqual(failures, [
+		'compared: medianNs ratio 3.00x exceeds 2x relative to baseline',
+	]);
+});
+
+test('holds a small measurement to its own budget even when no ratio is read', () => {
+	const results = [
+		{ name: 'baseline', medianNs: 600, p95Ns: 1200 },
+		{ name: 'compared', medianNs: 90_000, p95Ns: 120_000 },
+	];
+
+	const failures = evaluateBudgets(results, {
+		baseline: { medianNs: 10_000, p95Ns: 30_000 },
+		compared: {
+			medianNs: 10_000,
+			p95Ns: 30_000,
+			relativeTo: 'baseline',
+			maxMedianRatio: 2,
+			minBaselineNs: 5_000,
+		},
+	});
+
+	assert.deepEqual(failures, [
+		'compared: medianNs 90000ns exceeds 10000ns',
+		'compared: p95Ns 120000ns exceeds 30000ns',
+	]);
+});
+
+test('reads every ratio when no floor was set', () => {
+	const results = [
+		{ name: 'baseline', medianNs: 600, p95Ns: 1200 },
+		{ name: 'compared', medianNs: 1400, p95Ns: 2600 },
+	];
+
+	const failures = evaluateBudgets(results, {
+		baseline: { medianNs: 10_000, p95Ns: 30_000 },
+		compared: {
+			medianNs: 10_000,
+			p95Ns: 30_000,
+			relativeTo: 'baseline',
+			maxMedianRatio: 2,
+		},
+	});
+
+	assert.deepEqual(failures, [
+		'compared: medianNs ratio 2.33x exceeds 2x relative to baseline',
+	]);
+});

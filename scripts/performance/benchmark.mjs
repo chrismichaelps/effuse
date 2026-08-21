@@ -118,6 +118,18 @@ export const evaluateBudgets = (results, budgets) => {
 				['p95Ns', budget.maxP95Ratio],
 			]) {
 				if (ratioBudget === undefined) continue;
+
+				// A ratio is only evidence when there is enough of a measurement
+				// to take one of. Below a floor, both sides are dominated by
+				// whatever else the machine was doing, and the ratio reports
+				// that rather than the code; the absolute budget still applies.
+				if (
+					budget.minBaselineNs !== undefined &&
+					baseline[metric] < budget.minBaselineNs
+				) {
+					continue;
+				}
+
 				const ratio = result[metric] / baseline[metric];
 				if (ratio > ratioBudget) {
 					failures.push(
