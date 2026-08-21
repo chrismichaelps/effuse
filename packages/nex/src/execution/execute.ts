@@ -103,6 +103,18 @@ const readIdentity = (source: unknown, field: string): string | undefined => {
  */
 const ROW_WINDOW = 128;
 
+/**
+ * The directives that decide whether a field is asked for at all.
+ *
+ * These are answered while the selection is collected, long before anything
+ * resolves, so a server that gave one of them behaviour would be handing it a
+ * field that is only here because the directive already said yes.
+ */
+const CONDITIONAL_DIRECTIVES: ReadonlySet<string> = new Set([
+	'skip',
+	'include',
+]);
+
 /** Shared by every field that takes no arguments, so none of them allocate. */
 const NO_ARGUMENTS: Readonly<Record<string, unknown>> = Object.freeze(
 	Object.create(null) as Record<string, unknown>
@@ -713,8 +725,16 @@ export const executeOperation = async <TContext>(
 		const wrapping =
 			plan.directives === undefined
 				? undefined
-				: (definition.directives ?? []).filter(
+				: [
+						// What the schema says comes first, so it wraps what the
+						// caller asked for: a rule the server put on a field sees
+						// the final value and cannot be got around by writing a
+						// directive in the request.
+						...(definition.directives ?? []),
+						...(field.directives ?? []),
+					].filter(
 						(directive) =>
+							!CONDITIONAL_DIRECTIVES.has(directive.name.value) &&
 							plan.directives?.[directive.name.value]?.onField !== undefined
 					);
 
