@@ -68,6 +68,7 @@ describe('parsing extensions', () => {
 
 describe('applying extensions', () => {
 	const catalog = buildCatalog(`
+		directive @tz on SCALAR
 		type Query { me: User }
 		interface Node { id: ID! }
 		type User implements Node { id: ID! name: String! }
