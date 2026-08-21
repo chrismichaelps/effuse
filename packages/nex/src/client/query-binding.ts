@@ -49,7 +49,17 @@ export interface NexBindingOptions {
 /** The shape a query cache is configured with. */
 export interface NexQueryBinding<TData> {
 	readonly queryKey: readonly unknown[];
-	readonly queryFn: (context: { signal: AbortSignal }) => Promise<TData>;
+	/**
+	 * Run the request.
+	 *
+	 * The context is optional because a cache may or may not offer one: a
+	 * hook that calls this with nothing and one that hands over a signal to
+	 * call the request off are both served, and a function that insisted on
+	 * the argument would fit only the second.
+	 */
+	readonly queryFn: (context?: {
+		readonly signal?: AbortSignal | undefined;
+	}) => Promise<TData>;
 }
 
 /** The shape a mutation is configured with. */
@@ -121,10 +131,10 @@ export const nexQuery = <TData extends object = Record<string, unknown>>(
 	options: NexBindingOptions = {}
 ): NexQueryBinding<TData> => ({
 	queryKey: nexQueryKey(request, options),
-	queryFn: async ({ signal }) =>
+	queryFn: async (context) =>
 		answerOf(
 			await client.request<TData>(request, {
-				signal,
+				...(context?.signal === undefined ? {} : { signal: context.signal }),
 				...(options.operationName === undefined
 					? {}
 					: { operationName: options.operationName }),

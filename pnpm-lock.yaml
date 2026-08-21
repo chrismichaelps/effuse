@@ -291,6 +291,9 @@ importers:
       '@effuse/core':
         specifier: workspace:*
         version: link:../core
+      '@effuse/query':
+        specifier: workspace:*
+        version: link:../query
       '@effuse/server':
         specifier: workspace:*
         version: link:../server

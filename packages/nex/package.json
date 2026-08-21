@@ -62,6 +62,7 @@
 	},
 	"devDependencies": {
 		"@effuse/core": "workspace:*",
+		"@effuse/query": "workspace:*",
 		"@effuse/server": "workspace:*",
 		"@eslint/js": "^9.39.4",
 		"@types/node": "^25.5.0",
