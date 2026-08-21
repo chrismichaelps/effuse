@@ -24,6 +24,8 @@
 
 import { NexCatalogError } from '../errors/index.js';
 import type {
+	TypeNode,
+	ValueNode,
 	DirectiveNode,
 	FieldDefinitionNode,
 	InputValueDefinitionNode,
@@ -35,6 +37,8 @@ import type {
 import { Kind, OperationType } from '../language/kinds/index.js';
 import { printType } from '../language/printer/index.js';
 import { BUILT_IN_SCALARS } from './built-in-scalars.js';
+import { SCALAR_LITERAL_KINDS } from '../language/scalar-literals.js';
+import { printValue } from '../language/printer/index.js';
 import { DEFAULT_IDENTITY_FIELD } from './catalog.js';
 import {
 	DIRECTIVE_LOCATION_LABELS,
@@ -185,8 +189,82 @@ export const checkCoherence = (
 				`Argument "${owner}(${name}:)"`,
 				argument.loc
 			);
+			checkDefault(argument, `Argument "${owner}(${name}:)"`);
 		}
 	};
+
+	/**
+	 * A default has to be a value of the type it is a default for.
+	 *
+	 * It is written once in the catalog and used on every request that leaves
+	 * the argument out, so one that does not fit is one that fails for
+	 * everybody, on requests that never mention it.
+	 */
+	function checkDefault(
+		declared: InputValueDefinitionNode,
+		subject: string
+	): void {
+		if (declared.defaultValue === undefined) return;
+		if (fitsType(declared.defaultValue, declared.type)) return;
+
+		report(
+			`${subject} defaults to ${printValue(declared.defaultValue)}, which is not a value of "${printType(declared.type)}"`,
+			declared.loc
+		);
+	}
+
+	/**
+	 * Whether a literal written in the catalog is a value of the type it is
+	 * written for.
+	 *
+	 * The same question validation asks of a literal written in a request,
+	 * asked of one written here - both read `SCALAR_LITERAL_KINDS`, so what a
+	 * scalar takes is said in one place. What differs is only that nothing
+	 * here can be a variable, since there is no request to take one from.
+	 */
+	function fitsType(value: ValueNode, type: TypeNode): boolean {
+		if (type.kind === Kind.NON_NULL_TYPE) {
+			return value.kind !== Kind.NULL && fitsType(value, type.type);
+		}
+		if (value.kind === Kind.NULL) return true;
+		if (type.kind === Kind.OPTIONAL_TYPE) return fitsType(value, type.type);
+
+		if (type.kind === Kind.LIST_TYPE) {
+			// One value where a list is wanted is that list of one, the same
+			// way it is when a caller sends it.
+			return value.kind === Kind.LIST
+				? value.values.every((item) => fitsType(item, type.type))
+				: fitsType(value, type.type);
+		}
+
+		const typeName = type.name.value;
+		const accepted = SCALAR_LITERAL_KINDS[typeName];
+		if (accepted !== undefined) return accepted.includes(value.kind);
+
+		const definition = index.types.get(typeName);
+
+		if (definition?.kind === Kind.ENUM_TYPE_DEFINITION) {
+			return (
+				value.kind === Kind.ENUM &&
+				(definition.values ?? []).some((one) => one.name.value === value.value)
+			);
+		}
+
+		if (definition?.kind === Kind.INPUT_OBJECT_TYPE_DEFINITION) {
+			if (value.kind !== Kind.OBJECT) return false;
+
+			return value.fields.every((written) => {
+				const field = (definition.fields ?? []).find(
+					(one) => one.name.value === written.name.value
+				);
+				return field !== undefined && fitsType(written.value, field.type);
+			});
+		}
+
+		// A scalar the server defines takes whatever it says it does, and it
+		// is not here to be asked.
+		return true;
+	}
 
 	const checkFields = (
 		fields: readonly FieldDefinitionNode[] | undefined,
@@ -252,6 +330,7 @@ export const checkCoherence = (
 				`Field "${typeName}.${name}"`,
 				field.loc
 			);
+			checkDefault(field, `Field "${typeName}.${name}"`);
 		}
 	};
 
@@ -294,21 +373,52 @@ export const checkCoherence = (
 					continue;
 				}
 
-				if (printType(field.type) !== printType(required.type)) {
+				if (!satisfies(field.type, required.type)) {
 					report(
 						`"${typeName}.${field.name.value}" is "${printType(field.type)}" where interface "${name}" declares "${printType(required.type)}"`,
 						field.loc
 					);
 				}
 
-				const supplied = new Set(
-					(field.arguments ?? []).map((argument) => argument.name.value)
+				const supplied = new Map(
+					(field.arguments ?? []).map((argument) => [
+						argument.name.value,
+						argument,
+					])
 				);
+
 				for (const argument of required.arguments ?? []) {
-					if (supplied.has(argument.name.value)) continue;
+					const given = supplied.get(argument.name.value);
+					if (given === undefined) {
+						report(
+							`"${typeName}.${field.name.value}" is missing argument "${argument.name.value}", which interface "${name}" declares`,
+							field.loc
+						);
+						continue;
+					}
+
+					// A caller writing against the interface passes what the
+					// interface declared, so anything else here would be
+					// handed a value it never asked for.
+					if (printType(given.type) !== printType(argument.type)) {
+						report(
+							`"${typeName}.${field.name.value}" takes "${argument.name.value}" as "${printType(given.type)}" where interface "${name}" declares "${printType(argument.type)}"`,
+							given.loc
+						);
+					}
+				}
+
+				// An argument of its own is fine, so long as someone calling
+				// through the interface - who will never pass it - still can.
+				for (const [argumentName, argument] of supplied) {
+					const known = (required.arguments ?? []).some(
+						(one) => one.name.value === argumentName
+					);
+					if (known || argument.type.kind !== Kind.NON_NULL_TYPE) continue;
+
 					report(
-						`"${typeName}.${field.name.value}" is missing argument "${argument.name.value}", which interface "${name}" declares`,
-						field.loc
+						`"${typeName}.${field.name.value}" requires "${argumentName}", which interface "${name}" does not declare, so nothing calling through the interface could provide it`,
+						argument.loc
 					);
 				}
 			}
@@ -497,6 +607,10 @@ export const checkCoherence = (
 		location: DirectiveLocation,
 		subject: string
 	): void => {
+		// A directive that did not say it may be written more than once means
+		// one thing here, and two of it would be two answers to one question.
+		const seen = new Set<string>();
+
 		for (const written of directives ?? []) {
 			const directiveName = written.name.value;
 			const declared = index.directives.get(directiveName);
@@ -507,6 +621,16 @@ export const checkCoherence = (
 					written.loc
 				);
 				continue;
+			}
+
+			if (declared.repeatable !== true) {
+				if (seen.has(directiveName)) {
+					report(
+						`"@${directiveName}" may only be used once on ${subject}; declare it repeatable to write it more than once`,
+						written.loc
+					);
+				}
+				seen.add(directiveName);
 			}
 
 			if (!declared.locations.some((allowed) => allowed.value === location)) {
@@ -575,6 +699,43 @@ export const checkCoherence = (
 				);
 			}
 		}
+	}
+
+	/**
+	 * Whether one type may stand where another was promised.
+	 *
+	 * An implementation may promise more than the interface did - something
+	 * that is always there where it might have been missing - since anyone
+	 * reading through the interface is only ever surprised by getting less.
+	 */
+	function satisfies(given: TypeNode, promised: TypeNode): boolean {
+		if (promised.kind === Kind.NON_NULL_TYPE) {
+			return (
+				given.kind === Kind.NON_NULL_TYPE &&
+				satisfies(given.type, promised.type)
+			);
+		}
+
+		// The promise allows nothing to be there, so something that always is
+		// keeps it; unwrapping is what lets a list's members narrow too.
+		if (given.kind === Kind.NON_NULL_TYPE) {
+			return satisfies(given.type, promised);
+		}
+
+		if (promised.kind === Kind.OPTIONAL_TYPE) {
+			return satisfies(given, promised.type);
+		}
+		if (given.kind === Kind.OPTIONAL_TYPE) {
+			return satisfies(given.type, promised);
+		}
+
+		if (promised.kind === Kind.LIST_TYPE) {
+			return (
+				given.kind === Kind.LIST_TYPE && satisfies(given.type, promised.type)
+			);
+		}
+
+		return printType(given) === printType(promised);
 	}
 
 	/**

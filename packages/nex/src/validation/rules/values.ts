@@ -28,18 +28,9 @@ import type {
 	ValueNode,
 } from '../../language/ast/index.js';
 import { Kind } from '../../language/kinds/index.js';
+import { SCALAR_LITERAL_KINDS } from '../../language/scalar-literals.js';
 import type { ValidationContext } from '../context.js';
 import { displayType, isAssignable, namedTypeOf } from '../type-utils.js';
-
-/** Scalar literals each built-in scalar accepts. */
-const SCALAR_LITERALS: Readonly<Record<string, readonly string[]>> = {
-	Int: [Kind.INT],
-	Float: [Kind.INT, Kind.FLOAT],
-	String: [Kind.STRING],
-	Boolean: [Kind.BOOLEAN],
-	ID: [Kind.STRING, Kind.INT],
-	DateTime: [Kind.STRING],
-};
 
 /** Describe a literal for an error message. */
 export const displayValue = (value: ValueNode): string => {
@@ -205,7 +196,7 @@ export const checkValue = (
 		return;
 	}
 
-	const accepted = SCALAR_LITERALS[typeName];
+	const accepted = SCALAR_LITERAL_KINDS[typeName];
 	if (accepted !== undefined && !accepted.includes(value.kind)) {
 		context.report(
 			`${subject} of type "${typeName}" cannot be ${displayValue(value)}`,
