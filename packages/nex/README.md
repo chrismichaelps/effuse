@@ -1003,6 +1003,34 @@ where that definition allows. A name nothing defines is refused when the
 catalog is built rather than quietly carrying no meaning - which is what makes
 `@depreacted` a build error rather than a warning nobody ever reads.
 
+## A fragment that says what it needs
+
+A fragment reading whatever variables happen to be around can only be spread
+into operations that declare them, and cannot be used twice with different
+values. One that says what it takes is the same fragment wherever it goes:
+
+```nex
+fragment Row($upper: Boolean! = false) on Post {
+  id
+  title(upper: $upper)
+}
+
+{
+  featured { ...Row(upper: true) }
+  rest { ...Row }
+}
+```
+
+A spread has to give what the fragment declares, may not give what it does
+not, and a fragment argument that is never used is refused - the same rule an
+operation's variables are held to, since something declared and never used is
+something nobody meant to write.
+
+Inside the fragment, its own names are its own: an operation may declare
+`$upper` too and the two never meet. A fragment that declares nothing reads
+what is around it exactly as before, so this is something a fragment may say
+rather than something every fragment must.
+
 ## An input that takes one of several
 
 An argument that means "by id, or by email, or by handle" is usually written
