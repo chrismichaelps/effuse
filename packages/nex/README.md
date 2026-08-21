@@ -939,6 +939,38 @@ where that definition allows. A name nothing defines is refused when the
 catalog is built rather than quietly carrying no meaning - which is what makes
 `@depreacted` a build error rather than a warning nobody ever reads.
 
+## An input that takes one of several
+
+An argument that means "by id, or by email, or by handle" is usually written
+as three optional fields, which says a caller may pass all three or none.
+`@choice` says what was meant:
+
+```nex
+input Lookup @choice { id: ID? email: String? handle: String? }
+type Query { person(by: Lookup!): Person? }
+```
+
+Exactly one has to be given. Writing a field at all is choosing it, so
+`{ id: null, email: "a@b.c" }` is two choices rather than one - a caller who
+means email should not be writing id, and refusing that is better than
+guessing which they meant.
+
+A catalog has to declare a choice that can actually be made: every field
+optional, none carrying a default, and at least two of them. A required field
+leaves nothing to choose and a default makes the choice before the caller
+does, so both are refused when the catalog is built rather than surprising
+someone later.
+
+The generated types are where this pays off:
+
+```ts
+export type Lookup = { id: string } | { email: string } | { handle: string };
+```
+
+One shape per way of making the choice, rather than one shape with everything
+optional - so passing two, or none, is wrong in the editor rather than at the
+server.
+
 ## Scalars a server defines
 
 The language defines `Int`, `Float`, `String`, `Boolean`, `ID`, and
