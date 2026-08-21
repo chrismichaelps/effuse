@@ -345,6 +345,22 @@ await execute({
 });
 ```
 
+### What a client sees of a catalog
+
+Introspection carries everything the catalog model can say, so a client that
+only ever sees a server this way can rebuild what it holds:
+
+```ts
+const catalog = buildCatalogFromIntrospection(await nex.introspect());
+```
+
+Descriptions, deprecations and their reasons, what a field costs, what it
+requires, whether it pages, what a type identifies by, and the directives a
+schema author wrote themselves all survive the trip - including their
+arguments, which travel as source and are read back as written. A catalog sent
+round twice is the catalog it started as, which is what lets one graph sit in
+front of another.
+
 ## What kind of problem an error is
 
 Every error carries a `code`, so a client branches on that rather than on a
