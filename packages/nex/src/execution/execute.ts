@@ -694,6 +694,7 @@ export const executeOperation = async <TContext>(
 			operation: plan.operation.operation,
 			variables: plan.variables,
 			catalog: plan.catalog,
+			...(plan.signal === undefined ? {} : { signal: plan.signal }),
 			selection: () =>
 				selectionUnder(
 					namedTypeOf(definition.type),

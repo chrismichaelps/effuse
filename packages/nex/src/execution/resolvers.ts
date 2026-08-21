@@ -57,6 +57,15 @@ export interface ResolverInfo {
 	/** The catalog the request was checked against. */
 	readonly catalog: Catalog;
 	/**
+	 * Calls the run off: the caller went away, or a deadline passed.
+	 *
+	 * A resolver that starts work of its own - a query, a request to another
+	 * service - should hand this to it, or that work carries on for a caller
+	 * that has already gone. The run itself is checked before each field, but
+	 * nothing can reach inside a resolver except the resolver.
+	 */
+	readonly signal?: AbortSignal | undefined;
+	/**
 	 * The last event a client saw, when it is coming back to a live operation.
 	 *
 	 * A source knows what it is a stream of and this package does not, so
