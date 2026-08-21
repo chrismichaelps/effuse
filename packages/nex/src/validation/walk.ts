@@ -25,6 +25,7 @@
 import { DirectiveLocation } from '../catalog/directive-locations.js';
 import type { FieldNode, SelectionSetNode } from '../language/ast/index.js';
 import { Kind } from '../language/kinds/index.js';
+import { checkFragmentArguments } from './rules/fragment-arguments.js';
 import type { ValidationContext } from './context.js';
 import { checkArguments } from './rules/arguments.js';
 import { checkDirectives } from './rules/directives.js';
@@ -264,6 +265,8 @@ export const walkSelectionSet = (
 					context.report(`Unknown fragment "${name}"`, selection);
 					break;
 				}
+
+				checkFragmentArguments(context, fragment, selection);
 
 				const condition = fragment.typeCondition.name.value;
 				if (

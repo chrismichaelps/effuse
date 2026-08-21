@@ -40,6 +40,8 @@ import {
 	type ValidationContext,
 	type VariableUsage,
 } from './context.js';
+import { isVariableUsable } from './rules/values.js';
+import { displayType } from './type-utils.js';
 import { checkDirectives } from './rules/directives.js';
 import {
 	checkFragmentDefinitions,
@@ -96,9 +98,71 @@ const walkFragments = (
 			);
 			walkSelectionSet(context, condition, fragment.selectionSet);
 		});
+
+		keepFragmentVariables(context, fragment, scope);
 	}
 
 	return scopes;
+};
+
+/**
+ * Answer a fragment's own variables from the fragment, not the operation.
+ *
+ * A fragment that says what it takes answers for those names itself, so a
+ * usage of one is not something the operation has to declare - and the
+ * operation declaring one of the same name is a different variable entirely.
+ * What is left in the scope is what the fragment genuinely reads from around
+ * it, which is what each operation reaching it still has to provide.
+ */
+const keepFragmentVariables = (
+	context: ValidationContext,
+	fragment: FragmentDefinitionNode,
+	scope: UsageScope
+): void => {
+	const declared = fragment.variableDefinitions ?? [];
+	if (declared.length === 0) return;
+
+	const owned = new Map(
+		declared.map((definition) => [definition.variable.name.value, definition])
+	);
+	const used = new Set<string>();
+	const outer: VariableUsage[] = [];
+
+	for (const usage of scope.variables) {
+		const name = usage.variable.name.value;
+		const definition = owned.get(name);
+
+		if (definition === undefined) {
+			outer.push(usage);
+			continue;
+		}
+
+		used.add(name);
+
+		if (
+			!isVariableUsable(
+				definition.type,
+				definition.defaultValue !== undefined,
+				usage.type
+			)
+		) {
+			context.report(
+				`Variable "$${name}" of type "${displayType(definition.type)}" cannot be used for ${usage.subject.toLowerCase()} of type "${displayType(usage.type)}"`,
+				usage.variable
+			);
+		}
+	}
+
+	for (const [name, definition] of owned) {
+		if (used.has(name)) continue;
+		context.report(
+			`Variable "$${name}" is never used by fragment "${fragment.name.value}"`,
+			definition
+		);
+	}
+
+	scope.variables.length = 0;
+	scope.variables.push(...outer);
 };
 
 /**

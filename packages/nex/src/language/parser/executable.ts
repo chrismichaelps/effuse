@@ -98,10 +98,14 @@ export const parseSelection = (cursor: ParserCursor): SelectionNode => {
 
 	if (cursor.at(TokenKind.NAME)) {
 		const name = parseName(cursor);
+		const args = cursor.at(TokenKind.PAREN_L)
+			? parseArguments(cursor)
+			: undefined;
 		const directives = parseDirectives(cursor);
 		return {
 			kind: Kind.FRAGMENT_SPREAD,
 			name,
+			...(args === undefined ? {} : { arguments: args }),
 			...(directives === undefined ? {} : { directives }),
 			loc: cursor.locate(startToken),
 		};
@@ -223,6 +227,9 @@ export const parseFragmentDefinition = (
 ): FragmentDefinitionNode => {
 	const startToken = cursor.expectKeyword(KEYWORD.FRAGMENT);
 	const name = parseName(cursor);
+	const variableDefinitions = cursor.at(TokenKind.PAREN_L)
+		? parseVariableDefinitions(cursor)
+		: undefined;
 	cursor.expectKeyword(KEYWORD.ON);
 	const typeCondition = parseNamedType(cursor);
 	const directives = parseDirectives(cursor);
@@ -230,6 +237,7 @@ export const parseFragmentDefinition = (
 	return {
 		kind: Kind.FRAGMENT_DEFINITION,
 		name,
+		...(variableDefinitions === undefined ? {} : { variableDefinitions }),
 		typeCondition,
 		...(directives === undefined ? {} : { directives }),
 		selectionSet: parseSelectionSet(cursor),

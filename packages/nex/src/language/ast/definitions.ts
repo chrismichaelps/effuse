@@ -52,6 +52,11 @@ export interface OperationDefinitionNode {
 export interface FragmentDefinitionNode {
 	readonly kind: typeof Kind.FRAGMENT_DEFINITION;
 	readonly name: NameNode;
+	/**
+	 * What the fragment takes, so it need not reach for an operation's
+	 * variables and can be spread more than once with different values.
+	 */
+	readonly variableDefinitions?: readonly VariableDefinitionNode[] | undefined;
 	readonly typeCondition: NamedTypeNode;
 	readonly directives?: readonly DirectiveNode[] | undefined;
 	readonly selectionSet: SelectionSetNode;

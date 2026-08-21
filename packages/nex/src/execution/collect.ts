@@ -30,6 +30,7 @@ import type {
 	SelectionSetNode,
 } from '../language/ast/index.js';
 import { Kind } from '../language/kinds/index.js';
+import { selectionsFor } from './fragment-arguments.js';
 import { typesOverlap } from '../validation/type-utils.js';
 import { valueFromNode } from './values.js';
 
@@ -116,7 +117,7 @@ export const collectFields = (
 						break;
 					}
 
-					walk(fragment.selectionSet);
+					walk(selectionsFor(fragment, selection));
 					break;
 				}
 			}

@@ -72,7 +72,9 @@ const printSelection = (selection: SelectionNode, indent: number): string => {
 		case Kind.FIELD:
 			return printField(selection, indent);
 		case Kind.FRAGMENT_SPREAD:
-			return `${pad(indent)}...${selection.name.value}${printDirectives(selection.directives)}`;
+			return `${pad(indent)}...${selection.name.value}${printArguments(
+				selection.arguments
+			)}${printDirectives(selection.directives)}`;
 		case Kind.INLINE_FRAGMENT: {
 			const condition =
 				selection.typeCondition === undefined

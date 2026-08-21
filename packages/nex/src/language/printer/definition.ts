@@ -83,7 +83,9 @@ export const printDefinition = (definition: DefinitionNode): string => {
 	const executable = definition as ExecutableDefinitionNode;
 
 	if (executable.kind === Kind.FRAGMENT_DEFINITION) {
-		return `fragment ${executable.name.value} on ${
+		return `fragment ${executable.name.value}${printVariableDefinitions(
+			executable.variableDefinitions
+		)} on ${
 			executable.typeCondition.name.value
 		}${printDirectives(executable.directives)} ${printSelectionSet(
 			executable.selectionSet,

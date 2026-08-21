@@ -45,6 +45,8 @@ export interface FieldNode {
 export interface FragmentSpreadNode {
 	readonly kind: typeof Kind.FRAGMENT_SPREAD;
 	readonly name: NameNode;
+	/** What this spread gives the fragment, when the fragment takes anything. */
+	readonly arguments?: readonly ArgumentNode[] | undefined;
 	readonly directives?: readonly DirectiveNode[] | undefined;
 	readonly loc?: Location | undefined;
 }
