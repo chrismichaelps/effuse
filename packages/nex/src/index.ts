@@ -45,6 +45,7 @@ export {
 	print,
 	printCatalog,
 	requestKey,
+	stream,
 	subscribe,
 	toEventStream,
 	tokenize,
@@ -65,6 +66,7 @@ export {
 	type ParseResult,
 	type RequestInput,
 	type RequestLimits,
+	type StreamOptions,
 	type SubscribeOptions,
 } from './api/index.js';
 

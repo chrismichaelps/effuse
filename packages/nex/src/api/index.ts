@@ -77,3 +77,4 @@ export {
 	introspectionFromCatalog,
 	type IntrospectionResult,
 } from './introspection-result.js';
+export { stream, type StreamOptions } from './stream.js';

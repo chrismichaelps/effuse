@@ -65,6 +65,7 @@ const REQUIRED = [
 	'requestKey',
 	'resolveCoordinate',
 	'separateOperations',
+	'stream',
 	'subscribe',
 	'toEventStream',
 	'tokenize',
