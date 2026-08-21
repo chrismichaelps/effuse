@@ -28,10 +28,12 @@ import { NexErrorCode, NexExecutionError } from '../errors/index.js';
 import type {
 	ExecutionResult,
 	LiveSources,
+	NexScalars,
 	Resolvers,
 } from '../execution/index.js';
 import type { SelectedField } from '../execution/resolvers.js';
-import type { OperationType } from '../language/kinds/index.js';
+import { Kind, type OperationType } from '../language/kinds/index.js';
+import type { TypeNode } from '../language/ast/index.js';
 import { printValue } from '../language/printer/index.js';
 import { valueToNode } from '../language/value-to-node.js';
 
@@ -79,6 +81,19 @@ export interface NexService {
 	 * takes, which is right only when something else is imposing the limit.
 	 */
 	readonly timeoutMs?: number | undefined;
+}
+
+/** How to compose. */
+export interface ComposeOptions {
+	/**
+	 * The scalars this graph runs with.
+	 *
+	 * A service answers in the form its own scalars write, so what comes back
+	 * is already written. Told what those scalars are, this reads them back
+	 * into the form the graph holds them in - and the graph writes them once,
+	 * on its way out, rather than twice.
+	 */
+	readonly scalars?: NexScalars | undefined;
 }
 
 /** What composing produced: one graph, and how to answer from it. */
@@ -166,8 +181,10 @@ const answerOf = (result: ExecutionResult, responseKey: string): unknown => {
  * own for those, using `parseRef` to say which object is wanted.
  */
 export const composeServices = <TContext = unknown>(
-	services: Readonly<Record<string, NexService>>
+	services: Readonly<Record<string, NexService>>,
+	options: ComposeOptions = {}
 ): ComposedServices<TContext> => {
+	const scalars = options.scalars ?? {};
 	const entries = Object.values(services);
 	if (entries.length === 0) {
 		throw new NexExecutionError({
@@ -223,13 +240,22 @@ export const composeServices = <TContext = unknown>(
 								args: Readonly<Record<string, unknown>>,
 								_context: unknown,
 								info: Forwarding
-							) => watchOn(service, fieldName, args, info)
-						: (
+							) =>
+								watchOn(service, fieldName, args, info, (value) =>
+									bringHome(value, field.type, catalog, scalars)
+								)
+						: async (
 								_source: unknown,
 								args: Readonly<Record<string, unknown>>,
 								_context: unknown,
 								info: Forwarding
-							) => sendTo(service, operation, fieldName, args, info)
+							) =>
+								bringHome(
+									await sendTo(service, operation, fieldName, args, info),
+									field.type,
+									catalog,
+									scalars
+								)
 				) as never;
 			}
 		}
@@ -294,6 +320,79 @@ const refusedWhenCalledOff = (signal: AbortSignal): Promise<never> =>
 		);
 	});
 
+/**
+ * Read a service's answer back into the form this graph holds values in.
+ *
+ * What a service sends has already been written by its own scalars, and this
+ * graph is about to write them again on the way out. Reading them back first
+ * is what makes those two the same thing rather than one applied twice.
+ *
+ * Only the scalars this graph was told about are touched: everything else -
+ * the scalars the language defines, an object, a page - is walked into or
+ * passed through as it arrived.
+ */
+const bringHome = (
+	value: unknown,
+	type: TypeNode,
+	catalog: Catalog,
+	scalars: NexScalars
+): unknown => {
+	if (value === null || value === undefined) return value;
+
+	if (type.kind === Kind.NON_NULL_TYPE || type.kind === Kind.OPTIONAL_TYPE) {
+		return bringHome(value, type.type, catalog, scalars);
+	}
+
+	if (type.kind === Kind.LIST_TYPE) {
+		if (Array.isArray(value)) {
+			return value.map((item) => bringHome(item, type.type, catalog, scalars));
+		}
+
+		// A paged field answers with the page shape rather than the rows, and
+		// it is the rows the catalog describes.
+		const page = value as { readonly items?: unknown };
+		if (Array.isArray(page.items)) {
+			return {
+				...(value as Record<string, unknown>),
+				items: page.items.map((item) =>
+					bringHome(item, type.type, catalog, scalars)
+				),
+			};
+		}
+
+		return value;
+	}
+
+	const typeName = type.name.value;
+	const scalar = scalars[typeName];
+	if (scalar !== undefined) return scalar.parse(value);
+
+	const definition = catalog.getType(typeName);
+	if (
+		definition === undefined ||
+		typeof value !== 'object' ||
+		Array.isArray(value)
+	) {
+		return value;
+	}
+
+	const record = value as Record<string, unknown>;
+	const read: Record<string, unknown> = { ...record };
+
+	for (const [key, held] of Object.entries(record)) {
+		// A union or interface answers as whichever type it turned out to be,
+		// which `__typename` is the only thing that says.
+		const runtimeName =
+			typeof record.__typename === 'string' ? record.__typename : typeName;
+		const field = catalog.getField(runtimeName, key);
+		if (field === undefined) continue;
+
+		read[key] = bringHome(held, field.type, catalog, scalars);
+	}
+
+	return read;
+};
+
 /** What forwarding needs from the run it is part of. */
 interface Forwarding {
 	readonly selection: () => readonly SelectedField[];
@@ -312,7 +411,8 @@ const watchOn = async function* (
 	service: NexService,
 	fieldName: string,
 	args: Readonly<Record<string, unknown>>,
-	info: Forwarding
+	info: Forwarding,
+	read: (value: unknown) => unknown
 ): AsyncGenerator<unknown> {
 	const watch = service.subscribe;
 	if (watch === undefined) return;
@@ -327,7 +427,7 @@ const watchOn = async function* (
 	});
 
 	for await (const frame of frames) {
-		yield answerOf(frame, fieldName);
+		yield read(answerOf(frame, fieldName));
 	}
 };
 
