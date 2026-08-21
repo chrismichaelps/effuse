@@ -30,6 +30,7 @@ import type {
 import { Kind } from '../../language/kinds/index.js';
 import { printValue } from '../../language/printer/index.js';
 import type { ValidationContext } from '../context.js';
+import { displayType } from '../type-utils.js';
 
 /** A field written somewhere in a selection, with the type it was written on. */
 interface Written {
@@ -104,6 +105,29 @@ const gather = (
  * Selections written on types that can never both apply - two branches of a
  * union, say - are left alone: only one of them can ever run.
  */
+/** The type a written field answers with, as it reads. */
+const shapeOf = (context: ValidationContext, written: Written): string => {
+	const declared = context.catalog.getField(
+		written.parentTypeName,
+		written.field.name.value
+	);
+
+	return declared === undefined ? 'nothing' : displayType(declared.type);
+};
+
+/**
+ * Whether two branches answer with the same kind of value.
+ *
+ * Branches that cannot both apply may carry different fields under one key -
+ * that is what makes a union worth reading - so long as what comes back is
+ * the same kind of thing whichever branch answered.
+ */
+const sameShape = (
+	context: ValidationContext,
+	first: Written,
+	other: Written
+): boolean => shapeOf(context, first) === shapeOf(context, other);
+
 export const checkSelectionsCanMerge = (
 	context: ValidationContext,
 	parentTypeName: string,
@@ -111,6 +135,11 @@ export const checkSelectionsCanMerge = (
 ): void => {
 	const byKey = new Map<string, Written[]>();
 	gather(context, parentTypeName, selectionSet, byKey, new Set());
+
+	// Whether anything here says which type an answer came from. Two branches
+	// may answer under one key with different kinds of value, but only if a
+	// reader is given some way to tell which it got.
+	const discriminated = byKey.has('__typename');
 
 	for (const [key, written] of byKey) {
 		const [first, ...rest] = written;
@@ -123,7 +152,15 @@ export const checkSelectionsCanMerge = (
 					Kind.OBJECT_TYPE_DEFINITION &&
 				context.catalog.getType(other.parentTypeName)?.kind ===
 					Kind.OBJECT_TYPE_DEFINITION;
-			if (exclusive) continue;
+			if (exclusive) {
+				if (discriminated || sameShape(context, first, other)) continue;
+
+				context.report(
+					`"${key}" answers with "${shapeOf(context, first)}" on "${first.parentTypeName}" and "${shapeOf(context, other)}" on "${other.parentTypeName}"; select "__typename" so a reader can tell which it got`,
+					other.field
+				);
+				continue;
+			}
 
 			if (first.field.name.value !== other.field.name.value) {
 				context.report(

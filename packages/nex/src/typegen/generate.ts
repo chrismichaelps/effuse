@@ -212,15 +212,30 @@ export const generateOperationTypes = (
 
 		const common = shared.filter((field) => !field.startsWith('__typename'));
 
+		// Only what the request asked for is in the answer, so a discriminant
+		// is only written where one was asked for: a type naming a key the
+		// response will not carry is a type that lies about it.
+		const discriminated = shared.some((field) =>
+			field.startsWith('__typename')
+		);
+
+		const variant = (fields: readonly string[], written: string): string =>
+			objectType(
+				discriminated
+					? [...common, written, ...fields]
+					: [...common, ...fields],
+				indent
+			);
+
 		// A union or an interface may gain a member, and code matching only the
 		// ones it knows still has to have somewhere for the rest to land. The
 		// catch-all carries what was selected on the type itself, which any
 		// member added later declares too.
 		return [
 			...[...branches].map(([typeName, fields]) =>
-				objectType([...common, `__typename: '${typeName}';`, ...fields], indent)
+				variant(fields, `__typename: '${typeName}';`)
 			),
-			objectType([...common, `__typename: ${UNKNOWN_VALUE};`], indent),
+			variant([], `__typename: ${UNKNOWN_VALUE};`),
 		].join(' | ');
 	};
 
