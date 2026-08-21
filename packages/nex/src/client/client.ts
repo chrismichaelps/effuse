@@ -90,6 +90,22 @@ export interface NexClientOptions {
 	 * been made: nothing waits on a timer.
 	 */
 	readonly batch?: boolean | { readonly size?: number } | undefined;
+	/**
+	 * What to do when a live connection drops.
+	 *
+	 * A stream that ends without the server saying it was finished was cut,
+	 * and the caller still wants what comes next. Left out, nothing is
+	 * retried: coming back is a decision about the shape of the data, and a
+	 * stream nobody meant to resume should not be resumed for them.
+	 */
+	readonly live?:
+		| {
+				/** How many times to come back before giving up. */
+				readonly retries?: number | undefined;
+				/** How long to wait before each attempt, in milliseconds. */
+				readonly backoffMs?: number | undefined;
+		  }
+		| undefined;
 }
 
 /** A client for one server. */
@@ -696,38 +712,77 @@ export const createNexClient = (options: NexClientOptions): NexClient => {
 			request?: NexRequestOptions
 		): AsyncGenerator<ExecutionResult<TData>> {
 			const key = await keyFor(input, request);
-			let response: Response;
+			const body = await bodyFor(input, request, key);
+			const retries = options.live?.retries ?? 0;
+			const backoffMs = options.live?.backoffMs ?? 1000;
 
-			try {
-				response = await send(options.endpoint, {
-					method: 'POST',
-					headers: { ...headersFor(request), accept: 'text/event-stream' },
-					body: await bodyFor(input, request, key),
-					...(request?.signal === undefined ? {} : { signal: request.signal }),
-				});
-			} catch (cause) {
-				yield failure(
-					`The request never reached ${options.endpoint}: ${
-						cause instanceof Error ? cause.message : String(cause)
-					}`,
-					NexErrorCode.INTERNAL
-				);
-				return;
+			let lastEventId: string | undefined;
+			let finished = false;
+
+			// Read through a call rather than a check: the signal flips while
+			// the loop runs, and a narrowed check is answered once and never
+			// again.
+			const calledOff = (): boolean => request?.signal?.aborted === true;
+
+			for (let attempt = 0; ; attempt += 1) {
+				if (calledOff()) return;
+
+				let response: Response;
+				try {
+					response = await send(options.endpoint, {
+						method: 'POST',
+						headers: {
+							...headersFor(request),
+							accept: 'text/event-stream',
+							// Where it got to, so the server can carry on rather
+							// than start the numbering again.
+							...(lastEventId === undefined
+								? {}
+								: { 'last-event-id': lastEventId }),
+						},
+						body,
+						...(request?.signal === undefined
+							? {}
+							: { signal: request.signal }),
+					});
+				} catch (cause) {
+					yield failure(
+						`The request never reached ${options.endpoint}: ${
+							cause instanceof Error ? cause.message : String(cause)
+						}`,
+						NexErrorCode.INTERNAL
+					);
+					return;
+				}
+
+				if (response.body === null) {
+					yield failure(
+						'The server answered a live operation with no stream',
+						NexErrorCode.INTERNAL
+					);
+					return;
+				}
+
+				// Frames carry whatever the server sent; naming that shape is
+				// the caller's, the same as for a request.
+				yield* readEventStream(response.body, {
+					onEventId: (id) => {
+						lastEventId = id;
+					},
+					onComplete: () => {
+						finished = true;
+					},
+				}) as AsyncGenerator<ExecutionResult<TData>>;
+
+				// The server said it was done, so there is nothing to come
+				// back to: only a stream that was cut is worth picking up.
+				if (finished || attempt >= retries) return;
+				if (calledOff()) return;
+
+				if (backoffMs > 0) {
+					await new Promise((resolve) => setTimeout(resolve, backoffMs));
+				}
 			}
-
-			if (response.body === null) {
-				yield failure(
-					'The server answered a live operation with no stream',
-					NexErrorCode.INTERNAL
-				);
-				return;
-			}
-
-			// Frames carry whatever the server sent; naming that shape is the
-			// caller's, the same as for a request.
-			yield* readEventStream(response.body) as AsyncGenerator<
-				ExecutionResult<TData>
-			>;
 		},
 		read: async (input, request) =>
 			held.get(await keyFor(input, request)) as never,

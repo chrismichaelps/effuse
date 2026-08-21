@@ -33,8 +33,22 @@ const FRAME_SEPARATOR = '\n\n';
  * Frames arrive however the network cut them, so bytes are held until a whole
  * frame is there rather than assuming one chunk is one event.
  */
+/** What to do with a stream beyond reading its snapshots. */
+export interface ReadEventStreamOptions {
+	/**
+	 * Told the number each event carried, as it is read.
+	 *
+	 * A client that means to pick a dropped connection back up has to know
+	 * where it got to, and the number is the only thing that says.
+	 */
+	readonly onEventId?: ((id: string) => void) | undefined;
+	/** Told when the server said the stream was finished rather than cut. */
+	readonly onComplete?: (() => void) | undefined;
+}
+
 export const readEventStream = async function* (
-	body: ReadableStream<Uint8Array>
+	body: ReadableStream<Uint8Array>,
+	options: ReadEventStreamOptions = {}
 ): AsyncGenerator<ExecutionResult> {
 	const reader = body.getReader();
 	const decoder = new TextDecoder();
@@ -57,12 +71,23 @@ export const readEventStream = async function* (
 			.find((line) => line.startsWith('event:'))
 			?.slice('event:'.length)
 			.trim();
+
+		const id = lines
+			.find((line) => line.startsWith('id:'))
+			?.slice('id:'.length)
+			.trim();
+		if (id !== undefined && id !== '') options.onEventId?.(id);
 		const data = lines
 			.filter((line) => line.startsWith('data:'))
 			.map((line) => line.slice('data:'.length).trim())
 			.join('');
 
-		if (event === 'complete' || data === '') return undefined;
+		if (event === 'complete') {
+			options.onComplete?.();
+			return undefined;
+		}
+
+		if (data === '') return undefined;
 
 		try {
 			return JSON.parse(data) as ExecutionResult;
