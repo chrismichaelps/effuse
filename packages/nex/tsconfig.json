@@ -14,6 +14,10 @@
 		"outDir": "./dist",
 		"rootDir": "./src",
 		"resolveJsonModule": true,
+		// Dependencies are hoisted to the workspace root here, and not every
+		// compiler walks up to find them: saying where they are costs nothing
+		// and stops the answer depending on which one is asking.
+		"types": ["node"],
 		"noUnusedLocals": true,
 		"noUnusedParameters": true,
 		"noImplicitReturns": true,
