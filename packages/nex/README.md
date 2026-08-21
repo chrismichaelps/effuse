@@ -223,6 +223,33 @@ for await (const snapshot of stream) {
 
 Stop reading and the source is closed with the loop.
 
+### Picking a dropped connection back up
+
+Every snapshot carries a number. A client that drops sends the last one it saw
+back as `Last-Event-ID`, and the numbering carries on from there rather than
+starting over:
+
+```
+id: 41
+event: next
+data: { … }
+```
+
+Nothing is replayed for you. Only the source knows what it is a stream of, so
+where the client got to arrives as `info.resumeFrom` and the source decides
+what that means - skipping what was already sent, catching up from a log, or
+starting fresh because it cannot. A resume point this server did not hand out
+is treated as a fresh start rather than refused, since a live operation that
+will not open is worse than one that begins again.
+
+A connection with nothing coming down it looks exactly like one that has died,
+and a proxy will close it. `keepAliveMs` says how long to leave it before
+sending a comment, which costs one line and every client ignores:
+
+```ts
+createNexHandler({ catalog, sources, keepAliveMs: 15_000 });
+```
+
 ### Sending only what changed
 
 A board of players changes one score at a time, and sending the whole board
@@ -623,6 +650,50 @@ way a catalog that runs today makes something impossible later - a list that
 grows without bound, an object that can only be cached per request, a change a
 client has to guess the result of. Everything found is reported at once, named
 by coordinate, and it is advice: a catalog is free to mean it.
+
+## A graph made of several services
+
+`mergeCatalogs` joins what several services describe. `composeServices` makes
+that graph answer: each root field is sent to whichever service declares it,
+asked for exactly what the caller wanted.
+
+```ts
+const { catalog, resolvers } = composeServices({
+  people: { catalog: peopleCatalog, request: sendToPeople, timeoutMs: 2_000 },
+  posts: { catalog: postsCatalog, request: sendToPosts, timeoutMs: 2_000 },
+});
+
+const handler = createNexHandler({ catalog, resolvers });
+```
+
+A service is reached through whatever `request` does - an HTTP client, a
+handler in this process, a queue - so none of them is what this depends on and
+all of them compose the same way.
+
+What goes out is the field's own selection rendered back to source, with its
+arguments already read, so a service is asked for what the caller wanted
+rather than everything it could give, and never for a variable it would have
+to be told about:
+
+```
+{ person(id: "7") { name } }        asked here
+query { person(id: "7") { name } }  sent there
+```
+
+Give each service a deadline. A gateway without one is a single slow service
+away from holding every request that touches it. The deadline and the run
+being called off reach the service as one signal on its request, so one that
+honours it stops as soon as either happens - and one that ignores it still
+cannot hold the request, because waiting for it ends when the deadline does.
+
+Two services answering one field is refused rather than settled by whichever
+was listed first, and a field asked for twice under different names is
+reported rather than answered once: what comes back is keyed by field name,
+and no single object can carry both.
+
+Fields that reach across services - a type owned here holding a field owned
+there - are not resolved for you. Give the composed graph a resolver of its
+own for those, and `parseRef` says which object is wanted.
 
 ## Changing a catalog without breaking clients
 
@@ -1312,7 +1383,13 @@ const handler = createNexHandler({
 - **A caller that goes away** stops the work it started. Pass a `signal` to
   `execute` or `subscribe`, and the run is checked before each field rather
   than only at the start; the request handler passes the request's own signal,
-  so a disconnect ends the run and closes a live source.
+  so a disconnect ends the run and closes a live source. A
+  resolver is given that signal as `info.signal`, so work it starts itself - a
+  query, a request to another service - stops with the run rather than
+  carrying on for a caller that has already gone. A resolver
+  is given that signal as `info.signal`, so work it starts itself - a query, a
+  request to another service - stops with the run rather than carrying on for
+  a caller that has already gone.
 - **Guarded fields** are refused unless an `authorize` callback says otherwise.
   A field the catalog marks `@auth` is asked about before anything of it runs,
   and with no authorizer configured it is refused rather than quietly resolved:
