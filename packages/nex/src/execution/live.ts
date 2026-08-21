@@ -55,6 +55,17 @@ export type LiveSources<TContext = unknown> = Readonly<
 	Record<string, Readonly<Record<string, LiveSource<TContext>>>>
 >;
 
+/**
+ * Whether something says how to be iterated.
+ *
+ * Anything that answers is a source, generator or not, so a server may hand
+ * over a queue, a socket wrapper, or whatever else it already has.
+ */
+const isWatchable = (value: unknown): value is AsyncIterable<unknown> =>
+	(typeof value === 'object' || typeof value === 'function') &&
+	value !== null &&
+	typeof (value as AsyncIterable<unknown>)[Symbol.asyncIterator] === 'function';
+
 /** The one field a live operation watches, once fragments are flattened. */
 export const liveRootField = (
 	catalog: Catalog,
@@ -242,6 +253,24 @@ export const executeLive = async function* <TContext>(
 					message: cause instanceof Error ? cause.message : String(cause),
 					path: [selected.responseKey],
 					cause,
+				}),
+			],
+		};
+		return;
+	}
+
+	// A source is whatever says how to be iterated - a generator, or anything
+	// else that answers the same question. One that says nothing is a server's
+	// mistake, and reaching for the iterator anyway would throw a TypeError at
+	// whoever was reading rather than telling them what is wrong.
+	if (!isWatchable(events)) {
+		yield {
+			data: null,
+			errors: [
+				new NexExecutionError({
+					message: `"${rootTypeName}.${fieldName}" answered with something that is not something that can be watched`,
+					path: [selected.responseKey],
+					code: NexErrorCode.INTERNAL,
 				}),
 			],
 		};
