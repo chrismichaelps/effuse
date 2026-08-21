@@ -229,6 +229,43 @@ A field with no resolver reads the property of the same name off its source valu
 - **Pages** come back in the shape of specification section 8 - `items`, `pageInfo`, `totalCount` - with opaque cursors this package hands out and only accepts back.
 - **Leaf values** are checked as they are serialized: an `Int` field that resolves to a string is an error, not a silent `NaN`.
 
+## Sending what is ready before what is slow
+
+A response is only as quick as the slowest thing in it, so a page with one
+expensive field waits for it before showing anything. `stream` answers with
+what is ready and sends the rest as it lands:
+
+```ts
+for await (const snapshot of stream({
+  request: '{ profile feed }',
+  catalog,
+  resolvers,
+  deferOver: 10,
+})) {
+  render(snapshot.data);
+}
+```
+
+```ts
+{ profile: { … } }              // straight away
+{ profile: { … }, feed: [ … ] } // when the expensive one lands
+```
+
+What waits is decided by what the catalog already prices a field at, so
+nothing is annotated for this and no request is written differently to ask for
+it - the same request answers whole through `execute` and in pieces through
+`stream`. Give no `deferOver` and it is an ordinary run that answers once.
+
+Each snapshot carries everything known so far, so a reader replaces what it
+has rather than piecing anything together, and the last one is the whole
+answer it would otherwise have waited for. A field that has not arrived is
+absent rather than null, since a null would be a claim about what it is.
+
+The nearer of two slow fields arrives first, whatever order they were written
+in. Fields are separated at the root, where they are independent, so nothing
+is resolved twice to make this work - and a change is never taken apart, since
+its fields run in the order they were asked for.
+
 ## Live operations
 
 A `live` operation watches exactly one field. Give `subscribe` a source for it and read the stream; each event produces a full snapshot in the same response shape a query returns.
