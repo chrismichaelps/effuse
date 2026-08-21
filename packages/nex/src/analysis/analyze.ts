@@ -123,6 +123,22 @@ export const analyzeDocument = (
 
 	let deepest = 0;
 
+	/**
+	 * What a fragment costs, worked out once for each type it is read against.
+	 *
+	 * A fragment named twice was walked twice, so one named twice at each of
+	 * twenty levels was walked a million times - a request of a few hundred
+	 * bytes that holds a server for as long as it likes. Worse, that happens
+	 * while working out what the request costs, which is before any limit on
+	 * cost could refuse it.
+	 *
+	 * What a fragment costs does not depend on where it was spread, so it is
+	 * worked out where it is first met and read from here afterwards. The
+	 * depth it reaches is kept with it, since that does not depend on the
+	 * spread either - only on how far below the spread the fragment goes.
+	 */
+	const fragmentCosts = new Map<string, { cost: number; below: number }>();
+
 	const walkSelectionSet = (
 		parentTypeName: string,
 		selectionSet: SelectionSetNode,
@@ -191,12 +207,32 @@ export const analyzeDocument = (
 					const fragment = fragments.get(name);
 					if (fragment === undefined) break;
 
-					cost += walkSelectionSet(
+					const at = `${name}:${fragment.typeCondition.name.value}`;
+					const already = fragmentCosts.get(at);
+
+					if (already !== undefined) {
+						cost += already.cost;
+						deepest = Math.max(deepest, depth + already.below);
+						break;
+					}
+
+					const before = deepest;
+					deepest = 0;
+
+					const found = walkSelectionSet(
 						fragment.typeCondition.name.value,
 						fragment.selectionSet,
-						depth,
+						0,
 						new Set([...active, name])
 					);
+
+					// How far below the spread this fragment reaches, kept
+					// apart from where the spread happens to sit.
+					const below = deepest;
+					deepest = Math.max(before, depth + below);
+
+					fragmentCosts.set(at, { cost: found, below });
+					cost += found;
 					break;
 				}
 			}

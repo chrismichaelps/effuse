@@ -81,6 +81,30 @@ const TOO_DEEP = `Introspection goes too deep here: at most ${String(MAX_INTROSP
  * stops a walk split across fragments from getting past the limit; a fragment
  * already being followed is left alone, since a cycle is reported elsewhere.
  */
+/**
+ * What each fragment answered, per depth it was read at.
+ *
+ * A fragment named twice was walked twice, so one named twice at each of
+ * twenty levels was walked a million times - a request of a few hundred bytes
+ * that holds a server for as long as it likes while it is being checked.
+ * The answer depends on the fragment and on the depth it is read at, so both
+ * are remembered. Today the per-field check happens to catch a fragment read
+ * deeper than it was first remembered at, so keying by name alone would not
+ * be caught by anything - but depth is an input to this question, and a key
+ * that leaves out an input is wrong the moment the rules around it move.
+ * Depth is bounded, so there is little to remember either way.
+ */
+const depthAnswers = new WeakMap<ValidationContext, Map<string, boolean>>();
+
+const answersFor = (context: ValidationContext): Map<string, boolean> => {
+	const already = depthAnswers.get(context);
+	if (already !== undefined) return already;
+
+	const fresh = new Map<string, boolean>();
+	depthAnswers.set(context, fresh);
+	return fresh;
+};
+
 const walksTooDeep = (
 	context: ValidationContext,
 	selectionSet: SelectionSetNode,
@@ -95,16 +119,22 @@ const walksTooDeep = (
 			const fragment = context.fragments.get(name);
 			if (fragment === undefined) continue;
 
-			if (
-				walksTooDeep(
-					context,
-					fragment.selectionSet,
-					depth,
-					new Set([...following, name])
-				)
-			) {
-				return true;
-			}
+			const answers = answersFor(context);
+			const at = `${name}:${String(depth)}`;
+			const already = answers.get(at);
+
+			if (already === true) return true;
+			if (already === false) continue;
+
+			const found = walksTooDeep(
+				context,
+				fragment.selectionSet,
+				depth,
+				new Set([...following, name])
+			);
+			answers.set(at, found);
+
+			if (found) return true;
 			continue;
 		}
 
