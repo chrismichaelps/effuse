@@ -28,7 +28,11 @@ import type {
 	ValueNode,
 } from '../../language/ast/index.js';
 import { Kind } from '../../language/kinds/index.js';
-import { SCALAR_LITERAL_KINDS } from '../../language/scalar-literals.js';
+import {
+	isWholeNumber,
+	NOT_A_WHOLE_NUMBER,
+	SCALAR_LITERAL_KINDS,
+} from '../../language/scalar-literals.js';
 import type { ValidationContext } from '../context.js';
 import { displayType, isAssignable, namedTypeOf } from '../type-utils.js';
 
@@ -193,6 +197,15 @@ export const checkValue = (
 
 	if (definition?.kind === Kind.INPUT_OBJECT_TYPE_DEFINITION) {
 		checkInputObject(context, value, typeName, subject);
+		return;
+	}
+
+	if (
+		typeName === 'Int' &&
+		value.kind === Kind.INT &&
+		!isWholeNumber(Number(value.value))
+	) {
+		context.report(`${subject} of type "Int" ${NOT_A_WHOLE_NUMBER}`, value);
 		return;
 	}
 

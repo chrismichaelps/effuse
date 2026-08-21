@@ -23,6 +23,10 @@
  */
 
 import type { NexScalars } from './scalars.js';
+import {
+	isWholeNumber,
+	NOT_A_WHOLE_NUMBER,
+} from '../language/scalar-literals.js';
 import { BUILT_IN_SCALARS, type Catalog } from '../catalog/index.js';
 import type {
 	ArgumentNode,
@@ -67,8 +71,7 @@ export const valueFromNode = (
 	}
 };
 
-const isInteger = (value: unknown): boolean =>
-	typeof value === 'number' && Number.isInteger(value);
+const isInteger = (value: unknown): boolean => isWholeNumber(value);
 
 /**
  * Check and convert an incoming value against the type declared for it.
@@ -228,6 +231,17 @@ export const coerceInputValue = (
 		(typeName === 'DateTime' &&
 			(typeof value === 'string' || value instanceof Date)) ||
 		(typeName === 'ID' && (typeof value === 'string' || isInteger(value)));
+
+	if (
+		!accepted &&
+		typeName === 'Int' &&
+		typeof value === 'number' &&
+		Number.isInteger(value)
+	) {
+		return {
+			errors: [`${subject} of type "Int" ${NOT_A_WHOLE_NUMBER}`],
+		};
+	}
 
 	return accepted
 		? { value: typeName === 'ID' ? String(value) : value }

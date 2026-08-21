@@ -32,6 +32,22 @@ import { Kind } from './kinds/index.js';
  * written into the catalog itself. Two copies of this would agree until one
  * of them was changed.
  */
+/**
+ * Whether a number is a whole one that still means what it says.
+ *
+ * Past a certain size two different numbers are the same number here, so one
+ * written beyond it is not the number it looks like - it is whichever
+ * neighbour happened to survive. Taking it would answer with a different
+ * number than the one that was asked about, and say nothing about having done
+ * so, which is worse than refusing it.
+ */
+export const isWholeNumber = (value: unknown): value is number =>
+	typeof value === 'number' && Number.isSafeInteger(value);
+
+/** What to say about a number that cannot be trusted to mean itself. */
+export const NOT_A_WHOLE_NUMBER =
+	'must be a whole number small enough to mean itself';
+
 export const SCALAR_LITERAL_KINDS: Readonly<Record<string, readonly string[]>> =
 	{
 		Int: [Kind.INT],

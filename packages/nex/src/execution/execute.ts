@@ -35,6 +35,7 @@ import type {
 import { Kind } from '../language/kinds/index.js';
 import { BUILT_IN_SCALARS, REFERENCE_FIELD } from '../catalog/index.js';
 import { refFor } from './reference.js';
+import { isWholeNumber } from '../language/scalar-literals.js';
 import type { NexScalars } from './scalars.js';
 import { selectionUnder } from './selection.js';
 import { readNarrowed } from './narrowed.js';
@@ -317,14 +318,10 @@ export const executeOperation = async <TContext>(
 		switch (typeName) {
 			case 'ID':
 				if (typeof value === 'string') return value;
-				if (typeof value === 'number' && Number.isInteger(value)) {
-					return String(value);
-				}
+				if (isWholeNumber(value)) return String(value);
 				return refuse();
 			case 'Int':
-				return typeof value === 'number' && Number.isInteger(value)
-					? value
-					: refuse();
+				return isWholeNumber(value) ? value : refuse();
 			case 'Float':
 				return typeof value === 'number' && Number.isFinite(value)
 					? value
