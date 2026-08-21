@@ -36,6 +36,7 @@ import { Kind } from '../language/kinds/index.js';
 import { BUILT_IN_SCALARS, REFERENCE_FIELD } from '../catalog/index.js';
 import { refFor } from './reference.js';
 import type { NexScalars } from './scalars.js';
+import { selectionUnder } from './selection.js';
 import type { NexDirectives } from './directives.js';
 import {
 	isCompositeName,
@@ -58,7 +59,6 @@ import {
 	resolveTypeName,
 	type FieldResolver,
 	type ResolverInfo,
-	type SelectedField,
 	type Resolvers,
 } from './resolvers.js';
 import {
@@ -332,55 +332,6 @@ export const executeOperation = async <TContext>(
 	 * against the type they belong to rather than against whatever was last
 	 * seen. A field with nothing below it ends the walk.
 	 */
-	const selectionUnder = (
-		typeName: string,
-		selectionSet: SelectionSetNode | undefined
-	): readonly SelectedField[] => {
-		if (selectionSet === undefined) return [];
-
-		const collected = collectFields(
-			plan.catalog,
-			typeName,
-			selectionSet,
-			plan.variables,
-			plan.fragments
-		);
-
-		const selected: SelectedField[] = [];
-
-		for (const [responseKey, nodes] of collected) {
-			const node = nodes[0];
-			if (node === undefined) continue;
-
-			const name = node.name.value;
-			const declared = plan.catalog.getField(typeName, name);
-
-			selected.push({
-				name,
-				alias: responseKey,
-				arguments:
-					declared === undefined
-						? NO_ARGUMENTS
-						: coerceArgumentValues(
-								declared,
-								node.arguments,
-								plan.variables,
-								plan.catalog,
-								plan.scalars ?? {}
-							),
-				fields:
-					declared === undefined
-						? []
-						: selectionUnder(
-								namedTypeOf(declared.type),
-								mergeSelectionSets(nodes)
-							),
-			});
-		}
-
-		return selected;
-	};
-
 	/**
 	 * Run a field through the directives it carries, outermost first.
 	 *
@@ -697,6 +648,7 @@ export const executeOperation = async <TContext>(
 			...(plan.signal === undefined ? {} : { signal: plan.signal }),
 			selection: () =>
 				selectionUnder(
+					plan,
 					namedTypeOf(definition.type),
 					mergeSelectionSets(fields)
 				),

@@ -88,3 +88,4 @@ export type {
 	NexDirective,
 	NexDirectives,
 } from './directives.js';
+export { selectionUnder, type SelectionContext } from './selection.js';
