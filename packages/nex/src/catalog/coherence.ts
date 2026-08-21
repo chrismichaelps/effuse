@@ -24,6 +24,7 @@
 
 import { NexCatalogError } from '../errors/index.js';
 import type {
+	DirectiveNode,
 	FieldDefinitionNode,
 	InputValueDefinitionNode,
 	InterfaceTypeDefinitionNode,
@@ -35,8 +36,22 @@ import { Kind, OperationType } from '../language/kinds/index.js';
 import { printType } from '../language/printer/index.js';
 import { BUILT_IN_SCALARS } from './built-in-scalars.js';
 import { DEFAULT_IDENTITY_FIELD } from './catalog.js';
+import {
+	DIRECTIVE_LOCATION_LABELS,
+	DirectiveLocation,
+} from './directive-locations.js';
 
 const IDENTITY_DIRECTIVE = 'identity';
+
+/** Where each kind of type definition counts as, for a directive. */
+const TYPE_LOCATIONS: Readonly<Record<string, DirectiveLocation>> = {
+	[Kind.SCALAR_TYPE_DEFINITION]: DirectiveLocation.SCALAR,
+	[Kind.OBJECT_TYPE_DEFINITION]: DirectiveLocation.OBJECT,
+	[Kind.INTERFACE_TYPE_DEFINITION]: DirectiveLocation.INTERFACE,
+	[Kind.UNION_TYPE_DEFINITION]: DirectiveLocation.UNION,
+	[Kind.ENUM_TYPE_DEFINITION]: DirectiveLocation.ENUM,
+	[Kind.INPUT_OBJECT_TYPE_DEFINITION]: DirectiveLocation.INPUT_OBJECT,
+};
 import type { CatalogIndex } from './index-definitions.js';
 import { unwrapType } from './named-type.js';
 
@@ -460,6 +475,98 @@ export const checkCoherence = (
 		}
 
 		if (!hasQuery) report('A catalog must define a query root type');
+	}
+
+	/**
+	 * A directive a catalog writes has to exist, and belong where it is.
+	 *
+	 * Requests are already held to this. Catalogs were not, so `@depreacted`
+	 * was accepted and did nothing - and a warning nothing reads is worse than
+	 * no warning, because it looks like one was given.
+	 */
+	const checkDirectiveUse = (
+		directives: readonly DirectiveNode[] | undefined,
+		location: DirectiveLocation,
+		subject: string
+	): void => {
+		for (const written of directives ?? []) {
+			const directiveName = written.name.value;
+			const declared = index.directives.get(directiveName);
+
+			if (declared === undefined) {
+				report(
+					`"@${directiveName}" is not defined, so ${subject} carries nothing`,
+					written.loc
+				);
+				continue;
+			}
+
+			if (!declared.locations.some((allowed) => allowed.value === location)) {
+				report(
+					`"@${directiveName}" cannot be written on ${DIRECTIVE_LOCATION_LABELS[location] ?? location}`,
+					written.loc
+				);
+			}
+		}
+	};
+
+	if (index.schemaDefinition !== undefined) {
+		checkDirectiveUse(
+			index.schemaDefinition.directives,
+			DirectiveLocation.SCHEMA,
+			'the schema block'
+		);
+	}
+
+	for (const [name, definition] of index.types) {
+		const on = TYPE_LOCATIONS[definition.kind];
+		if (on !== undefined) {
+			checkDirectiveUse(definition.directives, on, `"${name}"`);
+		}
+
+		if (
+			definition.kind === Kind.OBJECT_TYPE_DEFINITION ||
+			definition.kind === Kind.INTERFACE_TYPE_DEFINITION
+		) {
+			for (const field of definition.fields ?? []) {
+				const coordinate = `${name}.${field.name.value}`;
+				checkDirectiveUse(
+					field.directives,
+					DirectiveLocation.FIELD_DEFINITION,
+					`"${coordinate}"`
+				);
+
+				for (const argument of field.arguments ?? []) {
+					checkDirectiveUse(
+						argument.directives,
+						DirectiveLocation.ARGUMENT_DEFINITION,
+						`"${coordinate}(${argument.name.value}:)"`
+					);
+				}
+			}
+			continue;
+		}
+
+		if (definition.kind === Kind.ENUM_TYPE_DEFINITION) {
+			for (const value of definition.values ?? []) {
+				checkDirectiveUse(
+					value.directives,
+					DirectiveLocation.ENUM_VALUE,
+					`"${name}.${value.name.value}"`
+				);
+			}
+			continue;
+		}
+
+		if (definition.kind === Kind.INPUT_OBJECT_TYPE_DEFINITION) {
+			for (const field of definition.fields ?? []) {
+				checkDirectiveUse(
+					field.directives,
+					DirectiveLocation.INPUT_FIELD_DEFINITION,
+					`"${name}.${field.name.value}"`
+				);
+			}
+		}
 	}
 
 	/**
