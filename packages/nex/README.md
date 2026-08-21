@@ -732,11 +732,9 @@ composeServices({ shop: shopService }, { scalars });
 What a service sends has already been written by its own scalars, so it is
 read back into the form this graph holds values in, and written once.
 
-A pipeline is applied here rather than there: a paged field asks its service
-for the rows and pages them at this end. That is correct and it is not free -
-a service is asked for every row a field can answer with, so put the
-narrowing a service can do into its own arguments rather than relying on a
-pipeline to do it after the fact.
+A pipeline goes out with the request. A paged field asks its service for the
+page rather than for every row and pages them here, and what comes back is
+taken as already narrowed rather than narrowed again.
 
 A service that can stream serves live operations too. Give it a `subscribe`
 alongside `request` and its live fields are watched the same way its query
@@ -1008,6 +1006,28 @@ Fragments have been followed and `@skip` and `@include` applied, so this is
 what the response will carry rather than what was typed. It is worked out when
 called and not before: a resolver that does not care pays nothing, which is
 what keeps the field that has no resolver at all free.
+
+## Pushing the narrowing down
+
+A resolver is told the pipeline stages written on its field, as they were
+written. A source that can narrow for itself - a database that can `LIMIT`, a
+service that can page - should be given them rather than handed every row and
+narrowed afterwards:
+
+```ts
+posts: (_source, _args, _context, info) => {
+  // info.pipeline is ['sort rank asc', 'page first: 10']
+  return alreadyNarrowed(await db.posts.page(info.pipeline));
+};
+```
+
+`alreadyNarrowed` says the stages have been applied, so they are not applied a
+second time here - narrowing what is already narrowed would answer with a page
+of a page. What is inside is taken as the finished shape of the field, rows or
+page, and its rows are completed the way any rows are.
+
+Nested fields carry their own stages the same way, on each entry of
+`info.selection()`.
 
 ## Asking a source once
 
